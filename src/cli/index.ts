@@ -11,7 +11,6 @@ import { log } from "../logger";
 import { loadGlobalPreferences } from "../shared/global-preferences";
 import { startWorktreeServer } from "../server/index";
 import { findConfigFile, loadConfig } from "./config";
-import { promptAndInstallApp } from "./install-app";
 
 const cliDir = path.dirname(fileURLToPath(import.meta.url));
 const LOCK_FILE = path.join(os.homedir(), CONFIG_DIR_NAME, "electron.lock");
@@ -67,6 +66,7 @@ async function openUI(port: number): Promise<void> {
     });
     child.unref();
   } else if (process.stdin.isTTY) {
+    const { promptAndInstallApp } = await import("./install-app");
     const installed = await promptAndInstallApp(port);
     if (!installed) {
       log.info(`Server running at http://localhost:${port}`);

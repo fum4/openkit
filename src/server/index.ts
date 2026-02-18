@@ -169,7 +169,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
 
 /**
  * Ensure the dawg CLI is available in PATH.
- * If not found, creates a symlink in ~/.local/bin/ pointing to the CLI entry point.
+ * If not found, creates a shell wrapper in ~/.local/bin/ pointing to the CLI entry point.
  */
 function ensureCliInPath() {
   try {
@@ -188,6 +188,8 @@ function ensureCliInPath() {
 
   const binDir = path.join(os.homedir(), ".local", "bin");
   const wrapperPath = path.join(binDir, APP_NAME);
+  const runtimePath = process.execPath;
+  const needsElectronNodeMode = Boolean(process.versions.electron);
 
   try {
     if (!existsSync(binDir)) {
@@ -199,8 +201,12 @@ function ensureCliInPath() {
       unlinkSync(wrapperPath);
     }
 
-    // Write a shell wrapper that calls node with the built CLI
-    writeFileSync(wrapperPath, `#!/bin/sh\nexec node "${builtCliPath}" "$@"\n`, { mode: 0o755 });
+    // Write a shell wrapper that calls the current runtime with the built CLI.
+    // In packaged Electron builds, force Electron to run in Node mode.
+    const wrapperBody = needsElectronNodeMode
+      ? `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "${runtimePath}" "${builtCliPath}" "$@"\n`
+      : `#!/bin/sh\nexec "${runtimePath}" "${builtCliPath}" "$@"\n`;
+    writeFileSync(wrapperPath, wrapperBody, { mode: 0o755 });
     log.success(`Installed ${APP_NAME} CLI → ${wrapperPath}`);
 
     // Check if ~/.local/bin is actually in PATH

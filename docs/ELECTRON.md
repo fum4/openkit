@@ -96,7 +96,7 @@ Each project gets:
 
 - A unique ID derived from a hash of its absolute directory path
 - An allocated port (incrementing from the base port)
-- A spawned dawg server process (`node dist/cli/index.js --no-open`)
+- A spawned dawg server process (`<runtime> dist/cli/index.js --no-open`)
 - A status lifecycle: `starting` -> `running` | `error` -> `stopped`
 
 The project name is resolved from the project's `package.json` name field, falling back to the directory name.
@@ -105,7 +105,7 @@ The project name is resolved from the project's `package.json` name field, falli
 
 `ServerSpawner` (`electron/server-spawner.ts`) handles the process lifecycle:
 
-- **Spawn**: Runs `node <cliPath> --no-open` with `DAWG_PORT` and `DAWG_NO_OPEN` environment variables set. The CLI path is resolved relative to the Electron app's location, with `app.asar` replaced by `app.asar.unpacked` for packaged builds (since external Node cannot read from asar archives).
+- **Spawn**: Runs `<runtime> <cliPath> --no-open` with `DAWG_PORT` and `DAWG_NO_OPEN` environment variables set. In packaged builds, it uses the app's own Electron binary in Node mode (`ELECTRON_RUN_AS_NODE=1`) so the CLI can resolve dependencies from `app.asar`.
 - **Readiness check**: Polls `GET http://localhost:<port>/api/config` every 500ms until it responds with HTTP 200, with a 30-second timeout.
 - **Shutdown**: Sends `SIGTERM` for graceful shutdown, then `SIGKILL` after 5 seconds if the process has not exited.
 
@@ -261,7 +261,7 @@ productName: dawg
 ### Packaging Details
 
 - **asar**: Enabled. The app is bundled into an asar archive for faster loading.
-- **asarUnpack**: `dist/*.js` and `dist/cli/**` are unpacked from the asar archive. This is required because the Electron main process spawns `node dist/cli/index.js` as a child process, and external Node cannot read files inside asar archives.
+- **asarUnpack**: `dist/*.js`, `dist/cli/**`, and `node_modules/node-pty/**` are unpacked from the asar archive (configured in `electron-builder.yml`).
 - **extraResources**: `dist/runtime` (containing `port-hook.cjs`) is copied to the `runtime` resource directory.
 - **Included files**: `dist/**/*`, `node_modules/**/*`, `package.json`
 - **Output directory**: `release/`

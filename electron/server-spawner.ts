@@ -14,29 +14,30 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 // In prod, we're in dist/electron/ directory
 const isDev = currentDir.includes("/electron") && !currentDir.includes("/dist/");
 const projectRoot = isDev ? path.resolve(currentDir, "..") : path.resolve(currentDir, "..", "..");
+const isPackaged = projectRoot.includes("app.asar");
 
 export function spawnServer(projectDir: string, port: number): ChildProcess {
   // Path to the CLI entry point
-  // In packaged app, files are in app.asar.unpacked since external node can't read asar
-  const cliPath = path
-    .join(projectRoot, "dist", "cli", "index.js")
-    .replace("app.asar", "app.asar.unpacked");
+  const cliPath = path.join(projectRoot, "dist", "cli", "index.js");
+  const runtime = isPackaged ? process.execPath : "node";
 
   // --no-open: don't open browser/electron
   const args = ["--no-open"];
 
   debug(`--- spawn ---`);
   debug(`cliPath: ${cliPath}`);
+  debug(`runtime: ${runtime}`);
   debug(`projectDir: ${projectDir}`);
   debug(`port: ${port}`);
   debug(`PATH: ${process.env.PATH}`);
 
-  const child = spawn("node", [cliPath, ...args], {
+  const child = spawn(runtime, [cliPath, ...args], {
     cwd: projectDir,
     env: {
       ...process.env,
       DAWG_PORT: String(port),
       DAWG_NO_OPEN: "1",
+      ...(isPackaged ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
     },
     detached: false,
     stdio: ["ignore", "pipe", "pipe"],
