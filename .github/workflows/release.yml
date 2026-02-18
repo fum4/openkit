@@ -54,7 +54,13 @@ jobs:
       - name: Resolve release tag
         id: release_tag
         run: |
-          echo "tag=v$(node -p 'JSON.parse(require(\"fs\").readFileSync(\"package.json\", \"utf8\")).version')" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          if [ -z "$version" ]; then
+            echo "Failed to resolve package version for release tag" >&2
+            exit 1
+          fi
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
   macos-assets:
     needs: publish
