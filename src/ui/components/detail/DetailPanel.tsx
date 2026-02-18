@@ -6,8 +6,8 @@ import { useApi } from "../../hooks/useApi";
 import { action, border, detailTab, errorBanner, input, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { GitHubIcon } from "../icons";
+import { Modal } from "../Modal";
 import { DetailHeader } from "./DetailHeader";
-import { GitActionInputs } from "./GitActionInputs";
 import { LogsViewer } from "./LogsViewer";
 import { TerminalView } from "./TerminalView";
 import { HooksTab } from "./HooksTab";
@@ -272,223 +272,138 @@ export function DetailPanel({
           </div>
 
           <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end ml-3">
-            {showCommitInput ? (
-              <>
-                <input
-                  type="text"
-                  value={commitMessage}
-                  onChange={(e) => setCommitMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCommit();
-                    if (e.key === "Escape") setShowCommitInput(false);
-                  }}
-                  placeholder="Commit message..."
-                  className={`w-72 h-7 px-2.5 bg-white/[0.04] border border-white/[0.08] rounded-md ${input.text} placeholder-[#4b5563] text-xs focus:outline-none focus:bg-white/[0.06] focus:border-white/[0.15] transition-all duration-150`}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCommitInput(false)}
-                  className={`h-7 px-2 text-[11px] font-medium ${action.cancel.text} ${action.cancel.textHover} rounded-md transition-colors duration-150 flex-shrink-0`}
+            {worktree.hasUncommitted && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCommitInput(true);
+                  setShowCreatePrInput(false);
+                }}
+                disabled={isGitLoading}
+                className={`h-7 px-2.5 text-[11px] font-medium ${action.commit.text} ${action.commit.hover} hover:text-white rounded-md disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-3.5 h-3.5"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCommit}
-                  disabled={isGitLoading || !commitMessage.trim()}
-                  className={`h-7 px-2.5 text-[11px] font-medium ${action.commit.textActive} ${action.commit.bgSubmit} ${action.commit.bgSubmitHover} rounded-md disabled:opacity-50 transition-colors duration-150 active:scale-[0.98] flex-shrink-0`}
-                >
-                  {isGitLoading && gitAction === "commit" ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="w-3.5 h-3.5 animate-spin"
-                      >
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          opacity="0.3"
-                        />
-                        <path
-                          d="M22 12a10 10 0 0 0-10-10"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      Committing...
-                    </span>
-                  ) : (
-                    "Commit"
-                  )}
-                </button>
-              </>
-            ) : (
-              <>
-                {worktree.hasUncommitted && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCommitInput(true);
-                      setShowCreatePrInput(false);
-                    }}
-                    disabled={isGitLoading}
-                    className={`h-7 px-2.5 text-[11px] font-medium ${action.commit.text} ${action.commit.hover} rounded-md disabled:opacity-50 transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
-                  >
+                  <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
+                  <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25h5a.75.75 0 0 0 0-1.5h-5A2.75 2.75 0 0 0 2 5.75v8.5A2.75 2.75 0 0 0 4.75 17h8.5A2.75 2.75 0 0 0 16 14.25v-5a.75.75 0 0 0-1.5 0v5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-8.5Z" />
+                </svg>
+                Commit
+              </button>
+            )}
+            {worktree.hasUnpushed && (
+              <button
+                type="button"
+                onClick={handlePush}
+                disabled={isGitLoading}
+                className={`h-7 px-2.5 text-[11px] font-medium ${action.push.text} ${action.push.hover} hover:text-white rounded-md disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
+              >
+                {isGitLoading && gitAction === "push" ? (
+                  <>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="w-3.5 h-3.5 animate-spin"
+                    >
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        opacity="0.3"
+                      />
+                      <path
+                        d="M22 12a10 10 0 0 0-10-10"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    Pushing...
+                  </>
+                ) : (
+                  <>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 20 20"
                       fill="currentColor"
                       className="w-3.5 h-3.5"
                     >
-                      <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
-                      <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25h5a.75.75 0 0 0 0-1.5h-5A2.75 2.75 0 0 0 2 5.75v8.5A2.75 2.75 0 0 0 4.75 17h8.5A2.75 2.75 0 0 0 16 14.25v-5a.75.75 0 0 0-1.5 0v5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-8.5Z" />
+                      <path
+                        fillRule="evenodd"
+                        d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z"
+                        clipRule="evenodd"
+                      />
                     </svg>
-                    Commit
-                  </button>
+                    Push{worktree.commitsAhead ? ` (${worktree.commitsAhead})` : ""}
+                  </>
                 )}
-                {worktree.hasUnpushed && (
+              </button>
+            )}
+            {!worktree.githubPrUrl &&
+              !worktree.hasUnpushed &&
+              worktree.commitsAheadOfBase !== 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreatePrInput(true);
+                    setShowCommitInput(false);
+                  }}
+                  disabled={isGitLoading}
+                  className={`h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5 ${
+                    showCreatePrInput
+                      ? `${action.pr.textActive} ${action.pr.bgActive}`
+                      : `${action.pr.text} ${action.pr.hover} hover:text-white`
+                  } disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default`}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    className="w-3.5 h-3.5"
+                  >
+                    <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z" />
+                  </svg>
+                  Open PR
+                </button>
+              )}
+            {worktree.githubPrUrl && (
+              <a
+                href={worktree.githubPrUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`group h-7 px-2.5 text-[11px] font-medium ${action.pr.text} ${action.pr.hover} hover:text-white rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
+              >
+                <GitHubIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-white" />
+                View PR
+              </a>
+            )}
+            {!worktree.jiraUrl && !worktree.linearUrl && !worktree.localIssueId && (
+              <>
+                {onCreateTask && (
                   <button
                     type="button"
-                    onClick={handlePush}
-                    disabled={isGitLoading}
-                    className={`h-7 px-2.5 text-[11px] font-medium ${action.push.text} ${action.push.hover} rounded-md disabled:opacity-50 transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
+                    onClick={() => onCreateTask(worktree.id)}
+                    className={`h-7 px-2.5 text-[11px] font-medium ${text.muted} hover:${text.secondary} hover:bg-white/[0.06] rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
                   >
-                    {isGitLoading && gitAction === "push" ? (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          className="w-3.5 h-3.5 animate-spin"
-                        >
-                          <circle
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            opacity="0.3"
-                          />
-                          <path
-                            d="M22 12a10 10 0 0 0-10-10"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                        Pushing...
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          className="w-3.5 h-3.5"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        Push{worktree.commitsAhead ? ` (${worktree.commitsAhead})` : ""}
-                      </>
-                    )}
+                    <ListTodo className="w-3.5 h-3.5" />
+                    Create Task
                   </button>
                 )}
-                {!worktree.githubPrUrl &&
-                  !worktree.hasUnpushed &&
-                  worktree.commitsAheadOfBase !== 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowCreatePrInput((v) => !v);
-                        setShowCommitInput(false);
-                      }}
-                      disabled={isGitLoading}
-                      className={`h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5 ${
-                        showCreatePrInput
-                          ? `${action.pr.textActive} ${action.pr.bgActive}`
-                          : `${action.pr.text} ${action.pr.hover}`
-                      } disabled:opacity-50`}
-                    >
-                      {isGitLoading && gitAction === "pr" ? (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          className="w-3.5 h-3.5 animate-spin"
-                        >
-                          <circle
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            opacity="0.3"
-                          />
-                          <path
-                            d="M22 12a10 10 0 0 0-10-10"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 16 16"
-                          fill="currentColor"
-                          className="w-3.5 h-3.5"
-                        >
-                          <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z" />
-                        </svg>
-                      )}
-                      {isGitLoading && gitAction === "pr" ? "Creating..." : "PR"}
-                    </button>
-                  )}
-                {worktree.githubPrUrl && (
-                  <a
-                    href={worktree.githubPrUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`group h-7 px-2.5 text-[11px] font-medium ${action.pr.text} ${action.pr.hover} rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
+                {onLinkIssue && (
+                  <button
+                    type="button"
+                    onClick={() => onLinkIssue(worktree.id)}
+                    className={`h-7 px-2.5 text-[11px] font-medium ${text.muted} hover:${text.secondary} hover:bg-white/[0.06] rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
                   >
-                    <GitHubIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-white" />
-                    View PR
-                  </a>
-                )}
-                {!worktree.jiraUrl && !worktree.linearUrl && !worktree.localIssueId && (
-                  <>
-                    {onCreateTask && (
-                      <button
-                        type="button"
-                        onClick={() => onCreateTask(worktree.id)}
-                        className={`h-7 px-2.5 text-[11px] font-medium ${text.muted} hover:${text.secondary} hover:bg-white/[0.06] rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
-                      >
-                        <ListTodo className="w-3.5 h-3.5" />
-                        Create Task
-                      </button>
-                    )}
-                    {onLinkIssue && (
-                      <button
-                        type="button"
-                        onClick={() => onLinkIssue(worktree.id)}
-                        className={`h-7 px-2.5 text-[11px] font-medium ${text.muted} hover:${text.secondary} hover:bg-white/[0.06] rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
-                      >
-                        <Link className="w-3.5 h-3.5" />
-                        Link Issue
-                      </button>
-                    )}
-                  </>
+                    <Link className="w-3.5 h-3.5" />
+                    Link Issue
+                  </button>
                 )}
               </>
             )}
@@ -496,20 +411,110 @@ export function DetailPanel({
         </div>
       )}
 
-      <GitActionInputs
-        showCommitInput={false}
-        showCreatePrInput={showCreatePrInput}
-        commitMessage={commitMessage}
-        prTitle={prTitle}
-        isGitLoading={isGitLoading}
-        loadingAction={gitAction}
-        onCommitMessageChange={setCommitMessage}
-        onPrTitleChange={setPrTitle}
-        onCommit={handleCommit}
-        onCreatePr={handleCreatePr}
-        onHideCommit={() => setShowCommitInput(false)}
-        onHidePr={() => setShowCreatePrInput(false)}
-      />
+      {showCommitInput && (
+        <Modal
+          title="Commit Changes"
+          icon={
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="w-4 h-4 text-white"
+            >
+              <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
+              <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25h5a.75.75 0 0 0 0-1.5h-5A2.75 2.75 0 0 0 2 5.75v8.5A2.75 2.75 0 0 0 4.75 17h8.5A2.75 2.75 0 0 0 16 14.25v-5a.75.75 0 0 0-1.5 0v5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-8.5Z" />
+            </svg>
+          }
+          width="md"
+          onClose={() => setShowCommitInput(false)}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleCommit();
+          }}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowCommitInput(false)}
+                className={`px-3 py-1.5 text-xs rounded-lg ${action.cancel.text} ${action.cancel.textHover} transition-colors`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isGitLoading || !commitMessage.trim()}
+                className={`px-3 py-1.5 text-xs font-medium ${action.commit.textActive} ${action.commit.bgSubmit} ${action.commit.bgSubmitHover} rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
+              >
+                {isGitLoading && gitAction === "commit" ? "Committing..." : "Commit"}
+              </button>
+            </>
+          }
+        >
+          <input
+            type="text"
+            value={commitMessage}
+            onChange={(e) => setCommitMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setShowCommitInput(false);
+            }}
+            placeholder="Commit message..."
+            className={`w-full px-3 py-2 ${input.bgDetail} border ${border.modal} rounded-lg ${input.text} text-xs placeholder-[#4b5563] focus:outline-none focus:${border.focusPrimary} focus-visible:ring-1 ${input.ring} transition-colors duration-150`}
+            autoFocus
+          />
+        </Modal>
+      )}
+
+      {showCreatePrInput && (
+        <Modal
+          title="Open Pull Request"
+          icon={
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              className="w-4 h-4 text-white"
+            >
+              <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z" />
+            </svg>
+          }
+          width="md"
+          onClose={() => setShowCreatePrInput(false)}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleCreatePr();
+          }}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowCreatePrInput(false)}
+                className={`px-3 py-1.5 text-xs rounded-lg ${action.cancel.text} ${action.cancel.textHover} transition-colors`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isGitLoading || !prTitle.trim()}
+                className={`px-3 py-1.5 text-xs font-medium ${action.pr.textActive} ${action.pr.bgSubmit} ${action.pr.bgSubmitHover} rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
+              >
+                {isGitLoading && gitAction === "pr" ? "Creating..." : "Open PR"}
+              </button>
+            </>
+          }
+        >
+          <input
+            type="text"
+            value={prTitle}
+            onChange={(e) => setPrTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setShowCreatePrInput(false);
+            }}
+            placeholder="PR title..."
+            className={`w-full px-3 py-2 ${input.bgDetail} border ${border.modal} rounded-lg ${input.text} text-xs placeholder-[#4b5563] focus:outline-none focus:${border.focusPrimary} focus-visible:ring-1 ${input.ring} transition-colors duration-150`}
+            autoFocus
+          />
+        </Modal>
+      )}
 
       <LogsViewer
         worktree={worktree}

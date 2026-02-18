@@ -2,9 +2,9 @@
 
 ## Overview
 
-Hooks are automated checks and agent skills that run at defined points in a worktree's lifecycle. They provide a structured way to validate work, enforce quality standards, and extend agent behavior through shell commands and imported skills.
+Hooks are automated checks, prompt instructions, and agent skills that run at defined points in a worktree's lifecycle. They provide a structured way to validate work and extend agent behavior.
 
-Hooks are organized by **trigger type** -- when they fire relative to agent work. Each trigger type can contain both **command steps** (shell commands) and **skill references** (agent skills from the registry).
+Hooks are organized by **trigger type** -- when they fire relative to agent work. Each trigger type can contain **command steps**, **prompt steps**, and **skill references**.
 
 The hooks system is configured through the web UI's Hooks view and stored in `.dawg/.dawg/hooks.json`.
 
@@ -42,6 +42,14 @@ References to skills from the `~/.dawg/skills/` registry. When hooks run, skill 
 - The same skill can be used in multiple trigger types (e.g., a code-review skill in both `post-implementation` and `on-demand`).
 - Skills are identified by the composite key `skillName + trigger`.
 - Custom-trigger skills include a `condition` field -- a natural-language description of when the agent should invoke them.
+
+### Prompt Steps
+
+Prompt steps are plain-language instructions sent to the agent (not shell commands). They are configured in hooks and rendered into `TASK.md` so agents execute them at the appropriate hook phase.
+
+- Stored as hook steps with `kind: "prompt"` and `prompt` text.
+- Prompt steps are never executed via `run_hooks`.
+- Prompt steps are available for pre/post/custom triggers (not on-demand).
 
 ### Per-Issue Skill Overrides
 
@@ -106,6 +114,8 @@ Hooks configuration is stored in `.dawg/.dawg/hooks.json`:
 | `id`        | string      | Unique identifier (auto-generated: `step-{timestamp}-{counter}`) |
 | `name`      | string      | Human-readable name shown in the UI                              |
 | `command`   | string      | Shell command to execute in the worktree directory               |
+| `kind`      | string      | `"command"` (default) or `"prompt"`                              |
+| `prompt`    | string      | Prompt text for `kind: "prompt"`                                 |
 | `enabled`   | boolean     | Whether this step is active (default: `true`)                    |
 | `trigger`   | HookTrigger | When this step runs (default: `post-implementation`)             |
 | `condition` | string      | Natural-language condition for `custom` trigger type             |
@@ -125,7 +135,7 @@ Hooks configuration is stored in `.dawg/.dawg/hooks.json`:
 
 The Hooks view (top navigation) is the configuration interface. Users can:
 
-1. Add command steps or import skills into any trigger type section.
+1. Add command steps, prompt steps (pre/post/custom), or import skills into trigger sections.
 2. Toggle individual items on/off.
 3. Edit command step names, commands, and conditions.
 4. Remove items.
@@ -135,7 +145,7 @@ The worktree detail panel's **Hooks** tab triggers hook runs for a specific work
 Each hook item shows its state visually:
 
 - **Not yet run** -- dashed border, no background.
-- **Running** -- solid border, circular progress spinner (Loader2) in the status icon position.
+- **Running** -- dashed border, no card background, with a circular spinner (Loader2).
 - **Completed** -- solid border with card background, showing pass/fail status icon (CheckCircle/XCircle).
 - **Disabled** -- solid border with card background, reduced opacity.
 
@@ -146,10 +156,10 @@ Real-time updates: When agents report hook results via `report_hook_status`, the
 Agents interact with hooks through the following workflow:
 
 1. Call `get_hooks_config` immediately after entering a worktree to discover all trigger types.
-2. Run `pre-implementation` hooks before starting work (command steps via `run_hooks`, skills invoked directly).
+2. Run `pre-implementation` hooks before starting work (`run_hooks` with `trigger: "pre-implementation"` for commands; prompt steps and skills invoked directly).
 3. While working, check `custom` hook conditions — if changes match a condition, run those hooks.
-4. Run `post-implementation` hooks after completing work.
-5. Report skill results back via `report_hook_status` (call twice: once before invoking without `success`/`summary` to show loading, once after with the result). For skills with detailed output, write an MD file to `{worktreePath}/.dawg-{skillName}.md` and pass the path via `filePath`.
+4. Run `post-implementation` hooks after completing work (`run_hooks` with `trigger: "post-implementation"` for commands).
+5. Report skill results back via `report_hook_status` (call twice: once before invoking without `success`/`summary` to show loading, once after with the result). Include `trigger` when reporting. For skills with detailed output, write an MD file to `{worktreePath}/.dawg-{skillName}.md` and pass the path via `filePath`.
 6. Call `get_hooks_status` to verify all steps passed.
 7. After all work and hooks are done, ask the user if they'd like to start the worktree dev server automatically (via `start_worktree`).
 
@@ -158,9 +168,10 @@ Agents interact with hooks through the following workflow:
 When hooks are triggered for a worktree:
 
 1. The `HooksManager` filters steps by the target trigger type and enabled state.
-2. All matching command steps run in parallel via `execFile` in the worktree directory.
-3. Results are collected and persisted to `.dawg/.dawg/worktrees/{worktreeId}/hooks/latest-run.json`.
-4. Skill results are reported separately by agents and stored at `.dawg/.dawg/worktrees/{worktreeId}/hooks/skill-results.json`.
+2. All matching enabled command steps run in parallel via `execFile` in the worktree directory.
+3. Prompt steps are skipped by runtime execution and interpreted by the agent from `TASK.md`.
+4. Results are collected and persisted to `.dawg/.dawg/worktrees/{worktreeId}/hooks/latest-run.json`.
+5. Skill results are reported separately by agents and stored at `.dawg/.dawg/worktrees/{worktreeId}/hooks/skill-results.json` using key `skillName + trigger`.
 
 ## Data Storage
 
@@ -181,17 +192,17 @@ When hooks are triggered for a worktree:
 | -------- | ---------------------------------------- | ------------------------------------------------------------------------------ |
 | `GET`    | `/api/hooks/config`                      | Get hooks configuration                                                        |
 | `PUT`    | `/api/hooks/config`                      | Save full hooks configuration                                                  |
-| `POST`   | `/api/hooks/steps`                       | Add a command step (`{ name, command }`)                                       |
-| `PATCH`  | `/api/hooks/steps/:stepId`               | Update a step (`{ name?, command?, enabled?, trigger? }`)                      |
+| `POST`   | `/api/hooks/steps`                       | Add a step (`{ name, command, kind? }` or `{ name, kind: "prompt", prompt }`) |
+| `PATCH`  | `/api/hooks/steps/:stepId`               | Update a step (`{ name?, command?, prompt?, kind?, enabled?, trigger? }`)      |
 | `DELETE` | `/api/hooks/steps/:stepId`               | Remove a step                                                                  |
 | `POST`   | `/api/hooks/skills/import`               | Import a skill (`{ skillName, trigger?, condition? }`)                         |
 | `GET`    | `/api/hooks/skills/available`            | List available skills from registry                                            |
 | `PATCH`  | `/api/hooks/skills/:name`                | Toggle a skill (`{ enabled, trigger? }`)                                       |
 | `DELETE` | `/api/hooks/skills/:name`                | Remove a skill (`?trigger=` query param)                                       |
-| `POST`   | `/api/worktrees/:id/hooks/run`           | Run all enabled steps for a worktree                                           |
+| `POST`   | `/api/worktrees/:id/hooks/run`           | Run enabled command steps for a worktree (`{ trigger? }`)                      |
 | `POST`   | `/api/worktrees/:id/hooks/run/:stepId`   | Run a single step                                                              |
 | `GET`    | `/api/worktrees/:id/hooks/status`        | Get latest run status                                                          |
-| `POST`   | `/api/worktrees/:id/hooks/report`        | Report a skill result (`{ skillName, success, summary, content?, filePath? }`) |
+| `POST`   | `/api/worktrees/:id/hooks/report`        | Report a skill result (`{ skillName, trigger?, success, summary, ... }`)       |
 | `GET`    | `/api/worktrees/:id/hooks/skill-results` | Get skill results for a worktree                                               |
 | `GET`    | `/api/files/read?path=...`               | Read a file by absolute path (used for MD report preview)                      |
 
@@ -218,11 +229,11 @@ Registered via `registerHooksRoutes(app, manager, hooksManager)` in the server s
 The top-level Hooks view. Displays four sections (one per trigger type), each containing:
 
 - A header with icon, title, and description.
-- Command step cards (editable, toggleable, removable).
+- Command/prompt step cards (editable, toggleable, removable).
 - Skill cards (toggleable, removable).
-- "Add command" and "Add skill" action buttons (mutually exclusive -- opening one closes the other).
+- "Add command", "Add skill", and (pre/post) "Add prompt" action buttons (mutually exclusive forms).
 
-Custom-trigger sections show an additional condition textarea for both command steps and skill imports.
+Custom-trigger sections support grouped condition-based commands, prompts, and skills in a single editor.
 
 ### useHooksConfig (`src/ui/hooks/useHooks.ts`)
 
@@ -241,5 +252,5 @@ When a skill result includes a `filePath`, the HooksTab shows a "View report" li
 The Agents section in issue detail panels (Linear, Jira, Local) includes a Hooks tab that shows:
 
 - Steps and skills grouped by trigger type (pre-implementation, post-implementation only -- on-demand hooks are not shown).
-- Command steps displayed read-only (name + command).
+- Command and prompt steps displayed read-only.
 - Skills with per-issue override toggles (Inherit / Enable / Disable).

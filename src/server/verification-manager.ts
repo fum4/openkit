@@ -7,6 +7,7 @@ import { CONFIG_DIR_NAME } from "../constants";
 import type { WorktreeManager } from "./manager";
 import type { NotesManager } from "./notes-manager";
 import type {
+  HookTrigger,
   HookStep,
   HookSkillRef,
   HooksConfig,
@@ -38,6 +39,21 @@ export class HooksManager {
     try {
       const raw = JSON.parse(readFileSync(p, "utf-8"));
       raw.skills ??= [];
+      raw.steps = (raw.steps ?? []).map((step: HookStep) => {
+        const isPrompt = step.kind === "prompt" || (!!step.prompt && !step.command);
+        if (isPrompt) {
+          return {
+            ...step,
+            kind: "prompt",
+            command: step.command ?? "",
+          };
+        }
+        return {
+          ...step,
+          kind: "command",
+          command: step.command ?? "",
+        };
+      });
       return raw;
     } catch {
       return defaultConfig();
@@ -51,10 +67,30 @@ export class HooksManager {
     return config;
   }
 
-  addStep(name: string, command: string): HooksConfig {
+  addStep(
+    name: string,
+    command: string,
+    options?: {
+      kind?: HookStep["kind"];
+      prompt?: string;
+      trigger?: HookStep["trigger"];
+      condition?: string;
+      conditionTitle?: string;
+    },
+  ): HooksConfig {
     const config = this.getConfig();
     const id = `step-${Date.now()}-${++stepCounter}`;
-    config.steps.push({ id, name, command, enabled: true });
+    config.steps.push({
+      id,
+      name,
+      command,
+      kind: options?.kind,
+      prompt: options?.prompt,
+      trigger: options?.trigger,
+      condition: options?.condition,
+      conditionTitle: options?.conditionTitle,
+      enabled: true,
+    });
     return this.saveConfig(config);
   }
 
@@ -66,15 +102,20 @@ export class HooksManager {
 
   updateStep(
     stepId: string,
-    updates: Partial<Pick<HookStep, "name" | "command" | "enabled" | "trigger">>,
+    updates: Partial<
+      Pick<HookStep, "name" | "command" | "prompt" | "kind" | "enabled" | "trigger" | "condition">
+    >,
   ): HooksConfig {
     const config = this.getConfig();
     const step = config.steps.find((s) => s.id === stepId);
     if (step) {
       if (updates.name !== undefined) step.name = updates.name;
       if (updates.command !== undefined) step.command = updates.command;
+      if (updates.prompt !== undefined) step.prompt = updates.prompt;
+      if (updates.kind !== undefined) step.kind = updates.kind;
       if (updates.enabled !== undefined) step.enabled = updates.enabled;
       if (updates.trigger !== undefined) step.trigger = updates.trigger;
+      if (updates.condition !== undefined) step.condition = updates.condition;
     }
     return this.saveConfig(config);
   }
@@ -127,6 +168,7 @@ export class HooksManager {
   }
 
   ensureSkillsImported(skillNames: string[]): void {
+    if (existsSync(this.configPath())) return;
     const config = this.getConfig();
     let changed = false;
     for (const name of skillNames) {
@@ -175,12 +217,17 @@ export class HooksManager {
     this.ensureDir(path.dirname(resultsPath));
 
     const existing = this.getSkillResults(worktreeId);
+    const resultTrigger = result.trigger ?? "post-implementation";
     // Replace existing result for same skill, or append
-    const idx = existing.findIndex((r) => r.skillName === result.skillName);
+    const idx = existing.findIndex(
+      (r) =>
+        r.skillName === result.skillName &&
+        (r.trigger ?? "post-implementation") === (resultTrigger ?? "post-implementation"),
+    );
     if (idx >= 0) {
-      existing[idx] = result;
+      existing[idx] = { ...result, trigger: resultTrigger };
     } else {
-      existing.push(result);
+      existing.push({ ...result, trigger: resultTrigger });
     }
     writeFileSync(resultsPath, JSON.stringify(existing, null, 2) + "\n");
 
@@ -217,21 +264,30 @@ export class HooksManager {
 
   // ─── Execution ────────────────────────────────────────────────
 
-  async runAll(worktreeId: string): Promise<PipelineRun> {
+  private matchesTrigger(step: HookStep, trigger: HookTrigger): boolean {
+    if (trigger === "post-implementation") {
+      return step.trigger === "post-implementation" || !step.trigger;
+    }
+    return step.trigger === trigger;
+  }
+
+  private isPromptStep(step: HookStep): boolean {
+    return step.kind === "prompt" || (!!step.prompt && !step.command?.trim());
+  }
+
+  private isRunnableCommandStep(step: HookStep): boolean {
+    return !this.isPromptStep(step) && !!step.command?.trim();
+  }
+
+  async runAll(worktreeId: string, trigger: HookTrigger = "post-implementation"): Promise<PipelineRun> {
     const config = this.getConfig();
     const enabledSteps = config.steps.filter(
-      (s) => s.enabled !== false && (s.trigger === "post-implementation" || !s.trigger),
+      (s) => s.enabled !== false && this.matchesTrigger(s, trigger) && this.isRunnableCommandStep(s),
     );
     if (enabledSteps.length === 0) {
-      return this.makeRun(worktreeId, "failed", [
-        {
-          stepId: "_none",
-          stepName: "No steps",
-          command: "",
-          status: "failed",
-          output: "No enabled hook steps configured. Add or enable steps in the Hooks view.",
-        },
-      ]);
+      const run = this.makeRun(worktreeId, "completed", []);
+      this.persistRun(worktreeId, run);
+      return run;
     }
 
     const wt = this.manager.getWorktrees().find((w) => w.id === worktreeId);
@@ -277,6 +333,16 @@ export class HooksManager {
         command: step.command,
         status: "failed",
         output: `Worktree "${worktreeId}" not found`,
+      };
+    }
+
+    if (this.isPromptStep(step)) {
+      return {
+        stepId,
+        stepName: step.name,
+        command: step.command,
+        status: "failed",
+        output: "Prompt hooks are interpreted by agents and cannot be run as shell commands.",
       };
     }
 

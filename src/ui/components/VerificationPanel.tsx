@@ -23,8 +23,11 @@ export function HooksPanel() {
   const { config, saveConfig, refetch } = useHooksConfig();
   const api = useApi();
   const [addingStep, setAddingStep] = useState<HookTrigger | null>(null);
+  const [addingPrompt, setAddingPrompt] = useState<HookTrigger | null>(null);
   const [newName, setNewName] = useState("");
   const [newCommand, setNewCommand] = useState("");
+  const [newPromptName, setNewPromptName] = useState("");
+  const [newPrompt, setNewPrompt] = useState("");
   const [showImportPicker, setShowImportPicker] = useState<HookTrigger | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -49,11 +52,32 @@ export function HooksPanel() {
     if (!name || !command) return;
 
     const id = `step-${Date.now()}`;
-    const step: HookStep = { id, name, command, enabled: true, trigger };
+    const step: HookStep = { id, name, command, kind: "command", enabled: true, trigger };
     saveConfig({ ...config, steps: [...config.steps, step] });
     setNewName("");
     setNewCommand("");
     setAddingStep(null);
+  };
+
+  const addPrompt = (trigger: HookTrigger) => {
+    const name = newPromptName.trim();
+    const prompt = newPrompt.trim();
+    if (!name || !prompt) return;
+
+    const id = `step-${Date.now()}`;
+    const step: HookStep = {
+      id,
+      name,
+      command: "",
+      kind: "prompt",
+      prompt,
+      enabled: true,
+      trigger,
+    };
+    saveConfig({ ...config, steps: [...config.steps, step] });
+    setNewPromptName("");
+    setNewPrompt("");
+    setAddingPrompt(null);
   };
 
   const addCustomStep = (
@@ -67,6 +91,28 @@ export function HooksPanel() {
       id,
       name,
       command,
+      kind: "command",
+      enabled: true,
+      trigger: "custom",
+      condition,
+      conditionTitle,
+    };
+    saveConfig({ ...config, steps: [...config.steps, step] });
+  };
+
+  const addCustomPrompt = (
+    name: string,
+    prompt: string,
+    condition: string,
+    conditionTitle?: string,
+  ) => {
+    const id = `step-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const step: HookStep = {
+      id,
+      name,
+      command: "",
+      kind: "prompt",
+      prompt,
       enabled: true,
       trigger: "custom",
       condition,
@@ -81,7 +127,7 @@ export function HooksPanel() {
 
   const updateStep = (
     stepId: string,
-    updates: Partial<Pick<HookStep, "name" | "command" | "enabled" | "condition">>,
+    updates: Partial<Pick<HookStep, "name" | "command" | "prompt" | "enabled" | "condition">>,
   ) => {
     saveConfig({
       ...config,
@@ -203,6 +249,7 @@ export function HooksPanel() {
         hasItems={hasPreItems}
         addingStep={addingStep === "pre-implementation"}
         onStartAdding={() => {
+          setAddingPrompt(null);
           setShowImportPicker(null);
           setAddingStep("pre-implementation");
         }}
@@ -212,8 +259,21 @@ export function HooksPanel() {
           setNewCommand("");
         }}
         onAddStep={() => addStep("pre-implementation")}
+        addingPrompt={addingPrompt === "pre-implementation"}
+        onStartAddingPrompt={() => {
+          setAddingStep(null);
+          setShowImportPicker(null);
+          setAddingPrompt("pre-implementation");
+        }}
+        onCancelAddingPrompt={() => {
+          setAddingPrompt(null);
+          setNewPromptName("");
+          setNewPrompt("");
+        }}
+        onAddPrompt={() => addPrompt("pre-implementation")}
         onShowImportPicker={() => {
           setAddingStep(null);
+          setAddingPrompt(null);
           setNewName("");
           setNewCommand("");
           setShowImportPicker("pre-implementation");
@@ -225,12 +285,17 @@ export function HooksPanel() {
         setNewName={setNewName}
         newCommand={newCommand}
         setNewCommand={setNewCommand}
+        newPromptName={newPromptName}
+        setNewPromptName={setNewPromptName}
+        newPrompt={newPrompt}
+        setNewPrompt={setNewPrompt}
         nameRef={nameRef}
         updateStep={updateStep}
         removeStep={removeStep}
         handleToggleSkill={handleToggleSkill}
         handleRemoveSkill={handleRemoveSkill}
         updateSkillCondition={updateSkillCondition}
+        allowPrompts
       />
 
       {/* Post-Implementation section */}
@@ -243,6 +308,7 @@ export function HooksPanel() {
         hasItems={hasPostItems}
         addingStep={addingStep === "post-implementation"}
         onStartAdding={() => {
+          setAddingPrompt(null);
           setShowImportPicker(null);
           setAddingStep("post-implementation");
         }}
@@ -252,8 +318,21 @@ export function HooksPanel() {
           setNewCommand("");
         }}
         onAddStep={() => addStep("post-implementation")}
+        addingPrompt={addingPrompt === "post-implementation"}
+        onStartAddingPrompt={() => {
+          setAddingStep(null);
+          setShowImportPicker(null);
+          setAddingPrompt("post-implementation");
+        }}
+        onCancelAddingPrompt={() => {
+          setAddingPrompt(null);
+          setNewPromptName("");
+          setNewPrompt("");
+        }}
+        onAddPrompt={() => addPrompt("post-implementation")}
         onShowImportPicker={() => {
           setAddingStep(null);
+          setAddingPrompt(null);
           setNewName("");
           setNewCommand("");
           setShowImportPicker("post-implementation");
@@ -265,12 +344,17 @@ export function HooksPanel() {
         setNewName={setNewName}
         newCommand={newCommand}
         setNewCommand={setNewCommand}
+        newPromptName={newPromptName}
+        setNewPromptName={setNewPromptName}
+        newPrompt={newPrompt}
+        setNewPrompt={setNewPrompt}
         nameRef={nameRef}
         updateStep={updateStep}
         removeStep={removeStep}
         handleToggleSkill={handleToggleSkill}
         handleRemoveSkill={handleRemoveSkill}
         updateSkillCondition={updateSkillCondition}
+        allowPrompts
       />
 
       {/* Custom section */}
@@ -278,6 +362,7 @@ export function HooksPanel() {
         steps={customSteps}
         skills={customSkills}
         onAddStep={addCustomStep}
+        onAddPrompt={addCustomPrompt}
         onUpdateStep={updateStep}
         onRemoveStep={removeStep}
         onImportSkill={handleImportCustomSkill}
@@ -297,6 +382,7 @@ export function HooksPanel() {
         hasItems={hasOnDemandItems}
         addingStep={addingStep === "on-demand"}
         onStartAdding={() => {
+          setAddingPrompt(null);
           setShowImportPicker(null);
           setAddingStep("on-demand");
         }}
@@ -306,8 +392,13 @@ export function HooksPanel() {
           setNewCommand("");
         }}
         onAddStep={() => addStep("on-demand")}
+        addingPrompt={false}
+        onStartAddingPrompt={() => {}}
+        onCancelAddingPrompt={() => {}}
+        onAddPrompt={() => {}}
         onShowImportPicker={() => {
           setAddingStep(null);
+          setAddingPrompt(null);
           setNewName("");
           setNewCommand("");
           setShowImportPicker("on-demand");
@@ -319,12 +410,17 @@ export function HooksPanel() {
         setNewName={setNewName}
         newCommand={newCommand}
         setNewCommand={setNewCommand}
+        newPromptName={newPromptName}
+        setNewPromptName={setNewPromptName}
+        newPrompt={newPrompt}
+        setNewPrompt={setNewPrompt}
         nameRef={nameRef}
         updateStep={updateStep}
         removeStep={removeStep}
         handleToggleSkill={handleToggleSkill}
         handleRemoveSkill={handleRemoveSkill}
         updateSkillCondition={updateSkillCondition}
+        allowPrompts={false}
       />
     </div>
   );
@@ -338,9 +434,13 @@ function HooksSection({
   skills,
   hasItems,
   addingStep,
+  addingPrompt,
   onStartAdding,
   onCancelAdding,
   onAddStep,
+  onStartAddingPrompt,
+  onCancelAddingPrompt,
+  onAddPrompt,
   onShowImportPicker,
   showImportPicker,
   onImportSkill,
@@ -349,12 +449,17 @@ function HooksSection({
   setNewName,
   newCommand,
   setNewCommand,
+  newPromptName,
+  setNewPromptName,
+  newPrompt,
+  setNewPrompt,
   nameRef,
   updateStep,
   removeStep,
   handleToggleSkill,
   handleRemoveSkill,
   updateSkillCondition,
+  allowPrompts,
 }: {
   title: string;
   description: string;
@@ -363,9 +468,13 @@ function HooksSection({
   skills: HookSkillRef[];
   hasItems: boolean;
   addingStep: boolean;
+  addingPrompt: boolean;
   onStartAdding: () => void;
   onCancelAdding: () => void;
   onAddStep: () => void;
+  onStartAddingPrompt: () => void;
+  onCancelAddingPrompt: () => void;
+  onAddPrompt: () => void;
   onShowImportPicker: () => void;
   showImportPicker: boolean;
   onImportSkill: (name: string) => void;
@@ -374,10 +483,14 @@ function HooksSection({
   setNewName: (v: string) => void;
   newCommand: string;
   setNewCommand: (v: string) => void;
+  newPromptName: string;
+  setNewPromptName: (v: string) => void;
+  newPrompt: string;
+  setNewPrompt: (v: string) => void;
   nameRef: React.RefObject<HTMLInputElement | null>;
   updateStep: (
     stepId: string,
-    updates: Partial<Pick<HookStep, "name" | "command" | "enabled" | "condition">>,
+    updates: Partial<Pick<HookStep, "name" | "command" | "prompt" | "enabled" | "condition">>,
   ) => void;
   removeStep: (stepId: string) => void;
   handleToggleSkill: (skillName: string, enabled: boolean, trigger?: HookTrigger) => void;
@@ -387,6 +500,7 @@ function HooksSection({
     trigger: HookTrigger | undefined,
     condition: string,
   ) => void;
+  allowPrompts?: boolean;
 }) {
   return (
     <div>
@@ -433,7 +547,7 @@ function HooksSection({
         {/* Add step form */}
         {addingStep && (
           <div className={`rounded-xl border border-white/[0.06] ${settings.card} p-4 space-y-3`}>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-3">
               <span className={`text-xs font-medium ${text.primary}`}>Add command</span>
               <button onClick={onCancelAdding} className={`p-1 ${text.dimmed} hover:text-white`}>
                 <X className="w-3.5 h-3.5" />
@@ -475,13 +589,56 @@ function HooksSection({
           </div>
         )}
 
+        {/* Add prompt form */}
+        {addingPrompt && (
+          <div className={`rounded-xl border border-white/[0.06] ${settings.card} p-4 space-y-3`}>
+            <div className="flex items-center justify-between mb-3">
+              <span className={`text-xs font-medium ${text.primary}`}>Add prompt</span>
+              <button
+                onClick={onCancelAddingPrompt}
+                className={`p-1 ${text.dimmed} hover:text-white`}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <input
+              value={newPromptName}
+              onChange={(e) => setNewPromptName(e.target.value)}
+              placeholder="Title (e.g. Architecture check)"
+              className={`w-full px-3 py-2 rounded-lg text-xs bg-white/[0.04] border border-white/[0.06] text-white placeholder-[#4b5563] focus:outline-none focus:border-white/[0.15]`}
+            />
+            <textarea
+              value={newPrompt}
+              onChange={(e) => setNewPrompt(e.target.value)}
+              rows={3}
+              placeholder="Description (what should the agent do?)"
+              className={`w-full px-3 py-2 rounded-lg text-xs bg-white/[0.04] border border-white/[0.06] text-white placeholder-[#4b5563] focus:outline-none focus:border-white/[0.15] resize-none`}
+            />
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={onCancelAddingPrompt}
+                className={`px-3 py-1.5 text-[11px] font-medium ${text.muted} hover:text-[#9ca3af] rounded-lg transition-colors`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onAddPrompt}
+                disabled={!newPromptName.trim() || !newPrompt.trim()}
+                className="px-3 py-1.5 text-[11px] font-medium text-teal-300 bg-teal-400/10 hover:bg-teal-400/20 rounded-lg transition-colors disabled:opacity-40"
+              >
+                Add prompt
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Import skill picker */}
         {showImportPicker && (
           <ImportSkillPicker onImport={onImportSkill} onClose={onCloseImportPicker} />
         )}
 
         {/* Action buttons — only show when neither form is open */}
-        {!addingStep && !showImportPicker && (
+        {!addingStep && !addingPrompt && !showImportPicker && (
           <div className="flex flex-col gap-2 pt-1">
             <button
               onClick={onStartAdding}
@@ -497,6 +654,15 @@ function HooksSection({
               <Plus className="w-3.5 h-3.5" />
               Add skill
             </button>
+            {allowPrompts && (
+              <button
+                onClick={onStartAddingPrompt}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium ${text.muted} hover:text-[#9ca3af] border border-dashed border-white/[0.08] hover:border-white/[0.15] rounded-lg transition-colors`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add prompt
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -511,22 +677,28 @@ function StepCard({
   onRemove,
 }: {
   step: HookStep;
-  onUpdate: (updates: Partial<Pick<HookStep, "name" | "command" | "condition">>) => void;
+  onUpdate: (updates: Partial<Pick<HookStep, "name" | "command" | "prompt" | "condition">>) => void;
   onToggle: (enabled: boolean) => void;
   onRemove: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(step.name);
   const [editCommand, setEditCommand] = useState(step.command);
+  const [editPrompt, setEditPrompt] = useState(step.prompt ?? "");
   const [editCondition, setEditCondition] = useState(step.condition ?? "");
   const enabled = step.enabled !== false;
   const isCustom = step.trigger === "custom";
+  const isPrompt = step.kind === "prompt" || (!!step.prompt && !step.command?.trim());
 
   const save = () => {
     const name = editName.trim();
     const command = editCommand.trim();
-    if (name && command) {
-      const updates: Partial<Pick<HookStep, "name" | "command" | "condition">> = { name, command };
+    const prompt = editPrompt.trim();
+    if (name && (isPrompt ? prompt : command)) {
+      const updates: Partial<Pick<HookStep, "name" | "command" | "prompt" | "condition">> = {};
+      updates.name = name;
+      if (isPrompt) updates.prompt = prompt;
+      else updates.command = command;
       if (isCustom) updates.condition = editCondition.trim();
       onUpdate(updates);
     }
@@ -546,11 +718,20 @@ function StepCard({
           value={editCommand}
           onChange={(e) => setEditCommand(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !isCustom) save();
+            if (e.key === "Enter" && !isCustom && !isPrompt) save();
             if (e.key === "Escape") setEditing(false);
           }}
-          className={`w-full px-3 py-2 rounded-lg text-xs bg-white/[0.04] border border-white/[0.06] text-white focus:outline-none focus:border-white/[0.15] font-mono`}
+          className={`w-full px-3 py-2 rounded-lg text-xs bg-white/[0.04] border border-white/[0.06] text-white focus:outline-none focus:border-white/[0.15] font-mono ${isPrompt ? "hidden" : ""}`}
         />
+        {isPrompt && (
+          <textarea
+            value={editPrompt}
+            onChange={(e) => setEditPrompt(e.target.value)}
+            rows={3}
+            placeholder="Prompt text"
+            className={`w-full px-3 py-2 rounded-lg text-xs bg-white/[0.04] border border-white/[0.06] text-white focus:outline-none focus:border-white/[0.15] resize-none`}
+          />
+        )}
         {isCustom && (
           <textarea
             value={editCondition}
@@ -588,18 +769,29 @@ function StepCard({
         onClick={() => {
           setEditName(step.name);
           setEditCommand(step.command);
+          setEditPrompt(step.prompt ?? "");
           setEditCondition(step.condition ?? "");
           setEditing(true);
         }}
       >
-        <Terminal className={`w-3.5 h-3.5 flex-shrink-0 ${enabled ? text.muted : text.dimmed}`} />
+        {isPrompt ? (
+          <MessageSquareText
+            className={`w-3.5 h-3.5 flex-shrink-0 ${enabled ? "text-violet-400/70" : text.dimmed}`}
+          />
+        ) : (
+          <Terminal className={`w-3.5 h-3.5 flex-shrink-0 ${enabled ? text.muted : text.dimmed}`} />
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className={`text-xs font-medium ${enabled ? text.primary : text.dimmed}`}>
               {step.name}
             </span>
           </div>
-          <p className={`text-[11px] ${text.dimmed} mt-0.5 font-mono truncate`}>{step.command}</p>
+          <p
+            className={`text-[11px] ${text.dimmed} mt-0.5 ${isPrompt ? "" : "font-mono"} truncate`}
+          >
+            {isPrompt ? step.prompt : step.command}
+          </p>
           {isCustom && step.condition && (
             <p className={`text-[10px] text-violet-400/70 mt-1 italic truncate`}>
               {step.condition}
@@ -804,21 +996,30 @@ function CustomHookGroupCard({
         {/* Step rows */}
         {steps.map((step) => {
           const enabled = step.enabled !== false;
+          const isPrompt = step.kind === "prompt" || (!!step.prompt && !step.command?.trim());
           return (
             <div
               key={step.id}
               className="flex items-center gap-3 px-4 py-2.5 group cursor-pointer hover:bg-white/[0.02] transition-colors"
               onClick={onEditGroup}
             >
-              <Terminal
-                className={`w-3.5 h-3.5 flex-shrink-0 ${enabled ? text.muted : text.dimmed}`}
-              />
+              {isPrompt ? (
+                <MessageSquareText
+                  className={`w-3.5 h-3.5 flex-shrink-0 ${enabled ? "text-violet-400/70" : text.dimmed}`}
+                />
+              ) : (
+                <Terminal
+                  className={`w-3.5 h-3.5 flex-shrink-0 ${enabled ? text.muted : text.dimmed}`}
+                />
+              )}
               <div className="flex-1 min-w-0">
                 <span className={`text-xs font-medium ${enabled ? text.primary : text.dimmed}`}>
                   {step.name}
                 </span>
-                <p className={`text-[11px] ${text.dimmed} mt-0.5 font-mono truncate`}>
-                  {step.command}
+                <p
+                  className={`text-[11px] ${text.dimmed} mt-0.5 ${isPrompt ? "" : "font-mono"} truncate`}
+                >
+                  {isPrompt ? step.prompt : step.command}
                 </p>
               </div>
               <button
@@ -895,6 +1096,7 @@ function CustomHookGroupCard({
 
 function CustomHookEditor({
   onAddCommand,
+  onAddPrompt,
   onImportSkill,
   onRemoveStep,
   onRemoveSkill,
@@ -906,6 +1108,7 @@ function CustomHookEditor({
   existingSkills,
 }: {
   onAddCommand: (name: string, command: string, condition: string, conditionTitle?: string) => void;
+  onAddPrompt: (name: string, prompt: string, condition: string, conditionTitle?: string) => void;
   onImportSkill: (skillName: string, condition: string, conditionTitle?: string) => void;
   onRemoveStep: (stepId: string) => void;
   onRemoveSkill?: (skillName: string) => void;
@@ -927,8 +1130,11 @@ function CustomHookEditor({
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [removedSkills, setRemovedSkills] = useState<Set<string>>(new Set());
   const [pendingCmds, setPendingCmds] = useState<Array<{ name: string; command: string }>>([]);
+  const [pendingPrompts, setPendingPrompts] = useState<Array<{ name: string; prompt: string }>>([]);
   const [cmdName, setCmdName] = useState("");
   const [cmdCommand, setCmdCommand] = useState("");
+  const [promptName, setPromptName] = useState("");
+  const [promptText, setPromptText] = useState("");
 
   const isEditMode = initialCondition !== undefined;
   const conditionChanged = isEditMode && condition.trim() !== (initialCondition ?? "").trim();
@@ -978,6 +1184,15 @@ function CustomHookEditor({
     setCmdCommand("");
   };
 
+  const addPrompt = () => {
+    const n = promptName.trim();
+    const p = promptText.trim();
+    if (!n || !p) return;
+    setPendingPrompts((prev) => [...prev, { name: n, prompt: p }]);
+    setPromptName("");
+    setPromptText("");
+  };
+
   const handleSubmit = () => {
     const cond = condition.trim();
     if (!cond) return;
@@ -989,6 +1204,13 @@ function CustomHookEditor({
     }
     for (const cmd of allCmds) {
       onAddCommand(cmd.name, cmd.command, cond, t);
+    }
+    const allPrompts = [...pendingPrompts];
+    if (promptName.trim() && promptText.trim()) {
+      allPrompts.push({ name: promptName.trim(), prompt: promptText.trim() });
+    }
+    for (const prompt of allPrompts) {
+      onAddPrompt(prompt.name, prompt.prompt, cond, t);
     }
     for (const name of selectedSkills) {
       if (!existingSkillNames.has(name)) {
@@ -1006,7 +1228,13 @@ function CustomHookEditor({
   };
 
   const hasInProgressCmd = !!cmdName.trim() && !!cmdCommand.trim();
-  const totalNew = pendingCmds.length + newSkillCount + (hasInProgressCmd ? 1 : 0);
+  const hasInProgressPrompt = !!promptName.trim() && !!promptText.trim();
+  const totalNew =
+    pendingCmds.length +
+    pendingPrompts.length +
+    newSkillCount +
+    (hasInProgressCmd ? 1 : 0) +
+    (hasInProgressPrompt ? 1 : 0);
   const hasChanges = totalNew > 0 || removedSkills.size > 0 || conditionChanged || titleChanged;
   const showSubmit = isEditMode ? hasChanges : !!condition.trim() && totalNew > 0;
   const submitLabel =
@@ -1028,24 +1256,47 @@ function CustomHookEditor({
       )
     : available;
 
-  // Merge existing and pending commands for display
+  // Merge existing and pending commands/prompts for display
   const allCommands: Array<{
     type: "existing" | "pending";
     id: string;
     name: string;
     command: string;
   }> = [
-    ...(existingSteps ?? []).map((s) => ({
-      type: "existing" as const,
-      id: s.id,
-      name: s.name,
-      command: s.command,
-    })),
+    ...(existingSteps ?? [])
+      .filter((s) => !(s.kind === "prompt" || (!!s.prompt && !s.command?.trim())))
+      .map((s) => ({
+        type: "existing" as const,
+        id: s.id,
+        name: s.name,
+        command: s.command,
+      })),
     ...pendingCmds.map((c, i) => ({
       type: "pending" as const,
       id: `pending-${i}`,
       name: c.name,
       command: c.command,
+    })),
+  ];
+  const allPrompts: Array<{
+    type: "existing" | "pending";
+    id: string;
+    name: string;
+    prompt: string;
+  }> = [
+    ...(existingSteps ?? [])
+      .filter((s) => s.kind === "prompt" || (!!s.prompt && !s.command?.trim()))
+      .map((s) => ({
+        type: "existing" as const,
+        id: s.id,
+        name: s.name,
+        prompt: s.prompt ?? "",
+      })),
+    ...pendingPrompts.map((p, i) => ({
+      type: "pending" as const,
+      id: `pending-prompt-${i}`,
+      name: p.name,
+      prompt: p.prompt,
     })),
   ];
 
@@ -1141,6 +1392,69 @@ function CustomHookEditor({
         </div>
       </div>
 
+      {/* Prompts section */}
+      <div className="mb-3 border-t border-white/[0.06] pt-3">
+        <span className={`text-[10px] font-medium ${text.muted} uppercase tracking-wider`}>
+          Prompts
+        </span>
+        {allPrompts.length > 0 && (
+          <div className="space-y-1 mt-2">
+            {allPrompts.map((prompt) => (
+              <div
+                key={prompt.id}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.02]"
+              >
+                <MessageSquareText className={`w-3 h-3 text-violet-400/70 flex-shrink-0`} />
+                <span className={`text-xs ${text.secondary} flex-1 min-w-0 truncate`}>
+                  {prompt.name}
+                </span>
+                <span className={`text-[10px] ${text.dimmed} truncate max-w-[50%]`}>
+                  {prompt.prompt}
+                </span>
+                <button
+                  onClick={() =>
+                    prompt.type === "existing"
+                      ? onRemoveStep(prompt.id)
+                      : setPendingPrompts((prev) =>
+                          prev.filter((_, j) => `pending-prompt-${j}` !== prompt.id),
+                        )
+                  }
+                  className={`${text.dimmed} hover:text-red-400 flex-shrink-0`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 mt-2">
+          <input
+            value={promptName}
+            onChange={(e) => setPromptName(e.target.value)}
+            placeholder="Title"
+            className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs bg-white/[0.04] border border-white/[0.06] text-white placeholder-[#4b5563] focus:outline-none focus:border-white/[0.15]`}
+          />
+          <input
+            value={promptText}
+            onChange={(e) => setPromptText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addPrompt();
+            }}
+            placeholder="Description"
+            className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs bg-white/[0.04] border border-white/[0.06] text-white placeholder-[#4b5563] focus:outline-none focus:border-white/[0.15]`}
+          />
+          {pendingPrompts.length > 0 || (promptName.trim() && promptText.trim()) ? (
+            <button
+              onClick={addPrompt}
+              disabled={!promptName.trim() || !promptText.trim()}
+              className={`px-2 py-1.5 rounded-lg ${text.dimmed} hover:text-[#9ca3af] hover:bg-white/[0.06] transition-colors disabled:opacity-30 disabled:hover:text-inherit disabled:hover:bg-transparent`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          ) : null}
+        </div>
+      </div>
+
       {/* Skills section */}
       <div className="border-t border-white/[0.06] pt-3">
         <span className={`text-[10px] font-medium ${text.muted} uppercase tracking-wider`}>
@@ -1225,6 +1539,7 @@ function CustomHooksSection({
   steps,
   skills,
   onAddStep,
+  onAddPrompt,
   onUpdateStep,
   onRemoveStep,
   onImportSkill,
@@ -1236,9 +1551,10 @@ function CustomHooksSection({
   steps: HookStep[];
   skills: HookSkillRef[];
   onAddStep: (name: string, command: string, condition: string, conditionTitle?: string) => void;
+  onAddPrompt: (name: string, prompt: string, condition: string, conditionTitle?: string) => void;
   onUpdateStep: (
     stepId: string,
-    updates: Partial<Pick<HookStep, "name" | "command" | "enabled" | "condition">>,
+    updates: Partial<Pick<HookStep, "name" | "command" | "prompt" | "enabled" | "condition">>,
   ) => void;
   onRemoveStep: (stepId: string) => void;
   onImportSkill: (skillName: string, condition: string, conditionTitle?: string) => void;
@@ -1311,6 +1627,7 @@ function CustomHooksSection({
               existingSteps={groups[condition]?.steps}
               existingSkills={groups[condition]?.skills}
               onAddCommand={onAddStep}
+              onAddPrompt={onAddPrompt}
               onImportSkill={onImportSkill}
               onRemoveStep={onRemoveStep}
               onRemoveSkill={onRemoveSkill}
@@ -1338,6 +1655,7 @@ function CustomHooksSection({
         {isEditing && editingCondition === null && (
           <CustomHookEditor
             onAddCommand={onAddStep}
+            onAddPrompt={onAddPrompt}
             onImportSkill={onImportSkill}
             onRemoveStep={onRemoveStep}
             onClose={closeEditor}

@@ -23,8 +23,8 @@ IMPORTANT: Use ONLY the dawg MCP tools (`mcp__dawg__*`) to interact with dawg. D
 
 4. **Check hooks** — call `mcp__dawg__get_hooks_config` to discover all configured hooks.
    - Always inform the user before running any hooks/skills/commands, and summarize results after
-   - For each skill: call `mcp__dawg__report_hook_status` BEFORE (without `success`/`summary`) to show loading in the UI, invoke the skill, then call it AGAIN with the result
-   - Run pre-implementation hooks before starting work
+   - For each skill: call `mcp__dawg__report_hook_status` BEFORE (without `success`/`summary`) to show loading in the UI, invoke the skill, then call it AGAIN with the result (include `trigger` when possible)
+   - Run pre-implementation command hooks via `mcp__dawg__run_hooks` with `trigger: "pre-implementation"` before starting work
    - Check custom hook conditions as you work
    - Run post-implementation hooks when done
 

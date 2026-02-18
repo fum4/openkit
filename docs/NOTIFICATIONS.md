@@ -65,13 +65,11 @@ interface ActivityEvent {
 
 ### Categories
 
-| Category      | Description                                                        | Icon      | Color      |
-| ------------- | ------------------------------------------------------------------ | --------- | ---------- |
-| `agent`       | Agent connections, notify, commits, pushes, PRs, skills, hooks     | Bot       | purple-400 |
-| `worktree`    | Creation, start, stop, crash events                                | GitBranch | teal-400   |
-| `git`         | PR merged, checks passed/failed, review requested, behind upstream | GitBranch | blue-400   |
-| `integration` | Issue assigned                                                     | Link      | amber-400  |
-| `system`      | Connection lost/restored, config issues                            | Monitor   | red-400    |
+| Category   | Description                                          | Icon      | Color      |
+| ---------- | ---------------------------------------------------- | --------- | ---------- |
+| `agent`    | Agent connections, notify, git actions, hooks/skills | Bot       | purple-400 |
+| `worktree` | Creation, start, stop, crash events                  | GitBranch | teal-400   |
+| `system`   | Connection lost/restored, config issues              | Monitor   | red-400    |
 
 ### Event Types
 
@@ -90,6 +88,7 @@ All event type constants are defined in `ACTIVITY_TYPES` (`src/server/activity-e
 | `SKILL_STARTED`       | `skill_started`       | agent       | Hook skill started                 |
 | `SKILL_COMPLETED`     | `skill_completed`     | agent       | Hook skill completed               |
 | `SKILL_FAILED`        | `skill_failed`        | agent       | Hook skill failed                  |
+| `HOOKS_STARTED`       | `hooks_started`       | agent       | Hook command run started           |
 | `HOOKS_RAN`           | `hooks_ran`           | agent       | Hook pipeline completed            |
 | `CREATION_STARTED`    | `creation_started`    | worktree    | Worktree creation started          |
 | `CREATION_COMPLETED`  | `creation_completed`  | worktree    | Worktree created successfully      |
@@ -97,12 +96,6 @@ All event type constants are defined in `ACTIVITY_TYPES` (`src/server/activity-e
 | `WORKTREE_STARTED`    | `started`             | worktree    | Dev server started                 |
 | `WORKTREE_STOPPED`    | `stopped`             | worktree    | Dev server stopped                 |
 | `WORKTREE_CRASHED`    | `crashed`             | worktree    | Dev server crashed (non-zero exit) |
-| `PR_MERGED`           | `pr_merged`           | git         | Pull request merged                |
-| `CHECKS_FAILED`       | `checks_failed`       | git         | CI checks failed                   |
-| `CHECKS_PASSED`       | `checks_passed`       | git         | CI checks passed                   |
-| `REVIEW_REQUESTED`    | `review_requested`    | git         | Review requested on PR             |
-| `BEHIND_UPSTREAM`     | `behind_upstream`     | git         | Branch is behind upstream          |
-| `ISSUE_ASSIGNED`      | `issue_assigned`      | integration | Issue assigned to user             |
 | `CONNECTION_LOST`     | `connection_lost`     | system      | Lost connection                    |
 | `CONNECTION_RESTORED` | `connection_restored` | system      | Connection restored                |
 | `CONFIG_NEEDS_PUSH`   | `config_needs_push`   | system      | Config changes need push           |
@@ -199,25 +192,22 @@ This decouples the activity feed from the SSE connection hook.
 
 `useActivityFeed` (`src/ui/hooks/useActivityFeed.ts`) listens for those CustomEvents and manages:
 
-- **Event list** — up to 200 events, newest first, deduplicated by `id`. Events with the same `groupKey` replace each other (e.g. `creation_started` is replaced by `creation_completed`)
-- **Unread count** — increments on each new event, resets on `markAllRead()`
-- **Category filter** — optional filter applied to the returned `events`
-- **Toast triggering** — when an incoming event's type is in the `toastEvents` list:
-  - Skill events (`skill_started`/`skill_completed`/`skill_failed`) with `metadata.trigger` are routed to `onUpsertGroupedToast` — these produce a single toast per trigger phase with expandable children
-  - Other events with a `groupKey` call `onUpsertToast` to replace existing toasts in the same group (loading → success/failure)
-  - Events without a `groupKey` call the basic `onToast` callback
-  - Event types ending in `_started` are treated as loading (spinner icon, no auto-dismiss)
-  - All toast callbacks receive `projectName` and `worktreeId` from the event for display
+- **Event list** — up to 200 events, strictly sorted newest-first.
+- **Group-key upserts** — events with the same `groupKey` replace prior events (e.g. creation started → creation completed).
+- **Hook group aggregation** — hook-related events (`hooks_started`, `hooks_ran`, `skill_*`) with `groupKey` `hooks:{worktreeId}:{trigger}` are merged into a single expandable feed entry with live child statuses for commands/skills.
+- **Unread count** — increments on each new event, resets on `markAllRead()`.
+- **Toast triggering** — non-hook events may still trigger toasts; hook events are feed-only (no separate hook-running toast overlay).
 
-Returns: `{ events, allEvents, unreadCount, filter, setFilter, markAllRead, clearAll }`
+Returns: `{ events, unreadCount, markAllRead, clearAll }`
 
 ### ActivityFeed Component
 
 `ActivityFeed` (`src/ui/components/ActivityFeed.tsx`) renders the dropdown panel:
 
 - **Header** with "Mark read" and "Clear" buttons
-- **Filter chips** — All, Agent, Worktree
-- **Event list** — each item shows a category icon (color-coded), title, optional detail, relative timestamp, project name (if present), clickable worktree ID (navigates to worktree), and a severity dot for non-info events
+- **Action-required section** — top section for events with `metadata.requiresUserAction === true`
+- **Event list** — each item shows icon, title, optional detail, relative timestamp, project name (if present), clickable worktree ID, and severity dot
+- **Hook rows** — hook-related events use a hook icon and can expand inline to show child command/skill statuses with spinner/check/X icons
 - Closes on outside click or Escape key
 - Animated with `motion/react` (fade + scale)
 - Accepts `onNavigateToWorktree` prop for worktree link navigation
@@ -233,7 +223,7 @@ Returns: `{ events, allEvents, unreadCount, filter, setFilter, markAllRead, clea
 
 `Header` (`src/ui/components/Header.tsx`) composes everything:
 
-1. Creates `useActivityFeed` with `handleToast`, `handleUpsertToast`, `handleUpsertGroupedToast`, and config-driven `toastEvents`
+1. Creates `useActivityFeed` with `handleToast`, `handleUpsertToast`, and config-driven `toastEvents`
 2. Renders `ActivityBell` in the top-right
 3. Conditionally renders `ActivityFeed` in an `AnimatePresence` wrapper
 4. Passes `onNavigateToWorktree` through to `ActivityFeed`
@@ -247,20 +237,15 @@ Toast features:
 
 - **Project name** — shown as a small label above the message when present
 - **Worktree link** — "Go to worktree →" link that navigates to the worktree
-- **Grouped children** — skill toasts are grouped by trigger phase (one toast per `hooks:{worktreeId}:{trigger}`), with expandable children showing individual skill results (status icon + name)
 - **Auto-dismiss** — 5s for success/info, 10s for errors; loading toasts persist until resolved
 
-### Grouped Hook Toasts
+### Hook Progress Presentation
 
-When hooks run, skill events share a `groupKey` of `hooks:{worktreeId}:{trigger}`. The `upsertGroupedToast` method in `ToastContext` aggregates these into a single parent toast with expandable children:
-
-- Parent message: "Running hooks (2/3)..." → "3 hooks completed"
-- Each child: spinner/check/X icon + skill name + status
-- Chevron toggle to expand/collapse the children list
+Hook progress is shown only in the Activity feed as a single expandable notification per hook run (`groupKey = hooks:{worktreeId}:{trigger}`), with live child statuses for commands and skills. Hook-specific toasts are intentionally suppressed.
 
 ### Settings UI
 
-The Configuration panel (`src/ui/components/ConfigurationPanel.tsx`) includes a "Notifications" card where users can toggle which event types trigger toasts. Events are grouped by category (Worktree, Agent, Git, Integration, System) with color-coded headers matching the activity feed colors. Each event is a pill button that toggles the event type in/out of `config.activity.toastEvents`.
+The Configuration panel (`src/ui/components/ConfigurationPanel.tsx`) includes a "Notifications" card where users can toggle which event types trigger toasts. Events are grouped by category (Worktree, Agent, System) with color-coded headers matching the activity feed colors. Each event is a pill button that toggles the event type in/out of `config.activity.toastEvents`.
 
 All event types are toggleable — every type from `ACTIVITY_TYPES` has a corresponding toggle (except `config_needs_push` which is internal).
 
@@ -295,8 +280,13 @@ Clicking a native notification brings the main window to focus.
 
 Agents can send custom activity events via the `notify` MCP tool (`src/actions.ts`):
 
-```
-notify({ message: "Analyzing codebase structure", severity: "info", worktreeId: "PROJ-123" })
+```js
+notify({
+  message: "Need clarification on acceptance criteria",
+  severity: "warning",
+  worktreeId: "PROJ-123",
+  requiresUserAction: true,
+});
 ```
 
 | Param        | Required | Description                                     |
@@ -304,6 +294,7 @@ notify({ message: "Analyzing codebase structure", severity: "info", worktreeId: 
 | `message`    | yes      | Status message (becomes `event.title`)          |
 | `severity`   | no       | `info` (default), `success`, `warning`, `error` |
 | `worktreeId` | no       | Related worktree ID                             |
+| `requiresUserAction` | no | When `true`, event appears in the top action-required section |
 
 The event is created with `category: "agent"` and `type: "notify"`.
 
@@ -333,15 +324,11 @@ export const activity = {
   categoryColor: {
     agent: "text-purple-400",
     worktree: "text-teal-400",
-    git: "text-blue-400",
-    integration: "text-amber-400",
     system: "text-red-400",
   },
   categoryBg: {
     agent: "bg-purple-400/10",
     worktree: "bg-teal-400/10",
-    git: "bg-blue-400/10",
-    integration: "bg-amber-400/10",
     system: "bg-red-400/10",
   },
   severityDot: {

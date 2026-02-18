@@ -359,10 +359,19 @@ function SweepingBorder() {
     </svg>
   );
 }
+void SweepingBorder;
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function isPromptStep(step: HookStep): boolean {
+  return step.kind === "prompt" || (!!step.prompt && !step.command?.trim());
+}
+
+function skillResultKey(skillName: string, trigger?: HookSkillRef["trigger"]): string {
+  return `${trigger ?? "post-implementation"}::${skillName}`;
 }
 
 interface HooksTabProps {
@@ -432,14 +441,17 @@ export function HooksTab({
     const toExpand: string[] = [];
     for (const result of skillResults) {
       if (result.status === "running") continue;
-      const prevResult = prev.find((r) => r.skillName === result.skillName);
+      const key = skillResultKey(result.skillName, result.trigger);
+      const prevResult = prev.find(
+        (r) => skillResultKey(r.skillName, r.trigger) === skillResultKey(result.skillName, result.trigger),
+      );
       if (
         !prevResult ||
         prevResult.status === "running" ||
         prevResult.reportedAt !== result.reportedAt
       ) {
         if (result.content || result.summary) {
-          toExpand.push(result.skillName);
+          toExpand.push(key);
         }
       }
     }
@@ -457,7 +469,7 @@ export function HooksTab({
   const pipelineWasCompleteRef = useRef(false);
   useEffect(() => {
     if (!config) return;
-    const enabledSteps = config.steps.filter((s) => s.enabled !== false);
+    const enabledSteps = config.steps.filter((s) => s.enabled !== false && !isPromptStep(s));
     const enabledSkills = config.skills.filter((s) => s.enabled);
     if (enabledSteps.length === 0 && enabledSkills.length === 0) return;
 
@@ -472,7 +484,9 @@ export function HooksTab({
       return r && r.status !== "running";
     });
     const allSkillsComplete = enabledSkills.every((s) => {
-      const r = skillResults.find((r2) => r2.skillName === s.skillName);
+      const r = skillResults.find(
+        (r2) => skillResultKey(r2.skillName, r2.trigger) === skillResultKey(s.skillName, s.trigger),
+      );
       return r && r.status !== "running";
     });
 
@@ -486,10 +500,14 @@ export function HooksTab({
         new Set(
           enabledSkills
             .filter((s) => {
-              const r = skillResults.find((r2) => r2.skillName === s.skillName);
+              const r = skillResults.find(
+                (r2) =>
+                  skillResultKey(r2.skillName, r2.trigger) ===
+                  skillResultKey(s.skillName, s.trigger),
+              );
               return r?.content || r?.summary;
             })
-            .map((s) => s.skillName),
+            .map((s) => skillResultKey(s.skillName, s.trigger)),
         ),
       );
     } else if (!isComplete) {
@@ -500,12 +518,17 @@ export function HooksTab({
   const handleRunAll = async () => {
     if (!config) return;
     setRunningAll(true);
-    const postSteps = config.steps.filter((s) => s.enabled !== false && s.trigger !== "on-demand");
+    const postSteps = config.steps.filter(
+      (s) =>
+        s.enabled !== false &&
+        (s.trigger === "post-implementation" || !s.trigger) &&
+        !isPromptStep(s),
+    );
     setRunningSteps(new Set(postSteps.map((s) => s.id)));
     // Clear previous results
     setStepResults({});
     try {
-      const run = await api.runHooks(worktreeId);
+      const run = await api.runHooks(worktreeId, "post-implementation");
       const map: Record<string, StepResult> = {};
       for (const step of run.steps) {
         map[step.stepId] = step;
@@ -597,7 +620,7 @@ export function HooksTab({
   // Build skill result map for quick lookup
   const skillResultMap = new Map<string, SkillHookResult>();
   for (const r of skillResults) {
-    skillResultMap.set(r.skillName, r);
+    skillResultMap.set(skillResultKey(r.skillName, r.trigger), r);
   }
 
   return (
@@ -689,7 +712,7 @@ export function HooksTab({
                   {postSteps.length + postSkills.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              {postSteps.filter((s) => s.enabled !== false).length > 1 && (
+              {postSteps.filter((s) => s.enabled !== false && !isPromptStep(s)).length > 1 && (
                 <button
                   onClick={handleRunAll}
                   disabled={runningAll}
@@ -886,40 +909,58 @@ function StepList({
       {steps.map((step) => {
         const disabled = step.enabled === false;
         const result = stepResults[step.id];
+        const promptStep = isPromptStep(step);
         const isRunning = runningSteps.has(step.id);
+        const hasCompletedResult = !!result && result.status !== "running";
         const isExpanded = expandedSteps.has(step.id);
 
         return (
           <div
             key={step.id}
-            className={`relative rounded-lg border ${!result && !isRunning && !disabled ? "border-dashed border-white/[0.08]" : "border-white/[0.04]"} ${result || disabled ? settings.card : ""} overflow-visible ${disabled ? "opacity-50" : ""}`}
+            className={`relative rounded-lg border ${
+              !hasCompletedResult && !isRunning && !disabled
+                ? "border-dashed border-white/[0.08]"
+                : "border-white/[0.04]"
+            } ${hasCompletedResult || disabled ? settings.card : ""} overflow-visible ${
+              disabled ? "opacity-50" : ""
+            }`}
           >
             {/* {isRunning && <SweepingBorder />} */}
             <div className="flex items-center gap-2.5 px-3 py-2">
               {/* Type icon */}
-              <Terminal
-                className={`w-3.5 h-3.5 flex-shrink-0 ${disabled ? text.dimmed : text.muted}`}
-              />
+              {promptStep ? (
+                <MessageSquareText
+                  className={`w-3.5 h-3.5 flex-shrink-0 ${disabled ? text.dimmed : "text-violet-400/70"}`}
+                />
+              ) : (
+                <Terminal
+                  className={`w-3.5 h-3.5 flex-shrink-0 ${disabled ? text.dimmed : text.muted}`}
+                />
+              )}
 
               <div
-                className={`flex-1 flex items-center text-left min-w-0 ${!disabled && result?.output ? "cursor-pointer" : ""}`}
-                onClick={() => !disabled && result?.output && toggleStep(step.id)}
+                className={`flex-1 flex items-center text-left min-w-0 ${
+                  !disabled && !promptStep && result?.output ? "cursor-pointer" : ""
+                }`}
+                onClick={() => !disabled && !promptStep && result?.output && toggleStep(step.id)}
               >
                 <span
                   className={`text-[11px] font-medium ${disabled ? text.dimmed : text.secondary}`}
                 >
                   {step.name}
                 </span>
-                <span className={`text-[10px] ${text.dimmed} ml-2 font-mono`}>{step.command}</span>
+                <span className={`text-[10px] ${text.dimmed} ml-2 ${promptStep ? "" : "font-mono"}`}>
+                  {promptStep ? step.prompt || "(no prompt text)" : step.command}
+                </span>
               </div>
 
-              {!disabled && result?.durationMs != null && (
+              {!disabled && !promptStep && result?.durationMs != null && (
                 <span className={`text-[9px] ${text.dimmed} flex-shrink-0`}>
                   {formatDuration(result.durationMs)}
                 </span>
               )}
 
-              {!disabled && result?.output && (
+              {!disabled && !promptStep && result?.output && (
                 <button onClick={() => toggleStep(step.id)}>
                   <ChevronDown
                     className={`w-3 h-3 ${text.dimmed} transition-transform ${isExpanded ? "rotate-180" : ""}`}
@@ -932,11 +973,11 @@ function StepList({
                 <Ban className="w-3.5 h-3.5 text-white/[0.2] flex-shrink-0" />
               ) : isRunning ? (
                 <Loader2 className="w-3.5 h-3.5 text-yellow-400 animate-spin flex-shrink-0" />
-              ) : result ? (
+              ) : !promptStep && result ? (
                 statusIcon(result.status)
               ) : null}
 
-              {!disabled && !runningAll && (
+              {!disabled && !promptStep && !runningAll && (
                 <button
                   onClick={() => onRunSingle(step.id)}
                   disabled={isRunning}
@@ -971,7 +1012,7 @@ function SkillList({
   onViewReport,
   nested,
 }: {
-  skills: Array<{ skillName: string; enabled: boolean }>;
+  skills: Array<{ skillName: string; enabled: boolean; trigger?: HookSkillRef["trigger"] }>;
   skillResultMap: Map<string, SkillHookResult>;
   expandedSkills: Set<string>;
   setExpandedSkills: Dispatch<SetStateAction<Set<string>>>;
@@ -991,14 +1032,22 @@ function SkillList({
     <div className={`${nested ? "px-2" : "px-4"} py-[2.5px] space-y-[5px]`}>
       {skills.map((skill) => {
         const disabled = !skill.enabled;
-        const result = skillResultMap.get(skill.skillName);
+        const key = skillResultKey(skill.skillName, skill.trigger);
+        const result = skillResultMap.get(key);
         const isRunning = result?.status === "running";
-        const isExpanded = expandedSkills.has(skill.skillName);
+        const hasCompletedResult = !!result && result.status !== "running";
+        const isExpanded = expandedSkills.has(key);
 
         return (
           <div
-            key={skill.skillName}
-            className={`relative rounded-lg border ${!result && !disabled ? "border-dashed border-white/[0.08]" : "border-white/[0.04]"} ${result || disabled ? settings.card : ""} overflow-visible ${disabled ? "opacity-50" : ""}`}
+            key={key}
+            className={`relative rounded-lg border ${
+              !hasCompletedResult && !isRunning && !disabled
+                ? "border-dashed border-white/[0.08]"
+                : "border-white/[0.04]"
+            } ${hasCompletedResult || disabled ? settings.card : ""} overflow-visible ${
+              disabled ? "opacity-50" : ""
+            }`}
           >
             {/* {isRunning && <SweepingBorder />} */}
             <div className="flex items-center gap-2.5 px-3 py-2">
@@ -1009,7 +1058,7 @@ function SkillList({
 
               <div
                 className={`flex-1 flex items-center text-left min-w-0 ${!disabled && (result?.content || result?.summary) && !isRunning ? "cursor-pointer" : ""}`}
-                onClick={() => !disabled && result && !isRunning && toggleSkill(skill.skillName)}
+                onClick={() => !disabled && result && !isRunning && toggleSkill(key)}
               >
                 <span
                   className={`text-[11px] font-medium ${disabled ? text.dimmed : text.secondary}`}
@@ -1031,7 +1080,7 @@ function SkillList({
 
               {/* Expand toggle */}
               {!disabled && !isRunning && (result?.content || result?.summary) && (
-                <button onClick={() => toggleSkill(skill.skillName)}>
+                <button onClick={() => toggleSkill(key)}>
                   <ChevronDown
                     className={`w-3 h-3 ${text.dimmed} transition-transform ${isExpanded ? "rotate-180" : ""}`}
                   />

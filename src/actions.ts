@@ -10,6 +10,7 @@ import type { WorktreeManager } from "./server/manager";
 import type { NotesManager } from "./server/notes-manager";
 import { generateTaskMd, writeTaskMd } from "./server/task-context";
 import type { TaskContextData } from "./server/task-context";
+import type { HookStep, HookTrigger } from "./server/types";
 import type { HooksManager } from "./server/verification-manager";
 import type { ActivityLog } from "./server/activity-log";
 
@@ -38,6 +39,43 @@ function findWorktreeOrThrow(ctx: ActionContext, id: string) {
   const wt = worktrees.find((w) => w.id === id);
   if (!wt) throw new Error(`Worktree "${id}" not found`);
   return wt;
+}
+
+function normalizeHookTrigger(value: unknown): HookTrigger {
+  if (
+    value === "pre-implementation" ||
+    value === "post-implementation" ||
+    value === "custom" ||
+    value === "on-demand"
+  ) {
+    return value;
+  }
+  return "post-implementation";
+}
+
+function matchesTrigger(step: HookStep, trigger: HookTrigger): boolean {
+  if (trigger === "post-implementation") {
+    return step.trigger === "post-implementation" || !step.trigger;
+  }
+  return step.trigger === trigger;
+}
+
+function isRunnableStep(step: HookStep): boolean {
+  const isPrompt = step.kind === "prompt" || (!!step.prompt && !step.command?.trim());
+  return !isPrompt && !!step.command?.trim();
+}
+
+function formatHookTriggerLabel(trigger: HookTrigger): string {
+  switch (trigger) {
+    case "pre-implementation":
+      return "Pre-Implementation";
+    case "post-implementation":
+      return "Post-Implementation";
+    case "custom":
+      return "Custom";
+    case "on-demand":
+      return "On-Demand";
+  }
 }
 
 export const actions: Action[] = [
@@ -624,11 +662,17 @@ export const actions: Action[] = [
         description: 'Severity level: "info" (default), "success", "warning", or "error"',
       },
       worktreeId: { type: "string", description: "Related worktree ID (optional)" },
+      requiresUserAction: {
+        type: "boolean",
+        description:
+          "Set true when user input is needed to continue. These notifications appear in a dedicated action-required section.",
+      },
     },
     handler: async (ctx, params) => {
       const message = params.message as string;
       const severity = (params.severity as string) || "info";
       const worktreeId = params.worktreeId as string | undefined;
+      const requiresUserAction = params.requiresUserAction === true;
 
       if (!["info", "success", "warning", "error"].includes(severity)) {
         return {
@@ -644,6 +688,7 @@ export const actions: Action[] = [
           severity: severity as "info" | "success" | "warning" | "error",
           title: message,
           worktreeId,
+          metadata: requiresUserAction ? { requiresUserAction: true } : undefined,
         });
       }
 
@@ -687,11 +732,61 @@ export const actions: Action[] = [
       "Run all hook pipeline steps for a worktree in parallel. Each step is a shell command (e.g. lint, typecheck, build). Returns results inline.",
     params: {
       worktreeId: { type: "string", description: "Worktree ID to run hooks on", required: true },
+      trigger: {
+        type: "string",
+        description:
+          'Optional hook trigger to run: "pre-implementation", "post-implementation" (default), "custom", or "on-demand".',
+      },
     },
     handler: async (ctx, params) => {
       if (!ctx.hooksManager) return { error: "Hooks manager not available" };
       const worktreeId = params.worktreeId as string;
-      return ctx.hooksManager.runAll(worktreeId);
+      const trigger = normalizeHookTrigger(params.trigger);
+      const projectName = ctx.manager.getProjectName() ?? undefined;
+      const groupKey = `hooks:${worktreeId}:${trigger}`;
+
+      const runnableSteps = ctx.hooksManager
+        .getConfig()
+        .steps.filter((step) => step.enabled !== false && matchesTrigger(step, trigger) && isRunnableStep(step))
+        .map((step) => ({ stepId: step.id, stepName: step.name, command: step.command }));
+
+      ctx.activityLog?.addEvent({
+        category: "agent",
+        type: "hooks_started",
+        severity: "info",
+        title: `${formatHookTriggerLabel(trigger)} hooks started`,
+        worktreeId,
+        projectName,
+        groupKey,
+        metadata: {
+          trigger,
+          commandResults: runnableSteps.map((step) => ({ ...step, status: "running" })),
+        },
+      });
+
+      const run = await ctx.hooksManager.runAll(worktreeId, trigger);
+      const failedCount = run.steps.filter((step) => step.status === "failed").length;
+      const severity = failedCount > 0 || run.status === "failed" ? "error" : "success";
+      const detail =
+        run.steps.length === 0
+          ? "No runnable command hooks configured for this trigger."
+          : failedCount > 0
+            ? `${failedCount} of ${run.steps.length} command hooks failed.`
+            : `${run.steps.length} command hooks passed.`;
+
+      ctx.activityLog?.addEvent({
+        category: "agent",
+        type: "hooks_ran",
+        severity,
+        title: `${formatHookTriggerLabel(trigger)} hooks completed`,
+        detail,
+        worktreeId,
+        projectName,
+        groupKey,
+        metadata: { trigger, commandResults: run.steps },
+      });
+
+      return run;
     },
   },
   {
@@ -709,13 +804,18 @@ export const actions: Action[] = [
   {
     name: "report_hook_status",
     description:
-      "Report hook skill status to the dawg UI. Call this TWICE for each skill: once BEFORE invoking (without success/summary) to show a loading state, and once AFTER with the result. The dawg UI updates in real-time based on these reports.",
+      "Report hook skill status to the dawg UI. Call this TWICE for each skill: once BEFORE invoking (without success/summary) to show a loading state, and once AFTER with the result. Pass trigger whenever possible to avoid ambiguity across hook phases.",
     params: {
       worktreeId: { type: "string", description: "Worktree ID", required: true },
       skillName: {
         type: "string",
         description: "Name of the hook skill (e.g. review-changes)",
         required: true,
+      },
+      trigger: {
+        type: "string",
+        description:
+          'Hook trigger this skill belongs to: "pre-implementation", "post-implementation", "custom", or "on-demand".',
       },
       success: {
         type: "boolean",
@@ -743,11 +843,15 @@ export const actions: Action[] = [
       const summary = params.summary as string | undefined;
       const content = params.content as string | undefined;
       const filePath = params.filePath as string | undefined;
+      const triggerParam = params.trigger;
 
-      // Look up trigger type from hooks config
+      // Resolve trigger from param first, then best-effort config fallback.
       const hooksConfig = ctx.hooksManager.getConfig();
       const trigger =
-        hooksConfig.skills.find((s) => s.skillName === skillName)?.trigger ?? "post-implementation";
+        (triggerParam === undefined || triggerParam === null
+          ? hooksConfig.skills.find((s) => s.skillName === skillName)?.trigger
+          : normalizeHookTrigger(triggerParam)) ?? "post-implementation";
+      const triggerLabel = formatHookTriggerLabel(trigger);
       const projectName = ctx.manager.getProjectName() ?? undefined;
       const groupKey = `hooks:${worktreeId}:${trigger}`;
 
@@ -755,6 +859,7 @@ export const actions: Action[] = [
         // Starting notification — mark as running
         ctx.hooksManager.reportSkillResult(worktreeId, {
           skillName,
+          trigger,
           status: "running",
           reportedAt: new Date().toISOString(),
         });
@@ -762,7 +867,7 @@ export const actions: Action[] = [
           category: "agent",
           type: "skill_started",
           severity: "info",
-          title: `Running skill: ${skillName}`,
+          title: `${triggerLabel} skill running: ${skillName}`,
           worktreeId,
           projectName,
           groupKey,
@@ -772,6 +877,7 @@ export const actions: Action[] = [
         // Completion report
         ctx.hooksManager.reportSkillResult(worktreeId, {
           skillName,
+          trigger,
           status: success ? "passed" : "failed",
           success,
           summary,
@@ -783,7 +889,9 @@ export const actions: Action[] = [
           category: "agent",
           type: success ? "skill_completed" : "skill_failed",
           severity: success ? "success" : "error",
-          title: success ? `Skill "${skillName}" passed` : `Skill "${skillName}" failed`,
+          title: success
+            ? `${triggerLabel} skill passed: ${skillName}`
+            : `${triggerLabel} skill failed: ${skillName}`,
           detail: summary,
           worktreeId,
           projectName,

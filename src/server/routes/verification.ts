@@ -60,11 +60,21 @@ export function registerHooksRoutes(
   // Add a step
   app.post("/api/hooks/steps", async (c) => {
     try {
-      const { name, command } = await c.req.json();
-      if (!name || !command) {
-        return c.json({ success: false, error: "name and command are required" }, 400);
+      const { name, command, kind, prompt, trigger, condition, conditionTitle } = await c.req.json();
+      const isPrompt = kind === "prompt";
+      if (!name || (!isPrompt && !command) || (isPrompt && !prompt)) {
+        return c.json(
+          { success: false, error: isPrompt ? "name and prompt are required" : "name and command are required" },
+          400,
+        );
       }
-      const config = hooksManager.addStep(name, command);
+      const config = hooksManager.addStep(name, isPrompt ? "" : command, {
+        kind,
+        prompt,
+        trigger,
+        condition,
+        conditionTitle,
+      });
       return c.json({ success: true, config });
     } catch (error) {
       return c.json(
@@ -186,7 +196,14 @@ export function registerHooksRoutes(
   app.post("/api/worktrees/:id/hooks/run", async (c) => {
     const worktreeId = c.req.param("id");
     try {
-      const run = await hooksManager.runAll(worktreeId);
+      const body = await c.req.json().catch(() => ({}));
+      const trigger = body?.trigger as
+        | "pre-implementation"
+        | "post-implementation"
+        | "custom"
+        | "on-demand"
+        | undefined;
+      const run = await hooksManager.runAll(worktreeId, trigger);
       return c.json(run);
     } catch (error) {
       return c.json(
@@ -223,7 +240,7 @@ export function registerHooksRoutes(
     const worktreeId = c.req.param("id");
     try {
       const body = await c.req.json();
-      const { skillName, success, summary, content, filePath } = body;
+      const { skillName, trigger, success, summary, content, filePath } = body;
       if (!skillName) {
         return c.json({ success: false, error: "skillName is required" }, 400);
       }
@@ -232,6 +249,7 @@ export function registerHooksRoutes(
         // Starting notification — mark as running
         hooksManager.reportSkillResult(worktreeId, {
           skillName,
+          trigger,
           status: "running",
           reportedAt: new Date().toISOString(),
         });
@@ -241,6 +259,7 @@ export function registerHooksRoutes(
         }
         hooksManager.reportSkillResult(worktreeId, {
           skillName,
+          trigger,
           status: success ? "passed" : "failed",
           success,
           summary: summary || undefined,

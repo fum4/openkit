@@ -34,6 +34,9 @@ export function generateTaskMd(
   todos?: TodoItem[],
   hooks?: HooksInfo | null,
 ): string {
+  const isPromptHook = (step: HookStep): boolean =>
+    step.kind === "prompt" || (!!step.prompt && !step.command?.trim());
+
   const lines: string[] = [];
 
   lines.push(`# ${data.identifier} — ${data.title}`);
@@ -108,6 +111,8 @@ export function generateTaskMd(
   const preChecks = (hooks?.checks ?? []).filter(
     (s) => s.enabled !== false && s.trigger === "pre-implementation",
   );
+  const preCommandChecks = preChecks.filter((s) => !isPromptHook(s));
+  const prePromptChecks = preChecks.filter((s) => isPromptHook(s));
   const preSkills = (hooks?.skills ?? []).filter(
     (s: HookSkillRef) => s.enabled && s.trigger === "pre-implementation",
   );
@@ -121,16 +126,30 @@ export function generateTaskMd(
     );
     lines.push("");
 
-    if (preChecks.length > 0) {
+    if (preCommandChecks.length > 0) {
       lines.push("### Pipeline Checks");
-      lines.push("Run the `run_hooks` MCP tool to execute all configured checks in parallel.");
+      lines.push(
+        'Run the `run_hooks` MCP tool with `trigger: "pre-implementation"` to execute all configured command checks in parallel.',
+      );
+      lines.push("");
+    }
+
+    if (prePromptChecks.length > 0) {
+      lines.push("### Prompt Hooks");
+      lines.push("Interpret and execute these prompt hooks before implementation:");
+      lines.push("");
+      for (const promptHook of prePromptChecks) {
+        lines.push(
+          `- **${promptHook.name}:** ${promptHook.prompt?.trim() || "(no prompt text configured)"}`,
+        );
+      }
       lines.push("");
     }
 
     for (const skill of preSkills) {
       lines.push(`### ${skill.skillName}`);
       lines.push(
-        `Call \`report_hook_status\` (without success/summary) to mark it running, invoke the \`/${skill.skillName}\` skill, then call \`report_hook_status\` again with the result.`,
+        `Call \`report_hook_status\` with \`trigger: "pre-implementation"\` (without success/summary) to mark it running, invoke the \`/${skill.skillName}\` skill, then call \`report_hook_status\` again with the result.`,
       );
       lines.push("");
     }
@@ -140,6 +159,8 @@ export function generateTaskMd(
   const postChecks = (hooks?.checks ?? []).filter(
     (s) => s.enabled !== false && (s.trigger === "post-implementation" || !s.trigger),
   );
+  const postCommandChecks = postChecks.filter((s) => !isPromptHook(s));
+  const postPromptChecks = postChecks.filter((s) => isPromptHook(s));
   const postSkills = (hooks?.skills ?? []).filter(
     (s: HookSkillRef) => s.enabled && (s.trigger === "post-implementation" || !s.trigger),
   );
@@ -150,17 +171,31 @@ export function generateTaskMd(
     lines.push("");
     lines.push("After completing your work, run these hook steps:");
 
-    if (postChecks.length > 0) {
+    if (postCommandChecks.length > 0) {
       lines.push("");
       lines.push("### Pipeline Checks");
-      lines.push("Run the `run_hooks` MCP tool to execute all configured checks in parallel.");
+      lines.push(
+        'Run the `run_hooks` MCP tool with `trigger: "post-implementation"` to execute all configured command checks in parallel.',
+      );
+    }
+
+    if (postPromptChecks.length > 0) {
+      lines.push("");
+      lines.push("### Prompt Hooks");
+      lines.push("Interpret and execute these prompt hooks after implementation:");
+      lines.push("");
+      for (const promptHook of postPromptChecks) {
+        lines.push(
+          `- **${promptHook.name}:** ${promptHook.prompt?.trim() || "(no prompt text configured)"}`,
+        );
+      }
     }
 
     for (const skill of postSkills) {
       lines.push("");
       lines.push(`### ${skill.skillName}`);
       lines.push(
-        `Call \`report_hook_status\` (without success/summary) to mark it running, invoke the \`/${skill.skillName}\` skill, then call \`report_hook_status\` again with the result.`,
+        `Call \`report_hook_status\` with \`trigger: "post-implementation"\` (without success/summary) to mark it running, invoke the \`/${skill.skillName}\` skill, then call \`report_hook_status\` again with the result.`,
       );
     }
   }
@@ -169,6 +204,8 @@ export function generateTaskMd(
   const customChecks = (hooks?.checks ?? []).filter(
     (s) => s.enabled !== false && s.trigger === "custom",
   );
+  const customCommandChecks = customChecks.filter((s) => !isPromptHook(s));
+  const customPromptChecks = customChecks.filter((s) => isPromptHook(s));
   const customSkills = (hooks?.skills ?? []).filter(
     (s: HookSkillRef) => s.enabled && s.trigger === "custom",
   );
@@ -182,12 +219,21 @@ export function generateTaskMd(
     );
     lines.push("");
 
-    for (const check of customChecks) {
+    for (const check of customCommandChecks) {
       lines.push(`### ${check.name}`);
       if (check.condition) {
         lines.push(`**When:** ${check.condition}`);
       }
       lines.push(`Run \`${check.command}\` in the worktree directory.`);
+      lines.push("");
+    }
+
+    for (const promptHook of customPromptChecks) {
+      lines.push(`### ${promptHook.name}`);
+      if (promptHook.condition) {
+        lines.push(`**When:** ${promptHook.condition}`);
+      }
+      lines.push(`**Prompt:** ${promptHook.prompt?.trim() || "(no prompt text configured)"}`);
       lines.push("");
     }
 
@@ -197,7 +243,7 @@ export function generateTaskMd(
         lines.push(`**When:** ${skill.condition}`);
       }
       lines.push(
-        `Call \`report_hook_status\` (without success/summary) to mark it running, invoke the \`/${skill.skillName}\` skill, then call \`report_hook_status\` again with the result.`,
+        `Call \`report_hook_status\` with \`trigger: "custom"\` (without success/summary) to mark it running, invoke the \`/${skill.skillName}\` skill, then call \`report_hook_status\` again with the result.`,
       );
       lines.push("");
     }

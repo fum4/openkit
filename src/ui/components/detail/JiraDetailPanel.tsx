@@ -356,8 +356,9 @@ export function JiraDetailPanel({
                 type="button"
                 onClick={handleCreate}
                 disabled={isCreating}
-                className={`px-3 py-1.5 text-xs font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors duration-150 active:scale-[0.98]`}
+                className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 active:scale-[0.98]`}
               >
+                <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
                 {isCreating ? "Creating..." : "Create Worktree"}
               </button>
             )}

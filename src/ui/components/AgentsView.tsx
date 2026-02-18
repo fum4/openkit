@@ -26,6 +26,7 @@ import { text } from "../theme";
 const BANNER_DISMISSED_KEY = `${APP_NAME}:agentsBannerDismissed`;
 const DISCOVERY_DISMISSED_KEY = `${APP_NAME}:agentsDiscoveryDismissed`;
 const DISCOVERY_COUNTS_KEY = `${APP_NAME}:agentsDiscoveryCounts`;
+const DISCOVERY_RESULTS_KEY = `${APP_NAME}:agentsDiscoveryResults`;
 
 const STORAGE_KEY = `${APP_NAME}:agentsSidebarWidth`;
 const DEFAULT_WIDTH = 300;
@@ -183,7 +184,27 @@ export function AgentsView() {
   const [discoveryScanResults, setDiscoveryScanResults] = useState<{
     mcpResults: McpScanResult[];
     skillResults: SkillScanResult[];
-  } | null>(null);
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem(DISCOVERY_RESULTS_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const setPersistedDiscoveryResults = (
+    results: {
+      mcpResults: McpScanResult[];
+      skillResults: SkillScanResult[];
+    } | null,
+  ) => {
+    setDiscoveryScanResults(results);
+    if (results) {
+      localStorage.setItem(DISCOVERY_RESULTS_KEY, JSON.stringify(results));
+    } else {
+      localStorage.removeItem(DISCOVERY_RESULTS_KEY);
+    }
+  };
 
   const runDiscoveryScan = useCallback(() => {
     setDiscoveryScanning(true);
@@ -194,12 +215,10 @@ export function AgentsView() {
           (r) => !r.alreadyInRegistry && r.key !== "dawg",
         );
         const skillResults = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
-        setDiscoveryScanResults({ mcpResults, skillResults });
+        setPersistedDiscoveryResults({ mcpResults, skillResults });
         setDiscoveryCounts({ servers: mcpResults.length, skills: skillResults.length });
       })
-      .catch(() => {
-        setDiscoveryScanResults(null);
-      })
+      .catch(() => {})
       .finally(() => setDiscoveryScanning(false));
   }, [api]);
 
@@ -212,7 +231,7 @@ export function AgentsView() {
   }, [runDiscoveryScan]);
 
   const dismissDiscovery = () => {
-    setDiscoveryScanResults(null);
+    setPersistedDiscoveryResults(null);
     setDiscoveryCounts(null);
     setDiscoveryDismissed(true);
     localStorage.setItem(DISCOVERY_DISMISSED_KEY, "1");
@@ -278,9 +297,7 @@ export function AgentsView() {
           <div className="flex-shrink-0 h-14 flex items-center gap-3 px-4 border-b border-purple-400/20 bg-purple-400/[0.04]">
             <Radar className="w-4 h-4 text-purple-400 flex-shrink-0" />
             <p className={`text-[11px] ${text.secondary} leading-relaxed flex-1`}>
-              {discoveryScanning ? (
-                "Scanning for MCP servers and skills on this device..."
-              ) : hasDiscoveryResults ? (
+              {hasDiscoveryResults ? (
                 <>
                   Found
                   {displayDiscoveryCounts.servers > 0
@@ -294,6 +311,8 @@ export function AgentsView() {
                     : ""}{" "}
                   on this device.
                 </>
+              ) : discoveryScanning ? (
+                "Scanning for MCP servers and skills on this device..."
               ) : (
                 "No new MCP servers or skills found on this device."
               )}
@@ -422,6 +441,7 @@ export function AgentsView() {
             setScanModalPrefillResults(null);
           }}
           plugins={plugins}
+          pluginsLoading={pluginsLoading}
           autoScanMode={scanModalAutoMode}
           prefilledResults={scanModalPrefillResults}
         />

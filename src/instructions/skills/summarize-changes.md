@@ -12,7 +12,7 @@ Generate a concise summary of all changes made in this worktree compared to the 
 
 ## Steps
 
-1. Call `report_hook_status` with just `worktreeId` and `skillName` (no `success`/`summary`) to mark it **running** in the UI
+1. Call `report_hook_status` with `worktreeId` and `skillName` (and `trigger` when known), without `success`/`summary`, to mark it **running** in the UI
 
 2. Run `git diff HEAD~..HEAD` (or `git diff main..HEAD` if multiple commits) to see all changes
 

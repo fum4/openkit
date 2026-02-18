@@ -300,7 +300,8 @@ export function useApi() {
 
       saveHooksConfig: (config: api.HooksConfig) => api.saveHooksConfig(config, serverUrl),
 
-      runHooks: (worktreeId: string) => api.runHooks(worktreeId, serverUrl),
+      runHooks: (worktreeId: string, trigger?: api.HookTrigger) =>
+        api.runHooks(worktreeId, trigger, serverUrl),
 
       runHookStep: (worktreeId: string, stepId: string) =>
         api.runHookStep(worktreeId, stepId, serverUrl),

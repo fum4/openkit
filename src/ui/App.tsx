@@ -22,14 +22,12 @@ import { ProjectSetupScreen } from "./components/ProjectSetupScreen";
 import { HooksPanel } from "./components/VerificationPanel";
 import { ResizableHandle } from "./components/ResizableHandle";
 import { SetupCommitModal } from "./components/SetupCommitModal";
-import { ToastContainer } from "./components/Toast";
 import type { View } from "./components/NavBar";
 import type { WorktreeInfo } from "./types";
 import { TabBar } from "./components/TabBar";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { WorktreeList } from "./components/WorktreeList";
 import { useServer } from "./contexts/ServerContext";
-import { useToast } from "./contexts/ToastContext";
 import { useApi } from "./hooks/useApi";
 import { useConfig } from "./hooks/useConfig";
 import { useCustomTasks } from "./hooks/useCustomTasks";
@@ -52,7 +50,6 @@ type Selection =
 
 export default function App() {
   const api = useApi();
-  const { addToast } = useToast();
   const {
     projects,
     activeProject,
@@ -65,10 +62,7 @@ export default function App() {
   } = useServer();
   const [hookUpdateKey, setHookUpdateKey] = useState(0);
   const { worktrees, isConnected, error, refetch } = useWorktrees(
-    useCallback(
-      (message: string, level: "error" | "info" | "success") => addToast(message, level),
-      [addToast],
-    ),
+    undefined,
     useCallback(() => setHookUpdateKey((k) => k + 1), []),
   );
   const {
@@ -1053,13 +1047,6 @@ export default function App() {
       <div className="absolute bottom-0 left-0 right-0 z-40">
         <TabBar onOpenSettings={() => setShowSettingsModal(true)} />
       </div>
-
-      <ToastContainer
-        onNavigateToWorktree={(worktreeId) => {
-          setActiveView("workspace");
-          setSelection({ type: "worktree", id: worktreeId });
-        }}
-      />
     </div>
   );
 }

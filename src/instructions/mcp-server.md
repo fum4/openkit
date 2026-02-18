@@ -21,7 +21,7 @@ Do NOT read `.dawg/` files or make HTTP requests to the dawg server — all comm
 1. Poll `list_worktrees` until status is `stopped` (creation done)
 2. Navigate to the worktree path returned in the response
 3. Call `get_hooks_config` to discover all configured hooks (pre/post-implementation, custom, on-demand)
-4. Run any pre-implementation hooks BEFORE starting work (see Hooks section below)
+4. Run pre-implementation command hooks via `run_hooks` with `trigger: "pre-implementation"` BEFORE starting work (see Hooks section below)
 5. Read TASK.md to understand the task from the original issue details
 6. Follow AI context directions and work through the todo checklist — these are user-defined and take priority over the original task description when they conflict
 7. Plan before coding — analyze the codebase in the worktree, understand existing patterns and conventions, create an implementation approach, and present it to the user for approval before writing any code
@@ -90,14 +90,15 @@ Hooks run at different points in the workflow. Call `get_hooks_config` EARLY (ri
    > e.g. "Running pre-implementation hooks: typecheck, lint" or "Invoking /code-review skill as a post-implementation hook"
 
 3. **After running** — summarize results to the user AND report them back through MCP tools so the UI stays updated:
-   - **Command steps**: `run_hooks` saves results automatically. Summarize pass/fail to the user.
-   - **Skills**: call `report_hook_status` TWICE — once BEFORE invoking (without `success`/`summary`) to show loading, and once AFTER with the result. Summarize to the user.
+   - **Command steps**: call `run_hooks` with the appropriate trigger (`pre-implementation`, `post-implementation`, `custom`, or `on-demand`). Summarize pass/fail to the user.
+   - **Skills**: call `report_hook_status` TWICE — once BEFORE invoking (without `success`/`summary`) to show loading, and once AFTER with the result. Include `trigger` whenever possible.
+   - **Prompt hooks**: execute the prompt instruction directly (no `run_hooks` call).
 
-4. Run **pre-implementation** hooks before starting work
+4. Run **pre-implementation** hooks before starting work (`run_hooks` with `trigger: "pre-implementation"` for command steps)
 
 5. While working, check **custom** hook conditions — run matching hooks when your changes trigger them
 
-6. After completing work, run **post-implementation** hooks
+6. After completing work, run **post-implementation** hooks (`run_hooks` with `trigger: "post-implementation"` for command steps)
 
 7. Call `get_hooks_status` to verify all steps passed
 
@@ -133,6 +134,7 @@ Use the `notify` tool to keep the user informed about progress on long-running t
 - Call `notify` with a short `message` describing what you're doing or what just happened
 - Use `severity` to indicate the nature of the update: `info` (default), `warning`, or `error`
 - Include `worktreeId` when the update relates to a specific worktree
+- Set `requiresUserAction: true` when you need user input to continue
 - Good examples: "Analyzing codebase structure", "Found 3 files that need changes", "Running type checker — 2 errors found"
 - Don't over-notify — one update per meaningful progress milestone is enough
 

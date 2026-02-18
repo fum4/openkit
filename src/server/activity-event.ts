@@ -29,6 +29,7 @@ export const ACTIVITY_TYPES = {
   SKILL_STARTED: "skill_started",
   SKILL_COMPLETED: "skill_completed",
   SKILL_FAILED: "skill_failed",
+  HOOKS_STARTED: "hooks_started",
   HOOKS_RAN: "hooks_ran",
 
   // Worktree events

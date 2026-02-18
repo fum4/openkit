@@ -1,10 +1,7 @@
 import { AnimatePresence } from "motion/react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import { useActivityFeed } from "../hooks/useActivityFeed";
-import { useConfig } from "../hooks/useConfig";
-import { useToast } from "../contexts/ToastContext";
-import type { ToastChild } from "../contexts/ToastContext";
 import { ActivityBell, ActivityFeed } from "./ActivityFeed";
 import type { View } from "./NavBar";
 import { nav } from "../theme";
@@ -24,51 +21,16 @@ interface HeaderProps {
 }
 
 export function Header({ activeView, onChangeView, onNavigateToWorktree }: HeaderProps) {
-  const { addToast, upsertToast, upsertGroupedToast } = useToast();
-  const { config } = useConfig();
   const [feedOpen, setFeedOpen] = useState(false);
-
-  const handleToast = useCallback(
-    (
-      message: string,
-      level: "error" | "info" | "success",
-      projectName?: string,
-      worktreeId?: string,
-    ) => addToast(message, level, projectName, worktreeId),
-    [addToast],
-  );
-
-  const handleUpsertToast = useCallback(
-    (
-      groupKey: string,
-      message: string,
-      level: "error" | "info" | "success",
-      isLoading: boolean,
-      projectName?: string,
-      worktreeId?: string,
-    ) => upsertToast(groupKey, message, level, isLoading, projectName, worktreeId),
-    [upsertToast],
-  );
-
-  const handleUpsertGroupedToast = useCallback(
-    (groupKey: string, child: ToastChild, projectName?: string, worktreeId?: string) =>
-      upsertGroupedToast(groupKey, child, projectName, worktreeId),
-    [upsertGroupedToast],
-  );
-
-  const { events, unreadCount, filter, setFilter, markAllRead, clearAll } = useActivityFeed(
-    handleToast,
-    handleUpsertToast,
-    config?.activity?.toastEvents,
-    handleUpsertGroupedToast,
-  );
+  const { events, unreadCount, markAllRead, clearAll } = useActivityFeed();
 
   const handleToggleFeed = () => {
-    if (!feedOpen) {
-      // Opening — mark as read after a short delay
-      setTimeout(() => markAllRead(), 500);
-    }
-    setFeedOpen(!feedOpen);
+    setFeedOpen((prev) => {
+      if (!prev) {
+        setTimeout(() => markAllRead(), 500);
+      }
+      return !prev;
+    });
   };
 
   return (
@@ -108,8 +70,6 @@ export function Header({ activeView, onChangeView, onNavigateToWorktree }: Heade
               <ActivityFeed
                 events={events}
                 unreadCount={unreadCount}
-                filter={filter}
-                onFilterChange={setFilter}
                 onMarkAllRead={markAllRead}
                 onClearAll={clearAll}
                 onClose={() => setFeedOpen(false)}

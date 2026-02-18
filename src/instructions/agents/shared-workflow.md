@@ -12,13 +12,13 @@ When the user mentions an issue key (like PROJ-123, ENG-42), a ticket number, or
 2. **Navigate** to the worktree path
 3. **Discover hooks** via `get_hooks_config` (pre-implementation, post-implementation, custom, on-demand)
 4. Always inform the user before running hooks/skills/commands, and summarize results after
-5. For each skill: call `report_hook_status` BEFORE (without `success`/`summary`) to show loading, invoke skill, then call it AGAIN with the result
-6. **Run pre-implementation hooks** before starting work
+5. For each skill: call `report_hook_status` BEFORE (without `success`/`summary`) to show loading, invoke skill, then call it AGAIN with the result (include `trigger` when possible)
+6. **Run pre-implementation hooks** before starting work (`run_hooks` with `trigger: "pre-implementation"` for command hooks)
 7. **Read TASK.md** to understand the task from the original issue details
 8. **Follow AI context** directions and todo checklist — these are user-defined and take priority over the original task description when they conflict
 9. **Plan before coding** — analyze the codebase in the worktree, understand existing patterns and conventions, create an implementation approach, and present it to the user for approval before writing any code
 10. **Start implementing**
-11. **After completing** all work and post-implementation hooks, call `get_git_policy` — if commit/push/create_pr are allowed, do them automatically. If the dev server is not already running, ask the user if they'd like you to start it (via `start_worktree`)
+11. **After completing** all work and post-implementation hooks (`run_hooks` with `trigger: "post-implementation"` for command hooks), call `get_git_policy` — if commit/push/create_pr are allowed, do them automatically. If the dev server is not already running, ask the user if they'd like you to start it (via `start_worktree`)
 
 ## Skill Report Files
 

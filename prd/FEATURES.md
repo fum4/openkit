@@ -4,6 +4,10 @@
 
 Users should be able to work on tasks in batches. Add capability to group, serve and track tasks together.
 
+## Linux support
+
+Implement Linux release pipeline & confirm everything works
+
 ## Windows support
 
 Add windows support. Current port offsetting does not work on Windows. To investigate what other incompatibilities exist

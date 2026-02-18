@@ -18,6 +18,7 @@ interface McpServerScanModalProps {
   onImported: () => void;
   onClose: () => void;
   plugins?: PluginSummary[];
+  pluginsLoading?: boolean;
   autoScanMode?: ScanMode | null;
   prefilledResults?: {
     mcpResults: McpScanResult[];
@@ -50,6 +51,7 @@ export function McpServerScanModal({
   onImported,
   onClose,
   plugins = [],
+  pluginsLoading = false,
   autoScanMode = null,
   prefilledResults = null,
 }: McpServerScanModalProps) {
@@ -79,37 +81,40 @@ export function McpServerScanModal({
     else if (skills.length > 0) setTab("skills");
   }, []);
 
-  const handleScanWithMode = useCallback(async (scanMode: ScanMode) => {
-    if (scanMode === "folder" && !scanPath.trim()) return;
+  const handleScanWithMode = useCallback(
+    async (scanMode: ScanMode) => {
+      if (scanMode === "folder" && !scanPath.trim()) return;
 
-    setScanning(true);
-    setError(null);
-    setMcpResults(null);
-    setSkillResults(null);
+      setScanning(true);
+      setError(null);
+      setMcpResults(null);
+      setSkillResults(null);
 
-    const options: { mode: ScanMode; scanPath?: string } = { mode: scanMode };
-    if (scanMode === "folder") options.scanPath = scanPath.trim();
+      const options: { mode: ScanMode; scanPath?: string } = { mode: scanMode };
+      if (scanMode === "folder") options.scanPath = scanPath.trim();
 
-    const [mcpRes, skillRes] = await Promise.all([
-      api.scanMcpServers(options),
-      api.scanSkills(options),
-    ]);
+      const [mcpRes, skillRes] = await Promise.all([
+        api.scanMcpServers(options),
+        api.scanSkills(options),
+      ]);
 
-    setScanning(false);
+      setScanning(false);
 
-    if (mcpRes.error && skillRes.error) {
-      setError(mcpRes.error);
-      return;
-    }
+      if (mcpRes.error && skillRes.error) {
+        setError(mcpRes.error);
+        return;
+      }
 
-    // Filter: hide dawg and already-imported items
-    const newMcps = (mcpRes.discovered ?? []).filter(
-      (r) => !isWork3Server(r) && !r.alreadyInRegistry,
-    );
-    const newSkills = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
+      // Filter: hide dawg and already-imported items
+      const newMcps = (mcpRes.discovered ?? []).filter(
+        (r) => !isWork3Server(r) && !r.alreadyInRegistry,
+      );
+      const newSkills = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
 
-    applyResults(newMcps, newSkills);
-  }, [api, applyResults, scanPath]);
+      applyResults(newMcps, newSkills);
+    },
+    [api, applyResults, scanPath],
+  );
 
   useEffect(() => {
     if (!prefilledResults) return;
@@ -269,17 +274,25 @@ export function McpServerScanModal({
             >
               Skills{skillCount > 0 ? ` (${skillCount})` : ""}
             </button>
-            {plugins.length > 0 && (
+            {(pluginsLoading || plugins.length > 0) && (
               <button
                 type="button"
+                disabled={pluginsLoading}
                 onClick={() => setTab("plugins")}
-                className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
+                className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors inline-flex items-center gap-1.5 ${
                   tab === "plugins"
                     ? "text-[#d1d5db] bg-white/[0.06]"
                     : `${text.dimmed} hover:${text.muted}`
-                }`}
+                } ${pluginsLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                Plugins ({plugins.length})
+                {pluginsLoading ? (
+                  <>
+                    <Spinner size="xs" className={text.muted} />
+                    Plugins
+                  </>
+                ) : (
+                  <>Plugins ({plugins.length})</>
+                )}
               </button>
             )}
           </div>

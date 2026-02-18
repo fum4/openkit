@@ -1,4 +1,14 @@
-import { Check, ChevronDown, Copy, ExternalLink, Link2, Plus, Power, Unplug, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Link2,
+  Plus,
+  Power,
+  Unplug,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { APP_NAME } from "../../constants";
@@ -256,7 +266,7 @@ function GitHubCard({
   onStatusChange,
 }: {
   status: GitHubStatus | null;
-  onStatusChange: () => void;
+  onStatusChange: (status?: GitHubStatus) => void;
 }) {
   const api = useApi();
   const serverUrl = useServerUrlOptional();
@@ -320,11 +330,10 @@ function GitHubCard({
     pollRef.current = setInterval(async () => {
       try {
         const data = await fetchGitHubStatus(serverUrl);
-        // Wait for both authenticated AND username to be set (server finished initializing)
-        if (data?.authenticated && data.username) {
+        if (data?.authenticated) {
           setWaitingForAuth(false);
           setFeedback(null);
-          onStatusChange();
+          onStatusChange(data);
         }
       } catch {
         // ignore polling errors
@@ -393,13 +402,13 @@ function GitHubCard({
       {/* Card header with icon */}
       <div className="flex items-center gap-3">
         <div
-          className={`w-8 h-8 rounded-lg flex items-center justify-center ${isReady ? "bg-accent/10" : "bg-white/[0.04]"}`}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center ${isReady ? "bg-white/[0.05]" : "bg-white/[0.04]"}`}
         >
-          <GitHubIcon className={`w-4 h-4 ${isReady ? "text-accent" : text.muted}`} />
+          <GitHubIcon className={`w-4 h-4 ${isReady ? "text-white" : text.muted}`} />
         </div>
         <div>
           <h3 className={`text-xs font-semibold ${text.primary}`}>GitHub</h3>
-          <span className={`text-[10px] ${isReady ? "text-accent" : text.dimmed}`}>
+          <span className={`text-[10px] ${isReady ? "text-white" : text.dimmed}`}>
             {isReady ? "Connected" : "Not connected"}
           </span>
         </div>
@@ -1362,7 +1371,10 @@ export function IntegrationsPanel({
         <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
           <GitHubCard
             status={currentGithubStatus}
-            onStatusChange={() => setGithubRefreshKey((k) => k + 1)}
+            onStatusChange={(status) => {
+              if (status) setCurrentGithubStatus(status);
+              setGithubRefreshKey((k) => k + 1);
+            }}
           />
         </div>
         <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>

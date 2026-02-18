@@ -65,7 +65,7 @@ export function CustomTaskItem({
                 e.stopPropagation();
                 onViewWorktree?.(task.linkedWorktreeId!);
               }}
-              className="flex-shrink-0 p-0.5 rounded text-accent hover:text-accent-muted hover:bg-accent/10 transition-colors duration-150 self-center"
+              className="flex-shrink-0 p-0.5 rounded text-[#6b7280] hover:text-teal-400 hover:bg-teal-400/10 transition-colors duration-150 self-center"
             >
               <GitBranch className="w-3.5 h-3.5" />
             </button>

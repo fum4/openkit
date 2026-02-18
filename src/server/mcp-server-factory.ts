@@ -76,10 +76,6 @@ const TRACKED_TOOLS: Record<
     category: "agent",
     success: { type: "pr_created", severity: "success", title: (p) => `PR created for ${p.id}` },
   },
-  run_hooks: {
-    category: "agent",
-    success: { type: "hooks_ran", severity: "info", title: (p) => `Hooks ran for ${p.worktreeId}` },
-  },
 };
 
 export function createMcpServer(ctx: ActionContext): McpServer {

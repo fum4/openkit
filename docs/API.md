@@ -503,6 +503,14 @@ Get detailed information for a specific Linear issue.
 - **Response**: `{ issue: { ... } }`
 - **Error** (400/404/500): `{ error: "..." }`
 
+#### `GET /api/linear/attachment`
+
+Proxy a Linear attachment through the dawg server using the configured Linear API key. Use this URL for image previews/downloads in the UI to avoid auth/CORS failures.
+
+- **Query params**: `?url=https://...` (required)
+- **Response**: Raw attachment bytes with `Content-Type` + `Content-Disposition`
+- **Error** (400/500): `{ error: "..." }`
+
 #### `POST /api/linear/task`
 
 Create a worktree from a Linear issue.
@@ -529,7 +537,7 @@ Query persisted activity events with optional filters.
 
 - **Query params**:
   - `?since=<iso>` -- Only events after this ISO 8601 timestamp
-  - `?category=<cat>` -- Filter by category (`agent`, `worktree`, `git`, `integration`, `system`)
+  - `?category=<cat>` -- Filter by category (`agent`, `worktree`, `system`)
   - `?limit=<n>` -- Max number of events to return (default: 100)
 - **Response**: `{ events: ActivityEvent[] }`
 
@@ -1358,19 +1366,20 @@ Save the full hooks configuration.
 
 #### `POST /api/hooks/steps`
 
-Add a command step.
+Add a hook step (command or prompt).
 
 - **Request**:
   ```json
-  { "name": "Type check", "command": "pnpm check-types" }
+  { "name": "Type check", "command": "pnpm check-types", "kind": "command" }
   ```
+  Prompt steps use: `{ "name": "Architecture review", "kind": "prompt", "prompt": "Review the implementation and list architectural risks." }`
 - **Response**: `{ success: true, config: HooksConfig }`
 
 #### `PATCH /api/hooks/steps/:stepId`
 
 Update a step.
 
-- **Request**: Partial fields: `name`, `command`, `enabled`, `trigger`
+- **Request**: Partial fields: `name`, `command`, `prompt`, `kind`, `enabled`, `trigger`, `condition`
 - **Response**: `{ success: true, config: HooksConfig }`
 
 #### `DELETE /api/hooks/steps/:stepId`
@@ -1418,6 +1427,11 @@ Remove a skill from hooks.
 
 Run all enabled steps for a worktree.
 
+- **Request** (optional):
+  ```json
+  { "trigger": "pre-implementation" }
+  ```
+  Trigger defaults to `"post-implementation"` when omitted.
 - **Response**: `PipelineRun` object with `id`, `worktreeId`, `status`, `startedAt`, `steps`
 
 #### `POST /api/worktrees/:id/hooks/run/:stepId`
@@ -1440,6 +1454,7 @@ Report a skill hook result from an agent.
   ```json
   {
     "skillName": "review-changes",
+    "trigger": "post-implementation",
     "success": true,
     "summary": "No critical issues found",
     "content": "Optional detailed markdown content"

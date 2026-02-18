@@ -70,7 +70,7 @@ export function WorktreeItem({
             return (
               <Tooltip position="right" text="View issue">
                 <span
-                  className="cursor-pointer p-1 -m-1 rounded text-blue-400 hover:bg-blue-400/10 transition-colors duration-150"
+                  className="cursor-pointer p-1 -m-1 rounded text-[#6b7280] hover:text-blue-400 hover:bg-blue-400/10 transition-colors duration-150"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (key) onSelectJiraIssue?.(key);
@@ -87,7 +87,7 @@ export function WorktreeItem({
             return (
               <Tooltip position="right" text="View issue">
                 <span
-                  className="cursor-pointer p-1 -m-1 rounded text-[#5E6AD2] hover:bg-[#5E6AD2]/10 transition-colors duration-150"
+                  className="cursor-pointer p-1 -m-1 rounded text-[#6b7280] hover:text-[#5E6AD2] hover:bg-[#5E6AD2]/10 transition-colors duration-150"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (id) onSelectLinearIssue?.(id);
@@ -101,7 +101,7 @@ export function WorktreeItem({
         {hasLocalIssue && worktree.localIssueId && (
           <Tooltip position="right" text="View issue">
             <span
-              className="cursor-pointer p-1 -m-1 rounded text-amber-400 hover:bg-amber-400/10 transition-colors duration-150"
+              className="cursor-pointer p-1 -m-1 rounded text-[#6b7280] hover:text-amber-400 hover:bg-amber-400/10 transition-colors duration-150"
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectLocalIssue?.(worktree.localIssueId!);

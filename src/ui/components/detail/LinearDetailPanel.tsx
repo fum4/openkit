@@ -3,6 +3,8 @@ import { GitBranch } from "lucide-react";
 
 import { useLinearIssueDetail } from "../../hooks/useLinearIssueDetail";
 import { useApi } from "../../hooks/useApi";
+import { getLinearAttachmentUrl } from "../../hooks/api";
+import { useServerUrlOptional } from "../../contexts/ServerContext";
 import { badge, border, button, linearPriority, linearStateType, text } from "../../theme";
 import { Tooltip } from "../Tooltip";
 import { TruncatedTooltip } from "../TruncatedTooltip";
@@ -58,9 +60,18 @@ function getAttachmentLabel(att: { title: string; subtitle: string | null; url: 
   return "Attachment";
 }
 
-function isImageUrl(url: string): boolean {
-  const clean = url.split("?")[0].toLowerCase();
-  return /\.(png|jpe?g|gif|webp|svg|bmp|avif|ico)$/.test(clean);
+function isImageAttachment(att: {
+  title: string;
+  subtitle: string | null;
+  url: string;
+  sourceType: string | null;
+}): boolean {
+  if (att.sourceType?.toLowerCase().includes("image")) return true;
+  const candidates = [att.url, att.title, att.subtitle ?? ""];
+  return candidates.some((candidate) => {
+    const clean = candidate.split("?")[0].toLowerCase();
+    return /\.(png|jpe?g|gif|webp|svg|bmp|avif|ico)$/.test(clean);
+  });
 }
 
 export function LinearDetailPanel({
@@ -73,6 +84,7 @@ export function LinearDetailPanel({
   onSetupNeeded,
 }: LinearDetailPanelProps) {
   const api = useApi();
+  const serverUrl = useServerUrlOptional();
   const { issue, isLoading, isFetching, error, refetch, dataUpdatedAt } = useLinearIssueDetail(
     identifier,
     refreshIntervalMinutes,
@@ -132,6 +144,7 @@ export function LinearDetailPanel({
   }
 
   const priorityInfo = linearPriority[issue.priority] ?? linearPriority[0];
+  const attachmentProxyUrl = (url: string) => getLinearAttachmentUrl(url, serverUrl);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -237,8 +250,9 @@ export function LinearDetailPanel({
                 type="button"
                 onClick={handleCreate}
                 disabled={isCreating}
-                className={`px-3 py-1.5 text-xs font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors duration-150 active:scale-[0.98]`}
+                className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 active:scale-[0.98]`}
               >
+                <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
                 {isCreating ? "Creating..." : "Create Worktree"}
               </button>
             )}
@@ -265,15 +279,15 @@ export function LinearDetailPanel({
               <div className="flex flex-wrap gap-3">
                 {issue.attachments.map((att, i) => (
                   <a
-                    key={i}
-                    href={att.url}
+                    key={`${att.url}-${i}`}
+                    href={attachmentProxyUrl(att.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="group flex flex-col w-36"
                   >
-                    {isImageUrl(att.url) ? (
+                    {isImageAttachment(att) ? (
                       <AttachmentImage
-                        src={att.url}
+                        src={attachmentProxyUrl(att.url)}
                         alt={getAttachmentLabel(att)}
                         className="w-36 h-28 rounded object-cover transition-transform group-hover:scale-[1.02]"
                       />

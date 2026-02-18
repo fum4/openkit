@@ -227,7 +227,7 @@ The worktree detail view. Contains:
 - **Git action toolbar** -- contextual buttons for Commit (when uncommitted changes exist), Push (when unpushed commits exist), and PR (when pushed but no PR exists). Each expands an inline input form.
 - **LogsViewer** -- streaming process output for running worktrees.
 - **TerminalView** -- interactive xterm.js terminal. Terminal sessions are lazily created (only when the Terminal tab is first opened) and kept alive when switching tabs.
-- **HooksTab** -- runs and displays hook results with visual state indicators (dashed borders for unrun hooks, circular progress spinner during execution, solid borders with card background for completed/disabled hooks). Supports multiple expanded items simultaneously; auto-expands all items when the full pipeline completes. Receives real-time updates via `hook-update` SSE events.
+- **HooksTab** -- runs and displays hook results with visual state indicators (dashed/no-bg for unrun and running items, spinner during execution, solid card background for completed/disabled items). Supports command, prompt, and skill entries; auto-expands items with output when the pipeline completes. Receives real-time updates via `hook-update` SSE events.
 
 ### JiraDetailPanel (`JiraDetailPanel.tsx`)
 
@@ -235,7 +235,7 @@ Shows Jira issue details: summary, description (rendered as Markdown from Atlass
 
 ### LinearDetailPanel (`LinearDetailPanel.tsx`)
 
-Similar to JiraDetailPanel but for Linear issues. Shows title, description, state, priority, assignee, and labels.
+Similar to JiraDetailPanel but for Linear issues. Shows title, description, state, priority, assignee, labels, and attachment previews/download links via a Linear attachment proxy endpoint to avoid auth/CORS failures.
 
 ### CustomTaskDetailPanel (`CustomTaskDetailPanel.tsx`)
 
@@ -492,7 +492,7 @@ The app uses Framer Motion for transitions:
 | `SkillItem.tsx`             | Skill sidebar item                                                                                                                                           |
 | `Spinner.tsx`               | Loading spinner component                                                                                                                                    |
 | `TabBar.tsx`                | Electron multi-project tab bar                                                                                                                               |
-| `ActivityFeed.tsx`          | Activity feed dropdown panel with bell icon, filter chips, event list, clickable worktree links                                                              |
+| `ActivityFeed.tsx`          | Activity feed dropdown panel with bell icon, action-required top section, expandable hook-run entries, and clickable worktree links                           |
 | `Toast.tsx`                 | Animated toast notification (error=red, success=green, info=teal, loading=amber) with groupKey deduplication, grouped children, project name, worktree links |
 | `Tooltip.tsx`               | Tooltip component (always use this instead of native `title` attribute)                                                                                      |
 | `TruncatedTooltip.tsx`      | Text with automatic tooltip on overflow                                                                                                                      |
@@ -543,7 +543,7 @@ The app uses Framer Motion for transitions:
 | `useTerminal.ts`          | WebSocket terminal session management                           |
 | `useAgentRules.ts`        | React Query hook for agent rule file content                    |
 | `useHooks.ts`             | Hooks config and skill results fetching                         |
-| `useActivityFeed.ts`      | Activity feed state, unread count, filtering, toast triggers    |
+| `useActivityFeed.ts`      | Activity feed state, unread count, chronological upserts, hook-run aggregation, toast triggers |
 | `useWorktrees.ts`         | SSE-based real-time worktree updates + integration status hooks |
 
 ### Context (`src/ui/contexts/`)

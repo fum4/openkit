@@ -34,12 +34,10 @@ function RefreshIcon({
   spinning,
   onClick,
   tooltip,
-  onHoverChange,
 }: {
   spinning: boolean;
   onClick: () => void;
   tooltip: string;
-  onHoverChange?: (hovering: boolean) => void;
 }) {
   return (
     <Tooltip position="right" text={tooltip}>
@@ -49,9 +47,7 @@ function RefreshIcon({
           e.stopPropagation();
           onClick();
         }}
-        onMouseEnter={() => onHoverChange?.(true)}
-        onMouseLeave={() => onHoverChange?.(false)}
-        className={`ml-auto -mr-1 p-1 rounded-md ${text.muted} hover:text-[#c0c5cc] hover:bg-white/[0.06] transition-colors duration-150`}
+        className={`ml-auto -mr-1 p-1 rounded-md ${text.muted} hover:text-white transition-colors duration-150`}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -149,7 +145,6 @@ export function IssueList({
     const saved = localStorage.getItem("dawg:issueShowStatus");
     return saved !== null ? saved === "1" : true;
   });
-  const [refreshHoverSection, setRefreshHoverSection] = useState<"jira" | "linear" | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const configRef = useRef<HTMLDivElement>(null);
 
@@ -306,7 +301,7 @@ export function IssueList({
             <div
               className={`w-full pl-3 pr-4 py-1.5 mb-px flex items-center gap-2 transition-colors duration-150 ${
                 jiraEmpty ? "" : "cursor-pointer"
-              } ${refreshHoverSection === "jira" ? "" : "hover:bg-white/[0.04]"}`}
+              } hover:bg-white/[0.04]`}
               onClick={jiraEmpty ? undefined : () => setJiraCollapsed(!jiraCollapsed)}
             >
               {jiraEmpty ? (
@@ -328,11 +323,6 @@ export function IssueList({
                 onClick={onRefreshJira}
                 tooltip={
                   jiraUpdatedAt ? `Last refreshed: ${formatTimeAgo(jiraUpdatedAt)}` : "Refresh"
-                }
-                onHoverChange={(hovering) =>
-                  setRefreshHoverSection((prev) =>
-                    hovering ? "jira" : prev === "jira" ? null : prev,
-                  )
                 }
               />
             </div>
@@ -358,9 +348,7 @@ export function IssueList({
         {issues.length === 0 && (isLoading || error) && (
           <div>
             <div
-              className={`w-full px-3 py-1.5 mb-px flex items-center gap-2 transition-colors duration-150 cursor-pointer ${
-                refreshHoverSection === "jira" ? "" : "hover:bg-white/[0.04]"
-              }`}
+              className={`w-full px-3 py-1.5 mb-px flex items-center gap-2 transition-colors duration-150 cursor-pointer hover:bg-white/[0.04]`}
               onClick={() => setJiraCollapsed(!jiraCollapsed)}
             >
               <ChevronIcon collapsed={jiraCollapsed} />
@@ -371,11 +359,6 @@ export function IssueList({
                 onClick={onRefreshJira}
                 tooltip={
                   jiraUpdatedAt ? `Last refreshed: ${formatTimeAgo(jiraUpdatedAt)}` : "Refresh"
-                }
-                onHoverChange={(hovering) =>
-                  setRefreshHoverSection((prev) =>
-                    hovering ? "jira" : prev === "jira" ? null : prev,
-                  )
                 }
               />
             </div>
@@ -402,7 +385,7 @@ export function IssueList({
             <div
               className={`w-full pl-3 pr-4 py-1.5 mb-px flex items-center gap-2 transition-colors duration-150 ${
                 linearEmpty ? "" : "cursor-pointer"
-              } ${refreshHoverSection === "linear" ? "" : "hover:bg-white/[0.04]"}`}
+              } hover:bg-white/[0.04]`}
               onClick={linearEmpty ? undefined : () => setLinearCollapsed(!linearCollapsed)}
             >
               {linearEmpty ? (
@@ -424,11 +407,6 @@ export function IssueList({
                 onClick={onRefreshLinear}
                 tooltip={
                   linearUpdatedAt ? `Last refreshed: ${formatTimeAgo(linearUpdatedAt)}` : "Refresh"
-                }
-                onHoverChange={(hovering) =>
-                  setRefreshHoverSection((prev) =>
-                    hovering ? "linear" : prev === "linear" ? null : prev,
-                  )
                 }
               />
             </div>
@@ -465,7 +443,9 @@ export function IssueList({
             )}
             <span className={`text-[11px] font-medium ${text.secondary}`}>Local</span>
             {!customTasksLoading && (
-              <span className={`text-[10px] ${text.muted} bg-white/[0.06] px-1.5 py-0.5 rounded-full`}>
+              <span
+                className={`text-[10px] ${text.muted} bg-white/[0.06] px-1.5 py-0.5 rounded-full`}
+              >
                 {unlinkedCustomTasks.length}
               </span>
             )}

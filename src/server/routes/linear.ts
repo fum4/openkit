@@ -228,6 +228,52 @@ export function registerLinearRoutes(app: Hono, manager: WorktreeManager) {
     }
   });
 
+  app.get("/api/linear/attachment", async (c) => {
+    try {
+      const rawUrl = c.req.query("url");
+      if (!rawUrl) return c.json({ error: "url is required" }, 400);
+
+      let parsed: URL;
+      try {
+        parsed = new URL(rawUrl);
+      } catch {
+        return c.json({ error: "Invalid URL" }, 400);
+      }
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return c.json({ error: "Unsupported URL protocol" }, 400);
+      }
+
+      const creds = loadLinearCredentials(manager.getConfigDir());
+      if (!creds) return c.json({ error: "Linear not configured" }, 400);
+
+      const resp = await fetch(parsed.toString(), {
+        headers: { Authorization: creds.apiKey },
+      });
+      if (!resp.ok) {
+        return c.json({ error: `Failed to fetch attachment: ${resp.status}` }, resp.status as 400);
+      }
+
+      const arrayBuffer = await resp.arrayBuffer();
+      const contentType = resp.headers.get("content-type") || "application/octet-stream";
+      const disposition =
+        resp.headers.get("content-disposition") ||
+        `inline; filename="${decodeURIComponent(parsed.pathname.split("/").pop() || "attachment")}"`;
+
+      return new Response(arrayBuffer, {
+        headers: {
+          "Content-Type": contentType,
+          "Content-Disposition": disposition,
+          "Cache-Control": "private, max-age=300",
+        },
+      });
+    } catch (error) {
+      return c.json(
+        { error: error instanceof Error ? error.message : "Failed to fetch attachment" },
+        500,
+      );
+    }
+  });
+
   app.post("/api/linear/task", async (c) => {
     try {
       const body = await c.req.json<{ identifier: string; branch?: string }>();

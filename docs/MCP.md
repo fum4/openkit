@@ -90,7 +90,7 @@ All git operations are subject to the agent git policy. Call `get_git_policy` fi
 
 | Tool     | Description                                                                                                                                                               | Parameters                                                                                                                                                                                 |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `notify` | Send a free-form status update to the dawg activity feed. Use to keep the user informed about progress on long-running tasks. Other tool calls are tracked automatically. | `message` (string, **required**) -- status message; `severity` (string, optional) -- `"info"` (default), `"warning"`, or `"error"`; `worktreeId` (string, optional) -- related worktree ID |
+| `notify` | Send a free-form status update to the dawg activity feed. Use to keep the user informed about progress on long-running tasks. Other tool calls are tracked automatically. | `message` (string, **required**) -- status message; `severity` (string, optional) -- `"info"` (default), `"warning"`, or `"error"`; `worktreeId` (string, optional) -- related worktree ID; `requiresUserAction` (boolean, optional) -- mark when user input is required |
 
 ### Configuration
 
@@ -103,8 +103,8 @@ All git operations are subject to the agent git policy. Call `get_git_policy` fi
 | Tool                 | Description                                                                                                                                                           | Parameters                                                                                                                                                                                                                                                                                       |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `get_hooks_config`   | Get the hooks configuration, including command steps and skill references organized by trigger type.                                                                  | _(none)_                                                                                                                                                                                                                                                                                         |
-| `run_hooks`          | Run hook command steps for a worktree. Steps matching the trigger type run in parallel.                                                                               | `worktreeId` (string, **required**)                                                                                                                                                                                                                                                              |
-| `report_hook_status` | Report a skill hook status. Call TWICE: once BEFORE invoking a skill (without `success`/`summary`) to show a loading state in the UI, and once AFTER with the result. | `worktreeId` (string, **required**); `skillName` (string, **required**); `success` (boolean, optional -- omit for start); `summary` (string, optional -- omit for start); `content` (string, optional) -- detailed markdown; `filePath` (string, optional) -- absolute path to an MD report file |
+| `run_hooks`          | Run hook command steps for a worktree. Steps matching the trigger type run in parallel.                                                                               | `worktreeId` (string, **required**); `trigger` (string, optional) -- `"pre-implementation"`, `"post-implementation"` (default), `"custom"`, or `"on-demand"`                                                                                                                                  |
+| `report_hook_status` | Report a skill hook status. Call TWICE: once BEFORE invoking a skill (without `success`/`summary`) to show a loading state in the UI, and once AFTER with the result. | `worktreeId` (string, **required**); `skillName` (string, **required**); `trigger` (string, optional) -- hook trigger phase; `success` (boolean, optional -- omit for start); `summary` (string, optional -- omit for start); `content` (string, optional) -- detailed markdown; `filePath` (string, optional) -- absolute path to an MD report file |
 | `get_hooks_status`   | Get the current/last hook run status for a worktree, including step results.                                                                                          | `worktreeId` (string, **required**)                                                                                                                                                                                                                                                              |
 
 ## MCP Prompt: `work-on-task`
@@ -114,7 +114,7 @@ In addition to tools, the MCP server registers a **prompt** called `work-on-task
 1. Determine the issue type and call the appropriate creation tool (`create_from_jira` or `create_from_linear`)
 2. Poll `list_worktrees` until the worktree status is `stopped` (creation complete)
 3. Navigate to the worktree directory
-4. Call `get_hooks_config` to discover hooks — run any pre-implementation hooks before starting work
+4. Call `get_hooks_config` to discover hooks — run pre-implementation command hooks with `run_hooks` (`trigger: "pre-implementation"`) before starting work
 5. Read `TASK.md` for full context
 6. Start implementing the task
 7. After completing all work and post-implementation hooks, ask the user if they'd like to start the worktree dev server automatically
@@ -180,8 +180,8 @@ There are four trigger types:
 ### Workflow
 1. Call get_hooks_config immediately after entering a worktree to see all hooks
 2. Before running any hook, skill, or command -- inform the user what you are about to run and why
-3. After running -- summarize results AND report them via report_hook_status (call twice: once before invoking without success/summary to show loading, once after with the result)
-4. Run pre-implementation hooks before starting work
+3. After running -- summarize results AND report them via report_hook_status (call twice: once before invoking without success/summary to show loading, once after with the result; pass `trigger` whenever possible)
+4. Run pre-implementation command hooks with `run_hooks` (`trigger: "pre-implementation"`) before starting work
 5. While working, check custom hook conditions -- if your changes match a condition, run those hooks
 6. After completing work, run post-implementation hooks
 7. Call get_hooks_status to verify all steps passed
@@ -199,6 +199,7 @@ The activity feed shows real-time updates in the UI.
 - Call notify with a short message describing what you're doing or what just happened
 - Use severity to indicate the nature: info (default), warning, or error
 - Include worktreeId when the update relates to a specific worktree
+- Set `requiresUserAction: true` when you need user input to proceed
 - Don't over-notify — one update per meaningful progress milestone is enough
 - Other tool calls (commit, push, create_pr, run_hooks, report_hook_status) are automatically tracked
 

@@ -632,6 +632,10 @@ export async function fetchLinearIssueDetail(
   }
 }
 
+export function getLinearAttachmentUrl(url: string, serverUrl: string | null = null): string {
+  return `${getBaseUrl(serverUrl)}/api/linear/attachment?url=${encodeURIComponent(url)}`;
+}
+
 export async function createFromLinear(
   identifier: string,
   branch?: string,
@@ -2079,11 +2083,14 @@ export async function scanSkills(
 // -- Hooks API --
 
 export type HookTrigger = "pre-implementation" | "post-implementation" | "on-demand" | "custom";
+export type HookStepKind = "command" | "prompt";
 
 export interface HookStep {
   id: string;
   name: string;
   command: string;
+  kind?: HookStepKind;
+  prompt?: string;
   enabled?: boolean;
   trigger?: HookTrigger;
   condition?: string;
@@ -2105,6 +2112,7 @@ export interface HooksConfig {
 
 export interface SkillHookResult {
   skillName: string;
+  trigger?: HookTrigger;
   status: "running" | "passed" | "failed";
   success?: boolean;
   summary?: string;
@@ -2181,12 +2189,17 @@ export async function saveHooksConfig(
 
 export async function runHooks(
   worktreeId: string,
+  trigger?: HookTrigger,
   serverUrl: string | null = null,
 ): Promise<PipelineRun> {
   try {
     const res = await fetch(
       `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(worktreeId)}/hooks/run`,
-      { method: "POST" },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(trigger ? { trigger } : {}),
+      },
     );
     return await res.json();
   } catch {
@@ -2364,7 +2377,13 @@ export async function fetchAvailableHookSkills(
 
 export async function reportHookSkillResult(
   worktreeId: string,
-  data: { skillName: string; success: boolean; summary: string; content?: string },
+  data: {
+    skillName: string;
+    trigger?: HookTrigger;
+    success: boolean;
+    summary: string;
+    content?: string;
+  },
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; error?: string }> {
   try {

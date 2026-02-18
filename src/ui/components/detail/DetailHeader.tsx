@@ -137,7 +137,9 @@ export function DetailHeader({
                 type="button"
                 onClick={onRemove}
                 disabled={isLoading}
-                className="h-7 px-2.5 text-[11px] font-medium text-red-400/70 hover:text-red-400 hover:bg-red-900/30 rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5"
+                aria-label="Delete worktree"
+                title="Delete worktree"
+                className="h-7 w-7 text-red-400/70 hover:text-red-400 hover:bg-red-900/30 rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center justify-center"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -151,7 +153,6 @@ export function DetailHeader({
                     clipRule="evenodd"
                   />
                 </svg>
-                Delete
               </button>
               {isRunning ? (
                 <button
@@ -179,7 +180,7 @@ export function DetailHeader({
                   type="button"
                   onClick={onStart}
                   disabled={isLoading}
-                  className="h-7 px-3 text-[11px] font-medium text-teal-300 bg-teal-500/15 border border-teal-400/25 hover:bg-teal-500/25 hover:border-teal-400/40 rounded-md disabled:opacity-50 transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5"
+                  className="h-7 px-2.5 text-[11px] font-medium text-teal-300 hover:bg-teal-500/10 rounded-md disabled:opacity-50 transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5"
                 >
                   {isLoading ? (
                     <svg

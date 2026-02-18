@@ -117,11 +117,14 @@ export interface WorktreeListResponse {
 // ─── Hooks Pipeline ─────────────────────────────────────────────
 
 export type HookTrigger = "pre-implementation" | "post-implementation" | "on-demand" | "custom";
+export type HookStepKind = "command" | "prompt";
 
 export interface HookStep {
   id: string;
   name: string;
   command: string;
+  kind?: HookStepKind;
+  prompt?: string;
   enabled?: boolean;
   trigger?: HookTrigger;
   condition?: string;
@@ -143,6 +146,7 @@ export interface HooksConfig {
 
 export interface SkillHookResult {
   skillName: string;
+  trigger?: HookTrigger;
   status: "running" | "passed" | "failed";
   success?: boolean;
   summary?: string;

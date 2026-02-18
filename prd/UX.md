@@ -14,3 +14,7 @@ Split workspace page into two separate pages:
 Both of these should have their design improved, especially the main views (right-side), which are currently cluttered and do not look well
 
 Don't forget to separate/duplicate info banners, TBD
+
+# Improve error handling
+
+Revisit all error messages/banners and make them clear & pretty (maybe add toasts)
