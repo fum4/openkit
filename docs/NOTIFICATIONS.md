@@ -216,7 +216,7 @@ Returns: `{ events, allEvents, unreadCount, filter, setFilter, markAllRead, clea
 `ActivityFeed` (`src/ui/components/ActivityFeed.tsx`) renders the dropdown panel:
 
 - **Header** with "Mark read" and "Clear" buttons
-- **Filter chips** — All, Agent, Worktree, Git, System
+- **Filter chips** — All, Agent, Worktree
 - **Event list** — each item shows a category icon (color-coded), title, optional detail, relative timestamp, project name (if present), clickable worktree ID (navigates to worktree), and a severity dot for non-info events
 - Closes on outside click or Escape key
 - Animated with `motion/react` (fade + scale)

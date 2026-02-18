@@ -5,6 +5,7 @@ import type { WorktreeInfo } from "../../types";
 import { useApi } from "../../hooks/useApi";
 import { action, border, detailTab, errorBanner, input, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { GitHubIcon } from "../icons";
 import { DetailHeader } from "./DetailHeader";
 import { GitActionInputs } from "./GitActionInputs";
 import { LogsViewer } from "./LogsViewer";
@@ -49,6 +50,7 @@ export function DetailPanel({
   const [showCreatePrInput, setShowCreatePrInput] = useState(false);
   const [prTitle, setPrTitle] = useState("");
   const [isGitLoading, setIsGitLoading] = useState(false);
+  const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [tabPerWorktree, setTabPerWorktree] = useState<
     Record<string, "logs" | "terminal" | "hooks">
@@ -73,6 +75,7 @@ export function DetailPanel({
     setShowCreatePrInput(false);
     setCommitMessage("");
     setPrTitle("");
+    setGitAction(null);
   }, [worktree?.id]);
 
   if (!worktree) {
@@ -145,40 +148,55 @@ export function DetailPanel({
   const handleCommit = async () => {
     if (!commitMessage.trim()) return;
     setIsGitLoading(true);
+    setGitAction("commit");
     setError(null);
-    const result = await api.commitChanges(worktree.id, commitMessage.trim());
-    setIsGitLoading(false);
-    if (result.success) {
-      setShowCommitInput(false);
-      setCommitMessage("");
-    } else {
-      setError(result.error || "Failed to commit");
+    try {
+      const result = await api.commitChanges(worktree.id, commitMessage.trim());
+      if (result.success) {
+        setShowCommitInput(false);
+        setCommitMessage("");
+      } else {
+        setError(result.error || "Failed to commit");
+      }
+      onUpdate();
+    } finally {
+      setIsGitLoading(false);
+      setGitAction(null);
     }
-    onUpdate();
   };
 
   const handlePush = async () => {
     setIsGitLoading(true);
+    setGitAction("push");
     setError(null);
-    const result = await api.pushChanges(worktree.id);
-    setIsGitLoading(false);
-    if (!result.success) setError(result.error || "Failed to push");
-    onUpdate();
+    try {
+      const result = await api.pushChanges(worktree.id);
+      if (!result.success) setError(result.error || "Failed to push");
+      onUpdate();
+    } finally {
+      setIsGitLoading(false);
+      setGitAction(null);
+    }
   };
 
   const handleCreatePr = async () => {
     if (!prTitle.trim()) return;
     setIsGitLoading(true);
+    setGitAction("pr");
     setError(null);
-    const result = await api.createPullRequest(worktree.id, prTitle.trim());
-    setIsGitLoading(false);
-    if (result.success) {
-      setShowCreatePrInput(false);
-      setPrTitle("");
-    } else {
-      setError(result.error || "Failed to create PR");
+    try {
+      const result = await api.createPullRequest(worktree.id, prTitle.trim());
+      if (result.success) {
+        setShowCreatePrInput(false);
+        setPrTitle("");
+      } else {
+        setError(result.error || "Failed to create PR");
+      }
+      onUpdate();
+    } finally {
+      setIsGitLoading(false);
+      setGitAction(null);
     }
-    onUpdate();
   };
 
   return (
@@ -281,7 +299,34 @@ export function DetailPanel({
                   disabled={isGitLoading || !commitMessage.trim()}
                   className={`h-7 px-2.5 text-[11px] font-medium ${action.commit.textActive} ${action.commit.bgSubmit} ${action.commit.bgSubmitHover} rounded-md disabled:opacity-50 transition-colors duration-150 active:scale-[0.98] flex-shrink-0`}
                 >
-                  Commit
+                  {isGitLoading && gitAction === "commit" ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="w-3.5 h-3.5 animate-spin"
+                      >
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          opacity="0.3"
+                        />
+                        <path
+                          d="M22 12a10 10 0 0 0-10-10"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      Committing...
+                    </span>
+                  ) : (
+                    "Commit"
+                  )}
                 </button>
               </>
             ) : (
@@ -315,19 +360,48 @@ export function DetailPanel({
                     disabled={isGitLoading}
                     className={`h-7 px-2.5 text-[11px] font-medium ${action.push.text} ${action.push.hover} rounded-md disabled:opacity-50 transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      className="w-3.5 h-3.5"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    Push{worktree.commitsAhead ? ` (${worktree.commitsAhead})` : ""}
+                    {isGitLoading && gitAction === "push" ? (
+                      <>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="w-3.5 h-3.5 animate-spin"
+                        >
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            opacity="0.3"
+                          />
+                          <path
+                            d="M22 12a10 10 0 0 0-10-10"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        Pushing...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="w-3.5 h-3.5"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        Push{worktree.commitsAhead ? ` (${worktree.commitsAhead})` : ""}
+                      </>
+                    )}
                   </button>
                 )}
                 {!worktree.githubPrUrl &&
@@ -346,17 +420,52 @@ export function DetailPanel({
                           : `${action.pr.text} ${action.pr.hover}`
                       } disabled:opacity-50`}
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 16 16"
-                        fill="currentColor"
-                        className="w-3.5 h-3.5"
-                      >
-                        <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z" />
-                      </svg>
-                      PR
+                      {isGitLoading && gitAction === "pr" ? (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="w-3.5 h-3.5 animate-spin"
+                        >
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            opacity="0.3"
+                          />
+                          <path
+                            d="M22 12a10 10 0 0 0-10-10"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 16 16"
+                          fill="currentColor"
+                          className="w-3.5 h-3.5"
+                        >
+                          <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z" />
+                        </svg>
+                      )}
+                      {isGitLoading && gitAction === "pr" ? "Creating..." : "PR"}
                     </button>
                   )}
+                {worktree.githubPrUrl && (
+                  <a
+                    href={worktree.githubPrUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`group h-7 px-2.5 text-[11px] font-medium ${action.pr.text} ${action.pr.hover} rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
+                  >
+                    <GitHubIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-white" />
+                    View PR
+                  </a>
+                )}
                 {!worktree.jiraUrl && !worktree.linearUrl && !worktree.localIssueId && (
                   <>
                     {onCreateTask && (
@@ -393,6 +502,7 @@ export function DetailPanel({
         commitMessage={commitMessage}
         prTitle={prTitle}
         isGitLoading={isGitLoading}
+        loadingAction={gitAction}
         onCommitMessageChange={setCommitMessage}
         onPrTitleChange={setPrTitle}
         onCommit={handleCommit}

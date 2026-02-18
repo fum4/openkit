@@ -15,8 +15,8 @@ interface DownloadInfo {
 }
 
 const CACHE_KEY = "dawg-release-info";
-const RELEASES_API = "https://api.github.com/repos/fum4/worktree-manager/releases/latest";
-const RELEASES_PAGE = "https://github.com/fum4/worktree-manager/releases";
+const RELEASES_API = "https://api.github.com/repos/fum4/dawg/releases/latest";
+const RELEASES_PAGE = "https://github.com/fum4/dawg/releases";
 
 function detectArch(): "arm64" | "x64" {
   const uad = (navigator as any).userAgentData;

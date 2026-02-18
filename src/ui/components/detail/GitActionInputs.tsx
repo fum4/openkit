@@ -1,4 +1,4 @@
-import { action, border, input, text } from "../../theme";
+import { action, border, input } from "../../theme";
 import { Spinner } from "../Spinner";
 
 interface GitActionInputsProps {
@@ -7,6 +7,7 @@ interface GitActionInputsProps {
   commitMessage: string;
   prTitle: string;
   isGitLoading: boolean;
+  loadingAction?: "commit" | "push" | "pr" | null;
   onCommitMessageChange: (value: string) => void;
   onPrTitleChange: (value: string) => void;
   onCommit: () => void;
@@ -21,6 +22,7 @@ export function GitActionInputs({
   commitMessage,
   prTitle,
   isGitLoading,
+  loadingAction = null,
   onCommitMessageChange,
   onPrTitleChange,
   onCommit,
@@ -52,7 +54,7 @@ export function GitActionInputs({
             disabled={isGitLoading || !commitMessage.trim()}
             className={`px-3 py-1.5 text-xs font-medium ${action.commit.textActive} ${action.commit.bgSubmit} rounded-md ${action.commit.bgSubmitHover} disabled:opacity-50 transition-colors duration-150 active:scale-[0.98]`}
           >
-            {isGitLoading ? (
+            {isGitLoading && loadingAction === "commit" ? (
               <span className="flex items-center gap-1.5">
                 <Spinner size="xs" />
                 Committing...
@@ -93,7 +95,7 @@ export function GitActionInputs({
             disabled={isGitLoading || !prTitle.trim()}
             className={`px-3 py-1.5 text-xs font-medium ${action.pr.textActive} ${action.pr.bgSubmit} rounded-md ${action.pr.bgSubmitHover} disabled:opacity-50 transition-colors duration-150 active:scale-[0.98]`}
           >
-            {isGitLoading ? (
+            {isGitLoading && loadingAction === "pr" ? (
               <span className="flex items-center gap-1.5">
                 <Spinner size="xs" />
                 Creating...

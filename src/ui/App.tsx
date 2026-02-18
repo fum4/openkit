@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, GitBranch, Plus, RefreshCw, Search, X } from "lucide-react";
+import { AlertTriangle, GitBranch, Link2, RefreshCw, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { APP_NAME } from "../constants";
@@ -24,6 +24,7 @@ import { ResizableHandle } from "./components/ResizableHandle";
 import { SetupCommitModal } from "./components/SetupCommitModal";
 import { ToastContainer } from "./components/Toast";
 import type { View } from "./components/NavBar";
+import type { WorktreeInfo } from "./types";
 import { TabBar } from "./components/TabBar";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { WorktreeList } from "./components/WorktreeList";
@@ -158,6 +159,10 @@ export default function App() {
     setActiveCreateTabState("branch");
     setActiveViewState("workspace");
     refetchConfig();
+    refetchJiraStatus();
+    refetchLinearStatus();
+    refetch();
+    refetchCustomTasks();
     setHadConfigOnConnect(true);
   };
 
@@ -378,7 +383,7 @@ export default function App() {
     }
   };
 
-  const jiraEnabled = activeCreateTab === "issues" && (jiraStatus?.configured ?? false);
+  const jiraEnabled = jiraStatus?.configured ?? false;
   const refreshIntervalMinutes = jiraStatus?.refreshIntervalMinutes ?? 5;
   const {
     issues: jiraIssues,
@@ -391,7 +396,7 @@ export default function App() {
     dataUpdatedAt: jiraIssuesUpdatedAt,
   } = useJiraIssues(jiraEnabled, refreshIntervalMinutes);
 
-  const linearEnabled = activeCreateTab === "issues" && (linearStatus?.configured ?? false);
+  const linearEnabled = linearStatus?.configured ?? false;
   const linearRefreshIntervalMinutes = linearStatus?.refreshIntervalMinutes ?? 5;
   const {
     issues: linearIssues,
@@ -438,10 +443,10 @@ export default function App() {
     setSelection({ type: "worktree", id: worktreeId });
   };
 
-  const findLinkedWorktree = (issueKey: string): string | null => {
+  const findLinkedJiraWorktree = (issueKey: string): WorktreeInfo | null => {
     const suffix = `/browse/${issueKey}`;
     const wt = worktrees.find((w) => w.jiraUrl?.endsWith(suffix));
-    return wt?.id ?? null;
+    return wt ?? null;
   };
 
   const handleCreateWorktreeFromLinear = () => {
@@ -455,11 +460,16 @@ export default function App() {
     setSelection({ type: "worktree", id: worktreeId });
   };
 
-  const findLinkedLinearWorktree = (identifier: string): string | null => {
+  const findLinkedLinearWorktree = (identifier: string): WorktreeInfo | null => {
     const suffix = `/issue/${identifier}`;
     const wt = worktrees.find((w) => w.linearUrl?.includes(suffix));
-    return wt?.id ?? null;
+    return wt ?? null;
   };
+
+  const selectedJiraWorktree =
+    selection?.type === "issue" ? findLinkedJiraWorktree(selection.key) : null;
+  const selectedLinearWorktree =
+    selection?.type === "linear-issue" ? findLinkedLinearWorktree(selection.identifier) : null;
 
   const handleCreateWorktreeFromCustomTask = () => {
     setActiveCreateTab("branch");
@@ -708,7 +718,6 @@ export default function App() {
                 <CreateForm
                   jiraConfigured={jiraStatus?.configured ?? false}
                   linearConfigured={linearStatus?.configured ?? false}
-                  hasCustomTasks={customTasks.length > 0}
                   activeTab={activeCreateTab}
                   onTabChange={setActiveCreateTab}
                   onCreateWorktree={() => {
@@ -859,7 +868,7 @@ export default function App() {
                       onClick={() => setActiveView("integrations")}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-teal-300 bg-teal-400/10 hover:bg-teal-400/20 border border-teal-400/20 rounded-lg transition-colors flex-shrink-0"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Link2 className="w-3.5 h-3.5" />
                       Add Integrations
                     </button>
                     <button
@@ -874,7 +883,8 @@ export default function App() {
                 {selection?.type === "issue" ? (
                   <JiraDetailPanel
                     issueKey={selection.key}
-                    linkedWorktreeId={findLinkedWorktree(selection.key)}
+                    linkedWorktreeId={selectedJiraWorktree?.id ?? null}
+                    linkedWorktreePrUrl={selectedJiraWorktree?.githubPrUrl ?? null}
                     onCreateWorktree={handleCreateWorktreeFromJira}
                     onViewWorktree={handleViewWorktreeFromJira}
                     refreshIntervalMinutes={refreshIntervalMinutes}
@@ -883,7 +893,8 @@ export default function App() {
                 ) : selection?.type === "linear-issue" ? (
                   <LinearDetailPanel
                     identifier={selection.identifier}
-                    linkedWorktreeId={findLinkedLinearWorktree(selection.identifier)}
+                    linkedWorktreeId={selectedLinearWorktree?.id ?? null}
+                    linkedWorktreePrUrl={selectedLinearWorktree?.githubPrUrl ?? null}
                     onCreateWorktree={handleCreateWorktreeFromLinear}
                     onViewWorktree={handleViewWorktreeFromLinear}
                     refreshIntervalMinutes={linearRefreshIntervalMinutes}

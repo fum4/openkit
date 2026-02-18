@@ -5,6 +5,7 @@ import {
   GitBranch,
   Network,
   RotateCcw,
+  Settings,
   Settings2,
   X,
 } from "lucide-react";
@@ -355,9 +356,12 @@ export function ConfigurationPanel({
             >
               <X className="w-3.5 h-3.5" />
             </button>
-            <p className={`text-xs ${text.secondary} leading-relaxed`}>
-              Configure your project's dev commands, port settings, and environment mappings.
-            </p>
+            <div className="flex items-center gap-2.5">
+              <Settings className={`w-3.5 h-3.5 ${infoBanner.textMuted} flex-shrink-0`} />
+              <p className={`text-xs ${text.secondary} leading-relaxed`}>
+                Configure your project's dev commands, port settings, and environment mappings.
+              </p>
+            </div>
           </div>
         )}
 

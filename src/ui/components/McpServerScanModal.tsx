@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FolderOpen, FolderSearch, HardDrive, ScanSearch, Settings2 } from "lucide-react";
 
 import { useServer } from "../contexts/ServerContext";
@@ -18,6 +18,11 @@ interface McpServerScanModalProps {
   onImported: () => void;
   onClose: () => void;
   plugins?: PluginSummary[];
+  autoScanMode?: ScanMode | null;
+  prefilledResults?: {
+    mcpResults: McpScanResult[];
+    skillResults: SkillScanResult[];
+  } | null;
 }
 
 const MODES: { id: ScanMode; label: string; description: string; icon: typeof ScanSearch }[] = [
@@ -41,10 +46,16 @@ const MODES: { id: ScanMode; label: string; description: string; icon: typeof Sc
   },
 ];
 
-export function McpServerScanModal({ onImported, onClose, plugins = [] }: McpServerScanModalProps) {
+export function McpServerScanModal({
+  onImported,
+  onClose,
+  plugins = [],
+  autoScanMode = null,
+  prefilledResults = null,
+}: McpServerScanModalProps) {
   const api = useApi();
   const { isElectron, selectFolder } = useServer();
-  const [mode, setMode] = useState<ScanMode>("project");
+  const [mode, setMode] = useState<ScanMode>(autoScanMode ?? "project");
   const [scanPath, setScanPath] = useState("");
   const [scanning, setScanning] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -56,8 +67,19 @@ export function McpServerScanModal({ onImported, onClose, plugins = [] }: McpSer
   const [selectedMcps, setSelectedMcps] = useState<Set<string>>(new Set());
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const autoScanTriggered = useRef(false);
 
-  const handleScanWithMode = async (scanMode: ScanMode) => {
+  const applyResults = useCallback((mcps: McpScanResult[], skills: SkillScanResult[]) => {
+    setError(null);
+    setMcpResults(mcps);
+    setSkillResults(skills);
+    setSelectedMcps(new Set(mcps.map((r) => r.key)));
+    setSelectedSkills(new Set(skills.map((r) => r.name)));
+    if (mcps.length > 0) setTab("servers");
+    else if (skills.length > 0) setTab("skills");
+  }, []);
+
+  const handleScanWithMode = useCallback(async (scanMode: ScanMode) => {
     if (scanMode === "folder" && !scanPath.trim()) return;
 
     setScanning(true);
@@ -86,19 +108,22 @@ export function McpServerScanModal({ onImported, onClose, plugins = [] }: McpSer
     );
     const newSkills = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
 
-    setMcpResults(newMcps);
-    setSkillResults(newSkills);
+    applyResults(newMcps, newSkills);
+  }, [api, applyResults, scanPath]);
 
-    // Pre-select all
-    setSelectedMcps(new Set(newMcps.map((r) => r.key)));
-    setSelectedSkills(new Set(newSkills.map((r) => r.name)));
-
-    // Auto-switch to tab with results
-    if (newMcps.length > 0) setTab("servers");
-    else if (newSkills.length > 0) setTab("skills");
-  };
+  useEffect(() => {
+    if (!prefilledResults) return;
+    applyResults(prefilledResults.mcpResults, prefilledResults.skillResults);
+  }, [applyResults, prefilledResults]);
 
   const handleScan = () => handleScanWithMode(mode);
+
+  useEffect(() => {
+    if (!autoScanMode || autoScanTriggered.current || prefilledResults) return;
+    autoScanTriggered.current = true;
+    setMode(autoScanMode);
+    void handleScanWithMode(autoScanMode);
+  }, [autoScanMode, handleScanWithMode, prefilledResults]);
 
   const toggleMcp = (key: string) => {
     setSelectedMcps((prev) => {

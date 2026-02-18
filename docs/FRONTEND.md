@@ -40,6 +40,7 @@ The main view. Displays a two-panel layout: a sidebar with worktree and issue li
 ### Agents
 
 Manages MCP servers, skills, and plugins. This is the hub for configuring agent tooling -- registering MCP servers, creating/deploying skills to coding agents (Claude, Cursor, etc.), and managing Claude plugins.
+On initial load, Agents triggers a background device scan for MCP servers/skills and shows a discovery banner with quick `Scan again` and `Import` actions when items are found. If opened from that banner, the import dialog reuses the already-scanned results (no second scan).
 
 ### Hooks
 
@@ -195,7 +196,7 @@ Before the main UI renders, the app checks for several early-exit conditions:
 Tab switcher at the top of the sidebar with two tabs:
 
 - **Branch** -- shows worktrees. Provides a "New Worktree" button.
-- **Issues** -- shows issues from all configured integrations. Provides create buttons for Jira, Linear, and custom tasks based on which integrations are active.
+- **Issues** -- always available, even without Jira/Linear configured. Shows local tasks by default and adds Jira/Linear sections when integrations are connected.
 
 ### WorktreeList / WorktreeItem (`src/ui/components/WorktreeList.tsx`, `WorktreeItem.tsx`)
 
@@ -209,7 +210,7 @@ Displays all worktrees with filtering support. Each `WorktreeItem` shows the wor
 
 ### IssueList (`src/ui/components/IssueList.tsx`)
 
-Aggregator component that renders all issue types in a single scrollable list. Receives issues from all sources and delegates rendering to the type-specific list/item components. Handles the case where no integrations are configured by showing a prompt to set them up.
+ Aggregator component that renders all issue types in a single scrollable list. Receives issues from all sources and delegates rendering to the type-specific list/item components. Jira/Linear issue queries are initialized in the background once integrations are configured (they do not wait for the Issues tab to be opened). The Local section is always shown so users can work with local issues even when no external integration is configured.
 
 ---
 
@@ -479,7 +480,7 @@ The app uses Framer Motion for transitions:
 | `MarkdownContent.tsx`       | Markdown renderer with dark theme styling                                                                                                                    |
 | `McpServerCreateModal.tsx`  | Create/edit MCP server modal                                                                                                                                 |
 | `McpServerItem.tsx`         | MCP server sidebar item                                                                                                                                      |
-| `McpServerScanModal.tsx`    | Scan for MCP servers on device                                                                                                                               |
+| `McpServerScanModal.tsx`    | Scan and import MCP servers/skills (supports direct device-scan entry from discovery banner and prefilled results from the latest banner scan)              |
 | `Modal.tsx`                 | Base modal component (sm/md/lg widths)                                                                                                                       |
 | `NavBar.tsx`                | Navigation bar (defines View type)                                                                                                                           |
 | `PluginInstallModal.tsx`    | Install Claude plugin modal                                                                                                                                  |

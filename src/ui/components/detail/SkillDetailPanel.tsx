@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSkillDetail, useSkillDeploymentStatus } from "../../hooks/useSkills";
 import { useApi } from "../../hooks/useApi";
 import { useHooksConfig } from "../../hooks/useHooks";
+import type { HookTrigger } from "../../hooks/api";
 import { border, skill as skillTheme, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { MarkdownContent } from "../MarkdownContent";
@@ -36,11 +37,10 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
   const { skill, isLoading, error, refetch } = useSkillDetail(skillName);
   const {
     config: hooksConfig,
-    saveConfig: saveHooksConfig,
     refetch: refetchHooks,
   } = useHooksConfig();
 
-  const hookSkillRef = hooksConfig?.skills?.find((s) => s.skillName === skillName) ?? null;
+  const hookSkillRefs = hooksConfig?.skills?.filter((s) => s.skillName === skillName) ?? [];
 
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
@@ -251,34 +251,28 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
               { trigger: "custom" as const, label: "Custom" },
               { trigger: "on-demand" as const, label: "On-Demand" },
             ].map(({ trigger, label }) => {
-              const isActive =
-                hookSkillRef?.enabled &&
-                (hookSkillRef.trigger ?? "post-implementation") === trigger;
+              const activeRef = hookSkillRefs.find(
+                (s) => (s.trigger ?? "post-implementation") === trigger && s.enabled !== false,
+              );
+              const isActive = !!activeRef;
               return (
                 <button
                   key={trigger}
                   type="button"
                   onClick={async () => {
                     if (!hooksConfig) return;
+                    const existingTriggers = Array.from(
+                      new Set(
+                        hookSkillRefs.map((s) => (s.trigger ?? "post-implementation") as HookTrigger),
+                      ),
+                    );
                     if (isActive) {
-                      // Remove from hooks
-                      await api.removeHookSkill(skillName);
-                    } else if (hookSkillRef) {
-                      // Already in hooks but different trigger — update
-                      const newSkills = hooksConfig.skills.map((s) =>
-                        s.skillName === skillName ? { ...s, enabled: true, trigger } : s,
-                      );
-                      await saveHooksConfig({ ...hooksConfig, skills: newSkills });
+                      await api.removeHookSkill(skillName, trigger);
                     } else {
-                      // Not in hooks — import then set trigger
-                      await api.importHookSkill(skillName);
-                      const updated = await api.fetchHooksConfig();
-                      if (updated) {
-                        const newSkills = updated.skills.map((s) =>
-                          s.skillName === skillName ? { ...s, enabled: true, trigger } : s,
-                        );
-                        await saveHooksConfig({ ...updated, skills: newSkills });
+                      for (const existingTrigger of existingTriggers) {
+                        await api.removeHookSkill(skillName, existingTrigger);
                       }
+                      await api.importHookSkill(skillName, trigger);
                     }
                     refetchHooks();
                   }}
@@ -296,8 +290,9 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
               );
             })}
           </div>
-          {hookSkillRef?.enabled &&
-            (hookSkillRef.trigger ?? "post-implementation") !== "on-demand" &&
+          {hookSkillRefs.some(
+            (s) => s.enabled !== false && (s.trigger ?? "post-implementation") !== "on-demand",
+          ) &&
             !isDeployedAnywhere && (
               <p className={`text-[10px] text-amber-400/80 mt-2`}>
                 This skill is an automated hook but isn't deployed to any agent. Deploy it above so

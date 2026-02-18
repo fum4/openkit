@@ -529,7 +529,7 @@ export function ProjectSetupScreen({
                   key={integration.id}
                   className={`rounded-xl ${surface.panel} border transition-all duration-200 overflow-hidden ${
                     isExpanded
-                      ? integration.borderColor
+                      ? "border-white/[0.12]"
                       : isConnected
                         ? "border-white/[0.08]"
                         : "border-white/[0.08] hover:border-white/[0.12]"

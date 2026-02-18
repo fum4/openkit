@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { GitBranch, Ticket } from "lucide-react";
+import { GitBranch } from "lucide-react";
 
 import { useApi } from "../hooks/useApi";
 import { input, text } from "../theme";
 import { Button } from "./Button";
-import { LinearIcon } from "./icons";
+import { JiraIcon, LinearIcon } from "./icons";
 import { Modal } from "./Modal";
 import { WorktreeExistsModal } from "./WorktreeExistsModal";
 
@@ -191,7 +191,7 @@ export function CreateWorktreeModal({
           mode === "branch" ? (
             <GitBranch className="w-5 h-5 text-accent" />
           ) : mode === "jira" ? (
-            <Ticket className="w-5 h-5 text-blue-400" />
+            <JiraIcon className="w-5 h-5 text-blue-400" />
           ) : (
             <LinearIcon className="w-5 h-5 text-[#5E6AD2]" />
           )

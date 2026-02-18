@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Copy, ExternalLink, Plus, Unplug, X } from "lucide-react";
+import { Check, ChevronDown, Copy, ExternalLink, Link2, Plus, Power, Unplug, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { APP_NAME } from "../../constants";
@@ -503,7 +503,7 @@ function GitHubCard({
         </button>
       )}
 
-      {/* Logout option */}
+      {/* Disconnect option */}
       {status?.authenticated && !waitingForAuth && !settingUp && (
         <button
           onClick={async () => {
@@ -519,9 +519,9 @@ function GitHubCard({
             }
           }}
           disabled={loading}
-          className={`flex items-center gap-1 text-[11px] ${text.muted} hover:text-red-400 disabled:opacity-50 transition-colors duration-150 self-start`}
+          className={`flex items-center gap-1 text-[11px] ${text.muted} hover:text-red-400 disabled:opacity-50 transition-colors duration-150 self-start mt-3`}
         >
-          <Unplug className="w-3 h-3" />
+          <Power className="w-3 h-3" />
           Disconnect
         </button>
       )}
@@ -683,7 +683,7 @@ function JiraCard({
             disabled={saving}
             className={`flex items-center gap-1 text-[11px] ${text.muted} hover:text-red-400 disabled:opacity-50 transition-colors duration-150 self-start mt-4`}
           >
-            <Unplug className="w-3 h-3" />
+            <Power className="w-3 h-3" />
             Disconnect
           </button>
         </div>
@@ -911,7 +911,7 @@ function LinearCard({
             disabled={saving}
             className={`flex items-center gap-1 text-[11px] ${text.muted} hover:text-red-400 disabled:opacity-50 transition-colors duration-150 self-start mt-4`}
           >
-            <Unplug className="w-3 h-3" />
+            <Power className="w-3 h-3" />
             Disconnect
           </button>
         </div>
@@ -1351,9 +1351,12 @@ export function IntegrationsPanel({
             >
               <X className="w-3.5 h-3.5" />
             </button>
-            <p className={`text-xs ${text.secondary} leading-relaxed`}>
-              Connect external services to enhance your workflow.
-            </p>
+            <div className="flex items-center gap-2.5">
+              <Link2 className={`w-3.5 h-3.5 ${infoBanner.textMuted} flex-shrink-0`} />
+              <p className={`text-xs ${text.secondary} leading-relaxed`}>
+                Connect external services to enhance your workflow.
+              </p>
+            </div>
           </div>
         )}
         <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>

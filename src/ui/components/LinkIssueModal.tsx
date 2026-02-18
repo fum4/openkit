@@ -1,10 +1,10 @@
-import { Link, ListTodo, Loader2, Search, Ticket } from "lucide-react";
+import { Link, ListTodo, Loader2, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { CustomTaskSummary, JiraIssueSummary, LinearIssueSummary } from "../types";
 import { useApi } from "../hooks/useApi";
 import { integration, tab, text } from "../theme";
-import { LinearIcon } from "./icons";
+import { JiraIcon, LinearIcon } from "./icons";
 import { Modal } from "./Modal";
 
 type IssueSource = "local" | "jira" | "linear";
@@ -191,7 +191,7 @@ export function LinkIssueModal({
                       onClick={() => handleLink("jira", issue.key)}
                       className={itemClass}
                     >
-                      <Ticket className={`w-4 h-4 flex-shrink-0 ${integration.jira}`} />
+                      <JiraIcon className={`w-4 h-4 flex-shrink-0 ${integration.jira}`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className={`text-[10px] font-mono ${text.muted}`}>{issue.key}</span>

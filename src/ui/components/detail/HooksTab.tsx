@@ -12,7 +12,7 @@ import {
   Play,
   Sparkles,
   Terminal,
-  XCircle,
+  X,
 } from "lucide-react";
 import {
   type Dispatch,
@@ -35,7 +35,7 @@ function statusIcon(status: StepResult["status"]) {
     case "passed":
       return <Check className="w-3.5 h-3.5 text-emerald-400" />;
     case "failed":
-      return <XCircle className="w-3.5 h-3.5 text-red-400" />;
+      return <X className="w-3.5 h-3.5 text-red-400" />;
     case "running":
       return <Loader2 className="w-3.5 h-3.5 text-yellow-400 animate-spin" />;
     case "pending":
@@ -1047,7 +1047,7 @@ function SkillList({
                 result.success ? (
                   <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                 ) : (
-                  <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                  <X className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
                 )
               ) : null}
             </div>

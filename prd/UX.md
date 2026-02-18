@@ -12,3 +12,5 @@ Split workspace page into two separate pages:
 - Issues - keeps all issues-related functionality
 
 Both of these should have their design improved, especially the main views (right-side), which are currently cluttered and do not look well
+
+Don't forget to separate/duplicate info banners, TBD

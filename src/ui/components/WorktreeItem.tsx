@@ -1,8 +1,8 @@
-import { ListTodo, Ticket } from "lucide-react";
+import { ListTodo } from "lucide-react";
 
 import type { WorktreeInfo } from "../types";
 import { border, status, surface, text } from "../theme";
-import { LinearIcon } from "./icons";
+import { JiraIcon, LinearIcon } from "./icons";
 import { Tooltip } from "./Tooltip";
 
 interface WorktreeItemProps {
@@ -76,7 +76,7 @@ export function WorktreeItem({
                     if (key) onSelectJiraIssue?.(key);
                   }}
                 >
-                  <Ticket className="w-3.5 h-3.5" />
+                  <JiraIcon className="w-3.5 h-3.5" />
                 </span>
               </Tooltip>
             );

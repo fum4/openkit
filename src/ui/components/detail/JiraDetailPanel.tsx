@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { GitBranch } from "lucide-react";
 
 import { useJiraIssueDetail } from "../../hooks/useJiraIssueDetail";
 import { useApi } from "../../hooks/useApi";
@@ -9,6 +10,7 @@ import { Tooltip } from "../Tooltip";
 import { TruncatedTooltip } from "../TruncatedTooltip";
 import { AttachmentImage } from "../AttachmentImage";
 import { MarkdownContent } from "../MarkdownContent";
+import { GitHubIcon, JiraIcon } from "../icons";
 import { PersonalNotesSection, AgentSection } from "./NotesSection";
 import { Spinner } from "../Spinner";
 import { WorktreeExistsModal } from "../WorktreeExistsModal";
@@ -17,6 +19,7 @@ import { ImageModal } from "../ImageModal";
 interface JiraDetailPanelProps {
   issueKey: string;
   linkedWorktreeId: string | null;
+  linkedWorktreePrUrl?: string | null;
   onCreateWorktree: (key: string) => void;
   onViewWorktree: (id: string) => void;
   refreshIntervalMinutes?: number;
@@ -166,6 +169,7 @@ function FileIcon({ mimeType }: { mimeType: string }) {
 export function JiraDetailPanel({
   issueKey,
   linkedWorktreeId,
+  linkedWorktreePrUrl,
   onCreateWorktree,
   onViewWorktree,
   refreshIntervalMinutes,
@@ -320,18 +324,33 @@ export function JiraDetailPanel({
               href={issue.url}
               target="_blank"
               rel="noopener noreferrer"
-              className={`px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
+              className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
             >
+              <JiraIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-blue-400" />
               Open in Jira
             </a>
             {linkedWorktreeId ? (
-              <button
-                type="button"
-                onClick={() => onViewWorktree(linkedWorktreeId)}
-                className={`px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
-              >
-                View Worktree
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => onViewWorktree(linkedWorktreeId)}
+                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
+                >
+                  <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
+                  View Worktree
+                </button>
+                {linkedWorktreePrUrl && (
+                  <a
+                    href={linkedWorktreePrUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
+                  >
+                    <GitHubIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-white" />
+                    View PR
+                  </a>
+                )}
+              </>
             ) : (
               <button
                 type="button"

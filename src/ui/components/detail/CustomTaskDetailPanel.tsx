@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Paperclip, Trash2, X } from "lucide-react";
+import { GitBranch, Paperclip, Trash2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useCustomTaskDetail } from "../../hooks/useCustomTaskDetail";
@@ -286,8 +286,9 @@ export function CustomTaskDetailPanel({
               <button
                 type="button"
                 onClick={() => onViewWorktree(task.linkedWorktreeId!)}
-                className={`px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
+                className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
               >
+                <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
                 View Worktree
               </button>
             ) : (

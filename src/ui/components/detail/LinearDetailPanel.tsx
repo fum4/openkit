@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { GitBranch } from "lucide-react";
 
 import { useLinearIssueDetail } from "../../hooks/useLinearIssueDetail";
 import { useApi } from "../../hooks/useApi";
@@ -6,6 +7,8 @@ import { badge, border, button, linearPriority, linearStateType, text } from "..
 import { Tooltip } from "../Tooltip";
 import { TruncatedTooltip } from "../TruncatedTooltip";
 import { MarkdownContent } from "../MarkdownContent";
+import { AttachmentImage } from "../AttachmentImage";
+import { GitHubIcon, LinearIcon } from "../icons";
 import { PersonalNotesSection, AgentSection } from "./NotesSection";
 import { Spinner } from "../Spinner";
 import { WorktreeExistsModal } from "../WorktreeExistsModal";
@@ -13,6 +16,7 @@ import { WorktreeExistsModal } from "../WorktreeExistsModal";
 interface LinearDetailPanelProps {
   identifier: string;
   linkedWorktreeId: string | null;
+  linkedWorktreePrUrl?: string | null;
   onCreateWorktree: (identifier: string) => void;
   onViewWorktree: (id: string) => void;
   refreshIntervalMinutes?: number;
@@ -41,9 +45,28 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <h3 className={`text-[11px] font-medium ${text.muted} mb-3`}>{children}</h3>;
 }
 
+function getAttachmentLabel(att: { title: string; subtitle: string | null; url: string }): string {
+  if (att.title?.trim()) return att.title.trim();
+  if (att.subtitle?.trim()) return att.subtitle.trim();
+  try {
+    const pathname = new URL(att.url).pathname;
+    const file = pathname.split("/").filter(Boolean).pop();
+    if (file) return decodeURIComponent(file);
+  } catch {
+    // ignore parse errors
+  }
+  return "Attachment";
+}
+
+function isImageUrl(url: string): boolean {
+  const clean = url.split("?")[0].toLowerCase();
+  return /\.(png|jpe?g|gif|webp|svg|bmp|avif|ico)$/.test(clean);
+}
+
 export function LinearDetailPanel({
   identifier,
   linkedWorktreeId,
+  linkedWorktreePrUrl,
   onCreateWorktree,
   onViewWorktree,
   refreshIntervalMinutes,
@@ -182,18 +205,33 @@ export function LinearDetailPanel({
               href={issue.url}
               target="_blank"
               rel="noopener noreferrer"
-              className={`px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
+              className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
             >
+              <LinearIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-[#5E6AD2]" />
               Open in Linear
             </a>
             {linkedWorktreeId ? (
-              <button
-                type="button"
-                onClick={() => onViewWorktree(linkedWorktreeId)}
-                className={`px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
-              >
-                View Worktree
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => onViewWorktree(linkedWorktreeId)}
+                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
+                >
+                  <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
+                  View Worktree
+                </button>
+                {linkedWorktreePrUrl && (
+                  <a
+                    href={linkedWorktreePrUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
+                  >
+                    <GitHubIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-white" />
+                    View PR
+                  </a>
+                )}
+              </>
             ) : (
               <button
                 type="button"
@@ -233,19 +271,27 @@ export function LinearDetailPanel({
                     rel="noopener noreferrer"
                     className="group flex flex-col w-36"
                   >
-                    <div className="w-36 h-28 rounded bg-white/[0.03] flex items-center justify-center hover:bg-white/[0.06] transition-colors">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        className={`w-6 h-6 ${text.dimmed} group-hover:${text.muted} transition-colors`}
-                      >
-                        <path d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3Z" />
-                        <path d="M11.603 7.963a.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 1 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865Z" />
-                      </svg>
-                    </div>
+                    {isImageUrl(att.url) ? (
+                      <AttachmentImage
+                        src={att.url}
+                        alt={getAttachmentLabel(att)}
+                        className="w-36 h-28 rounded object-cover transition-transform group-hover:scale-[1.02]"
+                      />
+                    ) : (
+                      <div className="w-36 h-28 rounded bg-white/[0.03] flex items-center justify-center hover:bg-white/[0.06] transition-colors">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className={`w-6 h-6 ${text.dimmed} group-hover:${text.muted} transition-colors`}
+                        >
+                          <path d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3Z" />
+                          <path d="M11.603 7.963a.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 1 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865Z" />
+                        </svg>
+                      </div>
+                    )}
                     <TruncatedTooltip
-                      text={att.title}
+                      text={getAttachmentLabel(att)}
                       className={`text-[10px] ${text.muted} group-hover:${text.secondary} mt-1.5 transition-colors`}
                     />
                     {att.sourceType && (

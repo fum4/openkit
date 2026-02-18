@@ -7,6 +7,7 @@ import { useApi } from "../hooks/useApi";
 import { useConfig } from "../hooks/useConfig";
 import { useMcpServers, useMcpDeploymentStatus } from "../hooks/useMcpServers";
 import { useSkills, useSkillDeploymentStatus, useClaudePlugins } from "../hooks/useSkills";
+import type { McpScanResult, SkillScanResult } from "../types";
 import { surface } from "../theme";
 import { AgentsSidebar, type AgentSelection } from "./AgentsSidebar";
 import { AgentsToolbar } from "./AgentsToolbar";
@@ -56,6 +57,11 @@ export function AgentsView() {
   const [showCreateSkillModal, setShowCreateSkillModal] = useState(false);
   const [showInstallPluginModal, setShowInstallPluginModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
+  const [scanModalAutoMode, setScanModalAutoMode] = useState<"device" | null>(null);
+  const [scanModalPrefillResults, setScanModalPrefillResults] = useState<{
+    mcpResults: McpScanResult[];
+    skillResults: SkillScanResult[];
+  } | null>(null);
 
   const { config, refetch: refetchConfig } = useConfig();
 
@@ -174,17 +180,25 @@ export function AgentsView() {
     }
   };
   const [discoveryScanning, setDiscoveryScanning] = useState(false);
+  const [discoveryScanResults, setDiscoveryScanResults] = useState<{
+    mcpResults: McpScanResult[];
+    skillResults: SkillScanResult[];
+  } | null>(null);
 
   const runDiscoveryScan = useCallback(() => {
     setDiscoveryScanning(true);
     const options = { mode: "device" as const };
     Promise.all([api.scanMcpServers(options), api.scanSkills(options)])
       .then(([mcpRes, skillRes]) => {
-        const mcpCount = (mcpRes.discovered ?? []).filter(
+        const mcpResults = (mcpRes.discovered ?? []).filter(
           (r) => !r.alreadyInRegistry && r.key !== "dawg",
-        ).length;
-        const skillCount = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry).length;
-        setDiscoveryCounts({ servers: mcpCount, skills: skillCount });
+        );
+        const skillResults = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
+        setDiscoveryScanResults({ mcpResults, skillResults });
+        setDiscoveryCounts({ servers: mcpResults.length, skills: skillResults.length });
+      })
+      .catch(() => {
+        setDiscoveryScanResults(null);
       })
       .finally(() => setDiscoveryScanning(false));
   }, [api]);
@@ -192,16 +206,22 @@ export function AgentsView() {
   // Run scan on every mount (re-scans on revisit since component remounts)
   const scanInitiated = useRef(false);
   useEffect(() => {
-    if (scanInitiated.current || discoveryDismissed) return;
+    if (scanInitiated.current) return;
     scanInitiated.current = true;
     runDiscoveryScan();
-  }, [discoveryDismissed, runDiscoveryScan]);
+  }, [runDiscoveryScan]);
 
   const dismissDiscovery = () => {
+    setDiscoveryScanResults(null);
     setDiscoveryCounts(null);
     setDiscoveryDismissed(true);
     localStorage.setItem(DISCOVERY_DISMISSED_KEY, "1");
   };
+
+  const hasDiscoveryResults =
+    discoveryCounts !== null && (discoveryCounts.servers > 0 || discoveryCounts.skills > 0);
+  const displayDiscoveryCounts = discoveryCounts ?? { servers: 0, skills: 0 };
+  const showDiscoveryBanner = discoveryScanning || hasDiscoveryResults || !discoveryDismissed;
 
   return (
     <div className="absolute inset-0 flex px-5 pb-16">
@@ -216,7 +236,11 @@ export function AgentsView() {
           onAddServer={() => setShowCreateServerModal(true)}
           onAddSkill={() => setShowCreateSkillModal(true)}
           onAddPlugin={() => setShowInstallPluginModal(true)}
-          onScanImport={() => setShowScanModal(true)}
+          onScanImport={() => {
+            setScanModalAutoMode(null);
+            setScanModalPrefillResults(null);
+            setShowScanModal(true);
+          }}
           hasItems={hasItems}
         />
         <AgentsSidebar
@@ -250,21 +274,23 @@ export function AgentsView() {
 
       {/* Right panel */}
       <main className={`flex-1 min-w-0 flex flex-col ${surface.panel} rounded-xl overflow-hidden`}>
-        {!discoveryDismissed ? (
+        {showDiscoveryBanner ? (
           <div className="flex-shrink-0 h-14 flex items-center gap-3 px-4 border-b border-purple-400/20 bg-purple-400/[0.04]">
             <Radar className="w-4 h-4 text-purple-400 flex-shrink-0" />
             <p className={`text-[11px] ${text.secondary} leading-relaxed flex-1`}>
-              {discoveryScanning && !discoveryCounts ? (
+              {discoveryScanning ? (
                 "Scanning for MCP servers and skills on this device..."
-              ) : discoveryCounts && (discoveryCounts.servers > 0 || discoveryCounts.skills > 0) ? (
+              ) : hasDiscoveryResults ? (
                 <>
                   Found
-                  {discoveryCounts.servers > 0
-                    ? ` ${discoveryCounts.servers} MCP server${discoveryCounts.servers !== 1 ? "s" : ""}`
+                  {displayDiscoveryCounts.servers > 0
+                    ? ` ${displayDiscoveryCounts.servers} MCP server${displayDiscoveryCounts.servers !== 1 ? "s" : ""}`
                     : ""}
-                  {discoveryCounts.servers > 0 && discoveryCounts.skills > 0 ? " and" : ""}
-                  {discoveryCounts.skills > 0
-                    ? ` ${discoveryCounts.skills} skill${discoveryCounts.skills !== 1 ? "s" : ""}`
+                  {displayDiscoveryCounts.servers > 0 && displayDiscoveryCounts.skills > 0
+                    ? " and"
+                    : ""}
+                  {displayDiscoveryCounts.skills > 0
+                    ? ` ${displayDiscoveryCounts.skills} skill${displayDiscoveryCounts.skills !== 1 ? "s" : ""}`
                     : ""}{" "}
                   on this device.
                 </>
@@ -272,31 +298,34 @@ export function AgentsView() {
                 "No new MCP servers or skills found on this device."
               )}
             </p>
-            {discoveryCounts !== null &&
-              (discoveryCounts.servers > 0 || discoveryCounts.skills > 0) && (
-                <>
-                  <button
-                    type="button"
-                    onClick={runDiscoveryScan}
-                    disabled={discoveryScanning}
-                    className={`text-[11px] font-medium transition-colors flex-shrink-0 flex items-center gap-1 ${discoveryScanning ? "text-purple-300/30 cursor-not-allowed" : "text-purple-300/60 hover:text-purple-300"}`}
-                  >
-                    <RefreshCw className={`w-3 h-3 ${discoveryScanning ? "animate-spin" : ""}`} />
-                    Scan again
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowScanModal(true);
-                      dismissDiscovery();
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 ml-2 text-[11px] font-medium text-purple-300 bg-purple-400/10 hover:bg-purple-400/20 border border-purple-400/20 rounded-lg transition-colors flex-shrink-0"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Import
-                  </button>
-                </>
-              )}
+            <button
+              type="button"
+              onClick={runDiscoveryScan}
+              disabled={discoveryScanning}
+              className={`text-[11px] font-medium transition-colors flex-shrink-0 flex items-center gap-1 ${discoveryScanning ? "text-purple-300/30 cursor-not-allowed" : "text-purple-300/60 hover:text-purple-300"}`}
+            >
+              <RefreshCw className={`w-3 h-3 ${discoveryScanning ? "animate-spin" : ""}`} />
+              Scan again
+            </button>
+            {hasDiscoveryResults && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (discoveryScanResults) {
+                    setScanModalAutoMode(null);
+                    setScanModalPrefillResults(discoveryScanResults);
+                  } else {
+                    setScanModalAutoMode("device");
+                    setScanModalPrefillResults(null);
+                  }
+                  setShowScanModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 ml-2 text-[11px] font-medium text-purple-300 bg-purple-400/10 hover:bg-purple-400/20 border border-purple-400/20 rounded-lg transition-colors flex-shrink-0"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Import
+              </button>
+            )}
             <button
               type="button"
               onClick={dismissDiscovery}
@@ -387,8 +416,14 @@ export function AgentsView() {
       {showScanModal && (
         <McpServerScanModal
           onImported={handleImported}
-          onClose={() => setShowScanModal(false)}
+          onClose={() => {
+            setShowScanModal(false);
+            setScanModalAutoMode(null);
+            setScanModalPrefillResults(null);
+          }}
           plugins={plugins}
+          autoScanMode={scanModalAutoMode}
+          prefilledResults={scanModalPrefillResults}
         />
       )}
     </div>

@@ -18,7 +18,6 @@ const FILTER_OPTIONS: { id: ActivityCategory | null; label: string }[] = [
   { id: null, label: "All" },
   { id: "agent", label: "Agent" },
   { id: "worktree", label: "Worktree" },
-  { id: "system", label: "System" },
 ];
 
 function formatRelativeTime(timestamp: string): string {
