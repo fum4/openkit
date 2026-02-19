@@ -449,7 +449,7 @@ export function DetailPanel({
 
       {!isCreating && (
         <div
-          className="flex-shrink-0 h-11 flex items-center justify-between px-4"
+          className="flex-shrink-0 h-11 flex items-center justify-between px-4 -mt-1 mb-1"
         >
           <div className="flex gap-1">
             <button

@@ -15,7 +15,7 @@ import {
   WebStormIcon,
   ZedIcon,
 } from "../../icons";
-import { action, badge, border, button, status, surface, text } from "../../theme";
+import { action, badge, button, status, surface, text } from "../../theme";
 import { Tooltip } from "../Tooltip";
 
 interface DetailHeaderProps {
@@ -267,7 +267,7 @@ export function DetailHeader({
   const editable = !isRunning && !isCreating;
 
   return (
-    <div className={`flex-shrink-0 px-5 py-4 border-b ${border.section}`}>
+    <div className="flex-shrink-0 px-5 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
           <InlineEdit

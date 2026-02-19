@@ -26,7 +26,7 @@ import {
 import type { HookSkillRef, HookStep, SkillHookResult, StepResult } from "../../hooks/api";
 import { useApi } from "../../hooks/useApi";
 import { useEffectiveHooksConfig, useHookSkillResults } from "../../hooks/useHooks";
-import { settings, text } from "../../theme";
+import { settings, surface, text } from "../../theme";
 import { MarkdownContent } from "../MarkdownContent";
 import { Modal } from "../Modal";
 
@@ -645,13 +645,16 @@ export function HooksTab({
   // Nothing configured at all
   if (!hasPre && !hasPost && !hasCustom && !hasOnDemand) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8">
-        <FishingHook className="w-8 h-8 text-emerald-400/30" />
-        <p className={`text-xs ${text.muted} text-center`}>
-          No hook steps or skills configured.
-          <br />
-          Add them in the Hooks view to run checks on this worktree.
-        </p>
+      <div className="relative flex-1 flex flex-col min-h-0 mx-1 mb-[3px] rounded-lg bg-black/25 shadow-[inset_0_0_24px_rgba(0,0,0,0.07)] overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent" />
+        <div className="relative z-[1] flex-1 flex flex-col items-center justify-center gap-3 px-8 -mt-5">
+          <FishingHook className="w-8 h-8 text-emerald-400/30" />
+          <p className={`text-xs ${text.muted} text-center`}>
+            No hook steps or skills configured.
+            <br />
+            Add them in the Hooks view to run checks on this worktree.
+          </p>
+        </div>
       </div>
     );
   }
@@ -663,8 +666,9 @@ export function HooksTab({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex-1 overflow-y-auto pb-4">
+    <div className="relative flex-1 flex flex-col min-h-0 mx-1 mb-[3px] rounded-lg bg-black/25 shadow-[inset_0_0_24px_rgba(0,0,0,0.07)] overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent" />
+      <div className="relative z-[1] flex-1 overflow-y-auto pb-4 -mt-5">
         {/* On-Demand section */}
         {hasOnDemand && (
           <>
@@ -844,7 +848,9 @@ export function HooksTab({
         )}
       </div>
       {/* Configure hooks footer */}
-      <div className="flex-shrink-0 px-4 py-3 border-t border-white/[0.06]">
+      <div
+        className={`relative z-[1] flex-shrink-0 px-4 py-3 border-t border-white/[0.06] ${surface.panel}`}
+      >
         <div className="flex items-center justify-center gap-1 text-[11px] flex-wrap">
           {hasLinkedIssue && onNavigateToIssue ? (
             <>
