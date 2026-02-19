@@ -272,10 +272,10 @@ export function TerminalView({
 
   return (
     <div
-      className={`flex-1 min-h-0 relative mx-1 mb-[3px] p-1 rounded-lg bg-[#07090d] ${reconnecting ? "terminal-reconnecting" : ""} ${startingClaude ? "terminal-booting" : ""}`}
+      className={`flex-1 min-h-0 relative mx-1 mb-[4px] p-1 rounded-t-xl rounded-b-lg bg-[#07090d] ${reconnecting ? "terminal-reconnecting" : ""} ${startingClaude ? "terminal-booting" : ""}`}
       style={{ display: visible ? undefined : "none" }}
     >
-      <div className="h-full w-full min-h-0 rounded-md bg-black overflow-hidden px-2">
+      <div className="h-full w-full min-h-0 rounded-t-lg rounded-b-md bg-black overflow-hidden px-2">
         <div ref={containerRef} className="h-full w-full min-h-0" />
       </div>
       {startingClaude && (

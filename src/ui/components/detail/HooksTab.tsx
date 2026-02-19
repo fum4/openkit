@@ -645,7 +645,7 @@ export function HooksTab({
   // Nothing configured at all
   if (!hasPre && !hasPost && !hasCustom && !hasOnDemand) {
     return (
-      <div className="relative flex-1 flex flex-col min-h-0 mx-1 mb-[3px] rounded-lg bg-black/25 shadow-[inset_0_0_24px_rgba(0,0,0,0.07)] overflow-hidden">
+      <div className="relative flex-1 flex flex-col min-h-0 mx-1 mb-[3px] rounded-t-xl rounded-b-lg bg-black/25 border border-black/40 overflow-hidden">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent" />
         <div className="relative z-[1] flex-1 flex flex-col items-center justify-center gap-3 px-8 -mt-5">
           <FishingHook className="w-8 h-8 text-emerald-400/30" />
@@ -666,186 +666,188 @@ export function HooksTab({
   }
 
   return (
-    <div className="relative flex-1 flex flex-col min-h-0 mx-1 mb-[3px] rounded-lg bg-black/25 shadow-[inset_0_0_24px_rgba(0,0,0,0.07)] overflow-hidden">
+    <div className="relative flex-1 flex flex-col min-h-0 mx-1 mb-[3px] rounded-t-xl rounded-b-lg bg-black/25 overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent" />
-      <div className="relative z-[1] flex-1 overflow-y-auto pb-4 -mt-5">
-        {/* On-Demand section */}
-        {hasOnDemand && (
-          <>
-            <div className="flex items-center gap-2 px-4 pt-2 pb-3 mt-8">
-              <Hand className="w-4 h-4 text-amber-400" />
-              <span className={`text-xs ${text.primary}`}>On-Demand</span>
-              <span className={`text-[10px] ${text.muted}`}>
-                {onDemandSteps.length + onDemandSkills.length} item
-                {onDemandSteps.length + onDemandSkills.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-
-            {onDemandSteps.length > 0 && (
-              <StepList
-                steps={onDemandSteps}
-                stepResults={stepResults}
-                runningSteps={runningSteps}
-                runningAll={false}
-                expandedSteps={expandedSteps}
-                setExpandedSteps={setExpandedSteps}
-                onRunSingle={handleRunSingle}
-              />
-            )}
-
-            {onDemandSkills.length > 0 && (
-              <SkillList
-                skills={onDemandSkills}
-                skillResultMap={skillResultMap}
-                expandedSkills={expandedSkills}
-                setExpandedSkills={setExpandedSkills}
-                onViewReport={handleViewReport}
-              />
-            )}
-          </>
-        )}
-
-        {/* Pre-Implementation */}
-        {hasPre && (
-          <>
-            <div className="flex items-center justify-between px-4 pt-2 pb-3 mt-8">
-              <div className="flex items-center gap-2">
-                <ListChecks className="w-4 h-4 text-sky-400" />
-                <span className={`text-xs ${text.primary}`}>Pre-Implementation</span>
+      <div className="relative z-[1] flex-1 border border-black/40 border-b-0 rounded-t-xl overflow-hidden">
+        <div className="h-full overflow-y-auto pb-4 -mt-5">
+          {/* On-Demand section */}
+          {hasOnDemand && (
+            <>
+              <div className="flex items-center gap-2 px-4 pt-2 pb-3 mt-8">
+                <Hand className="w-4 h-4 text-amber-400" />
+                <span className={`text-xs ${text.primary}`}>On-Demand</span>
                 <span className={`text-[10px] ${text.muted}`}>
-                  {preSteps.length + preSkills.length} item
-                  {preSteps.length + preSkills.length !== 1 ? "s" : ""}
+                  {onDemandSteps.length + onDemandSkills.length} item
+                  {onDemandSteps.length + onDemandSkills.length !== 1 ? "s" : ""}
                 </span>
               </div>
-            </div>
 
-            {preSteps.length > 0 && (
-              <StepList
-                steps={preSteps}
-                stepResults={stepResults}
-                runningSteps={runningSteps}
-                runningAll={false}
-                expandedSteps={expandedSteps}
-                setExpandedSteps={setExpandedSteps}
-                onRunSingle={handleRunSingle}
-              />
-            )}
-
-            {preSkills.length > 0 && (
-              <SkillList
-                skills={preSkills}
-                skillResultMap={skillResultMap}
-                expandedSkills={expandedSkills}
-                setExpandedSkills={setExpandedSkills}
-                onViewReport={handleViewReport}
-              />
-            )}
-          </>
-        )}
-
-        {/* Post-Implementation */}
-        {hasPost && (
-          <>
-            <div className="flex items-center justify-between px-4 pt-2 pb-3 mt-8">
-              <div className="flex items-center gap-2">
-                <CircleCheck className="w-4 h-4 text-emerald-400" />
-                <span className={`text-xs ${text.primary}`}>Post-Implementation</span>
-                <span className={`text-[10px] ${text.muted}`}>
-                  {postSteps.length + postSkills.length} item
-                  {postSteps.length + postSkills.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-              {postSteps.filter((s) => s.enabled !== false && !isPromptStep(s)).length > 1 && (
-                <button
-                  onClick={handleRunAll}
-                  disabled={runningAll}
-                  className="group/run flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-colors border border-white/[0.12] text-[#9ca3af] hover:text-white hover:border-white/[0.25] hover:bg-white/[0.04] disabled:opacity-50"
-                >
-                  {runningAll ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Play className="w-3.5 h-3.5 group-hover/run:fill-current" />
-                  )}
-                  {runningAll ? "Running..." : "Run All"}
-                </button>
+              {onDemandSteps.length > 0 && (
+                <StepList
+                  steps={onDemandSteps}
+                  stepResults={stepResults}
+                  runningSteps={runningSteps}
+                  runningAll={false}
+                  expandedSteps={expandedSteps}
+                  setExpandedSteps={setExpandedSteps}
+                  onRunSingle={handleRunSingle}
+                />
               )}
-            </div>
 
-            {postSteps.length > 0 && (
-              <StepList
-                steps={postSteps}
-                stepResults={stepResults}
-                runningSteps={runningSteps}
-                runningAll={runningAll}
-                expandedSteps={expandedSteps}
-                setExpandedSteps={setExpandedSteps}
-                onRunSingle={handleRunSingle}
-              />
-            )}
+              {onDemandSkills.length > 0 && (
+                <SkillList
+                  skills={onDemandSkills}
+                  skillResultMap={skillResultMap}
+                  expandedSkills={expandedSkills}
+                  setExpandedSkills={setExpandedSkills}
+                  onViewReport={handleViewReport}
+                />
+              )}
+            </>
+          )}
 
-            {postSkills.length > 0 && (
-              <SkillList
-                skills={postSkills}
-                skillResultMap={skillResultMap}
-                expandedSkills={expandedSkills}
-                setExpandedSkills={setExpandedSkills}
-                onViewReport={handleViewReport}
-              />
-            )}
-          </>
-        )}
-
-        {/* Custom — grouped by condition */}
-        {hasCustom && (
-          <>
-            <div className="flex items-center gap-2 px-4 pt-2 pb-3 mt-8">
-              <MessageSquareText className="w-4 h-4 text-violet-400" />
-              <span className={`text-xs ${text.primary}`}>Custom</span>
-              <span className={`text-[10px] ${text.muted}`}>
-                {customSteps.length + customSkills.length} item
-                {customSteps.length + customSkills.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-
-            {Object.entries(customGroups).map(([condition, group]) => (
-              <div key={condition} className="mb-3">
-                {/* Group header */}
-                <div className="px-4 pt-2 pb-3">
-                  {group.title && (
-                    <p className="text-[11px] font-medium text-violet-300">{group.title}</p>
-                  )}
-                  <p
-                    className={`text-[10px] text-violet-400/60 italic ${group.title ? "mt-0.5" : ""}`}
-                  >
-                    {condition || "No condition set"}
-                  </p>
+          {/* Pre-Implementation */}
+          {hasPre && (
+            <>
+              <div className="flex items-center justify-between px-4 pt-2 pb-3 mt-8">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="w-4 h-4 text-sky-400" />
+                  <span className={`text-xs ${text.primary}`}>Pre-Implementation</span>
+                  <span className={`text-[10px] ${text.muted}`}>
+                    {preSteps.length + preSkills.length} item
+                    {preSteps.length + preSkills.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
+              </div>
 
-                {group.steps.length > 0 && (
-                  <StepList
-                    steps={group.steps}
-                    stepResults={stepResults}
-                    runningSteps={runningSteps}
-                    runningAll={false}
-                    expandedSteps={expandedSteps}
-                    setExpandedSteps={setExpandedSteps}
-                    onRunSingle={handleRunSingle}
-                  />
-                )}
+              {preSteps.length > 0 && (
+                <StepList
+                  steps={preSteps}
+                  stepResults={stepResults}
+                  runningSteps={runningSteps}
+                  runningAll={false}
+                  expandedSteps={expandedSteps}
+                  setExpandedSteps={setExpandedSteps}
+                  onRunSingle={handleRunSingle}
+                />
+              )}
 
-                {group.skills.length > 0 && (
-                  <SkillList
-                    skills={group.skills}
-                    skillResultMap={skillResultMap}
-                    expandedSkills={expandedSkills}
-                    setExpandedSkills={setExpandedSkills}
-                    onViewReport={handleViewReport}
-                  />
+              {preSkills.length > 0 && (
+                <SkillList
+                  skills={preSkills}
+                  skillResultMap={skillResultMap}
+                  expandedSkills={expandedSkills}
+                  setExpandedSkills={setExpandedSkills}
+                  onViewReport={handleViewReport}
+                />
+              )}
+            </>
+          )}
+
+          {/* Post-Implementation */}
+          {hasPost && (
+            <>
+              <div className="flex items-center justify-between px-4 pt-2 pb-3 mt-8">
+                <div className="flex items-center gap-2">
+                  <CircleCheck className="w-4 h-4 text-emerald-400" />
+                  <span className={`text-xs ${text.primary}`}>Post-Implementation</span>
+                  <span className={`text-[10px] ${text.muted}`}>
+                    {postSteps.length + postSkills.length} item
+                    {postSteps.length + postSkills.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                {postSteps.filter((s) => s.enabled !== false && !isPromptStep(s)).length > 1 && (
+                  <button
+                    onClick={handleRunAll}
+                    disabled={runningAll}
+                    className="group/run flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-colors border border-white/[0.12] text-[#9ca3af] hover:text-white hover:border-white/[0.25] hover:bg-white/[0.04] disabled:opacity-50"
+                  >
+                    {runningAll ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5 group-hover/run:fill-current" />
+                    )}
+                    {runningAll ? "Running..." : "Run All"}
+                  </button>
                 )}
               </div>
-            ))}
-          </>
-        )}
+
+              {postSteps.length > 0 && (
+                <StepList
+                  steps={postSteps}
+                  stepResults={stepResults}
+                  runningSteps={runningSteps}
+                  runningAll={runningAll}
+                  expandedSteps={expandedSteps}
+                  setExpandedSteps={setExpandedSteps}
+                  onRunSingle={handleRunSingle}
+                />
+              )}
+
+              {postSkills.length > 0 && (
+                <SkillList
+                  skills={postSkills}
+                  skillResultMap={skillResultMap}
+                  expandedSkills={expandedSkills}
+                  setExpandedSkills={setExpandedSkills}
+                  onViewReport={handleViewReport}
+                />
+              )}
+            </>
+          )}
+
+          {/* Custom — grouped by condition */}
+          {hasCustom && (
+            <>
+              <div className="flex items-center gap-2 px-4 pt-2 pb-3 mt-8">
+                <MessageSquareText className="w-4 h-4 text-violet-400" />
+                <span className={`text-xs ${text.primary}`}>Custom</span>
+                <span className={`text-[10px] ${text.muted}`}>
+                  {customSteps.length + customSkills.length} item
+                  {customSteps.length + customSkills.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              {Object.entries(customGroups).map(([condition, group]) => (
+                <div key={condition} className="mb-3">
+                  {/* Group header */}
+                  <div className="px-4 pt-2 pb-3">
+                    {group.title && (
+                      <p className="text-[11px] font-medium text-violet-300">{group.title}</p>
+                    )}
+                    <p
+                      className={`text-[10px] text-violet-400/60 italic ${group.title ? "mt-0.5" : ""}`}
+                    >
+                      {condition || "No condition set"}
+                    </p>
+                  </div>
+
+                  {group.steps.length > 0 && (
+                    <StepList
+                      steps={group.steps}
+                      stepResults={stepResults}
+                      runningSteps={runningSteps}
+                      runningAll={false}
+                      expandedSteps={expandedSteps}
+                      setExpandedSteps={setExpandedSteps}
+                      onRunSingle={handleRunSingle}
+                    />
+                  )}
+
+                  {group.skills.length > 0 && (
+                    <SkillList
+                      skills={group.skills}
+                      skillResultMap={skillResultMap}
+                      expandedSkills={expandedSkills}
+                      setExpandedSkills={setExpandedSkills}
+                      onViewReport={handleViewReport}
+                    />
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
       </div>
       {/* Configure hooks footer */}
       <div

@@ -52,10 +52,10 @@ export function LogsViewer({ worktree, isRunning, isCreating, visible = true }: 
   if (isRunning || isCreating) {
     return (
       <div
-        className="flex-1 min-h-0 relative mx-1 mb-[3px] p-1 rounded-lg bg-[#07090d]"
+        className="flex-1 min-h-0 relative mx-1 mb-[4px] p-1 rounded-t-xl rounded-b-lg bg-[#07090d]"
         style={shellStyle}
       >
-        <div className="h-full w-full min-h-0 rounded-md bg-black overflow-hidden px-2">
+        <div className="h-full w-full min-h-0 rounded-t-lg rounded-b-md bg-black overflow-hidden px-2">
           <pre
             ref={logsContainerRef}
             onScroll={handleScroll}
@@ -81,11 +81,11 @@ export function LogsViewer({ worktree, isRunning, isCreating, visible = true }: 
 
   return (
     <div
-      className="flex-1 min-h-0 relative mx-1 mb-[3px] p-1 rounded-lg bg-[#07090d]"
+      className="flex-1 min-h-0 relative mx-1 mb-[4px] p-1 rounded-t-xl rounded-b-lg bg-[#07090d]"
       style={shellStyle}
     >
       <div
-        className={`h-full w-full min-h-0 rounded-md bg-black overflow-hidden px-2 flex items-center justify-center ${text.dimmed} text-xs`}
+        className={`h-full w-full min-h-0 rounded-t-lg rounded-b-md bg-black overflow-hidden px-2 flex items-center justify-center ${text.dimmed} text-xs`}
       >
         Start this worktree to see logs
       </div>
