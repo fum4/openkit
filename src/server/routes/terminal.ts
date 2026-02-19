@@ -23,8 +23,18 @@ export function registerTerminalRoutes(
       const body = await c.req.json().catch(() => ({}));
       const cols = body.cols ?? 80;
       const rows = body.rows ?? 24;
+      const startupCommand =
+        typeof body.startupCommand === "string" && body.startupCommand.trim()
+          ? body.startupCommand
+          : null;
 
-      const sessionId = terminalManager.createSession(worktreeId, worktree.path, cols, rows);
+      const sessionId = terminalManager.createSession(
+        worktreeId,
+        worktree.path,
+        cols,
+        rows,
+        startupCommand,
+      );
       return c.json({ success: true, sessionId });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create terminal session";

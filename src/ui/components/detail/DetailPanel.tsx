@@ -1,5 +1,5 @@
-import { Link, ListTodo } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Link, ListTodo, Plus, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { WorktreeInfo } from "../../types";
 import { useApi } from "../../hooks/useApi";
@@ -12,8 +12,18 @@ import { LogsViewer } from "./LogsViewer";
 import { TerminalView } from "./TerminalView";
 import { HooksTab } from "./HooksTab";
 
+type WorktreeTab = "logs" | "terminal" | "claude" | "hooks";
+
 // Persists across unmount/remount (view switches)
-const tabCache: Record<string, "logs" | "terminal" | "hooks"> = {};
+const tabCache: Record<string, WorktreeTab> = {};
+const openClaudeTabCache = new Set<string>();
+
+interface ClaudeLaunchRequest {
+  worktreeId: string;
+  mode: "resume" | "start";
+  prompt?: string;
+  requestId: number;
+}
 
 interface DetailPanelProps {
   worktree: WorktreeInfo | null;
@@ -27,6 +37,7 @@ interface DetailPanelProps {
   onCreateTask?: (worktreeId: string) => void;
   onLinkIssue?: (worktreeId: string) => void;
   hookUpdateKey?: number;
+  claudeLaunchRequest?: ClaudeLaunchRequest | null;
 }
 
 export function DetailPanel({
@@ -41,6 +52,7 @@ export function DetailPanel({
   onCreateTask,
   onLinkIssue,
   hookUpdateKey,
+  claudeLaunchRequest,
 }: DetailPanelProps) {
   const api = useApi();
   const [isLoading, setIsLoading] = useState(false);
@@ -52,21 +64,117 @@ export function DetailPanel({
   const [isGitLoading, setIsGitLoading] = useState(false);
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
-  const [tabPerWorktree, setTabPerWorktree] = useState<
-    Record<string, "logs" | "terminal" | "hooks">
-  >(() => ({ ...tabCache }));
+  const [tabPerWorktree, setTabPerWorktree] = useState<Record<string, WorktreeTab>>(
+    () => ({ ...tabCache }),
+  );
   const [openTerminals, setOpenTerminals] = useState<Set<string>>(new Set());
+  const [openClaudeTabs, setOpenClaudeTabs] = useState<Set<string>>(
+    () => new Set(openClaudeTabCache),
+  );
+  const [currentClaudeLaunchRequest, setCurrentClaudeLaunchRequest] =
+    useState<ClaudeLaunchRequest | null>(null);
+  const [launchClaudeRequestId, setLaunchClaudeRequestId] = useState<number | null>(null);
+  const [closeClaudeRequestIdByWorktree, setCloseClaudeRequestIdByWorktree] = useState<
+    Record<string, number>
+  >({});
+  const processedClaudeRequestIdRef = useRef<number | null>(null);
+  const localClaudeRequestIdRef = useRef(1_000_000);
+  const closeClaudeRequestIdRef = useRef(0);
 
   const activeTab = worktree ? (tabPerWorktree[worktree.id] ?? "logs") : "logs";
+  const isTerminalTabActive = activeTab === "terminal" || activeTab === "claude";
+
+  const setTabForWorktree = useCallback((worktreeId: string, tab: WorktreeTab) => {
+    tabCache[worktreeId] = tab;
+    setTabPerWorktree((prev) => ({ ...prev, [worktreeId]: tab }));
+  }, []);
 
   const setActiveTab = useCallback(
-    (tab: "logs" | "terminal" | "hooks") => {
+    (tab: WorktreeTab) => {
       if (!worktree) return;
-      tabCache[worktree.id] = tab;
-      setTabPerWorktree((prev) => ({ ...prev, [worktree.id]: tab }));
+      setTabForWorktree(worktree.id, tab);
     },
-    [worktree],
+    [setTabForWorktree, worktree],
   );
+
+  const ensureTerminalTabMounted = useCallback((worktreeId: string) => {
+    setOpenTerminals((prev) => {
+      if (prev.has(worktreeId)) return prev;
+      const next = new Set(prev);
+      next.add(worktreeId);
+      return next;
+    });
+  }, []);
+
+  const ensureClaudeTabMounted = useCallback((worktreeId: string) => {
+    openClaudeTabCache.add(worktreeId);
+    setOpenClaudeTabs((prev) => {
+      if (prev.has(worktreeId)) return prev;
+      const next = new Set(prev);
+      next.add(worktreeId);
+      return next;
+    });
+  }, []);
+
+  const closeClaudeTab = useCallback(
+    (worktreeId: string) => {
+      openClaudeTabCache.delete(worktreeId);
+      setOpenClaudeTabs((prev) => {
+        if (!prev.has(worktreeId)) return prev;
+        const next = new Set(prev);
+        next.delete(worktreeId);
+        return next;
+      });
+      setLaunchClaudeRequestId(null);
+      setCurrentClaudeLaunchRequest((prev) => (prev?.worktreeId === worktreeId ? null : prev));
+      setCloseClaudeRequestIdByWorktree((prev) => {
+        if (!(worktreeId in prev)) return prev;
+        const next = { ...prev };
+        delete next[worktreeId];
+        return next;
+      });
+      setTabPerWorktree((prev) => {
+        if (prev[worktreeId] !== "claude") return prev;
+        tabCache[worktreeId] = "logs";
+        return { ...prev, [worktreeId]: "logs" };
+      });
+    },
+    [],
+  );
+
+  const openClaudeWithRequest = useCallback(
+    (request: ClaudeLaunchRequest) => {
+      if (!worktree || request.worktreeId !== worktree.id) return;
+      setCurrentClaudeLaunchRequest(request);
+      setCloseClaudeRequestIdByWorktree((prev) => {
+        if (!(request.worktreeId in prev)) return prev;
+        const next = { ...prev };
+        delete next[request.worktreeId];
+        return next;
+      });
+      const claudeTabAlreadyOpen = openClaudeTabCache.has(worktree.id);
+      setActiveTab("claude");
+      ensureClaudeTabMounted(worktree.id);
+      setLaunchClaudeRequestId(claudeTabAlreadyOpen ? null : request.requestId);
+    },
+    [ensureClaudeTabMounted, setActiveTab, worktree],
+  );
+
+  const handleOpenClaudeTab = useCallback(() => {
+    if (!worktree) return;
+    localClaudeRequestIdRef.current += 1;
+    openClaudeWithRequest({
+      worktreeId: worktree.id,
+      mode: "resume",
+      requestId: localClaudeRequestIdRef.current,
+    });
+  }, [openClaudeWithRequest, worktree]);
+
+  const requestCloseClaudeTab = useCallback((worktreeId: string) => {
+    closeClaudeRequestIdRef.current += 1;
+    const requestId = closeClaudeRequestIdRef.current;
+    setCloseClaudeRequestIdByWorktree((prev) => ({ ...prev, [worktreeId]: requestId }));
+  }, []);
 
   // Reset form state when worktree changes (but NOT tab or terminal state)
   useEffect(() => {
@@ -77,6 +185,31 @@ export function DetailPanel({
     setPrTitle("");
     setGitAction(null);
   }, [worktree?.id]);
+
+  useEffect(() => {
+    if (!worktree || !claudeLaunchRequest || claudeLaunchRequest.worktreeId !== worktree.id) {
+      return;
+    }
+    if (processedClaudeRequestIdRef.current === claudeLaunchRequest.requestId) return;
+    processedClaudeRequestIdRef.current = claudeLaunchRequest.requestId;
+    openClaudeWithRequest(claudeLaunchRequest);
+  }, [claudeLaunchRequest, openClaudeWithRequest, worktree]);
+
+  // If terminal/claude tab is restored from cache on remount, ensure that view is mounted.
+  useEffect(() => {
+    if (!worktree) return;
+    if (activeTab === "terminal") {
+      ensureTerminalTabMounted(worktree.id);
+      return;
+    }
+    if (activeTab === "claude") {
+      if (openClaudeTabCache.has(worktree.id)) {
+        ensureClaudeTabMounted(worktree.id);
+        return;
+      }
+      setTabForWorktree(worktree.id, "logs");
+    }
+  }, [activeTab, ensureClaudeTabMounted, ensureTerminalTabMounted, setTabForWorktree, worktree]);
 
   if (!worktree) {
     return (
@@ -120,9 +253,26 @@ export function DetailPanel({
       next.delete(deletedId);
       return next;
     });
+    openClaudeTabCache.delete(deletedId);
+    setOpenClaudeTabs((prev) => {
+      const next = new Set(prev);
+      next.delete(deletedId);
+      return next;
+    });
     setTabPerWorktree((prev) => {
       const { [deletedId]: _, ...rest } = prev;
       return rest;
+    });
+    delete tabCache[deletedId];
+    setLaunchClaudeRequestId((prev) =>
+      currentClaudeLaunchRequest?.worktreeId === deletedId ? null : prev,
+    );
+    setCurrentClaudeLaunchRequest((prev) => (prev?.worktreeId === deletedId ? null : prev));
+    setCloseClaudeRequestIdByWorktree((prev) => {
+      if (!(deletedId in prev)) return prev;
+      const next = { ...prev };
+      delete next[deletedId];
+      return next;
     });
 
     // Switch away immediately so user isn't stuck on "deleting" screen
@@ -234,7 +384,9 @@ export function DetailPanel({
 
       {!isCreating && (
         <div
-          className={`flex-shrink-0 h-11 flex items-center justify-between px-4 border-b ${border.section}`}
+          className={`flex-shrink-0 h-11 flex items-center justify-between px-4 border-b ${
+            isTerminalTabActive ? "border-transparent" : border.section
+          }`}
         >
           <div className="flex gap-1">
             <button
@@ -250,9 +402,7 @@ export function DetailPanel({
               type="button"
               onClick={() => {
                 setActiveTab("terminal");
-                if (!openTerminals.has(worktree.id)) {
-                  setOpenTerminals((prev) => new Set(prev).add(worktree.id));
-                }
+                ensureTerminalTabMounted(worktree.id);
               }}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors duration-150 ${
                 activeTab === "terminal" ? detailTab.active : detailTab.inactive
@@ -269,6 +419,47 @@ export function DetailPanel({
             >
               Hooks
             </button>
+            {openClaudeTabs.has(worktree.id) && (
+              <div
+                className={`inline-flex items-center rounded-md transition-colors duration-150 ${
+                  activeTab === "claude" ? detailTab.active : detailTab.inactive
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("claude")}
+                  className="pl-3 pr-1.5 py-1 text-xs font-medium"
+                >
+                  Claude
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    requestCloseClaudeTab(worktree.id);
+                  }}
+                  className={`mr-1.5 p-0.5 rounded-sm transition-colors duration-150 ${
+                    activeTab === "claude"
+                      ? "text-white/70 hover:text-white hover:bg-white/10"
+                      : "text-[#6b7280] hover:text-[#9ca3af] hover:bg-white/[0.06]"
+                  }`}
+                  aria-label="Close Claude tab"
+                  title="Close Claude tab"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            {!openClaudeTabs.has(worktree.id) && (
+              <button
+                type="button"
+                onClick={handleOpenClaudeTab}
+                className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 text-xs font-medium rounded-md text-[#3f4651] hover:text-[#9ca3af] hover:bg-white/[0.06] transition-colors duration-150"
+              >
+                <Plus className="w-3 h-3" />
+                Claude
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end ml-3">
@@ -527,6 +718,23 @@ export function DetailPanel({
           key={wtId}
           worktreeId={wtId}
           visible={wtId === worktree.id && activeTab === "terminal" && !isCreating}
+        />
+      ))}
+      {[...openClaudeTabs].map((wtId) => (
+        <TerminalView
+          key={`claude-${wtId}`}
+          worktreeId={wtId}
+          variant="claude"
+          visible={wtId === worktree.id && activeTab === "claude" && !isCreating}
+          claudeLaunchRequest={
+            currentClaudeLaunchRequest &&
+            launchClaudeRequestId === currentClaudeLaunchRequest.requestId &&
+            currentClaudeLaunchRequest.worktreeId === wtId
+              ? currentClaudeLaunchRequest
+              : null
+          }
+          closeRequestId={closeClaudeRequestIdByWorktree[wtId] ?? null}
+          onClaudeExit={() => closeClaudeTab(wtId)}
         />
       ))}
       <HooksTab

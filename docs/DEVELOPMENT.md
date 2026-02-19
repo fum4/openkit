@@ -131,7 +131,7 @@ worktree-manager/
 │   │   │   ├── Tooltip.tsx   -- Custom tooltip (use instead of native title)
 │   │   │   ├── Modal.tsx     -- Reusable modal (sm/md/lg widths)
 │   │   │   └── detail/       -- Right panel components
-│   │   │       ├── DetailPanel.tsx -- Worktree detail (logs, terminal, git)
+│   │   │       ├── DetailPanel.tsx -- Worktree detail (logs, terminal, hooks, optional Claude tab, git)
 │   │   │       ├── JiraDetailPanel.tsx
 │   │   │       ├── LinearDetailPanel.tsx
 │   │   │       ├── CustomTaskDetailPanel.tsx

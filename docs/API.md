@@ -1321,11 +1321,12 @@ Create a new terminal session for a worktree.
   ```json
   {
     "cols": 120,
-    "rows": 40
+    "rows": 40,
+    "startupCommand": "exec claude 'Implement task in TASK.md'"
   }
   ```
-  Defaults to 80 columns and 24 rows.
-- **Response**: `{ success: true, sessionId: "uuid" }`
+  Defaults to 80 columns and 24 rows. `startupCommand` (optional) runs via shell startup (`$SHELL -lc <command>`) when the PTY is first created.
+- **Response**: `{ success: true, sessionId: "string" }`
 - **Error** (404): `{ success: false, error: "Worktree not found" }`
 
 #### `DELETE /api/terminals/:sessionId`

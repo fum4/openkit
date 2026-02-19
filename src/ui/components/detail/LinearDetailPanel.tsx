@@ -10,7 +10,7 @@ import { Tooltip } from "../Tooltip";
 import { TruncatedTooltip } from "../TruncatedTooltip";
 import { MarkdownContent } from "../MarkdownContent";
 import { AttachmentImage } from "../AttachmentImage";
-import { GitHubIcon, LinearIcon } from "../icons";
+import { ClaudeIcon, GitHubIcon, LinearIcon } from "../icons";
 import { PersonalNotesSection, AgentSection } from "./NotesSection";
 import { Spinner } from "../Spinner";
 import { WorktreeExistsModal } from "../WorktreeExistsModal";
@@ -21,6 +21,7 @@ interface LinearDetailPanelProps {
   linkedWorktreePrUrl?: string | null;
   onCreateWorktree: (identifier: string) => void;
   onViewWorktree: (id: string) => void;
+  onCodeWithClaude: (intent: { worktreeId: string; mode: "resume" | "start"; prompt?: string }) => void;
   refreshIntervalMinutes?: number;
   onSetupNeeded?: () => void;
 }
@@ -80,6 +81,7 @@ export function LinearDetailPanel({
   linkedWorktreePrUrl,
   onCreateWorktree,
   onViewWorktree,
+  onCodeWithClaude,
   refreshIntervalMinutes,
   onSetupNeeded,
 }: LinearDetailPanelProps) {
@@ -90,6 +92,7 @@ export function LinearDetailPanel({
     refreshIntervalMinutes,
   );
   const [isCreating, setIsCreating] = useState(false);
+  const [isCodingWithClaude, setIsCodingWithClaude] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [existingWorktree, setExistingWorktree] = useState<{ id: string; branch: string } | null>(
     null,
@@ -102,6 +105,39 @@ export function LinearDetailPanel({
     setIsCreating(false);
     if (result.success) {
       onCreateWorktree(identifier);
+    } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
+      setExistingWorktree({ id: result.worktreeId, branch: identifier });
+    } else {
+      const errorMsg = result.error || "Failed to create worktree";
+      if (errorMsg.includes("no commits") || errorMsg.includes("invalid reference")) {
+        if (onSetupNeeded) {
+          onSetupNeeded();
+        } else {
+          setCreateError(errorMsg);
+        }
+      } else {
+        setCreateError(errorMsg);
+      }
+    }
+  };
+
+  const handleCodeWithClaude = async () => {
+    if (linkedWorktreeId) {
+      onCodeWithClaude({ worktreeId: linkedWorktreeId, mode: "resume" });
+      return;
+    }
+
+    setIsCodingWithClaude(true);
+    setCreateError(null);
+    const result = await api.createFromLinear(identifier);
+    setIsCodingWithClaude(false);
+    if (result.success) {
+      const worktreeId = result.worktreeId ?? identifier;
+      onCodeWithClaude({
+        worktreeId,
+        mode: "start",
+        prompt: `Implement Linear issue ${identifier}${issue?.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task. Treat AI context and todo checklist as highest-priority instructions. Use dawg MCP tools only if you need refreshed context, todo updates, or hooks status.`,
+      });
     } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
       setExistingWorktree({ id: result.worktreeId, branch: identifier });
     } else {
@@ -244,17 +280,41 @@ export function LinearDetailPanel({
                     View PR
                   </a>
                 )}
+                <button
+                  type="button"
+                  onClick={handleCodeWithClaude}
+                  disabled={isCodingWithClaude}
+                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 disabled:opacity-50`}
+                >
+                  <ClaudeIcon
+                    className={`w-3.5 h-3.5 transition-colors ${isCodingWithClaude ? "text-[#D97757]" : "text-[#6b7280] group-hover:text-[#D97757]"}`}
+                  />
+                  {isCodingWithClaude ? "Opening..." : "Code with Claude"}
+                </button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={isCreating}
-                className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 active:scale-[0.98]`}
-              >
-                <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
-                {isCreating ? "Creating..." : "Create Worktree"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={isCreating || isCodingWithClaude}
+                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 active:scale-[0.98]`}
+                >
+                  <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
+                  {isCreating ? "Creating..." : "Create Worktree"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCodeWithClaude}
+                  disabled={isCreating || isCodingWithClaude}
+                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 active:scale-[0.98] disabled:opacity-50`}
+                >
+                  <ClaudeIcon
+                    className={`w-3.5 h-3.5 transition-colors ${isCodingWithClaude ? "text-[#D97757]" : "text-[#6b7280] group-hover:text-[#D97757]"}`}
+                  />
+                  {isCodingWithClaude ? "Preparing..." : "Code with Claude"}
+                </button>
+              </>
             )}
           </div>
         </div>

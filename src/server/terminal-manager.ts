@@ -9,18 +9,28 @@ const pty: { spawn: typeof nodePty.spawn } = (nodePty as any).default ?? nodePty
 interface TerminalSession {
   id: string;
   worktreeId: string;
+  startupCommand: string | null;
   pty: IPty | null;
   ws: WebSocket | null;
+  dataHandler: { dispose: () => void } | null;
+  outputBuffer: string;
   worktreePath: string;
   cols: number;
   rows: number;
 }
 
 export class TerminalManager {
+  private static readonly MAX_BUFFER_CHARS = 400_000;
   private sessions = new Map<string, TerminalSession>();
   private idCounter = 0;
 
-  createSession(worktreeId: string, worktreePath: string, cols = 80, rows = 24): string {
+  createSession(
+    worktreeId: string,
+    worktreePath: string,
+    cols = 80,
+    rows = 24,
+    startupCommand: string | null = null,
+  ): string {
     if (!existsSync(worktreePath)) {
       throw new Error(`Worktree path does not exist: ${worktreePath}`);
     }
@@ -35,8 +45,11 @@ export class TerminalManager {
     this.sessions.set(sessionId, {
       id: sessionId,
       worktreeId,
+      startupCommand,
       pty: null,
       ws: null,
+      dataHandler: null,
+      outputBuffer: "",
       worktreePath,
       cols,
       rows,
@@ -49,60 +62,95 @@ export class TerminalManager {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
 
+    if (session.ws && session.ws !== ws) {
+      try {
+        session.ws.close();
+      } catch {
+        // Ignore close errors.
+      }
+    }
     session.ws = ws;
 
-    // Spawn PTY now that the WebSocket is ready — avoids buffering
-    // shell output that causes duplicate prompts on replay
-    const shell = process.env.SHELL || "/bin/zsh";
-    let ptyProcess: IPty;
-    try {
-      ptyProcess = pty.spawn(shell, [], {
-        name: "xterm-256color",
-        cols: session.cols,
-        rows: session.rows,
-        cwd: session.worktreePath,
-        env: {
-          ...process.env,
-          SHELL: shell,
-          TERM: "xterm-256color",
-          COLORTERM: "truecolor",
-        } as Record<string, string>,
-      });
-    } catch (err) {
-      console.error(`[terminal] Failed to spawn PTY: ${err}`);
+    // Spawn PTY lazily on first attach, then keep it alive for reconnects.
+    if (!session.pty) {
+      const shell = process.env.SHELL || "/bin/zsh";
+      let ptyProcess: IPty;
       try {
-        ws.send(`\r\nFailed to start terminal: ${err}\r\n`);
-        ws.close();
-      } catch {
-        /* ws closed */
+        const shellArgs = session.startupCommand ? ["-lc", session.startupCommand] : [];
+        ptyProcess = pty.spawn(shell, shellArgs, {
+          name: "xterm-256color",
+          cols: session.cols,
+          rows: session.rows,
+          cwd: session.worktreePath,
+          env: {
+            ...process.env,
+            SHELL: shell,
+            TERM: "xterm-256color",
+            COLORTERM: "truecolor",
+          } as Record<string, string>,
+        });
+      } catch (err) {
+        console.error(`[terminal] Failed to spawn PTY: ${err}`);
+        try {
+          ws.send(`\r\nFailed to start terminal: ${err}\r\n`);
+          ws.close();
+        } catch {
+          /* ws closed */
+        }
+        this.sessions.delete(sessionId);
+        return false;
       }
+      session.pty = ptyProcess;
+
+      session.dataHandler = ptyProcess.onData((data: string) => {
+        session.outputBuffer += data;
+        if (session.outputBuffer.length > TerminalManager.MAX_BUFFER_CHARS) {
+          session.outputBuffer = session.outputBuffer.slice(
+            session.outputBuffer.length - TerminalManager.MAX_BUFFER_CHARS,
+          );
+        }
+        try {
+          const activeWs = session.ws;
+          if (activeWs && activeWs.readyState === 1) {
+            activeWs.send(data);
+          }
+        } catch {
+          // ws closed
+        }
+      });
+
+      ptyProcess.onExit(({ exitCode }) => {
+        if (session.dataHandler) {
+          session.dataHandler.dispose();
+          session.dataHandler = null;
+        }
+        if (session.ws) {
+          try {
+            session.ws.send(JSON.stringify({ type: "exit", exitCode }));
+            session.ws.close();
+          } catch {
+            // ws already closed
+          }
+        }
+        this.sessions.delete(sessionId);
+      });
+    }
+
+    const ptyProcess = session.pty;
+    if (!ptyProcess) {
       this.sessions.delete(sessionId);
       return false;
     }
 
-    session.pty = ptyProcess;
-
-    const dataHandler = ptyProcess.onData((data: string) => {
+    if (session.outputBuffer.length > 0) {
       try {
         if (ws.readyState === ws.OPEN) {
-          ws.send(data);
+          ws.send(session.outputBuffer);
         }
       } catch {
-        // ws closed
+        // Ignore replay errors.
       }
-    });
-
-    ptyProcess.onExit(({ exitCode }) => {
-      if (session.ws) {
-        try {
-          session.ws.send(JSON.stringify({ type: "exit", exitCode }));
-          session.ws.close();
-        } catch {
-          // ws already closed
-        }
-      }
-      this.sessions.delete(sessionId);
-    });
+    }
 
     ws.on("message", (rawData: Buffer | string) => {
       const data = typeof rawData === "string" ? rawData : rawData.toString("utf-8");
@@ -119,8 +167,9 @@ export class TerminalManager {
     });
 
     ws.on("close", () => {
-      dataHandler.dispose();
-      session.ws = null;
+      if (session.ws === ws) {
+        session.ws = null;
+      }
     });
 
     return true;
@@ -139,6 +188,10 @@ export class TerminalManager {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
 
+    if (session.dataHandler) {
+      session.dataHandler.dispose();
+      session.dataHandler = null;
+    }
     try {
       session.ws?.close();
     } catch {

@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Puzzle, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import type { PluginSummary } from "../types";
 import { surface, text } from "../theme";
 import { Spinner } from "./Spinner";
 import { Tooltip } from "./Tooltip";
+import { ClaudeIcon } from "./icons";
 
 interface PluginItemProps {
   plugin: PluginSummary;
@@ -72,8 +73,8 @@ export function PluginItem({
       }`}
     >
       <div className="flex items-center gap-2.5 min-w-0">
-        <Puzzle
-          className={`w-3.5 h-3.5 flex-shrink-0 transition-colors duration-150 ${isSelected ? "text-[#D4A574]" : `${text.muted} group-hover:text-[#D4A574]`}`}
+        <ClaudeIcon
+          className={`w-3.5 h-3.5 flex-shrink-0 transition-colors duration-150 ${isSelected ? "text-[#D97757]" : `${text.muted} group-hover:text-[#D97757]`}`}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">

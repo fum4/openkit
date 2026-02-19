@@ -10,6 +10,7 @@ import { PersonalNotesSection, AgentSection } from "./NotesSection";
 import { Spinner } from "../Spinner";
 import { ImageModal } from "../ImageModal";
 import { AttachmentThumbnail } from "../AttachmentThumbnail";
+import { ClaudeIcon } from "../icons";
 import type { CustomTaskAttachment } from "../../types";
 
 interface CustomTaskDetailPanelProps {
@@ -17,6 +18,7 @@ interface CustomTaskDetailPanelProps {
   onDeleted: () => void;
   onCreateWorktree: () => void;
   onViewWorktree: (id: string) => void;
+  onCodeWithClaude: (intent: { worktreeId: string; mode: "resume" | "start"; prompt?: string }) => void;
 }
 
 function formatDate(iso: string) {
@@ -44,6 +46,7 @@ export function CustomTaskDetailPanel({
   onDeleted,
   onCreateWorktree,
   onViewWorktree,
+  onCodeWithClaude,
 }: CustomTaskDetailPanelProps) {
   const api = useApi();
   const queryClient = useQueryClient();
@@ -56,6 +59,7 @@ export function CustomTaskDetailPanel({
   const [labelInput, setLabelInput] = useState("");
   const [labelInputFocused, setLabelInputFocused] = useState(false);
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
+  const [isCodingWithClaude, setIsCodingWithClaude] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -88,6 +92,29 @@ export function CustomTaskDetailPanel({
       refetch();
       queryClient.invalidateQueries({ queryKey: ["customTasks"] });
       onCreateWorktree();
+    } else {
+      setCreateError(result.error ?? "Failed to create worktree");
+    }
+  };
+
+  const handleCodeWithClaude = async () => {
+    if (task?.linkedWorktreeId) {
+      onCodeWithClaude({ worktreeId: task.linkedWorktreeId, mode: "resume" });
+      return;
+    }
+
+    setIsCodingWithClaude(true);
+    setCreateError(null);
+    const result = await api.createWorktreeFromCustomTask(taskId);
+    setIsCodingWithClaude(false);
+    if (result.success) {
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ["customTasks"] });
+      onCodeWithClaude({
+        worktreeId: result.worktreeId ?? taskId,
+        mode: "start",
+        prompt: `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task. Treat AI context and todo checklist as highest-priority instructions. Use dawg MCP tools only if you need refreshed context, todo updates, or hooks status.`,
+      });
     } else {
       setCreateError(result.error ?? "Failed to create worktree");
     }
@@ -283,23 +310,49 @@ export function CustomTaskDetailPanel({
               <Trash2 className="w-4 h-4" />
             </button>
             {task.linkedWorktreeId ? (
-              <button
-                type="button"
-                onClick={() => onViewWorktree(task.linkedWorktreeId!)}
-                className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
-              >
-                <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
-                View Worktree
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => onViewWorktree(task.linkedWorktreeId!)}
+                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
+                >
+                  <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
+                  View Worktree
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCodeWithClaude}
+                  disabled={isCodingWithClaude}
+                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 disabled:opacity-50`}
+                >
+                  <ClaudeIcon
+                    className={`w-3.5 h-3.5 transition-colors ${isCodingWithClaude ? "text-[#D97757]" : "text-[#6b7280] group-hover:text-[#D97757]"}`}
+                  />
+                  {isCodingWithClaude ? "Opening..." : "Code with Claude"}
+                </button>
+              </>
             ) : (
-              <button
-                type="button"
-                onClick={handleCreateWorktree}
-                disabled={isCreatingWorktree}
-                className={`px-3 py-1.5 text-xs font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors duration-150 active:scale-[0.98]`}
-              >
-                {isCreatingWorktree ? "Creating..." : "Create Worktree"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleCreateWorktree}
+                  disabled={isCreatingWorktree || isCodingWithClaude}
+                  className={`px-3 py-1.5 text-xs font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors duration-150 active:scale-[0.98]`}
+                >
+                  {isCreatingWorktree ? "Creating..." : "Create Worktree"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCodeWithClaude}
+                  disabled={isCreatingWorktree || isCodingWithClaude}
+                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 active:scale-[0.98] disabled:opacity-50`}
+                >
+                  <ClaudeIcon
+                    className={`w-3.5 h-3.5 transition-colors ${isCodingWithClaude ? "text-[#D97757]" : "text-[#6b7280] group-hover:text-[#D97757]"}`}
+                  />
+                  {isCodingWithClaude ? "Preparing..." : "Code with Claude"}
+                </button>
+              </>
             )}
           </div>
         </div>

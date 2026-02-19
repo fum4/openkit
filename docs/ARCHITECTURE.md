@@ -327,7 +327,7 @@ src/
 │   │   ├── IntegrationsPanel.tsx
 │   │   ├── Modal.tsx, ConfirmModal.tsx, ConfirmDialog.tsx
 │   │   └── detail/      Right-panel detail views
-│   │       ├── DetailPanel.tsx        Worktree detail (logs, terminal, git)
+│   │       ├── DetailPanel.tsx        Worktree detail (logs, terminal, hooks, optional Claude tab, git)
 │   │       ├── JiraDetailPanel.tsx    Jira issue detail
 │   │       ├── LinearDetailPanel.tsx  Linear issue detail
 │   │       ├── CustomTaskDetailPanel.tsx

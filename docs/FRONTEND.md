@@ -223,23 +223,23 @@ All detail panels live in `src/ui/components/detail/`.
 The worktree detail view. Contains:
 
 - **DetailHeader** -- worktree name (editable inline), branch name, status badge, start/stop/delete action buttons, linked issue badges.
-- **Tab bar** -- Logs | Terminal | Hooks tabs. Tab state is tracked per worktree so switching between worktrees preserves each one's active tab.
+- **Tab bar** -- Logs | Terminal | Hooks, plus Claude controls. `Claude` appears as its own tab only when opened, otherwise a `+ Claude` quick action is shown.
 - **Git action toolbar** -- contextual buttons for Commit (when uncommitted changes exist), Push (when unpushed commits exist), and PR (when pushed but no PR exists). Each expands an inline input form.
 - **LogsViewer** -- streaming process output for running worktrees.
-- **TerminalView** -- interactive xterm.js terminal. Terminal sessions are lazily created (only when the Terminal tab is first opened) and kept alive when switching tabs.
+- **TerminalView** -- interactive xterm.js terminal. Sessions are lazily created and reused; terminal and Claude use separate session scopes. Closing the Claude tab explicitly destroys its session.
 - **HooksTab** -- runs and displays hook results with visual state indicators (dashed/no-bg for unrun and running items, spinner during execution, solid card background for completed/disabled items). Supports command, prompt, and skill entries; auto-expands items with output when the pipeline completes. Receives real-time updates via `hook-update` SSE events.
 
 ### JiraDetailPanel (`JiraDetailPanel.tsx`)
 
-Shows Jira issue details: summary, description (rendered as Markdown from Atlassian Document Format), status, priority, assignee, and comments. Provides a "Create Worktree" button to spin up a worktree linked to the issue.
+Shows Jira issue details: summary, description (rendered as Markdown from Atlassian Document Format), status, priority, assignee, and comments. Provides both "Create Worktree" and "Code with Claude" actions.
 
 ### LinearDetailPanel (`LinearDetailPanel.tsx`)
 
-Similar to JiraDetailPanel but for Linear issues. Shows title, description, state, priority, assignee, labels, and attachment previews/download links via a Linear attachment proxy endpoint to avoid auth/CORS failures.
+Similar to JiraDetailPanel but for Linear issues. Shows title, description, state, priority, assignee, labels, and attachment previews/download links via a Linear attachment proxy endpoint to avoid auth/CORS failures. Also supports "Code with Claude".
 
 ### CustomTaskDetailPanel (`CustomTaskDetailPanel.tsx`)
 
-Detail view for local custom tasks. Supports inline editing of title, description, status, priority, and labels. Shows file attachments with image preview support.
+Detail view for local custom tasks. Supports inline editing of title, description, status, priority, and labels. Shows file attachments with image preview support and supports "Code with Claude".
 
 ### Other Detail Panels
 
@@ -314,11 +314,13 @@ Issue hooks support configurable refresh intervals (from integration settings) a
 **`useTerminal`** (`useTerminal.ts`) manages interactive PTY sessions:
 
 1. `connect()` -- POST to `/api/worktrees/:id/terminals` to create a session, then opens a WebSocket to `/api/terminals/:sessionId/ws`.
-2. `sendData(data)` -- forwards keystrokes to the PTY via WebSocket.
-3. `sendResize(cols, rows)` -- sends terminal resize events.
-4. `disconnect()` -- closes WebSocket and destroys the server-side session.
+2. `createSessionStartupCommand` (optional) -- when provided (Claude flow), the session starts with a shell startup command.
+3. `sendData(data)` -- forwards keystrokes to the PTY via WebSocket.
+4. `sendResize(cols, rows)` -- sends terminal resize events.
+5. `disconnect()` -- closes WebSocket only (session stays alive for reconnect/tab switches).
+6. `destroy()` -- explicitly destroys the server-side session.
 
-Sessions are keyed by worktree ID. The `TerminalView` component lazily creates sessions and keeps them alive across tab switches within the same worktree.
+Sessions are keyed by `worktreeId + scope` (`terminal` or `claude`). `TerminalView` keeps sessions alive across tab switches/navigation and reattaches on reconnect.
 
 ### Configuration
 

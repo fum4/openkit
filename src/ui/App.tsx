@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { AlertTriangle, GitBranch, Link2, RefreshCw, Search, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { APP_NAME } from "../constants";
 import { AppSettingsModal } from "./components/AppSettingsModal";
@@ -47,6 +47,18 @@ type Selection =
   | { type: "linear-issue"; identifier: string }
   | { type: "custom-task"; id: string }
   | null;
+
+type ClaudeLaunchMode = "resume" | "start";
+
+interface ClaudeLaunchIntent {
+  worktreeId: string;
+  mode: ClaudeLaunchMode;
+  prompt?: string;
+}
+
+interface ClaudeLaunchRequest extends ClaudeLaunchIntent {
+  requestId: number;
+}
 
 export default function App() {
   const api = useApi();
@@ -240,6 +252,9 @@ export default function App() {
     worktreeId: string;
     targetProjectId: string | null;
   } | null>(null);
+  const claudeLaunchRequestIdRef = useRef(0);
+  const [pendingClaudeLaunch, setPendingClaudeLaunch] = useState<ClaudeLaunchIntent | null>(null);
+  const [claudeLaunchRequest, setClaudeLaunchRequest] = useState<ClaudeLaunchRequest | null>(null);
 
   useEffect(() => {
     if (!pendingNotificationNav) return;
@@ -468,6 +483,19 @@ export default function App() {
   const selectedWorktree =
     selection?.type === "worktree" ? worktrees.find((w) => w.id === selection.id) || null : null;
 
+  useEffect(() => {
+    if (!pendingClaudeLaunch) return;
+    const target = worktrees.find((wt) => wt.id === pendingClaudeLaunch.worktreeId);
+    if (!target || target.status === "creating") return;
+
+    claudeLaunchRequestIdRef.current += 1;
+    setClaudeLaunchRequest({
+      ...pendingClaudeLaunch,
+      requestId: claudeLaunchRequestIdRef.current,
+    });
+    setPendingClaudeLaunch(null);
+  }, [pendingClaudeLaunch, worktrees]);
+
   const handleDeleted = () => {
     setSelection(null);
   };
@@ -523,6 +551,16 @@ export default function App() {
     setActiveCreateTab("branch");
     setSelection({ type: "worktree", id: worktreeId });
   };
+
+  const handleCodeWithClaude = useCallback(
+    (intent: ClaudeLaunchIntent) => {
+      setActiveCreateTab("branch");
+      setSelection({ type: "worktree", id: intent.worktreeId });
+      setPendingClaudeLaunch(intent);
+      refetch();
+    },
+    [refetch],
+  );
 
   // Show welcome screen when no config (web mode) or no projects (Electron mode)
   if (showWelcomeScreen) {
@@ -937,6 +975,7 @@ export default function App() {
                     linkedWorktreePrUrl={selectedJiraWorktree?.githubPrUrl ?? null}
                     onCreateWorktree={handleCreateWorktreeFromJira}
                     onViewWorktree={handleViewWorktreeFromJira}
+                    onCodeWithClaude={handleCodeWithClaude}
                     refreshIntervalMinutes={refreshIntervalMinutes}
                     onSetupNeeded={handleSetupNeeded}
                   />
@@ -947,6 +986,7 @@ export default function App() {
                     linkedWorktreePrUrl={selectedLinearWorktree?.githubPrUrl ?? null}
                     onCreateWorktree={handleCreateWorktreeFromLinear}
                     onViewWorktree={handleViewWorktreeFromLinear}
+                    onCodeWithClaude={handleCodeWithClaude}
                     refreshIntervalMinutes={linearRefreshIntervalMinutes}
                     onSetupNeeded={handleSetupNeeded}
                   />
@@ -956,6 +996,7 @@ export default function App() {
                     onDeleted={() => setSelection(null)}
                     onCreateWorktree={handleCreateWorktreeFromCustomTask}
                     onViewWorktree={handleViewWorktreeFromCustomTask}
+                    onCodeWithClaude={handleCodeWithClaude}
                   />
                 ) : (
                   <DetailPanel
@@ -986,6 +1027,7 @@ export default function App() {
                       setShowCreateModal(true);
                     }}
                     onLinkIssue={(worktreeId) => setLinkIssueForWorktreeId(worktreeId)}
+                    claudeLaunchRequest={claudeLaunchRequest}
                   />
                 )}
               </main>

@@ -399,6 +399,7 @@ export async function createTerminalSession(
   worktreeId: string,
   cols?: number,
   rows?: number,
+  startupCommand?: string,
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; sessionId?: string; error?: string }> {
   try {
@@ -407,7 +408,7 @@ export async function createTerminalSession(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cols, rows }),
+        body: JSON.stringify({ cols, rows, startupCommand }),
       },
     );
     if (!res.ok) {
