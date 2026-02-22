@@ -6,6 +6,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 dawg is a CLI tool + web UI (with optional Electron app) for managing multiple git worktrees with automatic port offsetting and Jira/Linear/GitHub integrations.
 
+## Naming and File Hygiene
+
+- Choose clear, specific names for files and folders.
+- When changing behavior or purpose, evaluate whether the file/folder name is still accurate.
+- If the current name no longer fits, rename it as part of the change.
+- Be careful when editing file/folder content to keep structure and naming aligned.
+
+## Mirror File Requirement
+
+- `CLAUDE.md` and `AGENTS.md` must stay in sync.
+- Any change made to one must be applied to the other in the same update.
+
+## CLI-First Agent Design
+
+**Design new deterministic capabilities in the CLI first, so agents can automate workflows without UI coupling.**
+
+- Prefer adding explicit CLI commands/flags over hidden behavior in prompts or UI-only flows.
+- If a workflow has deterministic decisions (resolution, validation, initialization), expose them as CLI commands.
+- Keep command output machine-readable where useful (for example JSON modes).
+- Agent instructions should primarily orchestrate the CLI, not duplicate business logic.
+
 ## Quick Reference
 
 **Package manager**: pnpm
@@ -22,6 +43,12 @@ There is no test runner configured.
 ## Code Quality
 
 **Fix any lint or format errors you encounter — whether introduced by current changes or pre-existing in the codebase.** Don't leave broken windows.
+
+## UI Theme Consistency
+
+- Always use the standard shared color palette and tokens from `src/ui/theme.ts`.
+- Do not introduce ad-hoc lighter/darker color variants for existing control patterns.
+- For switches/toggles, reuse the app-standard treatment (`bg-accent` when enabled, neutral off-state styling when disabled).
 
 ## Icon Handling
 

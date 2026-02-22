@@ -20,6 +20,7 @@ import { loadJiraCredentials } from "../integrations/jira/credentials";
 import { testConnection as testLinearConnection } from "../integrations/linear/api";
 import { loadLinearCredentials } from "../integrations/linear/credentials";
 import { WorktreeManager } from "./manager";
+import { ACTIVITY_TYPES } from "./activity-event";
 import { registerWorktreeRoutes } from "./routes/worktrees";
 import { registerConfigRoutes } from "./routes/config";
 import { registerGitHubRoutes } from "./routes/github";
@@ -36,10 +37,11 @@ import { registerNotesRoutes } from "./routes/notes";
 import { registerTaskRoutes } from "./routes/tasks";
 import { registerTerminalRoutes } from "./routes/terminal";
 import { registerHooksRoutes } from "./routes/verification";
+import { isMcpSetupEnabled } from "./feature-flags";
 import { NotesManager } from "./notes-manager";
 import { TerminalManager } from "./terminal-manager";
 import { HooksManager } from "./verification-manager";
-import { ensurePredefinedHookSkills, getPredefinedSkillNames } from "./verification-skills";
+import { ensureBundledSkills } from "./verification-skills";
 import type { WorktreeConfig } from "./types";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
@@ -54,6 +56,10 @@ const projectRoot = isDev
 const uiDir = currentDir.includes("src/server")
   ? path.join(projectRoot, "dist", "ui")
   : path.join(currentDir, "ui");
+
+function formatHookTriggerLabel(trigger: "worktree-created" | "worktree-removed"): string {
+  return trigger === "worktree-created" ? "Worktree Created" : "Worktree Removed";
+}
 
 function findAvailablePort(startPort: number): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -77,13 +83,66 @@ function findAvailablePort(startPort: number): Promise<number> {
 
 export function createWorktreeServer(manager: WorktreeManager) {
   const app = new Hono();
+  const mcpSetupEnabled = isMcpSetupEnabled();
   const terminalManager = new TerminalManager();
   const notesManager = new NotesManager(manager.getConfigDir());
   const hooksManager = new HooksManager(manager);
 
-  // Auto-create predefined hook skills in ~/.dawg/skills/ and import into config
-  ensurePredefinedHookSkills();
-  hooksManager.ensureSkillsImported(getPredefinedSkillNames());
+  manager.setWorktreeLifecycleHookRunner(async (trigger, worktreeId, worktreePath) => {
+    const activityLog = manager.getActivityLog();
+    const groupKey = `hooks:${worktreeId}:${trigger}`;
+    const label = formatHookTriggerLabel(trigger);
+
+    activityLog.addEvent({
+      category: "agent",
+      type: ACTIVITY_TYPES.HOOKS_STARTED,
+      severity: "info",
+      title: `${label} hooks started`,
+      detail: "Executing command hooks...",
+      worktreeId,
+      projectName: manager.getProjectName() ?? undefined,
+      groupKey,
+      metadata: {
+        trigger,
+      },
+    });
+
+    const results = await hooksManager.runWorktreeLifecycleCommands(trigger, worktreeId, worktreePath);
+    const failedCount = results.filter((step) => step.status === "failed").length;
+    const detail =
+      results.length === 0
+        ? "No runnable command hooks configured for this trigger."
+        : failedCount > 0
+          ? `${failedCount} of ${results.length} command hooks failed.`
+          : `${results.length} command hooks passed.`;
+
+    activityLog.addEvent({
+      category: "agent",
+      type: ACTIVITY_TYPES.HOOKS_RAN,
+      severity: failedCount > 0 ? "error" : "success",
+      title: `${label} hooks completed`,
+      detail,
+      worktreeId,
+      projectName: manager.getProjectName() ?? undefined,
+      groupKey,
+      metadata: {
+        trigger,
+        commandResults: results,
+      },
+    });
+  });
+  manager.setTaskHooksProvider((worktreeId) => {
+    const config = hooksManager.getConfig();
+    const effectiveSkills = hooksManager.getEffectiveSkills(worktreeId, notesManager);
+    return {
+      checks: config.steps,
+      skills: effectiveSkills,
+    };
+  });
+
+  // Seed bundled skills into ~/.dawg/skills/ registry only.
+  // Hook selection/import is explicit and user-controlled.
+  ensureBundledSkills();
 
   const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
@@ -100,8 +159,12 @@ export function createWorktreeServer(manager: WorktreeManager) {
   registerJiraRoutes(app, manager);
   registerLinearRoutes(app, manager);
   registerEventRoutes(app, manager);
-  registerActivityRoutes(app, manager.getActivityLog());
-  registerMcpRoutes(app, manager);
+  registerActivityRoutes(app, manager.getActivityLog(), () => manager.getProjectName());
+  if (mcpSetupEnabled) {
+    registerMcpRoutes(app, manager);
+  } else {
+    log.info("MCP setup routes disabled. Set DAWG_ENABLE_MCP_SETUP=1 to enable.");
+  }
   registerMcpServerRoutes(app, manager);
   registerSkillRoutes(app, manager);
   registerClaudePluginRoutes(app, manager);

@@ -89,6 +89,9 @@ async function startStandaloneMode(config: WorktreeConfig, configFilePath: strin
 
   const notesManager = new NotesManager(manager.getConfigDir());
   const hooksManager = new HooksManager(manager);
+  manager.setWorktreeLifecycleHookRunner(async (trigger, worktreeId, worktreePath) => {
+    await hooksManager.runWorktreeLifecycleCommands(trigger, worktreeId, worktreePath);
+  });
   const ctx: ActionContext = { manager, notesManager, hooksManager };
   const server = createMcpServer(ctx);
 

@@ -3,9 +3,11 @@ import os from "os";
 import path from "path";
 import type { Hono } from "hono";
 
+import { log } from "../../logger";
+import { ACTIVITY_TYPES, type ActivityEvent } from "../activity-event";
 import type { WorktreeManager } from "../manager";
 import type { NotesManager } from "../notes-manager";
-import type { HookStep, HookTrigger } from "../types";
+import type { HookSkillRef, HookStep, HookTrigger, SkillHookResult, StepResult } from "../types";
 import type { HooksManager } from "../verification-manager";
 
 // Minimal SKILL.md frontmatter parser (just name + description)
@@ -30,7 +32,9 @@ function normalizeHookTrigger(value: unknown): HookTrigger {
     value === "pre-implementation" ||
     value === "post-implementation" ||
     value === "custom" ||
-    value === "on-demand"
+    value === "on-demand" ||
+    value === "worktree-created" ||
+    value === "worktree-removed"
   ) {
     return value;
   }
@@ -44,9 +48,19 @@ function matchesTrigger(step: HookStep, trigger: HookTrigger): boolean {
   return step.trigger === trigger;
 }
 
+function matchesSkillTrigger(trigger: HookTrigger, skillTrigger?: HookTrigger): boolean {
+  if (trigger === "post-implementation") {
+    return skillTrigger === "post-implementation" || !skillTrigger;
+  }
+  return skillTrigger === trigger;
+}
+
+function isPromptStep(step: HookStep): boolean {
+  return step.kind === "prompt" || (!!step.prompt && !step.command?.trim());
+}
+
 function isRunnableCommandStep(step: HookStep): boolean {
-  const isPrompt = step.kind === "prompt" || (!!step.prompt && !step.command?.trim());
-  return !isPrompt && !!step.command?.trim();
+  return !isPromptStep(step) && !!step.command?.trim();
 }
 
 function formatHookTriggerLabel(trigger: HookTrigger): string {
@@ -59,7 +73,168 @@ function formatHookTriggerLabel(trigger: HookTrigger): string {
       return "Custom";
     case "on-demand":
       return "On-Demand";
+    case "worktree-created":
+      return "Worktree Created";
+    case "worktree-removed":
+      return "Worktree Removed";
   }
+}
+
+const WORKFLOW_PHASES = [
+  "task-started",
+  "pre-hooks-started",
+  "pre-hooks-completed",
+  "implementation-started",
+  "implementation-completed",
+  "post-hooks-started",
+  "post-hooks-completed",
+] as const;
+
+type WorkflowPhase = (typeof WORKFLOW_PHASES)[number];
+
+const WORKFLOW_PHASE_SET = new Set<WorkflowPhase>(WORKFLOW_PHASES);
+
+function skillResultKey(skillName: string, trigger?: HookTrigger): string {
+  return `${trigger ?? "post-implementation"}::${skillName}`;
+}
+
+function inferWorkflowPhase(event: ActivityEvent): WorkflowPhase | null {
+  const phase =
+    typeof event.metadata?.phase === "string"
+      ? (event.metadata.phase as WorkflowPhase)
+      : undefined;
+  if (event.type === ACTIVITY_TYPES.WORKFLOW_PHASE && phase && WORKFLOW_PHASE_SET.has(phase)) {
+    return phase;
+  }
+
+  const trigger = event.metadata?.trigger;
+  if (typeof trigger !== "string") return null;
+  if (event.type === ACTIVITY_TYPES.HOOKS_STARTED) {
+    if (trigger === "pre-implementation") return "pre-hooks-started";
+    if (trigger === "post-implementation") return "post-hooks-started";
+  }
+  if (event.type === ACTIVITY_TYPES.HOOKS_RAN) {
+    if (trigger === "pre-implementation") return "pre-hooks-completed";
+    if (trigger === "post-implementation") return "post-hooks-completed";
+  }
+  return null;
+}
+
+interface TriggerCompliance {
+  trigger: HookTrigger;
+  required: boolean;
+  compliant: boolean;
+  commandSteps: {
+    total: number;
+    passed: string[];
+    failed: string[];
+    missing: string[];
+    running: string[];
+  };
+  skills: {
+    total: number;
+    passed: string[];
+    failed: string[];
+    missing: string[];
+    running: string[];
+  };
+  promptHooks: {
+    total: number;
+    names: string[];
+  };
+}
+
+function evaluateTriggerCompliance(
+  trigger: HookTrigger,
+  steps: HookStep[],
+  skills: HookSkillRef[],
+  stepResultById: Map<string, StepResult>,
+  skillResultByKey: Map<string, SkillHookResult>,
+): TriggerCompliance {
+  const triggerSteps = steps.filter((step) => step.enabled !== false && matchesTrigger(step, trigger));
+  const triggerCommandSteps = triggerSteps.filter((step) => isRunnableCommandStep(step));
+  const triggerPromptSteps = triggerSteps.filter((step) => isPromptStep(step));
+  const triggerSkills = skills.filter(
+    (skill) => skill.enabled && matchesSkillTrigger(trigger, skill.trigger),
+  );
+
+  const commandPassed: string[] = [];
+  const commandFailed: string[] = [];
+  const commandMissing: string[] = [];
+  const commandRunning: string[] = [];
+  for (const step of triggerCommandSteps) {
+    const result = stepResultById.get(step.id);
+    if (!result) {
+      commandMissing.push(step.name);
+      continue;
+    }
+    if (result.status === "passed") {
+      commandPassed.push(step.name);
+      continue;
+    }
+    if (result.status === "failed") {
+      commandFailed.push(step.name);
+      continue;
+    }
+    commandRunning.push(step.name);
+  }
+
+  const skillsPassed: string[] = [];
+  const skillsFailed: string[] = [];
+  const skillsMissing: string[] = [];
+  const skillsRunning: string[] = [];
+  for (const skill of triggerSkills) {
+    const key = skillResultKey(skill.skillName, skill.trigger);
+    const result = skillResultByKey.get(key);
+    const label = skill.skillName;
+    if (!result) {
+      skillsMissing.push(label);
+      continue;
+    }
+    if (result.status === "passed") {
+      skillsPassed.push(label);
+      continue;
+    }
+    if (result.status === "failed") {
+      skillsFailed.push(label);
+      continue;
+    }
+    skillsRunning.push(label);
+  }
+
+  const required =
+    triggerCommandSteps.length > 0 || triggerPromptSteps.length > 0 || triggerSkills.length > 0;
+
+  return {
+    trigger,
+    required,
+    compliant:
+      !required ||
+      (commandFailed.length === 0 &&
+        commandMissing.length === 0 &&
+        commandRunning.length === 0 &&
+        skillsFailed.length === 0 &&
+        skillsMissing.length === 0 &&
+        skillsRunning.length === 0),
+    commandSteps: {
+      total: triggerCommandSteps.length,
+      passed: commandPassed,
+      failed: commandFailed,
+      missing: commandMissing,
+      running: commandRunning,
+    },
+    skills: {
+      total: triggerSkills.length,
+      passed: skillsPassed,
+      failed: skillsFailed,
+      missing: skillsMissing,
+      running: skillsRunning,
+    },
+    promptHooks: {
+      total: triggerPromptSteps.length,
+      names: triggerPromptSteps.map((step) => step.name),
+    },
+  };
 }
 
 export function registerHooksRoutes(
@@ -157,6 +332,15 @@ export function registerHooksRoutes(
       if (!skillName) {
         return c.json({ success: false, error: "skillName is required" }, 400);
       }
+      if (trigger === "worktree-created" || trigger === "worktree-removed") {
+        return c.json(
+          {
+            success: false,
+            error: "worktree-created/worktree-removed hooks support command steps only.",
+          },
+          400,
+        );
+      }
       const config = hooksManager.importSkill(skillName, trigger, condition, conditionTitle);
       return c.json({ success: true, config });
     } catch (error) {
@@ -240,6 +424,7 @@ export function registerHooksRoutes(
     try {
       const body = await c.req.json().catch(() => ({}));
       const trigger = normalizeHookTrigger(body?.trigger);
+      log.info(`[hooks] API run requested (worktree=${worktreeId}, trigger=${trigger})`);
       const projectName = manager.getProjectName() ?? undefined;
       const groupKey = `hooks:${worktreeId}:${trigger}`;
       const runnableSteps = hooksManager
@@ -287,9 +472,17 @@ export function registerHooksRoutes(
         groupKey,
         metadata: { trigger, commandResults: triggerSteps },
       });
+      log.info(
+        `[hooks] API run completed (worktree=${worktreeId}, trigger=${trigger}, status=${run.status}, steps=${triggerSteps.length}, failed=${failedCount})`,
+      );
 
       return c.json(run);
     } catch (error) {
+      log.warn(
+        `[hooks] API run failed (worktree=${worktreeId}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       return c.json(
         { success: false, error: error instanceof Error ? error.message : "Failed to run hooks" },
         500,
@@ -378,6 +571,149 @@ export function registerHooksRoutes(
     return c.json({ status });
   });
 
+  app.get("/api/worktrees/:id/flow-compliance", (c) => {
+    const worktreeId = c.req.param("id");
+    const config = hooksManager.getConfig();
+    const effectiveSkills = hooksManager.getEffectiveSkills(worktreeId, notesManager);
+    const runStatus = hooksManager.getStatus(worktreeId);
+    const stepResultById = new Map<string, StepResult>();
+    for (const result of runStatus?.steps ?? []) {
+      stepResultById.set(result.stepId, result);
+    }
+    const skillResultByKey = new Map<string, SkillHookResult>();
+    for (const result of hooksManager.getSkillResults(worktreeId)) {
+      skillResultByKey.set(skillResultKey(result.skillName, result.trigger), result);
+    }
+
+    const activityEvents = manager
+      .getActivityLog()
+      .getEvents({ limit: 1000 })
+      .filter((event) => event.worktreeId === worktreeId)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    const phaseSeen: Partial<Record<WorkflowPhase, string>> = {};
+    for (const event of activityEvents) {
+      const phase = inferWorkflowPhase(event);
+      if (phase && !phaseSeen[phase]) {
+        phaseSeen[phase] = event.timestamp;
+      }
+    }
+
+    const missingPhases = WORKFLOW_PHASES.filter((phase) => !phaseSeen[phase]);
+    const outOfOrder: Array<{ previous: WorkflowPhase; current: WorkflowPhase }> = [];
+    for (let idx = 1; idx < WORKFLOW_PHASES.length; idx++) {
+      const previous = WORKFLOW_PHASES[idx - 1];
+      const current = WORKFLOW_PHASES[idx];
+      const previousTs = phaseSeen[previous];
+      const currentTs = phaseSeen[current];
+      if (!previousTs || !currentTs) continue;
+      if (new Date(previousTs).getTime() > new Date(currentTs).getTime()) {
+        outOfOrder.push({ previous, current });
+      }
+    }
+
+    const worktreeCreated = evaluateTriggerCompliance(
+      "worktree-created",
+      config.steps,
+      effectiveSkills,
+      stepResultById,
+      skillResultByKey,
+    );
+    const preImplementation = evaluateTriggerCompliance(
+      "pre-implementation",
+      config.steps,
+      effectiveSkills,
+      stepResultById,
+      skillResultByKey,
+    );
+    const postImplementation = evaluateTriggerCompliance(
+      "post-implementation",
+      config.steps,
+      effectiveSkills,
+      stepResultById,
+      skillResultByKey,
+    );
+
+    const missingActions = new Set<string>();
+    for (const phase of missingPhases) {
+      missingActions.add(
+        `Emit workflow phase "${phase}" (dawg activity phase --phase ${phase} --worktree ${worktreeId}).`,
+      );
+    }
+    for (const { previous, current } of outOfOrder) {
+      missingActions.add(
+        `Workflow phases are out of order (${previous} after ${current}); rerun and emit phases in canonical order.`,
+      );
+    }
+
+    const addTriggerActions = (check: TriggerCompliance) => {
+      if (!check.required) return;
+      const label = formatHookTriggerLabel(check.trigger);
+      for (const stepName of check.commandSteps.missing) {
+        missingActions.add(`Run ${label} command hook "${stepName}".`);
+      }
+      for (const stepName of check.commandSteps.running) {
+        missingActions.add(`Wait for ${label} command hook "${stepName}" to finish.`);
+      }
+      for (const stepName of check.commandSteps.failed) {
+        missingActions.add(`Fix and rerun failed ${label} command hook "${stepName}".`);
+      }
+      for (const skillName of check.skills.missing) {
+        missingActions.add(`Run and report ${label} skill "${skillName}".`);
+      }
+      for (const skillName of check.skills.running) {
+        missingActions.add(`Wait for ${label} skill "${skillName}" to finish reporting.`);
+      }
+      for (const skillName of check.skills.failed) {
+        missingActions.add(`Fix and rerun failed ${label} skill "${skillName}".`);
+      }
+    };
+
+    addTriggerActions(worktreeCreated);
+    addTriggerActions(preImplementation);
+    addTriggerActions(postImplementation);
+
+    const warnings: string[] = [];
+    if (preImplementation.promptHooks.total > 0) {
+      warnings.push(
+        "Pre-implementation prompt hooks require agent execution; validate via phase events and final summary evidence.",
+      );
+    }
+    if (postImplementation.promptHooks.total > 0) {
+      warnings.push(
+        "Post-implementation prompt hooks require agent execution; validate via phase events and final summary evidence.",
+      );
+    }
+
+    const compliant =
+      missingActions.size === 0 &&
+      worktreeCreated.compliant &&
+      preImplementation.compliant &&
+      postImplementation.compliant;
+
+    return c.json({
+      success: true,
+      report: {
+        worktreeId,
+        evaluatedAt: new Date().toISOString(),
+        compliant,
+        phases: {
+          required: WORKFLOW_PHASES,
+          seen: phaseSeen,
+          missing: missingPhases,
+          outOfOrder,
+        },
+        hooks: {
+          worktreeCreated,
+          preImplementation,
+          postImplementation,
+        },
+        warnings,
+        missingActions: Array.from(missingActions),
+      },
+    });
+  });
+
   // Agent reports a skill hook result (or start notification)
   app.post("/api/worktrees/:id/hooks/report", async (c) => {
     const worktreeId = c.req.param("id");
@@ -386,6 +722,15 @@ export function registerHooksRoutes(
       const { skillName, trigger, success, summary, content, filePath } = body;
       if (!skillName) {
         return c.json({ success: false, error: "skillName is required" }, 400);
+      }
+      if (trigger === "worktree-created" || trigger === "worktree-removed") {
+        return c.json(
+          {
+            success: false,
+            error: "Lifecycle hooks are command-only; skill status reporting is not supported.",
+          },
+          400,
+        );
       }
 
       if (success === undefined || success === null) {

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   Download,
   GitCommit,
@@ -36,6 +38,15 @@ type SetupMode =
   | "commit-prompt"
   | "integrations"
   | "getting-started";
+
+const ONBOARDING_SKILL_NAME = "work-on-task";
+const SKILL_SETUP_SUPPORTED_AGENTS = new Set<AgentId>([
+  "claude",
+  "codex",
+  "cursor",
+  "gemini",
+  "vscode",
+]);
 
 export function ProjectSetupScreen({
   projectName,
@@ -308,18 +319,20 @@ export function ProjectSetupScreen({
     });
   }, []);
 
-  // Fetch agent statuses when entering agents step
+  // Fetch current work-on-task skill deployment status when entering agents step
   useEffect(() => {
     if (mode === "agents") {
-      api.fetchMcpStatus().then((result) => {
-        setAgentStatuses(result.statuses);
+      api.fetchSkillDeploymentStatus().then((result) => {
+        const skillStatus = result.status?.[ONBOARDING_SKILL_NAME];
         const desired: Record<string, { global: boolean; project: boolean }> = {};
         for (const agent of AGENT_CONFIGS) {
+          const status = skillStatus?.agents?.[agent.id];
           desired[agent.id] = {
-            global: result.statuses[agent.id]?.global === true,
-            project: result.statuses[agent.id]?.project === true,
+            global: status?.global === true,
+            project: status?.project === true,
           };
         }
+        setAgentStatuses(desired);
         setAgentDesired(desired);
       });
     }
@@ -330,7 +343,7 @@ export function ProjectSetupScreen({
     setError(null);
 
     try {
-      const result = await api.initConfig({});
+      const result = await api.initConfig({ force: true });
       if (result.success) {
         if (rememberChoice) {
           onRememberChoice?.("auto");
@@ -355,7 +368,7 @@ export function ProjectSetupScreen({
     setError(null);
 
     try {
-      const result = await api.initConfig({ ...formValues, ...extraValues });
+      const result = await api.initConfig({ ...formValues, ...extraValues, force: true });
       if (result.success) {
         if (rememberChoice) {
           onRememberChoice?.("manual");
@@ -376,10 +389,16 @@ export function ProjectSetupScreen({
     setError(null);
   };
 
+  const handleBackTo = (nextMode: SetupMode) => {
+    setMode(nextMode);
+    setError(null);
+  };
+
   const handleAgentsSetup = async () => {
     const changes: { agentId: AgentId; scope: McpScope; action: "setup" | "remove" }[] = [];
 
     for (const agent of AGENT_CONFIGS) {
+      if (!SKILL_SETUP_SUPPORTED_AGENTS.has(agent.id)) continue;
       const desired = agentDesired[agent.id];
       const current = agentStatuses[agent.id];
       if (!desired) continue;
@@ -402,10 +421,15 @@ export function ProjectSetupScreen({
 
     const errors: string[] = [];
     for (const { agentId, scope, action } of changes) {
+      // Legacy MCP onboarding path kept intentionally; do not run here.
+      // const result =
+      //   action === "setup"
+      //     ? await api.setupMcpAgent(agentId, scope)
+      //     : await api.removeMcpAgent(agentId, scope);
       const result =
         action === "setup"
-          ? await api.setupMcpAgent(agentId, scope)
-          : await api.removeMcpAgent(agentId, scope);
+          ? await api.deploySkill(ONBOARDING_SKILL_NAME, agentId, scope)
+          : await api.undeploySkill(ONBOARDING_SKILL_NAME, agentId, scope);
       if (!result.success) {
         const agent = AGENT_CONFIGS.find((a) => a.id === agentId)!;
         errors.push(`${agent.name} (${scope}): ${result.error ?? "failed"}`);
@@ -840,29 +864,27 @@ export function ProjectSetupScreen({
             })}
           </div>
 
-          <div className="space-y-3">
+            <div className="space-y-3">
             <button
               onClick={() => setMode("getting-started")}
-              className={`w-full px-4 py-2.5 text-sm font-medium ${button.primary} rounded-xl transition-colors flex items-center justify-center gap-2`}
+              className={`group w-full px-4 py-2.5 text-sm font-medium ${button.primary} rounded-xl transition-colors flex items-center justify-center`}
             >
-              {connectedCount > 0 ? (
-                <>
-                  Continue
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              ) : (
-                <>
-                  Continue without integrations
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
+              <AnimatedContinuePrimaryLabel
+                label={connectedCount > 0 ? "Continue" : "Continue without integrations"}
+              />
             </button>
             {connectedCount === 0 && (
               <p className={`text-[11px] ${text.dimmed}`}>
                 You can always connect integrations later from the Integrations panel.
               </p>
             )}
-          </div>
+              <button
+                onClick={() => handleBackTo("commit-prompt")}
+                className="w-full"
+              >
+                <AnimatedBackLabel />
+              </button>
+            </div>
         </div>
       </div>
     );
@@ -909,10 +931,15 @@ export function ProjectSetupScreen({
 
           <button
             onClick={onSetupComplete}
-            className={`w-full py-3 rounded-xl text-sm font-medium ${button.primary} transition-colors flex items-center justify-center gap-2`}
+            className={`group w-full py-3 rounded-xl text-sm font-medium ${button.primary} transition-colors flex items-center justify-center`}
           >
-            Go to workspace
-            <ArrowRight className="w-4 h-4" />
+            <AnimatedContinuePrimaryLabel label="Go to workspace" />
+          </button>
+          <button
+            onClick={() => handleBackTo("integrations")}
+            className="w-full mt-3"
+          >
+            <AnimatedBackLabel />
           </button>
         </div>
       </div>
@@ -945,9 +972,9 @@ export function ProjectSetupScreen({
             </div>
             <h1 className={`text-xl font-semibold ${text.primary} mb-2`}>Connect Coding Agents</h1>
             <p className={`text-sm ${text.secondary} leading-relaxed`}>
-              Set up MCP integration so your AI coding agents can
+              Enable the <span className="font-mono">{ONBOARDING_SKILL_NAME}</span> skill so your agents can
               <br />
-              manage worktrees, start dev servers, and more.
+              run the dawg task workflow automatically.
             </p>
           </div>
 
@@ -972,7 +999,11 @@ export function ProjectSetupScreen({
                         [agent.id]: { ...prev[agent.id], global: !globalOn },
                       }))
                     }
-                    disabled={agentsApplying || !agent.global}
+                    disabled={
+                      agentsApplying ||
+                      !agent.global ||
+                      !SKILL_SETUP_SUPPORTED_AGENTS.has(agent.id)
+                    }
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                       globalOn
                         ? "bg-[#2dd4bf]/10 hover:bg-[#2dd4bf]/15"
@@ -991,7 +1022,11 @@ export function ProjectSetupScreen({
                         [agent.id]: { ...prev[agent.id], project: !projectOn },
                       }))
                     }
-                    disabled={agentsApplying || !agent.project}
+                    disabled={
+                      agentsApplying ||
+                      !agent.project ||
+                      !SKILL_SETUP_SUPPORTED_AGENTS.has(agent.id)
+                    }
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                       projectOn
                         ? "bg-[#2dd4bf]/10 hover:bg-[#2dd4bf]/15"
@@ -1014,27 +1049,33 @@ export function ProjectSetupScreen({
             <button
               onClick={handleAgentsSetup}
               disabled={agentsApplying || !hasAnyAgentSelected}
-              className={`w-full px-4 py-2.5 text-sm font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-2`}
+              className={`group w-full px-4 py-2.5 text-sm font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center`}
             >
               {agentsApplying ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Connecting...
+                  Enabling...
                 </>
               ) : (
-                <>
-                  <Plug className="w-4 h-4" />
-                  Connect Agents
-                </>
+                <AnimatedConnectPrimaryLabel />
               )}
             </button>
-            <button
-              onClick={() => setMode("commit-prompt")}
-              disabled={agentsApplying}
-              className={`w-full px-4 py-2 text-xs ${text.muted} hover:${text.secondary} transition-colors`}
-            >
-              Skip for now
-            </button>
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={() => setMode("commit-prompt")}
+                disabled={agentsApplying}
+                className="px-4 py-2"
+              >
+                <AnimatedSkipLabel />
+              </button>
+              <button
+                onClick={() => handleBackTo("choice")}
+                disabled={agentsApplying}
+                className="px-4 py-2"
+              >
+                <AnimatedBackLabel />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1190,7 +1231,7 @@ export function ProjectSetupScreen({
               <button
                 onClick={handleCommitConfig}
                 disabled={isLoading || !commitMessage.trim()}
-                className={`w-full px-4 py-2.5 text-sm font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-2`}
+                className={`group w-full px-4 py-2.5 text-sm font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center`}
               >
                 {isLoading ? (
                   <>
@@ -1198,20 +1239,26 @@ export function ProjectSetupScreen({
                     Pushing...
                   </>
                 ) : (
-                  <>
-                    <GitCommit className="w-4 h-4" />
-                    Commit & Push
-                  </>
+                  <AnimatedCommitPrimaryLabel />
                 )}
               </button>
             )}
-            <button
-              onClick={handleSkipCommit}
-              disabled={isLoading}
-              className={`w-full px-4 py-2 text-xs ${text.muted} hover:${text.secondary} transition-colors`}
-            >
-              Skip for now
-            </button>
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={handleSkipCommit}
+                disabled={isLoading}
+                className="px-4 py-2"
+              >
+                <AnimatedSkipLabel />
+              </button>
+              <button
+                onClick={() => handleBackTo("agents")}
+                disabled={isLoading}
+                className="px-4 py-2"
+              >
+                <AnimatedBackLabel />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1386,18 +1433,24 @@ export function ProjectSetupScreen({
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-white/[0.06]">
             <button
               onClick={handleBack}
-              className={`px-3 py-1.5 text-xs font-medium ${text.muted} hover:${text.secondary} rounded-lg hover:bg-white/[0.04] transition-colors`}
+              className="px-3 py-1.5 rounded-lg hover:bg-white/[0.04]"
               disabled={isLoading}
             >
-              Back
+              <AnimatedBackLabel />
             </button>
             <button
               onClick={handleManualSubmit}
               disabled={isLoading}
               className={`px-3 py-1.5 text-xs font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors flex items-center gap-2`}
             >
-              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              Initialize
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Initialize
+                </>
+              ) : (
+                "Initialize"
+              )}
             </button>
           </div>
         </div>
@@ -1428,7 +1481,7 @@ export function ProjectSetupScreen({
           <button
             onClick={handleAutoSetup}
             disabled={isLoading}
-            className={`w-full p-4 rounded-xl ${surface.panel} border border-white/[0.08] hover:border-[#2dd4bf]/30 hover:bg-white/[0.04] transition-all text-left group`}
+            className={`w-full h-[120px] p-4 rounded-xl ${surface.panel} border border-white/[0.08] hover:border-[#2dd4bf]/30 hover:bg-white/[0.04] transition-all text-left group`}
           >
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-lg bg-[#2dd4bf]/10 group-hover:bg-[#2dd4bf]/20 transition-colors">
@@ -1438,13 +1491,20 @@ export function ProjectSetupScreen({
                 <h3 className={`text-sm font-medium ${text.primary} mb-1`}>Auto-detect settings</h3>
                 <p className={`text-xs ${text.muted} leading-relaxed`}>
                   Automatically detect package manager, commands, and base branch
-                  {detectedConfig && (
-                    <span className="block mt-1 text-[#2dd4bf]/70">
-                      Detected: {detectedConfig.startCommand}, {detectedConfig.installCommand},{" "}
+                </p>
+                <div className="mt-1 h-[32px] flex items-center">
+                  {detectedConfig ? (
+                    <span className="text-[#2dd4bf]/70 text-[11px]">
+                      {detectedConfig.startCommand}, {detectedConfig.installCommand},{" "}
                       {detectedConfig.baseBranch}
                     </span>
+                  ) : (
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] ${text.dimmed}`}>
+                      <Loader2 className="w-3 h-3 animate-spin text-[#2dd4bf]/80" />
+                      Detecting...
+                    </span>
                   )}
-                </p>
+                </div>
               </div>
               {isLoading && <Loader2 className="w-5 h-5 text-[#2dd4bf] animate-spin" />}
             </div>
@@ -1512,5 +1572,58 @@ export function ProjectSetupScreen({
         {error && <p className={`mt-4 text-xs ${text.error}`}>{error}</p>}
       </div>
     </div>
+  );
+}
+
+function AnimatedBackLabel() {
+  return (
+    <span className={`group inline-flex items-center text-xs ${text.muted} hover:${text.secondary}`}>
+      <span className="relative inline-flex items-center">
+        <ChevronLeft className="w-3.5 h-3.5 absolute -left-3 opacity-0 -translate-x-0.5 transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-x-0" />
+        <span className="transition-transform duration-300 ease-out group-hover:translate-x-1.5">Back</span>
+      </span>
+    </span>
+  );
+}
+
+function AnimatedSkipLabel() {
+  return (
+    <span className={`group inline-flex items-center text-xs ${text.muted} hover:${text.secondary}`}>
+      <span className="relative inline-flex items-center">
+        <span className="transition-transform duration-300 ease-out group-hover:-translate-x-1.5">
+          Skip for now
+        </span>
+        <ChevronRight className="w-3.5 h-3.5 absolute -right-3 opacity-0 translate-x-0.5 transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-x-0" />
+      </span>
+    </span>
+  );
+}
+
+function AnimatedContinuePrimaryLabel({ label }: { label: string }) {
+  return (
+    <span className="relative inline-flex items-center">
+      <span className="transition-all duration-300 ease-out group-hover:pr-5">{label}</span>
+      <ArrowRight className="w-4 h-4 absolute right-0 opacity-0 -translate-x-1 transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-x-0" />
+    </span>
+  );
+}
+
+function AnimatedConnectPrimaryLabel() {
+  return (
+    <span className="relative inline-flex items-center">
+      <Plug className="w-4 h-4 rotate-90 absolute left-0 opacity-0 translate-x-4 transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-x-0" />
+      <span className="transition-all duration-300 ease-out group-hover:pl-[22px]">
+        Connect Agents
+      </span>
+    </span>
+  );
+}
+
+function AnimatedCommitPrimaryLabel() {
+  return (
+    <span className="relative inline-flex items-center">
+      <GitCommit className="w-4 h-4 absolute left-0 opacity-0 translate-x-4 transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-x-0" />
+      <span className="transition-all duration-300 ease-out group-hover:pl-5">Commit & Push</span>
+    </span>
   );
 }

@@ -20,6 +20,10 @@ Generate a concise summary of all changes made in this worktree compared to the 
    - **Files changed** — list of modified/added/deleted files
    - **What changed** — high-level description grouped by feature/area
    - **Key decisions** — notable architectural or design choices visible in the diff
+   - **Standout risks/oddities** — anything fishy, edge-case-sensitive, or likely to surprise maintainers
+
+   If applicable, include a separate section:
+   - **Open questions / uncertain areas** — unclear behavior, assumptions, or points that should be validated with the developer
 
 4. Call `report_hook_status` again with the result:
    - `success`: `true`

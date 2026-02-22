@@ -8,6 +8,7 @@ import {
   Link,
   Loader2,
   Monitor,
+  MoonStar,
   Sparkles,
   Terminal,
   Trash2,
@@ -15,9 +16,12 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 
+import { ACTIVITY_TYPES } from "../../server/activity-event";
 import type { ActivityEvent } from "../hooks/api";
 import type { HookFeedItem } from "../hooks/useActivityFeed";
-import { activity, text } from "../theme";
+import { ClaudeIcon, JiraIcon, LinearIcon } from "../icons";
+import { activity, integration, text } from "../theme";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 const CATEGORY_ICONS: Record<string, typeof Bot> = {
   agent: Bot,
@@ -26,9 +30,6 @@ const CATEGORY_ICONS: Record<string, typeof Bot> = {
   integration: Link,
   system: Monitor,
 };
-
-const USER_ACTION_HINT =
-  /\b(approve|approval|confirm|confirmation|yes\/no|y\/n|permission|authorize|authorise|need your|need you|waiting for (your )?(input|confirmation|approval|answer|response|reply)|user input|blocked|respond|reply)\b/i;
 
 function formatRelativeTime(timestamp: string): string {
   const now = Date.now();
@@ -59,10 +60,36 @@ function isHookEvent(event: ActivityEvent): boolean {
 }
 
 function isActionRequired(event: ActivityEvent): boolean {
-  if (event.metadata?.requiresUserAction === true) return true;
-  if (event.category !== "agent") return false;
-  const text = `${event.title} ${event.detail ?? ""}`;
-  return USER_ACTION_HINT.test(text);
+  if (event.type === ACTIVITY_TYPES.AGENT_AWAITING_INPUT) {
+    return (
+      event.metadata?.requiresUserAction === true || event.metadata?.awaitingUserInput === true
+    );
+  }
+  return event.category === "agent" && event.metadata?.requiresUserAction === true;
+}
+
+function actionContextKey(event: ActivityEvent): string {
+  const sourceServerUrl =
+    typeof event.metadata?.sourceServerUrl === "string"
+      ? (event.metadata.sourceServerUrl as string)
+      : "__local__";
+  return `${sourceServerUrl}::${event.projectName ?? "unknown-project"}::${event.worktreeId ?? "global"}`;
+}
+
+function getActiveActionRequiredEvents(events: ActivityEvent[]): ActivityEvent[] {
+  const latestByContext = new Map<string, ActivityEvent>();
+
+  for (const event of events) {
+    if (event.category !== "agent") continue;
+    const key = actionContextKey(event);
+    if (!latestByContext.has(key)) {
+      latestByContext.set(key, event);
+    }
+  }
+
+  return [...latestByContext.values()]
+    .filter((event) => isActionRequired(event))
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
 function hookItems(event: ActivityEvent): HookFeedItem[] {
@@ -78,24 +105,41 @@ function HookStatusIcon({ status }: { status: HookFeedItem["status"] }) {
 
 interface ActivityFeedProps {
   events: ActivityEvent[];
+  unseenEventIds: Set<string>;
   unreadCount: number;
   onMarkAllRead: () => void;
   onClearAll: () => void;
+  showAllProjects: boolean;
+  onToggleShowAllProjects: () => void;
   onClose: () => void;
   onNavigateToWorktree?: (target: {
     worktreeId: string;
     projectName?: string;
     sourceServerUrl?: string;
+    openClaudeTab?: boolean;
+    openHooksTab?: boolean;
   }) => void;
+  onNavigateToIssue?: (target: {
+    source: "jira" | "linear";
+    issueId: string;
+    projectName?: string;
+    sourceServerUrl?: string;
+  }) => void;
+  onResolveActionRequired?: (event: ActivityEvent) => void;
 }
 
 export function ActivityFeed({
   events,
+  unseenEventIds,
   unreadCount,
   onMarkAllRead,
   onClearAll,
+  showAllProjects,
+  onToggleShowAllProjects,
   onClose,
   onNavigateToWorktree,
+  onNavigateToIssue,
+  onResolveActionRequired,
 }: ActivityFeedProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -126,8 +170,15 @@ export function ActivityFeed({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const actionRequiredEvents = useMemo(() => events.filter(isActionRequired), [events]);
-  const regularEvents = useMemo(() => events.filter((event) => !isActionRequired(event)), [events]);
+  const actionRequiredEvents = useMemo(() => getActiveActionRequiredEvents(events), [events]);
+  const actionRequiredIds = useMemo(
+    () => new Set(actionRequiredEvents.map((event) => event.id)),
+    [actionRequiredEvents],
+  );
+  const regularEvents = useMemo(
+    () => events.filter((event) => !actionRequiredIds.has(event.id)),
+    [actionRequiredIds, events],
+  );
 
   return (
     <motion.div
@@ -139,8 +190,8 @@ export function ActivityFeed({
       className="absolute right-0 top-full mt-2 w-[500px] max-h-[620px] rounded-xl bg-[#12151a] border border-white/[0.08] shadow-2xl flex flex-col overflow-hidden z-50"
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-        <h3 className={`text-sm font-medium ${text.primary}`}>Activity</h3>
-        <div className="flex items-center gap-2">
+        <h3 className={`text-sm font-medium ${text.primary}`}>Recent activity</h3>
+        <div className="flex items-center gap-3">
           {unreadCount > 0 && (
             <button
               onClick={onMarkAllRead}
@@ -157,14 +208,32 @@ export function ActivityFeed({
             <Trash2 className="w-3 h-3" />
             Clear
           </button>
+          <div className={`flex items-center gap-1.5 ml-3 text-[10px] ${text.muted}`}>
+            <button
+              type="button"
+              onClick={onToggleShowAllProjects}
+              className="transition-colors hover:text-white"
+            >
+              Show all projects
+            </button>
+            <ToggleSwitch
+              checked={showAllProjects}
+              onToggle={(event) => {
+                event.stopPropagation();
+                onToggleShowAllProjects();
+              }}
+              size="sm"
+              ariaLabel="Show all projects"
+            />
+          </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <Bell className={`w-8 h-8 ${text.dimmed} mb-2`} />
-            <p className={`text-xs ${text.dimmed}`}>No activity yet</p>
+            <MoonStar className={`w-7 h-7 ${text.dimmed} mb-2`} />
+            <p className={`text-xs ${text.dimmed}`}>No recent activity</p>
           </div>
         ) : (
           <div className="divide-y divide-white/[0.04]">
@@ -179,7 +248,10 @@ export function ActivityFeed({
                   <ActivityRow
                     key={event.id}
                     event={event}
+                    showUnreadDot={unseenEventIds.has(event.id)}
                     onNavigateToWorktree={onNavigateToWorktree}
+                    onNavigateToIssue={onNavigateToIssue}
+                    onResolveActionRequired={onResolveActionRequired}
                   />
                 ))}
               </div>
@@ -189,7 +261,10 @@ export function ActivityFeed({
               <ActivityRow
                 key={event.id}
                 event={event}
+                showUnreadDot={unseenEventIds.has(event.id)}
                 onNavigateToWorktree={onNavigateToWorktree}
+                onNavigateToIssue={onNavigateToIssue}
+                onResolveActionRequired={onResolveActionRequired}
               />
             ))}
           </div>
@@ -201,38 +276,137 @@ export function ActivityFeed({
 
 function ActivityRow({
   event,
+  showUnreadDot,
   onNavigateToWorktree,
+  onNavigateToIssue,
+  onResolveActionRequired,
 }: {
   event: ActivityEvent;
+  showUnreadDot: boolean;
   onNavigateToWorktree?: (target: {
     worktreeId: string;
     projectName?: string;
     sourceServerUrl?: string;
+    openClaudeTab?: boolean;
+    openHooksTab?: boolean;
   }) => void;
+  onNavigateToIssue?: (target: {
+    source: "jira" | "linear";
+    issueId: string;
+    projectName?: string;
+    sourceServerUrl?: string;
+  }) => void;
+  onResolveActionRequired?: (event: ActivityEvent) => void;
 }) {
+  const actionRequired = isActionRequired(event);
   const hookEvent = isHookEvent(event);
+  const issueSource =
+    event.metadata?.source === "jira" || event.metadata?.source === "linear"
+      ? (event.metadata.source as "jira" | "linear")
+      : null;
+  const claudeRelated = event.type === "auto_task_claimed" || event.metadata?.autoClaimed === true;
+  const issueId =
+    typeof event.metadata?.issueId === "string" ? (event.metadata.issueId as string) : null;
+  const shouldShowWorktreeLink = Boolean(
+    event.worktreeId &&
+    (!issueId || !issueSource || event.worktreeId.toLowerCase() !== issueId.toLowerCase()),
+  );
   const Icon = hookEvent ? FishingHook : (CATEGORY_ICONS[event.category] ?? Monitor);
   const categoryColor = hookEvent
     ? "text-yellow-400"
     : (activity.categoryColor[event.category] ?? "text-[#6b7280]");
   const categoryBg = hookEvent
     ? "bg-yellow-400/10"
-    : (activity.categoryBg[event.category] ?? "bg-white/[0.06]");
-  const severityDot = event.severity !== "info" ? activity.severityDot[event.severity] : null;
+    : issueSource === "jira"
+      ? "bg-blue-500/10"
+      : issueSource === "linear"
+        ? "bg-[#5E6AD2]/10"
+        : (activity.categoryBg[event.category] ?? "bg-white/[0.06]");
   const items = hookItems(event);
   const hasChildren = hookEvent && items.length > 0;
   const sourceServerUrl =
     typeof event.metadata?.sourceServerUrl === "string"
       ? (event.metadata.sourceServerUrl as string)
       : undefined;
+  const navigateToWorktree = (options?: { openClaudeTab?: boolean; openHooksTab?: boolean }) => {
+    if (!event.worktreeId || !onNavigateToWorktree) return false;
+    if (actionRequired) onResolveActionRequired?.(event);
+    onNavigateToWorktree({
+      worktreeId: event.worktreeId,
+      projectName: event.projectName,
+      sourceServerUrl,
+      openClaudeTab: options?.openClaudeTab,
+      openHooksTab: options?.openHooksTab,
+    });
+    return true;
+  };
+  const navigateToIssue = () => {
+    if (!issueSource || !issueId || !onNavigateToIssue) return false;
+    if (actionRequired) onResolveActionRequired?.(event);
+    onNavigateToIssue({
+      source: issueSource,
+      issueId,
+      projectName: event.projectName,
+      sourceServerUrl,
+    });
+    return true;
+  };
+  const handleRowClick = () => {
+    if (hookEvent && event.worktreeId) {
+      navigateToWorktree({ openHooksTab: true });
+      return;
+    }
+    if (issueSource && issueId) {
+      if (claudeRelated && event.worktreeId) {
+        navigateToWorktree({ openClaudeTab: true });
+        return;
+      }
+      navigateToIssue();
+      return;
+    }
+    if (event.worktreeId) {
+      navigateToWorktree({ openClaudeTab: claudeRelated });
+    }
+  };
+  const rowClickable = Boolean(
+    (hookEvent && event.worktreeId && onNavigateToWorktree) ||
+    (issueSource &&
+      issueId &&
+      ((claudeRelated && event.worktreeId && onNavigateToWorktree) || onNavigateToIssue)) ||
+    (event.worktreeId && onNavigateToWorktree),
+  );
 
   return (
-    <div className="px-4 py-3 hover:bg-white/[0.02] transition-colors">
+    <div
+      className={`px-4 py-3 hover:bg-white/[0.02] transition-colors ${rowClickable ? "cursor-pointer" : ""}`}
+      role={rowClickable ? "button" : undefined}
+      tabIndex={rowClickable ? 0 : undefined}
+      onClick={rowClickable ? handleRowClick : undefined}
+      onKeyDown={
+        rowClickable
+          ? (e) => {
+              if (e.currentTarget !== e.target) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleRowClick();
+              }
+            }
+          : undefined
+      }
+    >
       <div className="flex items-start gap-3">
         <div
           className={`flex-shrink-0 w-7 h-7 rounded-lg ${categoryBg} flex items-center justify-center mt-0.5`}
         >
-          <Icon className={`w-3.5 h-3.5 ${categoryColor}`} />
+          {claudeRelated ? (
+            <ClaudeIcon className="w-3.5 h-3.5 text-[#D97757]" />
+          ) : issueSource === "jira" ? (
+            <JiraIcon className={`w-3.5 h-3.5 ${integration.jira}`} />
+          ) : issueSource === "linear" ? (
+            <LinearIcon className={`w-3.5 h-3.5 ${integration.linear}`} />
+          ) : (
+            <Icon className={`w-3.5 h-3.5 ${categoryColor}`} />
+          )}
         </div>
 
         <div className="flex-1 min-w-0">
@@ -247,20 +421,42 @@ function ActivityRow({
             {event.projectName && (
               <span className={`text-[10px] ${text.dimmed}`}>{event.projectName}</span>
             )}
-            {event.worktreeId && onNavigateToWorktree ? (
+            {issueSource && issueId && onNavigateToIssue ? (
+              claudeRelated && event.worktreeId && onNavigateToWorktree ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateToWorktree({ openClaudeTab: true });
+                  }}
+                  className="text-[10px] text-teal-400/70 hover:text-teal-400 transition-colors"
+                >
+                  {issueId}
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateToIssue();
+                  }}
+                  className="text-[10px] text-teal-400/70 hover:text-teal-400 transition-colors"
+                >
+                  {issueId}
+                </button>
+              )
+            ) : issueId ? (
+              <span className={`text-[10px] ${text.dimmed}`}>{issueId}</span>
+            ) : null}
+            {shouldShowWorktreeLink && event.worktreeId && onNavigateToWorktree ? (
               <button
-                onClick={() =>
-                  onNavigateToWorktree({
-                    worktreeId: event.worktreeId!,
-                    projectName: event.projectName,
-                    sourceServerUrl,
-                  })
-                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigateToWorktree({ openClaudeTab: claudeRelated });
+                }}
                 className="text-[10px] text-teal-400/70 hover:text-teal-400 transition-colors"
               >
                 {event.worktreeId}
               </button>
-            ) : event.worktreeId ? (
+            ) : shouldShowWorktreeLink && event.worktreeId ? (
               <span className={`text-[10px] ${text.dimmed}`}>{event.worktreeId}</span>
             ) : null}
           </div>
@@ -283,9 +479,9 @@ function ActivityRow({
           )}
         </div>
 
-        {severityDot && (
+        {showUnreadDot && (
           <div className="flex-shrink-0 mt-2">
-            <span className={`block w-1.5 h-1.5 rounded-full ${severityDot}`} />
+            <span className="block w-1.5 h-1.5 rounded-full bg-teal-400" />
           </div>
         )}
       </div>

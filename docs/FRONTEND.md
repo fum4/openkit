@@ -54,7 +54,7 @@ On initial load, Agents triggers a background device scan for MCP servers/skills
 
 ### Hooks
 
-Configures automated checks and agent skills organized by trigger type (pre-implementation, post-implementation, custom, on-demand). Users add shell command steps and import skills from the registry into each trigger type section.
+Configures automated checks and agent skills organized by trigger type (pre-implementation, post-implementation, custom, on-demand, worktree-created, worktree-removed). Users add shell command steps in all sections. Skill import is available for pre/post/custom/on-demand only; lifecycle sections are command-only.
 
 ### Configuration
 
@@ -62,7 +62,7 @@ Edits the `.dawg/config.json` settings: start commands, install commands, base b
 
 ### Integrations
 
-Configures external service connections: Jira (OAuth credentials, project key, refresh interval), Linear (API key, team key), and GitHub (CLI installation, authentication).
+Configures external service connections: Jira (OAuth credentials, project key, refresh interval), Linear (API key, team key), and GitHub (CLI installation, authentication). Jira/Linear cards include a grouped "Claude Auto-Start" section with toggles for enablement, running with `--dangerously-skip-permissions`, and optional auto-focus to the Claude terminal.
 
 The active view is persisted to `localStorage` per server URL, so switching between projects in Electron mode restores each project's last-viewed tab.
 
@@ -122,7 +122,7 @@ The app uses a dark theme with a neutral slate background family and teal as the
 | `hooks`       | Hooks accent (emerald), step result status colors                                                      |
 | `notes`       | Notes tab styles, todo checkbox colors                                                                 |
 | `agentRule`   | Agent rule accent (cyan), background, border styles                                                    |
-| `activity`    | Activity feed category colors (agent=purple, worktree=teal, git=blue, system=red), severity dot colors |
+| `activity`    | Activity feed category colors (agent=purple, worktree=teal, system=red) and optional severity token colors |
 
 ### Integration Color Mapping
 
@@ -155,7 +155,7 @@ const { text: textClass, bg: bgClass } = getLabelColor("frontend");
 
 ```
 App
-+-- Header                    (top bar: nav tabs, running count badge, activity bell icon)
++-- Header                    (top bar: nav tabs, running count badge, input-needed badge, activity bell icon)
 +-- [error banner]            (connection error, if any)
 |
 +-- [Workspace view]
@@ -233,11 +233,16 @@ All detail panels live in `src/ui/components/detail/`.
 The worktree detail view. Contains:
 
 - **DetailHeader** -- worktree name (editable inline), branch name, status badge, start/stop/delete action buttons, linked issue badges, and the split `Open` button (primary action + dropdown) for detected open targets.
-- **Tab bar** -- Logs | Terminal | Hooks, plus Claude controls. `Claude` appears as its own tab only when opened, otherwise a `+ Claude` quick action is shown.
+- **Tab bar** -- Logs | Terminal | Hooks, plus Claude controls. Claude appears as its own tab only when opened, otherwise a `+ Claude` quick action is shown. The Claude tab label is always `Claude`.
 - **Git action toolbar** -- contextual buttons for Commit (when uncommitted changes exist), Push (when unpushed commits exist), and PR (when pushed but no PR exists). Each expands an inline input form.
 - **LogsViewer** -- streaming process output for running worktrees.
-- **TerminalView** -- interactive xterm.js terminal. Sessions are lazily created and reused; terminal and Claude use separate session scopes. Closing the Claude tab explicitly destroys its session.
-- **HooksTab** -- runs and displays hook results with visual state indicators (dashed/no-bg for unrun and running items, spinner during execution, solid card background for completed/disabled items). Supports command, prompt, and skill entries; auto-expands items with output when the pipeline completes. Receives real-time updates via `hook-update` SSE events.
+- **TerminalView** -- interactive xterm.js terminal. Sessions are reused per worktree+scope (`terminal`/`claude`). Sessions with startup commands (Claude auto-start) are bootstrapped server-side and later reattached in the UI, including after full page refresh via active-session lookup. Awaiting-input notifications are explicit agent events (`notify` with `requiresUserAction=true` or `dawg activity await-input`), not terminal-text heuristics. Closing the Claude tab explicitly destroys its session.
+- **HooksTab** -- runs and displays hook results with visual state indicators (dashed/no-bg for unrun and running items, spinner during execution, solid card background for completed/disabled items). Supports command, prompt, and skill entries for agent workflow triggers, plus command-only lifecycle trigger steps; auto-expands items with output when the pipeline completes. Receives real-time updates via `hook-update` SSE events.
+
+Claude launch integration:
+
+- App-level Claude launch queue runs `pre-implementation` command hooks before starting Claude in `start` mode.
+- When Claude process exits cleanly (`exitCode === 0`), DetailPanel triggers `post-implementation` command hooks automatically.
 
 ### JiraDetailPanel (`JiraDetailPanel.tsx`)
 
@@ -270,6 +275,7 @@ Detail view for local custom tasks. Supports inline editing of title, descriptio
 | `NotesSection.tsx`       | PersonalNotesSection + AgentSection (tabbed: Context, Todos, Git Policy, Hooks) |
 | `TodoList.tsx`           | Checkbox todo items attached to issues                                          |
 | `AgentPolicySection.tsx` | Per-issue agent git policy overrides                                            |
+| `ToggleSwitch.tsx`       | Shared switch control used across Agents, Integrations, Settings, Hooks, and detail views |
 
 ---
 
@@ -282,7 +288,7 @@ All hooks live in `src/ui/hooks/`.
 **`useWorktrees`** (`useWorktrees.ts`) establishes an `EventSource` connection to `/api/events`. The server pushes several event types:
 
 - `worktrees` -- worktree state updates (status, logs, git state)
-- `notification` -- error/info notifications displayed as toast messages
+- `notification` -- direct user-action success/failure messages displayed as toast messages
 - `hook-update` -- signals that hook results changed for a worktree, triggering auto-refetch in the HooksTab
 - `activity-history` -- batch of recent events on initial connection (dispatched as `dawg:activity-history` CustomEvent)
 - `activity` -- individual real-time activity events (dispatched as `dawg:activity` CustomEvent)
@@ -323,7 +329,7 @@ Issue hooks support configurable refresh intervals (from integration settings) a
 
 **`useTerminal`** (`useTerminal.ts`) manages interactive PTY sessions:
 
-1. `connect()` -- POST to `/api/worktrees/:id/terminals` to create a session, then opens a WebSocket to `/api/terminals/:sessionId/ws`.
+1. `connect()` -- POST to `/api/worktrees/:id/terminals` (with a scope) to create/reuse a session, then opens a WebSocket to `/api/terminals/:sessionId/ws`.
 2. `createSessionStartupCommand` (optional) -- when provided (Claude flow), the session starts with a shell startup command.
 3. `sendData(data)` -- forwards keystrokes to the PTY via WebSocket.
 4. `sendResize(cols, rows)` -- sends terminal resize events.
@@ -504,7 +510,7 @@ The app uses Framer Motion for transitions:
 | `SkillItem.tsx`             | Skill sidebar item                                                                                                                                           |
 | `Spinner.tsx`               | Loading spinner component                                                                                                                                    |
 | `TabBar.tsx`                | Electron multi-project tab bar                                                                                                                               |
-| `ActivityFeed.tsx`          | Activity feed dropdown panel with bell icon, action-required top section, expandable hook-run entries, and clickable worktree links                          |
+| `ActivityFeed.tsx`          | Activity feed dropdown panel with bell icon, action-required top section, expandable hook-run entries, row-level subject navigation (hook rows open Hooks tab), and inline worktree links that still open the worktree |
 | `Toast.tsx`                 | Animated toast notification (error=red, success=green, info=teal, loading=amber) with groupKey deduplication, grouped children, project name, worktree links |
 | `Tooltip.tsx`               | Tooltip component (always use this instead of native `title` attribute)                                                                                      |
 | `TruncatedTooltip.tsx`      | Text with automatic tooltip on overflow                                                                                                                      |
@@ -555,7 +561,7 @@ The app uses Framer Motion for transitions:
 | `useTerminal.ts`          | WebSocket terminal session management                                                          |
 | `useAgentRules.ts`        | React Query hook for agent rule file content                                                   |
 | `useHooks.ts`             | Hooks config and skill results fetching                                                        |
-| `useActivityFeed.ts`      | Activity feed state, unread count, chronological upserts, hook-run aggregation, toast triggers |
+| `useActivityFeed.ts`      | Activity feed state, unread count, chronological upserts, and hook-run aggregation               |
 | `useWorktrees.ts`         | SSE-based real-time worktree updates + integration status hooks                                |
 
 ### Context (`src/ui/contexts/`)

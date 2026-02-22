@@ -41,26 +41,30 @@ In the worktree detail header, the split **Open** button auto-detects supported 
 ### Issue Tracker Integration
 
 Connect to **Jira** (OAuth or API token), **Linear** (API key), or create **local issues**. Create worktrees directly from tickets — dawg fetches issue details, generates a TASK.md with context, and sets up the branch.
+Optionally enable auto-start per integration so newly fetched Jira/Linear issues are claimed automatically. You can also choose whether Claude runs with `--dangerously-skip-permissions` and whether the UI auto-focuses the Claude terminal when work begins.
 
 See [Integrations](docs/INTEGRATIONS.md) for setup details.
 
 ### AI Agent Support (MCP)
 
 dawg exposes 20+ tools via MCP (Model Context Protocol) that any AI coding agent can use — browse issues, create worktrees, manage todos, commit/push/PR, run hooks. Agents get a structured workflow: pick an issue, create a worktree, read TASK.md, work through todos, run hooks, and ship.
+When a project is initialized (`dawg init` or setup flow), dawg auto-enables the bundled `work-on-task` skill in project skill directories.
+Set `DAWG_ENABLE_MCP_SETUP=1` to enable MCP setup routes.
 
 See [MCP](docs/MCP.md) for the tool reference and [Agents](docs/AGENTS.md) for the agent tooling system.
 
 ### Activity Feed & Notifications
 
-Real-time activity feed tracks everything happening across your projects — agent actions (commits, pushes, PRs), worktree lifecycle events, hook results, and more. A bell icon in the header shows unread events with category filtering. Important events trigger toast notifications in the UI, and in the Electron app, native OS notifications fire when the window is unfocused.
+Real-time activity feed tracks everything happening across your projects — agent actions (commits, pushes, PRs), worktree lifecycle events, hook results, and more. A bell icon in the header shows unread events, and Settings lets you enable/disable every activity event type individually. Workflow/agent/live updates stay in the Activity feed, while toasts are reserved for direct user-action success/failure. In the Electron app, native OS notifications fire when the window is unfocused and an agent is awaiting user input.
 
-Agents can send free-form progress updates via the `notify` MCP tool. Other tool calls (`commit`, `push`, `create_pr`, `run_hooks`) are tracked automatically.
+Agents can send free-form progress updates via the `notify` MCP tool. If an agent is blocked waiting on user approval/instructions, it should emit a dedicated awaiting-input event (`notify` with `requiresUserAction: true` in MCP flows, or `dawg activity await-input --message "..."` in terminal flows), which shows an **Input needed** badge to the left of the bell. Other tool calls (`commit`, `push`, `create_pr`, `run_hooks`) are tracked automatically.
 
 See [Notifications](docs/NOTIFICATIONS.md) for the full architecture, event types, and configuration.
 
 ### Hooks
 
-Automated checks and agent skills organized by trigger type (pre-implementation, post-implementation, custom, on-demand). Add shell command steps and import skills from the registry. Run from the UI or via MCP tools.
+Automated checks and agent skills organized by trigger type (pre-implementation, post-implementation, custom, on-demand, worktree-created, worktree-removed). Lifecycle triggers are command-only and run automatically on worktree create/remove flows.
+When Claude is launched from issue flows, dawg also runs pre-implementation command hooks automatically before launch and post-implementation command hooks after a clean Claude exit.
 
 See [Hooks](docs/HOOKS.md) for configuration and usage.
 
@@ -78,7 +82,8 @@ See [Electron](docs/ELECTRON.md) for details.
 | `dawg init`                  | Interactive setup wizard                           |
 | `dawg add [name]`            | Set up an integration (github, linear, jira)       |
 | `dawg mcp`                   | Start as an MCP server for AI agents               |
-| `dawg task [source] [ID...]` | Create worktrees from issues (jira, linear, local) |
+| `dawg activity await-input ...` | Emit an "agent awaiting input" activity event    |
+| `dawg task [source|resolve] [ID...]` | Resolve issues and create worktrees (jira, linear, local) |
 | `dawg connect`               | Connect to an existing dawg server                 |
 
 See [CLI Reference](docs/CLI.md) for full details.

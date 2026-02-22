@@ -5,6 +5,8 @@ import {
   CircleCheck,
   FileText,
   FishingHook,
+  FolderMinus,
+  FolderPlus,
   Hand,
   ListChecks,
   Loader2,
@@ -612,6 +614,8 @@ export function HooksTab({
   );
   const customSteps = (config?.steps ?? []).filter((s) => s.trigger === "custom");
   const onDemandSteps = (config?.steps ?? []).filter((s) => s.trigger === "on-demand");
+  const worktreeCreatedSteps = (config?.steps ?? []).filter((s) => s.trigger === "worktree-created");
+  const worktreeRemovedSteps = (config?.steps ?? []).filter((s) => s.trigger === "worktree-removed");
   const preSkills = (config?.skills ?? []).filter((s) => s.trigger === "pre-implementation");
   const postSkills = (config?.skills ?? []).filter(
     (s) => s.trigger === "post-implementation" || !s.trigger,
@@ -623,6 +627,8 @@ export function HooksTab({
   const hasPost = postSteps.length > 0 || postSkills.length > 0;
   const hasCustom = customSteps.length > 0 || customSkills.length > 0;
   const hasOnDemand = onDemandSteps.length > 0 || onDemandSkills.length > 0;
+  const hasWorktreeCreated = worktreeCreatedSteps.length > 0;
+  const hasWorktreeRemoved = worktreeRemovedSteps.length > 0;
 
   // Group custom items by condition
   const customGroups: Record<
@@ -643,7 +649,7 @@ export function HooksTab({
   }
 
   // Nothing configured at all
-  if (!hasPre && !hasPost && !hasCustom && !hasOnDemand) {
+  if (!hasPre && !hasPost && !hasCustom && !hasOnDemand && !hasWorktreeCreated && !hasWorktreeRemoved) {
     return (
       <div className="relative flex-1 flex flex-col min-h-0 mx-1 mb-[3px] rounded-t-xl rounded-b-lg bg-black/25 border border-black/40 overflow-hidden">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent" />
@@ -652,7 +658,19 @@ export function HooksTab({
           <p className={`text-xs ${text.muted} text-center`}>
             No hook steps or skills configured.
             <br />
-            Add them in the Hooks view to run checks on this worktree.
+            Add them in the{" "}
+            {onNavigateToHooks ? (
+              <button
+                type="button"
+                onClick={onNavigateToHooks}
+                className="text-accent hover:text-accent/80 underline decoration-accent/50 underline-offset-2 transition-colors"
+              >
+                Hooks
+              </button>
+            ) : (
+              "Hooks"
+            )}{" "}
+            view to run checks on this worktree.
           </p>
         </div>
       </div>
@@ -703,6 +721,52 @@ export function HooksTab({
                   onViewReport={handleViewReport}
                 />
               )}
+            </>
+          )}
+
+          {/* Worktree Created */}
+          {hasWorktreeCreated && (
+            <>
+              <div className="flex items-center gap-2 px-4 pt-2 pb-3 mt-8">
+                <FolderPlus className="w-4 h-4 text-cyan-400" />
+                <span className={`text-xs ${text.primary}`}>Worktree Created</span>
+                <span className={`text-[10px] ${text.muted}`}>
+                  {worktreeCreatedSteps.length} item
+                  {worktreeCreatedSteps.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <StepList
+                steps={worktreeCreatedSteps}
+                stepResults={stepResults}
+                runningSteps={runningSteps}
+                runningAll={false}
+                expandedSteps={expandedSteps}
+                setExpandedSteps={setExpandedSteps}
+                onRunSingle={handleRunSingle}
+              />
+            </>
+          )}
+
+          {/* Worktree Removed */}
+          {hasWorktreeRemoved && (
+            <>
+              <div className="flex items-center gap-2 px-4 pt-2 pb-3 mt-8">
+                <FolderMinus className="w-4 h-4 text-rose-400" />
+                <span className={`text-xs ${text.primary}`}>Worktree Removed</span>
+                <span className={`text-[10px] ${text.muted}`}>
+                  {worktreeRemovedSteps.length} item
+                  {worktreeRemovedSteps.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <StepList
+                steps={worktreeRemovedSteps}
+                stepResults={stepResults}
+                runningSteps={runningSteps}
+                runningAll={false}
+                expandedSteps={expandedSteps}
+                setExpandedSteps={setExpandedSteps}
+                onRunSingle={handleRunSingle}
+              />
             </>
           )}
 

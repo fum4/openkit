@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { DiffEditor } from "@monaco-editor/react";
 
 import { useSkillDetail, useSkillDeploymentStatus } from "../../hooks/useSkills";
 import { useApi } from "../../hooks/useApi";
@@ -10,6 +11,7 @@ import { border, skill as skillTheme, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { MarkdownContent } from "../MarkdownContent";
 import { Spinner } from "../Spinner";
+import { ToggleSwitch } from "../ToggleSwitch";
 
 const AGENTS = [
   { id: "claude", label: "Claude Code" },
@@ -47,12 +49,14 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
   const [configDraft, setConfigDraft] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deploying, setDeploying] = useState<string | null>(null);
+  const [showOriginalDiff, setShowOriginalDiff] = useState(false);
 
   useEffect(() => {
     setEditingName(false);
     setEditingRef(false);
     setEditingExamples(false);
     setEditingConfig(null);
+    setShowOriginalDiff(false);
   }, [skillName]);
 
   const saveUpdate = useCallback(
@@ -212,22 +216,10 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
                         {isToggling ? (
                           <Spinner size="xs" className={text.dimmed} />
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleDeploy(agent.id, scope, isDeployed)}
-                            className="relative w-7 h-4 rounded-full transition-colors duration-200 focus:outline-none"
-                            style={{
-                              backgroundColor: isDeployed
-                                ? "rgba(45,212,191,0.35)"
-                                : "rgba(255,255,255,0.08)",
-                            }}
-                          >
-                            <span
-                              className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${
-                                isDeployed ? "left-3.5 bg-teal-400" : "left-0.5 bg-white/40"
-                              }`}
-                            />
-                          </button>
+                          <ToggleSwitch
+                            checked={isDeployed}
+                            onToggle={() => handleDeploy(agent.id, scope, isDeployed)}
+                          />
                         )}
                       </div>
                     );
@@ -389,7 +381,44 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
           content={skill.skillMd}
           rows={16}
           onSave={(v) => saveUpdate({ skillMd: v })}
+          headerActions={
+            skill.builtIn && skill.originalSkillMd ? (
+              <button
+                type="button"
+                onClick={() => setShowOriginalDiff((v) => !v)}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                  showOriginalDiff
+                    ? "bg-teal-500/[0.15] text-teal-300"
+                    : `bg-white/[0.06] ${text.dimmed} hover:${text.muted}`
+                }`}
+              >
+                {showOriginalDiff ? "Hide original diff" : "Compare with original"}
+              </button>
+            ) : null
+          }
         />
+        {showOriginalDiff && skill.builtIn && skill.originalSkillMd && (
+          <section>
+            <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>
+              Built-in Original vs Current
+            </h3>
+            <div className={`rounded-lg overflow-hidden border ${border.subtle} bg-black/20`}>
+              <DiffEditor
+                original={skill.originalSkillMd}
+                modified={skill.skillMd}
+                language="markdown"
+                height="520px"
+                options={{
+                  readOnly: true,
+                  renderSideBySide: true,
+                  minimap: { enabled: false },
+                  wordWrap: "on",
+                  scrollBeyondLastLine: false,
+                }}
+              />
+            </div>
+          </section>
+        )}
 
         {/* reference.md */}
         {skill.hasReference || editingRef ? (
@@ -479,18 +508,7 @@ function ToggleConfigRow({
   return (
     <div className="flex items-center gap-2">
       <span className={`text-[10px] ${text.dimmed} w-28 flex-shrink-0`}>{label}</span>
-      <button
-        type="button"
-        onClick={() => onToggle(!value)}
-        className="relative w-7 h-4 rounded-full transition-colors duration-200 focus:outline-none"
-        style={{ backgroundColor: value ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)" }}
-      >
-        <span
-          className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${
-            value ? "left-3.5 bg-teal-400" : "left-0.5 bg-white/40"
-          }`}
-        />
-      </button>
+      <ToggleSwitch checked={value} onToggle={() => onToggle(!value)} />
     </div>
   );
 }
@@ -529,7 +547,7 @@ function EditableConfigRow({
       if (selectRef.current) {
         selectRef.current.focus();
         try {
-          selectRef.current.showPicker();
+          (selectRef.current as HTMLSelectElement & { showPicker?: () => void }).showPicker?.();
         } catch {
           /* unsupported */
         }
@@ -697,6 +715,7 @@ function AutoSaveFileSection({
   onSave,
   onDelete,
   startEditing,
+  headerActions,
 }: {
   title: string;
   content: string;
@@ -704,6 +723,7 @@ function AutoSaveFileSection({
   onSave: (value: string) => Promise<unknown>;
   onDelete?: () => void;
   startEditing?: boolean;
+  headerActions?: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(!!startEditing);
   const [draft, setDraft] = useState(startEditing ? content : "");
@@ -745,15 +765,18 @@ function AutoSaveFileSection({
     <section>
       <div className="flex items-center justify-between mb-2">
         <h3 className={`text-[11px] font-medium ${text.muted}`}>{title}</h3>
-        {onDelete && !startEditing && (
-          <button
-            type="button"
-            onClick={onDelete}
-            className={`p-0.5 rounded ${text.dimmed} hover:text-red-400 transition-colors`}
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {headerActions}
+          {onDelete && !startEditing && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className={`p-0.5 rounded ${text.dimmed} hover:text-red-400 transition-colors`}
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
       {editing ? (
         <textarea

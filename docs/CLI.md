@@ -6,6 +6,23 @@ dawg is primarily a CLI tool. Running `dawg` with no arguments starts the server
 dawg [command] [options]
 ```
 
+## Command Inventory
+
+| Command                                                 | Description                                                              |
+| ------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `dawg [--no-open] [--auto-init]`                        | Start dawg server/UI for the current project.                            |
+| `dawg init`                                             | Run setup wizard and create `.dawg/config.json`.                         |
+| `dawg add [github\|linear\|jira]`                       | Connect or configure an integration.                                     |
+| `dawg mcp`                                              | Run dawg as an MCP server for agents.                                    |
+| `dawg activity await-input ...`                         | Emit an "agent awaiting user input" activity event for the UI.           |
+| `dawg activity phase ...`                               | Emit a canonical workflow phase checkpoint event for a worktree.         |
+| `dawg activity check-flow ...`                          | Validate whether required workflow phases/hooks were completed.           |
+| `dawg task`                                             | Open interactive task flow (choose source, then pick or enter issue ID). |
+| `dawg task [ID...] [--init] [--save] [--link]`          | Auto-resolve source from ID(s), then continue with selected action.      |
+| `dawg task [source] [--init] [--save] [--link]`         | Open source-specific issue picker, then continue with selected action.   |
+| `dawg task [source] [ID...] [--init] [--save] [--link]` | Fetch task(s) from explicit source and optionally initialize/link/save.  |
+| `dawg task resolve [ID...] [--json]`                    | Resolve issue source/normalized key without creating worktrees.          |
+
 ---
 
 ## Commands
@@ -70,6 +87,7 @@ The wizard prompts for:
 After writing the config, `init` also:
 
 - Creates a `.dawg/.gitignore` with a whitelist approach (ignores everything except `config.json` and `.gitignore`)
+- Auto-enables the default project skill (`work-on-task`) in per-agent project skill directories
 - Stages both files with `git add` so they are ready to commit
 - Detects environment variable mappings if ports are already configured
 - Prints next steps for getting started
@@ -176,39 +194,151 @@ Typical usage in a Claude Code MCP configuration:
 
 ---
 
-### `dawg task [source] [ID...]`
+### `dawg activity await-input`
+
+Emit an activity event when an agent is blocked waiting for user input/approval. This powers the special **Input needed** badge shown to the left of the bell icon in the header.
+
+```bash
+dawg activity await-input --message "Need approval to run DB migration"
+dawg activity await-input "Need product decision on checkout copy" --worktree NOM-18
+dawg activity await-input --message "Need confirmation" --detail "Ship with flag on?" --severity warning
+```
+
+Behavior:
+
+1. Finds the running project server via `.dawg/server.json`
+2. Posts `agent_awaiting_input` to `POST /api/activity`
+3. Sets `metadata.requiresUserAction=true` so the event appears in the Activity feed's action-required section
+
+Options:
+
+- `--message <text>` (required, positional text also supported)
+- `--worktree <id>` (optional, inferred from `.dawg/worktrees/<id>/...` path when omitted)
+- `--detail <text>` (optional)
+- `--severity <info|success|warning|error>` (optional, default `warning`)
+
+---
+
+### `dawg activity phase`
+
+Emit a canonical workflow checkpoint event so agents can prove they respected the required flow.
+
+```bash
+dawg activity phase --phase task-started --worktree NOM-18
+dawg activity phase pre-hooks-started --worktree NOM-18
+dawg activity phase --phase implementation-completed --detail "Core feature done; preparing post-hooks"
+```
+
+Supported phases:
+
+- `task-started`
+- `pre-hooks-started`
+- `pre-hooks-completed`
+- `implementation-started`
+- `implementation-completed`
+- `post-hooks-started`
+- `post-hooks-completed`
+
+Options:
+
+- `--phase <name>` (required, positional also supported)
+- `--worktree <id>` (optional, inferred from `.dawg/worktrees/<id>/...` path when omitted)
+- `--message <text>` (optional custom title; defaults to `Workflow phase: <phase>`)
+- `--detail <text>` (optional)
+- `--severity <info|success|warning|error>` (optional, default `info`)
+
+---
+
+### `dawg activity check-flow`
+
+Validate flow compliance for a worktree. This checks required workflow phases plus required hook/skill execution evidence.
+
+```bash
+dawg activity check-flow --worktree NOM-18
+dawg activity check-flow --worktree NOM-18 --json
+```
+
+Behavior:
+
+1. Calls `GET /api/worktrees/:id/flow-compliance`
+2. Reports pass/fail, missing phases, hook/skill gaps, and required follow-up actions
+3. Exits non-zero when compliance fails (useful as a pre-finalization gate)
+
+Options:
+
+- `--worktree <id>` (optional, inferred from current worktree path when omitted)
+- `--json` (optional, prints full JSON report)
+
+---
+
+### `dawg task [source|resolve] [ID...]`
 
 Create worktrees from issue IDs. Supports Jira, Linear, and local issues.
 
 ```bash
-dawg task                               # Interactive: pick source, then enter ID
-dawg task jira PROJ-123                 # Jira issue
-dawg task linear ENG-42                 # Linear issue
-dawg task local 7                       # Local issue (LOCAL-7)
-dawg task jira PROJ-123 PROJ-456        # Batch mode: multiple IDs from same source
-dawg task jira 123                      # Uses default project key from Jira config
+dawg task
+dawg task jira
+dawg task jira PROJ-123
+dawg task linear ENG-42
+dawg task local 7
+dawg task PROJ-123 --init
+dawg task local LOCAL-1 --init
+dawg task jira PROJ-123 --save
+dawg task jira PROJ-123 PROJ-456
+dawg task jira 123
+dawg task resolve ENG-42 --json
 ```
 
-The first argument is the issue source (`jira`, `linear`, or `local`). If omitted, an interactive prompt asks you to pick a source and enter an ID.
+The first argument can be:
+
+- a source (`jira`, `linear`, `local`) followed by IDs
+- a source only (`jira`, `linear`, `local`) to open an interactive issue picker
+- `resolve` followed by IDs (resolution-only mode)
+- an ID directly (source auto-resolution mode)
 
 Requires the relevant integration to be connected (`dawg add jira` for Jira, `dawg add linear` for Linear). Local issues don't require an integration.
 
 **Single task mode:** Fetches the issue, prints a summary, saves task data, then prompts for an action (create worktree, link to existing, or just save).
 
+When source is provided without an ID (for example `dawg task jira`), CLI shows:
+
+- `Type issue ID manually`
+- followed by tracker issues in the format `<ID> — <title>`
+
 **Batch mode** (multiple IDs): Fetches each issue, auto-creates a worktree for each, and skips interactive prompts. Errors on individual tasks are logged but don't stop the batch.
+
+**Action flags** (optional): Skip interactive action prompts in single-task mode.
+
+- `--init` -- initialize (create/link) worktree immediately
+- `--save` -- fetch/save task only
+- `--link` -- jump directly to "select existing worktree"
+- `--json` -- machine-readable output for `dawg task resolve`
+
+**Resolver behavior (`dawg task resolve`)**
+
+Resolution checks happen in this order:
+
+1. Existing issue files under `.dawg/issues/` (local/jira/linear)
+2. Connected integrations in `.dawg/integrations.json`
+3. Default keys when both integrations are connected:
+   - Jira: `jira.defaultProjectKey`
+   - Linear: `linear.defaultTeamKey`
+
+If the source is ambiguous, the command exits with an error and asks you to specify source explicitly.
+When a prefixed Jira/Linear key is validated, dawg updates the corresponding default key in `.dawg/integrations.json` automatically.
 
 This command:
 
-1. Resolves the task key (if a bare number is given, prepends the configured default project/team key)
+1. Resolves the source and task key (from cache/integrations/default keys when needed)
 2. Fetches issue details (summary, status, priority, assignee, labels)
 3. Prints a summary of the issue
 4. Saves task data locally
 5. Downloads any attachments (Jira only)
 6. In single mode, prompts for an action:
-   - **Create a worktree** -- creates a new git worktree with the issue key as the branch name, copies `.env` files, runs the install command
+   - **Create a worktree** -- creates a new git worktree with the issue key as the branch name, copies `.env` files, runs the install command, then runs `worktree-created` command hooks (if configured)
    - **Link to an existing worktree** -- associates the task with a worktree that already exists
    - **Just save the data** -- saves the task data without creating or linking a worktree
-7. In batch mode, automatically creates a worktree for each task
+7. In batch mode, automatically creates a worktree for each task and runs `worktree-created` command hooks per successful creation
 
 ---
 
@@ -233,7 +363,8 @@ Commands:
   init          Interactive setup wizard to create .dawg/config.json
   add [name]    Set up an integration (github, linear, jira)
   mcp           Start as an MCP server (for AI coding agents)
-  task [source] [ID...] Create worktrees from issues (jira, linear, local)
+  activity      Emit workflow activity events (for agent/user coordination)
+  task [source|resolve] [ID...] Manage task resolution and worktree creation
 
 Options:
   --no-open     Start the server without opening the UI
@@ -299,6 +430,7 @@ If the chosen port is already in use, dawg automatically increments and tries th
 | `DAWG_PORT`      | Override the server port (highest priority)                                       |
 | `DAWG_NO_OPEN`   | Set to `1` to start the server without opening the UI (equivalent to `--no-open`) |
 | `DAWG_AUTO_INIT` | Set to `1` to auto-initialize config if none found (equivalent to `--auto-init`)  |
+| `DAWG_ENABLE_MCP_SETUP` | Set to `1` to enable MCP setup routes |
 
 ---
 

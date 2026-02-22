@@ -1,5 +1,9 @@
 # This document outlines new features
 
+## Worktree Hooks
+
+Add hooks to worktree creation/removal, configurable from settings page
+
 ## Projects / Roadmaps
 
 Users should be able to work on tasks in batches. Add capability to group, serve and track tasks together.

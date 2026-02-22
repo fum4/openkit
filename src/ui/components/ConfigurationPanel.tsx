@@ -1,8 +1,10 @@
 import Editor from "@monaco-editor/react";
 import {
   Bell,
+  ChevronDown,
   GitCommitHorizontal,
   GitBranch,
+  ListTodo,
   Network,
   RotateCcw,
   Settings,
@@ -12,10 +14,12 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { APP_NAME } from "../../constants";
+import { ACTIVITY_TYPES } from "../../server/activity-event";
 import { type WorktreeConfig } from "../hooks/useConfig";
 import { useApi } from "../hooks/useApi";
 import { button, infoBanner, input, settings, surface, tab, text } from "../theme";
 import { Spinner } from "./Spinner";
+import { ToggleSwitch } from "./ToggleSwitch";
 import { Tooltip } from "./Tooltip";
 
 const SETTINGS_BANNER_DISMISSED_KEY = `${APP_NAME}-settings-banner-dismissed`;
@@ -40,6 +44,144 @@ function Field({
 
 const fieldInputBase = `px-2.5 py-1.5 rounded-md text-xs bg-white/[0.04] border border-white/[0.06] ${input.text} placeholder-[#4b5563] focus:outline-none focus:bg-white/[0.06] focus:border-white/[0.15] transition-all duration-150`;
 const fieldInputClass = `w-full ${fieldInputBase}`;
+
+const ACTIVITY_NOTIFICATION_GROUPS = [
+  {
+    category: "Worktree",
+    events: [
+      { key: ACTIVITY_TYPES.CREATION_STARTED, label: "Creation started" },
+      { key: ACTIVITY_TYPES.CREATION_COMPLETED, label: "Created" },
+      { key: ACTIVITY_TYPES.CREATION_FAILED, label: "Creation failed" },
+      { key: ACTIVITY_TYPES.WORKTREE_STARTED, label: "Started" },
+      { key: ACTIVITY_TYPES.WORKTREE_STOPPED, label: "Stopped" },
+      { key: ACTIVITY_TYPES.WORKTREE_CRASHED, label: "Crashed" },
+    ],
+  },
+  {
+    category: "Agent",
+    events: [
+      { key: ACTIVITY_TYPES.AGENT_DISCONNECTED, label: "Disconnected" },
+      { key: ACTIVITY_TYPES.NOTIFY, label: "Status update" },
+      { key: ACTIVITY_TYPES.COMMIT_COMPLETED, label: "Commit" },
+      { key: ACTIVITY_TYPES.COMMIT_FAILED, label: "Commit failed" },
+      { key: ACTIVITY_TYPES.PUSH_COMPLETED, label: "Push" },
+      { key: ACTIVITY_TYPES.PUSH_FAILED, label: "Push failed" },
+      { key: ACTIVITY_TYPES.PR_CREATED, label: "PR created" },
+      { key: ACTIVITY_TYPES.HOOKS_STARTED, label: "Hooks started" },
+      { key: ACTIVITY_TYPES.HOOKS_RAN, label: "Hooks ran" },
+      { key: ACTIVITY_TYPES.SKILL_STARTED, label: "Skill started" },
+      { key: ACTIVITY_TYPES.SKILL_COMPLETED, label: "Skill completed" },
+      { key: ACTIVITY_TYPES.SKILL_FAILED, label: "Skill failed" },
+      { key: ACTIVITY_TYPES.AGENT_AWAITING_INPUT, label: "Awaiting input" },
+      { key: ACTIVITY_TYPES.TASK_DETECTED, label: "Task detected" },
+      { key: ACTIVITY_TYPES.AUTO_TASK_CLAIMED, label: "Claude started task" },
+    ],
+  },
+  {
+    category: "System",
+    events: [
+      { key: ACTIVITY_TYPES.CONNECTION_LOST, label: "Connection lost" },
+      { key: ACTIVITY_TYPES.CONNECTION_RESTORED, label: "Connection restored" },
+      { key: ACTIVITY_TYPES.CONFIG_NEEDS_PUSH, label: "Config needs push" },
+    ],
+  },
+] as const;
+
+type NotificationDeliveryMode = "off" | "in-app" | "in-app-desktop";
+type NotificationGroupMode = NotificationDeliveryMode | "mixed";
+
+const NOTIFICATION_DELIVERY_MODES: Array<{ key: NotificationDeliveryMode; label: string }> = [
+  { key: "off", label: "Off" },
+  { key: "in-app", label: "In-app" },
+  { key: "in-app-desktop", label: "In-app + desktop" },
+];
+const GROUP_NOTIFICATION_DELIVERY_MODES: Array<{ key: NotificationGroupMode; label: string }> = [
+  ...NOTIFICATION_DELIVERY_MODES,
+  { key: "mixed", label: "Mixed" },
+];
+
+function uniqueEventTypes(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const unique = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const normalized = item.trim();
+    if (!normalized) continue;
+    unique.add(normalized);
+  }
+  return [...unique];
+}
+
+function getNotificationDeliveryMode(
+  eventType: string,
+  activity: WorktreeConfig["activity"] | undefined,
+): NotificationDeliveryMode {
+  const disabled = new Set(uniqueEventTypes(activity?.disabledEvents));
+  if (disabled.has(eventType)) return "off";
+
+  // If desktop events were never configured, default to in-app + desktop.
+  if (activity?.osNotificationEvents === undefined) {
+    return "in-app-desktop";
+  }
+
+  const desktop = new Set(
+    uniqueEventTypes(activity?.osNotificationEvents).filter((type) => !disabled.has(type)),
+  );
+  if (desktop.has(eventType)) return "in-app-desktop";
+
+  return "in-app";
+}
+
+function applyNotificationDeliveryMode(
+  eventType: string,
+  mode: NotificationDeliveryMode,
+  activity: WorktreeConfig["activity"] | undefined,
+): WorktreeConfig["activity"] {
+  const disabled = new Set(uniqueEventTypes(activity?.disabledEvents));
+  const desktop = new Set(
+    uniqueEventTypes(activity?.osNotificationEvents).filter((type) => !disabled.has(type)),
+  );
+
+  if (mode === "off") {
+    disabled.add(eventType);
+    desktop.delete(eventType);
+  } else if (mode === "in-app") {
+    disabled.delete(eventType);
+    desktop.delete(eventType);
+  } else {
+    disabled.delete(eventType);
+    desktop.add(eventType);
+  }
+
+  return {
+    ...activity,
+    disabledEvents: [...disabled],
+    osNotificationEvents: [...desktop].filter((type) => !disabled.has(type)),
+  };
+}
+
+function getGroupNotificationDeliveryMode(
+  eventTypes: readonly string[],
+  activity: WorktreeConfig["activity"] | undefined,
+): NotificationGroupMode {
+  const modes = new Set(
+    eventTypes.map((eventType) => getNotificationDeliveryMode(eventType, activity)),
+  );
+  if (modes.size !== 1) return "mixed";
+  return [...modes][0] as NotificationDeliveryMode;
+}
+
+function applyNotificationDeliveryModeToGroup(
+  eventTypes: readonly string[],
+  mode: NotificationDeliveryMode,
+  activity: WorktreeConfig["activity"] | undefined,
+): WorktreeConfig["activity"] {
+  let next = activity;
+  for (const eventType of eventTypes) {
+    next = applyNotificationDeliveryMode(eventType, mode, next);
+  }
+  return next ?? {};
+}
 
 function TextInput({
   value,
@@ -199,6 +341,11 @@ export function ConfigurationPanel({
   const [showBanner, setShowBanner] = useState(() => {
     return localStorage.getItem(SETTINGS_BANNER_DISMISSED_KEY) !== "true";
   });
+  const [expandedNotificationGroups, setExpandedNotificationGroups] = useState<
+    Record<string, boolean>
+  >(() =>
+    Object.fromEntries(ACTIVITY_NOTIFICATION_GROUPS.map((group) => [group.category, false])),
+  );
 
   const dismissBanner = () => {
     setShowBanner(false);
@@ -207,7 +354,7 @@ export function ConfigurationPanel({
 
   useEffect(() => {
     if (config) {
-      setForm({ ...config, envMapping: { ...(config.envMapping ?? {}) } });
+      setForm({ ...config, envMapping: { ...config.envMapping } });
     }
   }, [config]);
 
@@ -396,6 +543,30 @@ export function ConfigurationPanel({
                 onChange={(v) => setForm({ ...form, projectDir: v })}
               />
             </Field>
+          </div>
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">
+            <div className="flex flex-col gap-0.5">
+              <span className={`text-xs font-medium ${settings.label}`}>
+                Auto-install dependencies
+              </span>
+              <span className={`text-[11px] ${settings.description}`}>
+                Run install command when creating a new worktree
+              </span>
+            </div>
+            <ToggleSwitch
+              checked={form.autoInstall !== false}
+              onToggle={() => setForm({ ...form, autoInstall: !(form.autoInstall !== false) })}
+            />
+          </div>
+        </div>
+
+        {/* Local Issues Card */}
+        <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
+          <h3 className={`text-xs font-semibold ${text.primary} mb-4 flex items-center gap-2`}>
+            <ListTodo className={`w-3.5 h-3.5 ${text.muted}`} />
+            Local Issues
+          </h3>
+          <div className="flex flex-col gap-4">
             <Field
               label="Local Issue Prefix"
               description="Prefix for local issue identifiers (leave empty for number only)"
@@ -407,31 +578,80 @@ export function ConfigurationPanel({
                 }
               />
             </Field>
-          </div>
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">
-            <div className="flex flex-col gap-0.5">
-              <span className={`text-xs font-medium ${settings.label}`}>
-                Auto-install dependencies
-              </span>
-              <span className={`text-[11px] ${settings.description}`}>
-                Run install command when creating a new worktree
-              </span>
+
+            <div className="border-t border-white/[0.06] pt-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-0.5">
+                  <span className={`text-xs font-medium ${settings.label}`}>
+                    Auto-start Claude on new local issue
+                  </span>
+                  <span className={`text-[11px] ${settings.description}`}>
+                    Create/open the local issue worktree and launch Claude automatically.
+                  </span>
+                </div>
+                <ToggleSwitch
+                  checked={form.localAutoStartClaudeOnNewIssue === true}
+                  onToggle={() =>
+                    setForm({
+                      ...form,
+                      localAutoStartClaudeOnNewIssue: !form.localAutoStartClaudeOnNewIssue,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-0.5">
+                  <span
+                    className={`text-xs font-medium ${
+                      form.localAutoStartClaudeOnNewIssue ? settings.label : text.dimmed
+                    }`}
+                  >
+                    Skip Claude permission prompts
+                  </span>
+                  <span className={`text-[11px] ${settings.description}`}>
+                    Runs Claude with `--dangerously-skip-permissions`.
+                  </span>
+                </div>
+                <ToggleSwitch
+                  checked={form.localAutoStartClaudeSkipPermissions !== false}
+                  disabled={!form.localAutoStartClaudeOnNewIssue}
+                  onToggle={() =>
+                    setForm({
+                      ...form,
+                      localAutoStartClaudeSkipPermissions:
+                        !(form.localAutoStartClaudeSkipPermissions !== false),
+                    })
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-0.5">
+                  <span
+                    className={`text-xs font-medium ${
+                      form.localAutoStartClaudeOnNewIssue ? settings.label : text.dimmed
+                    }`}
+                  >
+                    Focus Claude terminal on auto-start
+                  </span>
+                  <span className={`text-[11px] ${settings.description}`}>
+                    Redirect to the worktree Claude terminal when auto-start begins.
+                  </span>
+                </div>
+                <ToggleSwitch
+                  checked={form.localAutoStartClaudeFocusTerminal !== false}
+                  disabled={!form.localAutoStartClaudeOnNewIssue}
+                  onToggle={() =>
+                    setForm({
+                      ...form,
+                      localAutoStartClaudeFocusTerminal:
+                        !(form.localAutoStartClaudeFocusTerminal !== false),
+                    })
+                  }
+                />
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setForm({ ...form, autoInstall: !(form.autoInstall !== false) })}
-              className="relative w-8 h-[18px] rounded-full transition-colors duration-200 focus:outline-none"
-              style={{
-                backgroundColor:
-                  form.autoInstall !== false ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)",
-              }}
-            >
-              <span
-                className={`absolute top-[3px] w-3 h-3 rounded-full transition-all duration-200 ${
-                  form.autoInstall !== false ? "left-4 bg-teal-400" : "left-0.5 bg-white/40"
-                }`}
-              />
-            </button>
           </div>
         </div>
 
@@ -788,87 +1008,162 @@ export function ConfigurationPanel({
             Notifications
           </h3>
           <p className={`text-[11px] ${text.dimmed} leading-relaxed mb-3`}>
-            Choose which activity events trigger toast notifications.
+            Choose how each activity type is delivered: off, in-app only, or in-app plus desktop.
+            Desktop delivery always implies in-app delivery.
           </p>
           <div className="flex flex-col gap-4">
-            {(
-              [
-                {
-                  category: "Worktree",
-                  events: [
-                    { key: "creation_completed", label: "Created" },
-                    { key: "creation_failed", label: "Creation failed" },
-                    { key: "started", label: "Started" },
-                    { key: "stopped", label: "Stopped" },
-                    { key: "crashed", label: "Crashed" },
-                  ],
-                },
-                {
-                  category: "Agent",
-                  events: [
-                    { key: "agent_connected", label: "Connected" },
-                    { key: "notify", label: "Status update" },
-                    { key: "commit_completed", label: "Commit" },
-                    { key: "commit_failed", label: "Commit failed" },
-                    { key: "push_completed", label: "Push" },
-                    { key: "push_failed", label: "Push failed" },
-                    { key: "pr_created", label: "PR created" },
-                    { key: "skill_started", label: "Skill started" },
-                    { key: "skill_completed", label: "Skill completed" },
-                    { key: "skill_failed", label: "Skill failed" },
-                    { key: "hooks_ran", label: "Hooks ran" },
-                  ],
-                },
-              ] as const
-            ).map((group) => (
-              <div key={group.category}>
-                <span className={`text-[10px] font-medium ${text.secondary} mb-1.5 block`}>
-                  {group.category}
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {group.events.map(({ key, label }) => {
-                    const toastEvents = config?.activity?.toastEvents ?? [
-                      "creation_completed",
-                      "creation_failed",
-                      "crashed",
-                      "skill_failed",
-                    ];
-                    const enabled = toastEvents.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={async () => {
-                          const current = config?.activity?.toastEvents ?? [
-                            "creation_completed",
-                            "creation_failed",
-                            "crashed",
-                            "skill_failed",
-                          ];
-                          const next = enabled
-                            ? current.filter((e: string) => e !== key)
-                            : [...current, key];
-                          await api.saveConfig({
-                            activity: { ...config?.activity, toastEvents: next },
-                          });
-                          onSaved();
-                        }}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors duration-150 ${
-                          enabled
-                            ? "bg-teal-500/[0.15] text-teal-300"
-                            : `bg-white/[0.06] ${text.dimmed} hover:text-white/40`
-                        }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${enabled ? "bg-teal-400" : "bg-white/20"}`}
-                        />
-                        {label}
-                      </button>
-                    );
-                  })}
+            {ACTIVITY_NOTIFICATION_GROUPS.map((group) => {
+              const eventTypes = group.events.map((event) => event.key);
+              const groupMode = getGroupNotificationDeliveryMode(eventTypes, config?.activity);
+              const expanded = expandedNotificationGroups[group.category] ?? false;
+
+              return (
+                <div
+                  key={group.category}
+                  className={`rounded-md border border-white/[0.08] bg-white/[0.02] px-2.5 py-1.5 ${expanded ? "" : "cursor-pointer"}`}
+                  onClick={() => {
+                    if (expanded) return;
+                    setExpandedNotificationGroups((prev) => ({
+                      ...prev,
+                      [group.category]: true,
+                    }));
+                  }}
+                  role={!expanded ? "button" : undefined}
+                  tabIndex={!expanded ? 0 : undefined}
+                  onKeyDown={(event) => {
+                    if (expanded) return;
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    setExpandedNotificationGroups((prev) => ({
+                      ...prev,
+                      [group.category]: true,
+                    }));
+                  }}
+                  aria-expanded={expanded}
+                >
+                  <div
+                    className={`flex items-center justify-between gap-2 pr-2.5 min-h-7 ${expanded ? "mb-1" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setExpandedNotificationGroups((prev) => ({
+                          ...prev,
+                          [group.category]: !expanded,
+                        }));
+                      }}
+                      className={`inline-flex h-6 flex-1 items-center justify-start gap-1 text-xs font-medium ${text.secondary} hover:text-white transition-colors leading-none`}
+                    >
+                      <ChevronDown
+                        className={`w-3 h-3 transition-transform duration-150 ${expanded ? "" : "-rotate-90"}`}
+                      />
+                      {group.category}
+                    </button>
+                    <div
+                      className="inline-flex self-center shrink-0 items-center rounded-md border border-white/[0.08] bg-[#0f1217] p-0.5"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {GROUP_NOTIFICATION_DELIVERY_MODES.map((modeOption) => {
+                        const active = groupMode === modeOption.key;
+                        const isActionable = modeOption.key !== "mixed";
+                        const cursor =
+                          modeOption.key === "mixed"
+                            ? active
+                              ? "default"
+                              : "not-allowed"
+                            : active
+                              ? "default"
+                              : "pointer";
+                        const activeClass =
+                          modeOption.key === "off"
+                            ? "bg-red-500/20 text-red-300"
+                            : modeOption.key === "mixed"
+                              ? "bg-white/[0.10] text-white/75"
+                              : "bg-accent/15 text-accent";
+                        return (
+                          <button
+                            key={modeOption.key}
+                            type="button"
+                            onClick={async (event) => {
+                              event.stopPropagation();
+                              if (modeOption.key === "mixed" || active) return;
+                              const activity = applyNotificationDeliveryModeToGroup(
+                                eventTypes,
+                                modeOption.key,
+                                config?.activity,
+                              );
+                              await api.saveConfig({ activity });
+                              onSaved();
+                            }}
+                            aria-disabled={!isActionable}
+                            style={{ cursor }}
+                            className={`px-2 py-1 text-[10px] rounded transition-colors duration-150 ${
+                              active
+                                ? activeClass
+                                : isActionable
+                                  ? `${text.dimmed} hover:text-white/70 hover:bg-white/[0.04]`
+                                  : `${text.dimmed} opacity-60`
+                            }`}
+                          >
+                            {modeOption.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {expanded && (
+                    <div className="mt-[6px] mx-[-10px] border-t border-white/[0.08]">
+                      <div className="pt-2 px-2.5 flex flex-col gap-1.5">
+                        {group.events.map(({ key: eventType, label }) => {
+                          const mode = getNotificationDeliveryMode(eventType, config?.activity);
+                          return (
+                            <div
+                              key={eventType}
+                              className="flex items-center justify-between gap-2 rounded-sm px-2.5 py-1.5 transition-colors hover:bg-white/[0.04]"
+                            >
+                              <span className="text-[10px]">{label}</span>
+                              <div className="inline-flex items-center rounded-md border border-white/[0.08] bg-[#0f1217] p-0.5">
+                                {NOTIFICATION_DELIVERY_MODES.map((modeOption) => {
+                                  const active = modeOption.key === mode;
+                                  const activeClass =
+                                    modeOption.key === "off"
+                                      ? "bg-red-500/20 text-red-300"
+                                      : "bg-accent/15 text-accent";
+                                  return (
+                                    <button
+                                      key={modeOption.key}
+                                      type="button"
+                                      onClick={async () => {
+                                        if (active) return;
+                                        const activity = applyNotificationDeliveryMode(
+                                          eventType,
+                                          modeOption.key,
+                                          config?.activity,
+                                        );
+                                        await api.saveConfig({ activity });
+                                        onSaved();
+                                      }}
+                                      className={`px-2 py-1 text-[10px] rounded transition-colors duration-150 ${
+                                        active
+                                          ? activeClass
+                                          : `${text.dimmed} hover:text-white/70 hover:bg-white/[0.04]`
+                                      }`}
+                                    >
+                                      {modeOption.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

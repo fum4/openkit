@@ -198,7 +198,7 @@ export function useMyFeature() {
 
 ### SSE for Real-Time Updates
 
-State is pushed from the server via Server-Sent Events. The `useWorktrees` hook connects to `/api/events` and handles three event types: `worktrees` (worktree state updates), `notification` (error/info messages displayed as toasts), and `hook-update` (triggers auto-refetch of hook results in the HooksTab). This is how the UI reflects process start/stop, log output, status changes, and agent-reported hook results without polling.
+State is pushed from the server via Server-Sent Events. The `useWorktrees` hook connects to `/api/events` and handles `worktrees` (worktree state updates), `notification` (direct user-action success/failure messages displayed as toasts), `hook-update` (triggers auto-refetch of hook results in the HooksTab), plus `activity` / `activity-history` (workflow and agent updates routed to the Activity feed). This is how the UI reflects process start/stop, log output, status changes, and agent-reported hook results without polling.
 
 ### Theme System
 
@@ -331,7 +331,7 @@ For reference, these are the CLI entry points (all in `src/cli/`):
 | `dawg init`                  | Interactive setup wizard to create `.dawg/config.json` |
 | `dawg connect`               | Connect to an existing running dawg server             |
 | `dawg mcp`                   | Start as an MCP server (for Claude Code integration)   |
-| `dawg task [source] [ID...]` | Create worktrees from issues (jira, linear, local)     |
+| `dawg task [source|resolve] [ID...]` | Resolve issues and create worktrees (jira, linear, local) |
 
 ## Configuration
 

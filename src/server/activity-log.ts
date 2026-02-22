@@ -22,8 +22,18 @@ export class ActivityLog {
     if (!existsSync(dawgDir)) {
       mkdirSync(dawgDir, { recursive: true });
     }
-    this.filePath = path.join(dawgDir, "activity.json");
-    this.config = { ...DEFAULT_ACTIVITY_CONFIG, ...config };
+    this.filePath = path.join(dawgDir, "activity.jsonl");
+    this.config = {
+      ...DEFAULT_ACTIVITY_CONFIG,
+      ...config,
+      categories: {
+        ...DEFAULT_ACTIVITY_CONFIG.categories,
+        ...config?.categories,
+      },
+      disabledEvents: config?.disabledEvents ?? DEFAULT_ACTIVITY_CONFIG.disabledEvents,
+      toastEvents: config?.toastEvents ?? DEFAULT_ACTIVITY_CONFIG.toastEvents,
+      osNotificationEvents: config?.osNotificationEvents ?? DEFAULT_ACTIVITY_CONFIG.osNotificationEvents,
+    };
 
     // Prune on startup
     this.prune();
@@ -63,6 +73,9 @@ export class ActivityLog {
 
     // Check if category is enabled
     if (!this.config.categories[event.category]) {
+      return event;
+    }
+    if (this.config.disabledEvents.includes(event.type)) {
       return event;
     }
 
@@ -155,7 +168,17 @@ export class ActivityLog {
   }
 
   updateConfig(config: Partial<ActivityConfig>): void {
-    this.config = { ...this.config, ...config };
+    this.config = {
+      ...this.config,
+      ...config,
+      categories: {
+        ...this.config.categories,
+        ...config.categories,
+      },
+      disabledEvents: config.disabledEvents ?? this.config.disabledEvents,
+      toastEvents: config.toastEvents ?? this.config.toastEvents,
+      osNotificationEvents: config.osNotificationEvents ?? this.config.osNotificationEvents,
+    };
   }
 
   getConfig(): ActivityConfig {

@@ -9,6 +9,7 @@ import { ConfirmDialog } from "../ConfirmDialog";
 import { MarkdownContent } from "../MarkdownContent";
 import { Modal } from "../Modal";
 import { Spinner } from "../Spinner";
+import { ToggleSwitch } from "../ToggleSwitch";
 import { Tooltip } from "../Tooltip";
 
 interface PluginDetailPanelProps {
@@ -429,9 +430,9 @@ export function PluginDetailPanel({
 // ─── Helpers ─────────────────────────────────────────────────────
 
 const accentColors = {
-  teal: { bg: "rgba(45,212,191,0.35)", dot: "bg-teal-400" },
-  red: { bg: "rgba(248,113,113,0.35)", dot: "bg-red-400" },
-  yellow: { bg: "rgba(250,204,21,0.35)", dot: "bg-yellow-400" },
+  teal: { track: "bg-accent/35", thumb: "bg-accent" },
+  red: { track: "bg-red-400/35", thumb: "bg-red-400" },
+  yellow: { track: "bg-yellow-400/35", thumb: "bg-yellow-400" },
 };
 
 function DeployToggle({
@@ -449,20 +450,14 @@ function DeployToggle({
 }) {
   const colors = accentColors[accent ?? "teal"];
   return (
-    <button
-      type="button"
-      onClick={onToggle}
+    <ToggleSwitch
+      checked={active}
       disabled={disabled}
-      className={`relative w-7 h-4 rounded-full transition-colors duration-200 focus:outline-none ${disabled ? "opacity-50 pointer-events-none" : ""}`}
-      style={{ backgroundColor: active ? colors.bg : "rgba(255,255,255,0.08)" }}
+      onToggle={onToggle}
       title={title}
-    >
-      <span
-        className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${
-          active ? `left-3.5 ${colors.dot}` : "left-0.5 bg-white/40"
-        }`}
-      />
-    </button>
+      checkedTrackClassName={colors.track}
+      checkedThumbClassName={colors.thumb}
+    />
   );
 }
 

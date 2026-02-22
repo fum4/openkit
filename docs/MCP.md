@@ -103,7 +103,7 @@ All git operations are subject to the agent git policy. Call `get_git_policy` fi
 | Tool                 | Description                                                                                                                                                           | Parameters                                                                                                                                                                                                                                                                                                                                           |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `get_hooks_config`   | Get the hooks configuration, including command steps and skill references organized by trigger type.                                                                  | _(none)_                                                                                                                                                                                                                                                                                                                                             |
-| `run_hooks`          | Run hook command steps for a worktree. Steps matching the trigger type run in parallel.                                                                               | `worktreeId` (string, **required**); `trigger` (string, optional) -- `"pre-implementation"`, `"post-implementation"` (default), `"custom"`, or `"on-demand"`                                                                                                                                                                                         |
+| `run_hooks`          | Run hook command steps for a worktree. Steps matching the trigger type run in parallel.                                                                               | `worktreeId` (string, **required**); `trigger` (string, optional) -- `"pre-implementation"`, `"post-implementation"` (default), `"custom"`, `"on-demand"`, `"worktree-created"`, or `"worktree-removed"`                                                                                                                                              |
 | `report_hook_status` | Report a skill hook status. Call TWICE: once BEFORE invoking a skill (without `success`/`summary`) to show a loading state in the UI, and once AFTER with the result. | `worktreeId` (string, **required**); `skillName` (string, **required**); `trigger` (string, optional) -- hook trigger phase; `success` (boolean, optional -- omit for start); `summary` (string, optional -- omit for start); `content` (string, optional) -- detailed markdown; `filePath` (string, optional) -- absolute path to an MD report file |
 | `get_hooks_status`   | Get the current/last hook run status for a worktree, including step results.                                                                                          | `worktreeId` (string, **required**)                                                                                                                                                                                                                                                                                                                  |
 
@@ -139,7 +139,7 @@ Do NOT read .dawg/ files or make HTTP requests to the dawg server. All communica
 ## After Creating a Worktree
 1. Poll list_worktrees until status is 'stopped' (creation done)
 2. Navigate to the worktree path returned in the response
-3. Call get_hooks_config to discover all configured hooks (pre-implementation, post-implementation, custom, on-demand)
+3. Call get_hooks_config to discover all configured hooks (pre-implementation, post-implementation, custom, on-demand, plus lifecycle triggers)
 4. Run any pre-implementation hooks BEFORE starting work (see Hooks section below)
 5. Read TASK.md for full context (includes issue details, AI directions, and a todo checklist)
 6. Work through the todo items in order -- toggle each one as you complete it using update_todo
@@ -171,11 +171,15 @@ The project owner can restrict agent git operations. Before calling commit, push
 ## Hooks
 Hooks run at different points in the workflow. Call get_hooks_config EARLY (right after worktree creation) to discover all configured hooks.
 
-There are four trigger types:
+There are six trigger types:
 - **pre-implementation**: Run BEFORE you start coding. These set up context, run scaffolding, or enforce prerequisites.
 - **post-implementation**: Run AFTER you finish implementing. These validate changes (type checks, linting, tests, code review).
 - **custom**: Run when a natural-language condition is met (e.g. "when changes touch database models"). Check conditions as you work and run matching hooks when appropriate.
 - **on-demand**: Only run when explicitly requested by the user. Do not run these automatically.
+- **worktree-created**: Runs automatically after worktree creation via CLI-backed flows.
+- **worktree-removed**: Runs automatically after worktree removal via CLI-backed flows.
+
+`worktree-created` and `worktree-removed` are command-only lifecycle hooks. Skill import and skill status reporting are not supported for these triggers.
 
 ### Workflow
 1. Call get_hooks_config immediately after entering a worktree to see all hooks

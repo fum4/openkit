@@ -17,6 +17,7 @@ import type { Hono } from "hono";
 
 import type { WorktreeManager } from "../manager";
 import { type AgentId, SKILL_AGENT_SPECS, resolveSkillDeployDir } from "../lib/tool-configs";
+import { BUNDLED_SKILLS } from "../../instructions";
 
 // ─── SKILL.md parsing ───────────────────────────────────────────
 
@@ -135,7 +136,10 @@ interface SkillInfo {
   displayName: string;
   description: string;
   path: string;
+  builtIn: boolean;
 }
+
+const BUILT_IN_SKILLS = new Map(BUNDLED_SKILLS.map((skill) => [skill.dirName, skill.content]));
 
 function listRegistrySkills(): SkillInfo[] {
   const dir = getRegistryDir();
@@ -156,6 +160,7 @@ function listRegistrySkills(): SkillInfo[] {
           displayName: frontmatter.name || entry.name,
           description: frontmatter.description || "",
           path: path.join(dir, entry.name),
+          builtIn: BUILT_IN_SKILLS.has(entry.name),
         });
       } catch {
         // Skip unreadable
@@ -447,6 +452,8 @@ export function registerSkillRoutes(app: Hono, manager: WorktreeManager) {
         displayName: frontmatter.name || name,
         description: frontmatter.description || "",
         path: skillDir,
+        builtIn: BUILT_IN_SKILLS.has(name),
+        originalSkillMd: BUILT_IN_SKILLS.get(name),
         skillMd,
         frontmatter,
         hasReference,
@@ -515,6 +522,7 @@ export function registerSkillRoutes(app: Hono, manager: WorktreeManager) {
         displayName: frontmatter.name,
         description: frontmatter.description,
         path: skillDir,
+        builtIn: false,
       },
     });
   });

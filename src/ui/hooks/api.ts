@@ -462,6 +462,7 @@ export async function createTerminalSession(
   cols?: number,
   rows?: number,
   startupCommand?: string,
+  scope?: "terminal" | "claude",
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; sessionId?: string; error?: string }> {
   try {
@@ -470,7 +471,7 @@ export async function createTerminalSession(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cols, rows, startupCommand }),
+        body: JSON.stringify({ cols, rows, startupCommand, scope }),
       },
     );
     if (!res.ok) {
@@ -486,6 +487,25 @@ export async function createTerminalSession(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to create terminal",
+    };
+  }
+}
+
+export async function fetchActiveTerminalSession(
+  worktreeId: string,
+  scope: "terminal" | "claude",
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; sessionId: string | null; error?: string }> {
+  try {
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(worktreeId)}/terminals/active?scope=${encodeURIComponent(scope)}`,
+    );
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      sessionId: null,
+      error: err instanceof Error ? err.message : "Failed to fetch active terminal session",
     };
   }
 }
@@ -610,6 +630,9 @@ export async function updateJiraConfig(
   defaultProjectKey: string,
   refreshIntervalMinutes?: number,
   dataLifecycle?: DataLifecycleConfig,
+  autoStartClaudeOnNewIssue?: boolean,
+  autoStartClaudeSkipPermissions?: boolean,
+  autoStartClaudeFocusTerminal?: boolean,
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -617,9 +640,21 @@ export async function updateJiraConfig(
       defaultProjectKey: string;
       refreshIntervalMinutes?: number;
       dataLifecycle?: DataLifecycleConfig;
+      autoStartClaudeOnNewIssue?: boolean;
+      autoStartClaudeSkipPermissions?: boolean;
+      autoStartClaudeFocusTerminal?: boolean;
     } = { defaultProjectKey };
     if (refreshIntervalMinutes !== undefined) body.refreshIntervalMinutes = refreshIntervalMinutes;
     if (dataLifecycle !== undefined) body.dataLifecycle = dataLifecycle;
+    if (autoStartClaudeOnNewIssue !== undefined) {
+      body.autoStartClaudeOnNewIssue = autoStartClaudeOnNewIssue;
+    }
+    if (autoStartClaudeSkipPermissions !== undefined) {
+      body.autoStartClaudeSkipPermissions = autoStartClaudeSkipPermissions;
+    }
+    if (autoStartClaudeFocusTerminal !== undefined) {
+      body.autoStartClaudeFocusTerminal = autoStartClaudeFocusTerminal;
+    }
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/jira/config`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -748,6 +783,9 @@ export async function updateLinearConfig(
   defaultTeamKey: string,
   refreshIntervalMinutes?: number,
   dataLifecycle?: DataLifecycleConfig,
+  autoStartClaudeOnNewIssue?: boolean,
+  autoStartClaudeSkipPermissions?: boolean,
+  autoStartClaudeFocusTerminal?: boolean,
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -755,9 +793,21 @@ export async function updateLinearConfig(
       defaultTeamKey: string;
       refreshIntervalMinutes?: number;
       dataLifecycle?: DataLifecycleConfig;
+      autoStartClaudeOnNewIssue?: boolean;
+      autoStartClaudeSkipPermissions?: boolean;
+      autoStartClaudeFocusTerminal?: boolean;
     } = { defaultTeamKey };
     if (refreshIntervalMinutes !== undefined) body.refreshIntervalMinutes = refreshIntervalMinutes;
     if (dataLifecycle !== undefined) body.dataLifecycle = dataLifecycle;
+    if (autoStartClaudeOnNewIssue !== undefined) {
+      body.autoStartClaudeOnNewIssue = autoStartClaudeOnNewIssue;
+    }
+    if (autoStartClaudeSkipPermissions !== undefined) {
+      body.autoStartClaudeSkipPermissions = autoStartClaudeSkipPermissions;
+    }
+    if (autoStartClaudeFocusTerminal !== undefined) {
+      body.autoStartClaudeFocusTerminal = autoStartClaudeFocusTerminal;
+    }
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/linear/config`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -874,6 +924,17 @@ export async function fetchSetupStatus(
     return await res.json();
   } catch {
     return { needsPush: false, files: [] };
+  }
+}
+
+export async function fetchSetupFeatures(
+  serverUrl: string | null = null,
+): Promise<{ mcpSetupEnabled: boolean }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/config/features`);
+    return await res.json();
+  } catch {
+    return { mcpSetupEnabled: false };
   }
 }
 
@@ -2145,7 +2206,13 @@ export async function scanSkills(
 
 // -- Hooks API --
 
-export type HookTrigger = "pre-implementation" | "post-implementation" | "on-demand" | "custom";
+export type HookTrigger =
+  | "pre-implementation"
+  | "post-implementation"
+  | "on-demand"
+  | "custom"
+  | "worktree-created"
+  | "worktree-removed";
 export type HookStepKind = "command" | "prompt";
 
 export interface HookStep {
@@ -2525,5 +2592,33 @@ export async function fetchActivity(
     return await res.json();
   } catch {
     return { events: [] };
+  }
+}
+
+export async function createActivityEvent(
+  event: {
+    category: "agent" | "worktree" | "system";
+    type: string;
+    severity?: "info" | "success" | "warning" | "error";
+    title: string;
+    detail?: string;
+    worktreeId?: string;
+    metadata?: Record<string, unknown>;
+    groupKey?: string;
+  },
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/activity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to create activity event",
+    };
   }
 }

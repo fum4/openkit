@@ -70,8 +70,19 @@ export function useApi() {
         defaultProjectKey: string,
         refreshIntervalMinutes?: number,
         dataLifecycle?: Parameters<typeof api.updateJiraConfig>[2],
+        autoStartClaudeOnNewIssue?: Parameters<typeof api.updateJiraConfig>[3],
+        autoStartClaudeSkipPermissions?: Parameters<typeof api.updateJiraConfig>[4],
+        autoStartClaudeFocusTerminal?: Parameters<typeof api.updateJiraConfig>[5],
       ) =>
-        api.updateJiraConfig(defaultProjectKey, refreshIntervalMinutes, dataLifecycle, serverUrl),
+        api.updateJiraConfig(
+          defaultProjectKey,
+          refreshIntervalMinutes,
+          dataLifecycle,
+          autoStartClaudeOnNewIssue,
+          autoStartClaudeSkipPermissions,
+          autoStartClaudeFocusTerminal,
+          serverUrl,
+        ),
 
       disconnectJira: () => api.disconnectJira(serverUrl),
 
@@ -84,7 +95,19 @@ export function useApi() {
         defaultTeamKey: string,
         refreshIntervalMinutes?: number,
         dataLifecycle?: Parameters<typeof api.updateLinearConfig>[2],
-      ) => api.updateLinearConfig(defaultTeamKey, refreshIntervalMinutes, dataLifecycle, serverUrl),
+        autoStartClaudeOnNewIssue?: Parameters<typeof api.updateLinearConfig>[3],
+        autoStartClaudeSkipPermissions?: Parameters<typeof api.updateLinearConfig>[4],
+        autoStartClaudeFocusTerminal?: Parameters<typeof api.updateLinearConfig>[5],
+      ) =>
+        api.updateLinearConfig(
+          defaultTeamKey,
+          refreshIntervalMinutes,
+          dataLifecycle,
+          autoStartClaudeOnNewIssue,
+          autoStartClaudeSkipPermissions,
+          autoStartClaudeFocusTerminal,
+          serverUrl,
+        ),
 
       disconnectLinear: () => api.disconnectLinear(serverUrl),
 
@@ -97,12 +120,14 @@ export function useApi() {
         api.removeMcpAgent(agent, scope, serverUrl),
 
       fetchSetupStatus: () => api.fetchSetupStatus(serverUrl),
+      fetchSetupFeatures: () => api.fetchSetupFeatures(serverUrl),
 
       commitSetup: (message: string) => api.commitSetup(message, serverUrl),
 
       detectConfig: () => api.detectConfig(serverUrl),
 
-      initConfig: (config: Partial<api.DetectedConfig>) => api.initConfig(config, serverUrl),
+      initConfig: (config: Partial<api.DetectedConfig> & Record<string, unknown>) =>
+        api.initConfig(config, serverUrl),
 
       fetchCustomTasks: () => api.fetchCustomTasks(serverUrl),
 
@@ -122,6 +147,20 @@ export function useApi() {
 
       createWorktreeFromCustomTask: (id: string, branch?: string) =>
         api.createWorktreeFromCustomTask(id, branch, serverUrl),
+
+      createTerminalSession: (
+        worktreeId: string,
+        startupCommand?: string,
+        scope: "terminal" | "claude" = "terminal",
+      ) =>
+        api.createTerminalSession(
+          worktreeId,
+          undefined,
+          undefined,
+          startupCommand,
+          scope,
+          serverUrl,
+        ),
 
       // Custom task attachments
       uploadTaskAttachment: (taskId: string, file: File) =>
@@ -346,6 +385,12 @@ export function useApi() {
         api.fetchHookSkillResults(worktreeId, serverUrl),
 
       fetchFileContent: (filePath: string) => api.fetchFileContent(filePath, serverUrl),
+
+      fetchActiveTerminalSession: (worktreeId: string, scope: "terminal" | "claude") =>
+        api.fetchActiveTerminalSession(worktreeId, scope, serverUrl),
+
+      createActivityEvent: (event: Parameters<typeof api.createActivityEvent>[0]) =>
+        api.createActivityEvent(event, serverUrl),
     }),
     [serverUrl],
   );

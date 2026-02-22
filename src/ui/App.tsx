@@ -54,10 +54,43 @@ interface ClaudeLaunchIntent {
   worktreeId: string;
   mode: ClaudeLaunchMode;
   prompt?: string;
+  tabLabel?: string;
+  skipPermissions?: boolean;
+  startInBackground?: boolean;
 }
 
 interface ClaudeLaunchRequest extends ClaudeLaunchIntent {
   requestId: number;
+}
+
+interface NotificationTabRequest {
+  worktreeId: string;
+  tab: "hooks";
+  requestId: number;
+}
+
+const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
+
+function shellQuoteSingle(value: string): string {
+  if (!value) return "''";
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function buildClaudeStartupCommand(prompt: string, options?: { skipPermissions?: boolean }): string {
+  const args: string[] = [];
+  if (options?.skipPermissions) {
+    args.push("--dangerously-skip-permissions");
+  }
+  if (prompt.trim()) {
+    args.push(shellQuoteSingle(prompt.trim()));
+  }
+  const invocation = args.length > 0 ? `claude ${args.join(" ")}` : "claude";
+  return `exec ${invocation}`;
+}
+
+function formatTaskNotificationDetail(issueId: string, title: string): string {
+  const trimmedTitle = title.trim();
+  return trimmedTitle ? `${issueId} - ${trimmedTitle}` : issueId;
 }
 
 export default function App() {
@@ -251,10 +284,35 @@ export default function App() {
   const [pendingNotificationNav, setPendingNotificationNav] = useState<{
     worktreeId: string;
     targetProjectId: string | null;
+    openClaudeTab?: boolean;
+    openHooksTab?: boolean;
+  } | null>(null);
+  const [pendingIssueNotificationNav, setPendingIssueNotificationNav] = useState<{
+    source: "jira" | "linear";
+    issueId: string;
+    targetProjectId: string | null;
   } | null>(null);
   const claudeLaunchRequestIdRef = useRef(0);
-  const [pendingClaudeLaunch, setPendingClaudeLaunch] = useState<ClaudeLaunchIntent | null>(null);
+  const notificationTabRequestIdRef = useRef(0);
+  const jiraSeenIssueIdsRef = useRef<Set<string>>(new Set());
+  const linearSeenIssueIdsRef = useRef<Set<string>>(new Set());
+  const localSeenIssueIdsRef = useRef<Set<string>>(new Set());
+  const jiraAutoLaunchArmedRef = useRef(false);
+  const linearAutoLaunchArmedRef = useRef(false);
+  const localAutoLaunchArmedRef = useRef(false);
+  const autoLaunchQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const [pendingClaudeLaunches, setPendingClaudeLaunches] = useState<ClaudeLaunchIntent[]>([]);
   const [claudeLaunchRequest, setClaudeLaunchRequest] = useState<ClaudeLaunchRequest | null>(null);
+  const [notificationTabRequest, setNotificationTabRequest] = useState<NotificationTabRequest | null>(
+    null,
+  );
+  const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
+    if (extra) {
+      console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
+      return;
+    }
+    console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
+  }, []);
 
   useEffect(() => {
     if (!pendingNotificationNav) return;
@@ -269,8 +327,45 @@ export default function App() {
     if (serverUrl) {
       localStorage.setItem(`dawg:wsSel:${serverUrl}`, JSON.stringify(sel));
     }
+    if (pendingNotificationNav.openClaudeTab) {
+      setPendingClaudeLaunches((prev) => [
+        ...prev,
+        { worktreeId: pendingNotificationNav.worktreeId, mode: "resume" },
+      ]);
+    }
+    if (pendingNotificationNav.openHooksTab) {
+      notificationTabRequestIdRef.current += 1;
+      setNotificationTabRequest({
+        worktreeId: pendingNotificationNav.worktreeId,
+        tab: "hooks",
+        requestId: notificationTabRequestIdRef.current,
+      });
+    }
     setPendingNotificationNav(null);
   }, [pendingNotificationNav, activeProject?.id, serverUrl]);
+
+  useEffect(() => {
+    if (!pendingIssueNotificationNav) return;
+    if (
+      pendingIssueNotificationNav.targetProjectId &&
+      activeProject?.id !== pendingIssueNotificationNav.targetProjectId
+    ) {
+      return;
+    }
+    const sel: Selection =
+      pendingIssueNotificationNav.source === "jira"
+        ? { type: "issue", key: pendingIssueNotificationNav.issueId }
+        : { type: "linear-issue", identifier: pendingIssueNotificationNav.issueId };
+    setActiveCreateTabState("issues");
+    if (serverUrl) {
+      localStorage.setItem(`dawg:wsTab:${serverUrl}`, "issues");
+    }
+    setSelectionState(sel);
+    if (serverUrl) {
+      localStorage.setItem(`dawg:wsSel:${serverUrl}`, JSON.stringify(sel));
+    }
+    setPendingIssueNotificationNav(null);
+  }, [pendingIssueNotificationNav, activeProject?.id, serverUrl]);
 
   const resolveProjectIdFromNotification = useCallback(
     (projectName?: string, sourceServerUrl?: string): string | null => {
@@ -483,18 +578,84 @@ export default function App() {
   const selectedWorktree =
     selection?.type === "worktree" ? worktrees.find((w) => w.id === selection.id) || null : null;
 
+  const startClaudeSessionInBackground = useCallback(
+    async (worktreeId: string, prompt: string, skipPermissions: boolean) => {
+      const startupCommand = buildClaudeStartupCommand(prompt, { skipPermissions });
+      const sessionResult = await api.createTerminalSession(worktreeId, startupCommand, "claude");
+      logAutoClaude("Background Claude session bootstrap result", {
+        worktreeId,
+        success: sessionResult.success,
+        sessionId: sessionResult.sessionId,
+        error: sessionResult.error,
+        skipPermissions,
+      });
+      return sessionResult.success;
+    },
+    [api, logAutoClaude],
+  );
+
   useEffect(() => {
+    const pendingClaudeLaunch = pendingClaudeLaunches[0];
     if (!pendingClaudeLaunch) return;
     const target = worktrees.find((wt) => wt.id === pendingClaudeLaunch.worktreeId);
-    if (!target || target.status === "creating") return;
+    if (!target) {
+      logAutoClaude("Waiting for target worktree to appear before launching Claude", {
+        worktreeId: pendingClaudeLaunch.worktreeId,
+      });
+      return;
+    }
+    if (target.status === "creating") {
+      logAutoClaude("Target worktree exists but is still creating; waiting to launch Claude", {
+        worktreeId: pendingClaudeLaunch.worktreeId,
+        status: target.status,
+      });
+      return;
+    }
+    const intent = pendingClaudeLaunch;
+    setPendingClaudeLaunches((prev) => prev.slice(1));
 
-    claudeLaunchRequestIdRef.current += 1;
-    setClaudeLaunchRequest({
-      ...pendingClaudeLaunch,
-      requestId: claudeLaunchRequestIdRef.current,
-    });
-    setPendingClaudeLaunch(null);
-  }, [pendingClaudeLaunch, worktrees]);
+    void (async () => {
+      if (intent.mode === "start") {
+        logAutoClaude("Running pre-implementation hooks before Claude launch", {
+          worktreeId: intent.worktreeId,
+        });
+        const preRun = await api.runHooks(intent.worktreeId, "pre-implementation");
+        const failedCount = preRun.steps.filter((step) => step.status === "failed").length;
+        logAutoClaude("Pre-implementation hooks finished", {
+          worktreeId: intent.worktreeId,
+          status: preRun.status,
+          stepCount: preRun.steps.length,
+          failedCount,
+        });
+      }
+
+      let mode: ClaudeLaunchMode = intent.mode;
+      if (intent.startInBackground && intent.prompt) {
+        const started = await startClaudeSessionInBackground(
+          intent.worktreeId,
+          intent.prompt,
+          intent.skipPermissions ?? false,
+        );
+        if (started) {
+          mode = "resume";
+        }
+      }
+
+      claudeLaunchRequestIdRef.current += 1;
+      setClaudeLaunchRequest({
+        ...intent,
+        mode,
+        requestId: claudeLaunchRequestIdRef.current,
+      });
+      logAutoClaude("Promoted pending Claude launch to active request", {
+        worktreeId: intent.worktreeId,
+        mode,
+        requestId: claudeLaunchRequestIdRef.current,
+        tabLabel: intent.tabLabel,
+        startInBackground: intent.startInBackground ?? false,
+      });
+    })();
+  }, [api, logAutoClaude, pendingClaudeLaunches, startClaudeSessionInBackground, worktrees]);
 
   const handleDeleted = () => {
     setSelection(null);
@@ -553,14 +714,431 @@ export default function App() {
   };
 
   const handleCodeWithClaude = useCallback(
-    (intent: ClaudeLaunchIntent) => {
-      setActiveCreateTab("branch");
-      setSelection({ type: "worktree", id: intent.worktreeId });
-      setPendingClaudeLaunch(intent);
+    (intent: ClaudeLaunchIntent, options?: { focusOnLaunch?: boolean }) => {
+      logAutoClaude("Scheduling Claude launch intent", {
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+        tabLabel: intent.tabLabel,
+        skipPermissions: intent.skipPermissions ?? false,
+        focusOnLaunch: options?.focusOnLaunch ?? true,
+      });
+      if (options?.focusOnLaunch ?? true) {
+        setActiveCreateTab("branch");
+        setSelection({ type: "worktree", id: intent.worktreeId });
+      }
+      setPendingClaudeLaunches((prev) => [...prev, intent]);
       refetch();
     },
-    [refetch],
+    [logAutoClaude, refetch],
   );
+
+  const persistSeenIssueIds = useCallback(
+    (source: "jira" | "linear" | "local", seen: Set<string>) => {
+      if (!serverUrl) return;
+      const key = `${APP_NAME}:auto-claude-seen:${source}:${serverUrl}`;
+      const ids = Array.from(seen);
+      const trimmedIds = ids.slice(Math.max(0, ids.length - 500));
+      localStorage.setItem(key, JSON.stringify(trimmedIds));
+    },
+    [serverUrl],
+  );
+
+  useEffect(() => {
+    jiraAutoLaunchArmedRef.current = false;
+    linearAutoLaunchArmedRef.current = false;
+    localAutoLaunchArmedRef.current = false;
+    if (!serverUrl) {
+      jiraSeenIssueIdsRef.current = new Set();
+      linearSeenIssueIdsRef.current = new Set();
+      localSeenIssueIdsRef.current = new Set();
+      return;
+    }
+
+    const loadSeenIssues = (source: "jira" | "linear" | "local"): Set<string> => {
+      try {
+        const raw = localStorage.getItem(`${APP_NAME}:auto-claude-seen:${source}:${serverUrl}`);
+        if (!raw) return new Set();
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) return new Set();
+        return new Set(parsed.filter((item): item is string => typeof item === "string"));
+      } catch {
+        return new Set();
+      }
+    };
+
+    jiraSeenIssueIdsRef.current = loadSeenIssues("jira");
+    linearSeenIssueIdsRef.current = loadSeenIssues("linear");
+    localSeenIssueIdsRef.current = loadSeenIssues("local");
+  }, [serverUrl]);
+
+  const enqueueAutoLaunch = useCallback(
+    (launch: () => Promise<void>) => {
+      logAutoClaude("Queueing auto-launch task");
+      autoLaunchQueueRef.current = autoLaunchQueueRef.current
+        .then(launch)
+        .catch((error) => console.error("Auto Claude launch failed:", error));
+    },
+    [logAutoClaude],
+  );
+
+  const publishTaskDetectedActivity = useCallback(
+    async (task: { source: "jira" | "linear" | "local"; issueId: string; title: string }) => {
+      const result = await api.createActivityEvent({
+        category: "agent",
+        type: "task_detected",
+        severity: "info",
+        title: "New task found",
+        detail: formatTaskNotificationDetail(task.issueId, task.title),
+        groupKey: `task-detected:${task.source}:${task.issueId}`,
+        metadata: {
+          source: task.source,
+          issueId: task.issueId,
+          issueTitle: task.title,
+        },
+      });
+      logAutoClaude("Published task-detected activity event", {
+        source: task.source,
+        issueId: task.issueId,
+        success: result.success,
+        error: result.error,
+      });
+    },
+    [api, logAutoClaude],
+  );
+
+  const launchJiraIssueWithClaude = useCallback(
+    async (issue: { key: string; summary: string }) => {
+      const skipPermissions = jiraStatus?.autoStartClaudeSkipPermissions ?? true;
+      const focusTerminal = jiraStatus?.autoStartClaudeFocusTerminal ?? true;
+      const prompt = `Implement Jira issue ${issue.key}${issue.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal dawg flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify dawg before asking by calling notify with requiresUserAction=true (or run dawg activity await-input in terminal flow).`;
+      logAutoClaude("Starting Jira auto-launch", { issueKey: issue.key });
+      const result = await api.createFromJira(issue.key);
+      logAutoClaude("Jira create-from-issue response received", {
+        issueKey: issue.key,
+        success: result.success,
+        code: result.code,
+        worktreeId: result.worktreeId,
+        error: result.error,
+      });
+      if (!result.success && !(result.code === "WORKTREE_EXISTS" && result.worktreeId)) {
+        console.error(`Failed to auto-launch Jira issue ${issue.key}: ${result.error ?? "unknown"}`);
+        return;
+      }
+      const worktreeId = result.worktreeId ?? issue.key;
+      const activityResult = await api.createActivityEvent({
+        category: "agent",
+        type: "auto_task_claimed",
+        severity: "info",
+        title: `Claude started working on ${issue.key}`,
+        detail: formatTaskNotificationDetail(issue.key, issue.summary),
+        worktreeId,
+        groupKey: `auto-task-claimed:${issue.key}`,
+        metadata: { source: "jira", issueId: issue.key, issueTitle: issue.summary, autoClaimed: true },
+      });
+      logAutoClaude("Published Jira auto-claim activity event", {
+        issueKey: issue.key,
+        worktreeId,
+        success: activityResult.success,
+        error: activityResult.error,
+      });
+      handleCodeWithClaude({
+        worktreeId,
+        mode: "start",
+        prompt,
+        skipPermissions,
+        startInBackground: !focusTerminal,
+      }, { focusOnLaunch: focusTerminal });
+    },
+    [
+      api,
+      handleCodeWithClaude,
+      jiraStatus?.autoStartClaudeFocusTerminal,
+      jiraStatus?.autoStartClaudeSkipPermissions,
+      logAutoClaude,
+    ],
+  );
+
+  const launchLinearIssueWithClaude = useCallback(
+    async (issue: { identifier: string; title: string }) => {
+      const skipPermissions = linearStatus?.autoStartClaudeSkipPermissions ?? true;
+      const focusTerminal = linearStatus?.autoStartClaudeFocusTerminal ?? true;
+      const prompt = `Implement Linear issue ${issue.identifier}${issue.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal dawg flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify dawg before asking by calling notify with requiresUserAction=true (or run dawg activity await-input in terminal flow).`;
+      logAutoClaude("Starting Linear auto-launch", { identifier: issue.identifier });
+      const result = await api.createFromLinear(issue.identifier);
+      logAutoClaude("Linear create-from-issue response received", {
+        identifier: issue.identifier,
+        success: result.success,
+        code: result.code,
+        worktreeId: result.worktreeId,
+        error: result.error,
+      });
+      if (!result.success && !(result.code === "WORKTREE_EXISTS" && result.worktreeId)) {
+        console.error(
+          `Failed to auto-launch Linear issue ${issue.identifier}: ${result.error ?? "unknown"}`,
+        );
+        return;
+      }
+      const worktreeId = result.worktreeId ?? issue.identifier;
+      const activityResult = await api.createActivityEvent({
+        category: "agent",
+        type: "auto_task_claimed",
+        severity: "info",
+        title: `Claude started working on ${issue.identifier}`,
+        detail: formatTaskNotificationDetail(issue.identifier, issue.title),
+        worktreeId,
+        groupKey: `auto-task-claimed:${issue.identifier}`,
+        metadata: {
+          source: "linear",
+          issueId: issue.identifier,
+          issueTitle: issue.title,
+          autoClaimed: true,
+        },
+      });
+      logAutoClaude("Published Linear auto-claim activity event", {
+        identifier: issue.identifier,
+        worktreeId,
+        success: activityResult.success,
+        error: activityResult.error,
+      });
+      handleCodeWithClaude({
+        worktreeId,
+        mode: "start",
+        prompt,
+        skipPermissions,
+        startInBackground: !focusTerminal,
+      }, { focusOnLaunch: focusTerminal });
+    },
+    [
+      api,
+      handleCodeWithClaude,
+      linearStatus?.autoStartClaudeFocusTerminal,
+      linearStatus?.autoStartClaudeSkipPermissions,
+      logAutoClaude,
+    ],
+  );
+
+  const launchLocalTaskWithClaude = useCallback(
+    async (task: { id: string; title: string }) => {
+      const skipPermissions = config?.localAutoStartClaudeSkipPermissions ?? true;
+      const focusTerminal = config?.localAutoStartClaudeFocusTerminal ?? true;
+      const prompt = `Implement local task ${task.id}${task.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal dawg flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify dawg before asking by calling notify with requiresUserAction=true (or run dawg activity await-input in terminal flow).`;
+      logAutoClaude("Starting local task auto-launch", { taskId: task.id });
+      const result = await api.createWorktreeFromCustomTask(task.id);
+      logAutoClaude("Local task create-worktree response received", {
+        taskId: task.id,
+        success: result.success,
+        code: result.code,
+        worktreeId: result.worktreeId,
+        error: result.error,
+      });
+      if (!result.success && !(result.code === "WORKTREE_EXISTS" && result.worktreeId)) {
+        console.error(`Failed to auto-launch local task ${task.id}: ${result.error ?? "unknown"}`);
+        return;
+      }
+
+      const worktreeId = result.worktreeId ?? task.id;
+      const activityResult = await api.createActivityEvent({
+        category: "agent",
+        type: "auto_task_claimed",
+        severity: "info",
+        title: `Claude started working on ${task.id}`,
+        detail: formatTaskNotificationDetail(task.id, task.title),
+        worktreeId,
+        groupKey: `auto-task-claimed:${task.id}`,
+        metadata: { source: "local", issueId: task.id, issueTitle: task.title, autoClaimed: true },
+      });
+      logAutoClaude("Published local task auto-claim activity event", {
+        taskId: task.id,
+        worktreeId,
+        success: activityResult.success,
+        error: activityResult.error,
+      });
+      handleCodeWithClaude(
+        {
+          worktreeId,
+          mode: "start",
+          prompt,
+          skipPermissions,
+          startInBackground: !focusTerminal,
+        },
+        { focusOnLaunch: focusTerminal },
+      );
+    },
+    [
+      api,
+      config?.localAutoStartClaudeFocusTerminal,
+      config?.localAutoStartClaudeSkipPermissions,
+      handleCodeWithClaude,
+      logAutoClaude,
+    ],
+  );
+
+  useEffect(() => {
+    if (!jiraEnabled) return;
+    const seen = jiraSeenIssueIdsRef.current;
+    const hadSeenIssues = seen.size > 0;
+    const newlyFetched = jiraIssues.filter((issue) => !seen.has(issue.key));
+    if (newlyFetched.length > 0) {
+      logAutoClaude("Detected newly fetched Jira issues", {
+        count: newlyFetched.length,
+        issueKeys: newlyFetched.map((issue) => issue.key),
+      });
+      for (const issue of newlyFetched) {
+        void publishTaskDetectedActivity({
+          source: "jira",
+          issueId: issue.key,
+          title: issue.summary,
+        });
+      }
+    }
+    for (const issue of jiraIssues) seen.add(issue.key);
+    persistSeenIssueIds("jira", seen);
+
+    if (!jiraStatus?.autoStartClaudeOnNewIssue) {
+      jiraAutoLaunchArmedRef.current = false;
+      if (newlyFetched.length > 0) {
+        logAutoClaude("Jira auto-start is disabled; skipping newly fetched issues", {
+          count: newlyFetched.length,
+        });
+      }
+      return;
+    }
+    if (!jiraAutoLaunchArmedRef.current) {
+      jiraAutoLaunchArmedRef.current = true;
+      if (!hadSeenIssues) {
+        logAutoClaude(
+          "Jira auto-start armed with baseline issue snapshot; not launching historical issues",
+          { baselineCount: jiraIssues.length },
+        );
+        return;
+      }
+    }
+    for (const issue of newlyFetched) {
+      logAutoClaude("Queueing Jira issue for auto-launch", { issueKey: issue.key });
+      enqueueAutoLaunch(() => launchJiraIssueWithClaude(issue));
+    }
+  }, [
+    enqueueAutoLaunch,
+    jiraEnabled,
+    jiraIssues,
+    jiraIssuesUpdatedAt,
+    jiraStatus?.autoStartClaudeOnNewIssue,
+    launchJiraIssueWithClaude,
+    logAutoClaude,
+    persistSeenIssueIds,
+    publishTaskDetectedActivity,
+  ]);
+
+  useEffect(() => {
+    if (!linearEnabled) return;
+    const seen = linearSeenIssueIdsRef.current;
+    const hadSeenIssues = seen.size > 0;
+    const newlyFetched = linearIssues.filter((issue) => !seen.has(issue.identifier));
+    if (newlyFetched.length > 0) {
+      logAutoClaude("Detected newly fetched Linear issues", {
+        count: newlyFetched.length,
+        identifiers: newlyFetched.map((issue) => issue.identifier),
+      });
+      for (const issue of newlyFetched) {
+        void publishTaskDetectedActivity({
+          source: "linear",
+          issueId: issue.identifier,
+          title: issue.title,
+        });
+      }
+    }
+    for (const issue of linearIssues) seen.add(issue.identifier);
+    persistSeenIssueIds("linear", seen);
+
+    if (!linearStatus?.autoStartClaudeOnNewIssue) {
+      linearAutoLaunchArmedRef.current = false;
+      if (newlyFetched.length > 0) {
+        logAutoClaude("Linear auto-start is disabled; skipping newly fetched issues", {
+          count: newlyFetched.length,
+        });
+      }
+      return;
+    }
+    if (!linearAutoLaunchArmedRef.current) {
+      linearAutoLaunchArmedRef.current = true;
+      if (!hadSeenIssues) {
+        logAutoClaude(
+          "Linear auto-start armed with baseline issue snapshot; not launching historical issues",
+          { baselineCount: linearIssues.length },
+        );
+        return;
+      }
+    }
+    for (const issue of newlyFetched) {
+      logAutoClaude("Queueing Linear issue for auto-launch", { identifier: issue.identifier });
+      enqueueAutoLaunch(() => launchLinearIssueWithClaude(issue));
+    }
+  }, [
+    enqueueAutoLaunch,
+    linearEnabled,
+    linearIssues,
+    linearIssuesUpdatedAt,
+    linearStatus?.autoStartClaudeOnNewIssue,
+    launchLinearIssueWithClaude,
+    logAutoClaude,
+    persistSeenIssueIds,
+    publishTaskDetectedActivity,
+  ]);
+
+  useEffect(() => {
+    if (customTasksLoading) return;
+    const seen = localSeenIssueIdsRef.current;
+    const hadSeenIssues = seen.size > 0;
+    const newlyFetched = customTasks.filter((task) => !seen.has(task.id));
+    if (newlyFetched.length > 0) {
+      logAutoClaude("Detected newly fetched local tasks", {
+        count: newlyFetched.length,
+        taskIds: newlyFetched.map((task) => task.id),
+      });
+      for (const task of newlyFetched) {
+        void publishTaskDetectedActivity({
+          source: "local",
+          issueId: task.id,
+          title: task.title,
+        });
+      }
+    }
+    for (const task of customTasks) seen.add(task.id);
+    persistSeenIssueIds("local", seen);
+
+    if (!config?.localAutoStartClaudeOnNewIssue) {
+      localAutoLaunchArmedRef.current = false;
+      if (newlyFetched.length > 0) {
+        logAutoClaude("Local auto-start is disabled; skipping newly fetched tasks", {
+          count: newlyFetched.length,
+        });
+      }
+      return;
+    }
+    if (!localAutoLaunchArmedRef.current) {
+      localAutoLaunchArmedRef.current = true;
+      if (!hadSeenIssues) {
+        logAutoClaude(
+          "Local auto-start armed with baseline task snapshot; not launching historical tasks",
+          { baselineCount: customTasks.length },
+        );
+        return;
+      }
+    }
+    for (const task of newlyFetched) {
+      logAutoClaude("Queueing local task for auto-launch", { taskId: task.id });
+      enqueueAutoLaunch(() => launchLocalTaskWithClaude(task));
+    }
+  }, [
+    config?.localAutoStartClaudeOnNewIssue,
+    customTasks,
+    customTasksLoading,
+    enqueueAutoLaunch,
+    launchLocalTaskWithClaude,
+    logAutoClaude,
+    persistSeenIssueIds,
+    publishTaskDetectedActivity,
+  ]);
 
   // Show welcome screen when no config (web mode) or no projects (Electron mode)
   if (showWelcomeScreen) {
@@ -772,18 +1350,60 @@ export default function App() {
         <Header
           activeView={activeView}
           onChangeView={setActiveView}
-          onNavigateToWorktree={({ worktreeId, projectName: navProjectName, sourceServerUrl }) => {
+          currentProjectName={projectName ?? activeProject?.name ?? null}
+          disabledActivityEventTypes={config?.activity?.disabledEvents ?? []}
+          onNavigateToWorktree={({
+            worktreeId,
+            projectName: navProjectName,
+            sourceServerUrl,
+            openClaudeTab,
+            openHooksTab,
+          }) => {
             setActiveView("workspace");
             const targetProjectId = resolveProjectIdFromNotification(
               navProjectName,
               sourceServerUrl,
             );
             if (targetProjectId && targetProjectId !== activeProject?.id) {
-              setPendingNotificationNav({ worktreeId, targetProjectId });
+              setPendingNotificationNav({
+                worktreeId,
+                targetProjectId,
+                openClaudeTab,
+                openHooksTab,
+              });
               switchProject(targetProjectId);
               return;
             }
             setSelection({ type: "worktree", id: worktreeId });
+            if (openClaudeTab) {
+              setPendingClaudeLaunches((prev) => [...prev, { worktreeId, mode: "resume" }]);
+            }
+            if (openHooksTab) {
+              notificationTabRequestIdRef.current += 1;
+              setNotificationTabRequest({
+                worktreeId,
+                tab: "hooks",
+                requestId: notificationTabRequestIdRef.current,
+              });
+            }
+          }}
+          onNavigateToIssue={({ source, issueId, projectName: navProjectName, sourceServerUrl }) => {
+            setActiveView("workspace");
+            setActiveCreateTab("issues");
+            const targetProjectId = resolveProjectIdFromNotification(
+              navProjectName,
+              sourceServerUrl,
+            );
+            if (targetProjectId && targetProjectId !== activeProject?.id) {
+              setPendingIssueNotificationNav({ source, issueId, targetProjectId });
+              switchProject(targetProjectId);
+              return;
+            }
+            if (source === "jira") {
+              setSelection({ type: "issue", key: issueId });
+              return;
+            }
+            setSelection({ type: "linear-issue", identifier: issueId });
           }}
         />
       </motion.div>
@@ -1028,6 +1648,7 @@ export default function App() {
                     }}
                     onLinkIssue={(worktreeId) => setLinkIssueForWorktreeId(worktreeId)}
                     claudeLaunchRequest={claudeLaunchRequest}
+                    notificationTabRequest={notificationTabRequest}
                   />
                 )}
               </main>
@@ -1145,6 +1766,7 @@ export default function App() {
       <div className="absolute bottom-0 left-0 right-0 z-40">
         <TabBar onOpenSettings={() => setShowSettingsModal(true)} />
       </div>
+
     </div>
   );
 }

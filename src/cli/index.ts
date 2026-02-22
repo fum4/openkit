@@ -126,13 +126,38 @@ Commands:
   init          Interactive setup wizard to create .dawg/config.json
   add [name]    Set up an integration (github, linear, jira)
   mcp           Start as an MCP server (for AI coding agents)
-  task [source] [ID...] Create worktrees from issues (jira, linear, local)
+  activity      Emit workflow activity events (for agent/user coordination)
+  task [source|resolve] [ID...] Manage task resolution and worktree creation
 
 Options:
   --no-open     Start the server without opening the UI
   --auto-init   Auto-initialize config if none found
   --help, -h    Show this help message
   --version, -v Show version`);
+}
+
+function printTaskHelp() {
+  log.plain(`${APP_NAME} task — create worktrees from issue IDs
+
+Usage:
+  ${APP_NAME} task [source|resolve] [ID...] [--init|--save|--link]
+  ${APP_NAME} task [source] [--init|--save|--link]          # prompt for ID from source issues
+  ${APP_NAME} task [ID...] [--init|--save|--link]            # auto-resolve source
+  ${APP_NAME} task resolve [ID...] [--json]                  # deterministic resolver only
+
+Examples:
+  ${APP_NAME} task jira PROJ-123
+  ${APP_NAME} task linear ENG-42
+  ${APP_NAME} task local 7 --init
+  ${APP_NAME} task NOM-42 --init
+  ${APP_NAME} task resolve 123 --json
+
+Options:
+  --init        Skip prompt and initialize (create/link) worktree immediately
+  --save        Skip prompt and only save/fetch task data
+  --link        Skip action prompt and jump directly to worktree picker
+  --json        JSON output (for "task resolve")
+  --help, -h    Show task command help`);
 }
 
 async function main() {
@@ -172,28 +197,86 @@ async function main() {
   }
 
   if (subcommand === "task") {
-    const args = process.argv.slice(3).filter((arg) => !arg.startsWith("--"));
-    const { runTask, runTaskInteractive } = await import("./task");
+    const rawArgs = process.argv.slice(3);
+    if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+      printTaskHelp();
+      return;
+    }
+
+    let action: "init" | "save" | "link" | undefined;
+    let jsonOutput = false;
+    const args: string[] = [];
+    for (const arg of rawArgs) {
+      if (arg === "--init" || arg === "--save" || arg === "--link") {
+        if (action && action !== arg.slice(2)) {
+          log.error("Use only one of --init, --save, or --link.");
+          process.exit(1);
+        }
+        action = arg.slice(2) as "init" | "save" | "link";
+        continue;
+      }
+      if (arg === "--json") {
+        jsonOutput = true;
+        continue;
+      }
+      if (arg.startsWith("--")) {
+        log.error(`Unknown option "${arg}" for task command.`);
+        process.exit(1);
+      }
+      args.push(arg);
+    }
+
+    const { runTask, runTaskAuto, runTaskInteractive, runTaskResolve, runTaskSourceInteractive } =
+      await import("./task");
     const sources = ["jira", "linear", "local"];
 
     if (args.length === 0) {
+      if (action) {
+        log.error("Action flags require at least one task ID.");
+        process.exit(1);
+      }
       await runTaskInteractive();
       return;
     }
 
     const first = args[0].toLowerCase();
+    if (first === "resolve") {
+      const ids = args.slice(1);
+      if (ids.length === 0) {
+        log.error(`Usage: ${APP_NAME} task resolve <ID> [ID...] [--json]`);
+        process.exit(1);
+      }
+      if (action) {
+        log.error("Action flags (--init/--save/--link) cannot be used with 'task resolve'.");
+        process.exit(1);
+      }
+      runTaskResolve(ids, { json: jsonOutput });
+      return;
+    }
+
+    if (jsonOutput) {
+      log.error("--json is only supported with 'task resolve'.");
+      process.exit(1);
+    }
+
     if (sources.includes(first)) {
       const source = first as "jira" | "linear" | "local";
       const ids = args.slice(1);
       if (ids.length === 0) {
-        log.error(`Usage: ${APP_NAME} task ${source} <ID> [ID...]`);
-        process.exit(1);
+        await runTaskSourceInteractive(source, { action });
+        return;
       }
-      await runTask(source, ids, ids.length > 1);
+      await runTask(source, ids, ids.length > 1, { action });
     } else {
-      log.error(`Unknown source "${args[0]}". Use: ${APP_NAME} task <jira|linear|local> <ID>`);
-      process.exit(1);
+      await runTaskAuto(args, args.length > 1, { action });
     }
+    return;
+  }
+
+  if (subcommand === "activity") {
+    const args = process.argv.slice(3);
+    const { runActivity } = await import("./activity");
+    await runActivity(args);
     return;
   }
 

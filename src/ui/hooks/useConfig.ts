@@ -15,6 +15,9 @@ export interface WorktreeConfig {
   envMapping?: Record<string, string>;
   autoInstall?: boolean;
   localIssuePrefix?: string;
+  localAutoStartClaudeOnNewIssue?: boolean;
+  localAutoStartClaudeSkipPermissions?: boolean;
+  localAutoStartClaudeFocusTerminal?: boolean;
   openProjectTarget?: string;
   allowAgentCommits?: boolean;
   allowAgentPushes?: boolean;
@@ -22,6 +25,7 @@ export interface WorktreeConfig {
   activity?: {
     retentionDays?: number;
     categories?: Record<string, boolean>;
+    disabledEvents?: string[];
     toastEvents?: string[];
     osNotificationEvents?: string[];
   };

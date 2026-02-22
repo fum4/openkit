@@ -18,6 +18,9 @@ export interface JiraProjectConfig {
   defaultProjectKey?: string;
   refreshIntervalMinutes?: number;
   dataLifecycle?: DataLifecycleConfig;
+  autoStartClaudeOnNewIssue?: boolean;
+  autoStartClaudeSkipPermissions?: boolean;
+  autoStartClaudeFocusTerminal?: boolean;
 }
 
 export interface JiraOAuthCredentials {

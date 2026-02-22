@@ -1,6 +1,8 @@
 import {
   CircleCheck,
   FishingHook,
+  FolderMinus,
+  FolderPlus,
   Hand,
   ListChecks,
   MessageSquareText,
@@ -16,6 +18,7 @@ import type { HookSkillRef, HookStep, HookTrigger } from "../hooks/api";
 import { useApi } from "../hooks/useApi";
 import { useHooksConfig } from "../hooks/useHooks";
 import { infoBanner, settings, text } from "../theme";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 const BANNER_DISMISSED_KEY = "dawg:hooksBannerDismissed";
 
@@ -206,6 +209,8 @@ export function HooksPanel() {
   const preSteps = config.steps.filter((s) => s.trigger === "pre-implementation");
   const postSteps = config.steps.filter((s) => s.trigger === "post-implementation" || !s.trigger);
   const onDemandSteps = config.steps.filter((s) => s.trigger === "on-demand");
+  const worktreeCreatedSteps = config.steps.filter((s) => s.trigger === "worktree-created");
+  const worktreeRemovedSteps = config.steps.filter((s) => s.trigger === "worktree-removed");
   const customSteps = config.steps.filter((s) => s.trigger === "custom");
   const preSkills = config.skills.filter((s) => s.trigger === "pre-implementation");
   const postSkills = config.skills.filter((s) => s.trigger === "post-implementation" || !s.trigger);
@@ -215,6 +220,8 @@ export function HooksPanel() {
   const hasPreItems = preSteps.length > 0 || preSkills.length > 0;
   const hasPostItems = postSteps.length > 0 || postSkills.length > 0;
   const hasOnDemandItems = onDemandSteps.length > 0 || onDemandSkills.length > 0;
+  const hasWorktreeCreatedItems = worktreeCreatedSteps.length > 0;
+  const hasWorktreeRemovedItems = worktreeRemovedSteps.length > 0;
 
   return (
     <div className="max-w-2xl mx-auto p-6 flex flex-col gap-12">
@@ -422,6 +429,98 @@ export function HooksPanel() {
         updateSkillCondition={updateSkillCondition}
         allowPrompts={false}
       />
+
+      {/* Worktree Created section */}
+      <HooksSection
+        title="Worktree Created"
+        description="Run automatically when a worktree is created"
+        icon={<FolderPlus className="w-3.5 h-3.5 text-cyan-400" />}
+        steps={worktreeCreatedSteps}
+        skills={[]}
+        hasItems={hasWorktreeCreatedItems}
+        addingStep={addingStep === "worktree-created"}
+        onStartAdding={() => {
+          setAddingPrompt(null);
+          setShowImportPicker(null);
+          setAddingStep("worktree-created");
+        }}
+        onCancelAdding={() => {
+          setAddingStep(null);
+          setNewName("");
+          setNewCommand("");
+        }}
+        onAddStep={() => addStep("worktree-created")}
+        addingPrompt={false}
+        onStartAddingPrompt={() => {}}
+        onCancelAddingPrompt={() => {}}
+        onAddPrompt={() => {}}
+        onShowImportPicker={() => {}}
+        showImportPicker={false}
+        onImportSkill={() => {}}
+        onCloseImportPicker={() => {}}
+        newName={newName}
+        setNewName={setNewName}
+        newCommand={newCommand}
+        setNewCommand={setNewCommand}
+        newPromptName={newPromptName}
+        setNewPromptName={setNewPromptName}
+        newPrompt={newPrompt}
+        setNewPrompt={setNewPrompt}
+        nameRef={nameRef}
+        updateStep={updateStep}
+        removeStep={removeStep}
+        handleToggleSkill={handleToggleSkill}
+        handleRemoveSkill={handleRemoveSkill}
+        updateSkillCondition={updateSkillCondition}
+        allowPrompts={false}
+        allowSkills={false}
+      />
+
+      {/* Worktree Removed section */}
+      <HooksSection
+        title="Worktree Removed"
+        description="Run automatically when a worktree is removed"
+        icon={<FolderMinus className="w-3.5 h-3.5 text-rose-400" />}
+        steps={worktreeRemovedSteps}
+        skills={[]}
+        hasItems={hasWorktreeRemovedItems}
+        addingStep={addingStep === "worktree-removed"}
+        onStartAdding={() => {
+          setAddingPrompt(null);
+          setShowImportPicker(null);
+          setAddingStep("worktree-removed");
+        }}
+        onCancelAdding={() => {
+          setAddingStep(null);
+          setNewName("");
+          setNewCommand("");
+        }}
+        onAddStep={() => addStep("worktree-removed")}
+        addingPrompt={false}
+        onStartAddingPrompt={() => {}}
+        onCancelAddingPrompt={() => {}}
+        onAddPrompt={() => {}}
+        onShowImportPicker={() => {}}
+        showImportPicker={false}
+        onImportSkill={() => {}}
+        onCloseImportPicker={() => {}}
+        newName={newName}
+        setNewName={setNewName}
+        newCommand={newCommand}
+        setNewCommand={setNewCommand}
+        newPromptName={newPromptName}
+        setNewPromptName={setNewPromptName}
+        newPrompt={newPrompt}
+        setNewPrompt={setNewPrompt}
+        nameRef={nameRef}
+        updateStep={updateStep}
+        removeStep={removeStep}
+        handleToggleSkill={handleToggleSkill}
+        handleRemoveSkill={handleRemoveSkill}
+        updateSkillCondition={updateSkillCondition}
+        allowPrompts={false}
+        allowSkills={false}
+      />
     </div>
   );
 }
@@ -460,6 +559,7 @@ function HooksSection({
   handleRemoveSkill,
   updateSkillCondition,
   allowPrompts,
+  allowSkills,
 }: {
   title: string;
   description: string;
@@ -501,7 +601,10 @@ function HooksSection({
     condition: string,
   ) => void;
   allowPrompts?: boolean;
+  allowSkills?: boolean;
 }) {
+  const skillsEnabled = allowSkills !== false;
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
@@ -532,17 +635,18 @@ function HooksSection({
         ))}
 
         {/* Skill cards */}
-        {skills.map((skill) => (
-          <SkillCard
-            key={`${skill.skillName}-${skill.trigger ?? "post-implementation"}`}
-            skill={skill}
-            onToggle={(enabled) => handleToggleSkill(skill.skillName, enabled, skill.trigger)}
-            onRemove={() => handleRemoveSkill(skill.skillName, skill.trigger)}
-            onUpdateCondition={(condition) =>
-              updateSkillCondition(skill.skillName, skill.trigger, condition)
-            }
-          />
-        ))}
+        {skillsEnabled &&
+          skills.map((skill) => (
+            <SkillCard
+              key={`${skill.skillName}-${skill.trigger ?? "post-implementation"}`}
+              skill={skill}
+              onToggle={(enabled) => handleToggleSkill(skill.skillName, enabled, skill.trigger)}
+              onRemove={() => handleRemoveSkill(skill.skillName, skill.trigger)}
+              onUpdateCondition={(condition) =>
+                updateSkillCondition(skill.skillName, skill.trigger, condition)
+              }
+            />
+          ))}
 
         {/* Add step form */}
         {addingStep && (
@@ -633,7 +737,7 @@ function HooksSection({
         )}
 
         {/* Import skill picker */}
-        {showImportPicker && (
+        {skillsEnabled && showImportPicker && (
           <ImportSkillPicker onImport={onImportSkill} onClose={onCloseImportPicker} />
         )}
 
@@ -647,13 +751,15 @@ function HooksSection({
               <Plus className="w-3.5 h-3.5" />
               Add command
             </button>
-            <button
-              onClick={onShowImportPicker}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium ${text.muted} hover:text-[#9ca3af] border border-dashed border-white/[0.08] hover:border-white/[0.15] rounded-lg transition-colors`}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add skill
-            </button>
+            {skillsEnabled && (
+              <button
+                onClick={onShowImportPicker}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium ${text.muted} hover:text-[#9ca3af] border border-dashed border-white/[0.08] hover:border-white/[0.15] rounded-lg transition-colors`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add skill
+              </button>
+            )}
             {allowPrompts && (
               <button
                 onClick={onStartAddingPrompt}
@@ -800,20 +906,13 @@ function StepCard({
         </div>
 
         {/* Toggle */}
-        <button
-          onClick={(e) => {
+        <ToggleSwitch
+          checked={enabled}
+          onToggle={(e) => {
             e.stopPropagation();
             onToggle(!enabled);
           }}
-          className="relative w-7 h-4 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-          style={{ backgroundColor: enabled ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)" }}
-        >
-          <span
-            className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${
-              enabled ? "left-3.5 bg-teal-400" : "left-0.5 bg-white/40"
-            }`}
-          />
-        </button>
+        />
 
         {/* Remove */}
         <button
@@ -912,19 +1011,7 @@ function SkillCard({
         </div>
 
         {/* Toggle */}
-        <button
-          onClick={() => onToggle(!skill.enabled)}
-          className="relative w-7 h-4 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-          style={{
-            backgroundColor: skill.enabled ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)",
-          }}
-        >
-          <span
-            className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${
-              skill.enabled ? "left-3.5 bg-teal-400" : "left-0.5 bg-white/40"
-            }`}
-          />
-        </button>
+        <ToggleSwitch checked={skill.enabled} onToggle={() => onToggle(!skill.enabled)} />
 
         {/* Remove */}
         <button
@@ -1022,20 +1109,13 @@ function CustomHookGroupCard({
                   {isPrompt ? step.prompt : step.command}
                 </p>
               </div>
-              <button
-                onClick={(e) => {
+              <ToggleSwitch
+                checked={enabled}
+                onToggle={(e) => {
                   e.stopPropagation();
                   onUpdateStep(step.id, { enabled: !enabled });
                 }}
-                className="relative w-7 h-4 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-                style={{
-                  backgroundColor: enabled ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)",
-                }}
-              >
-                <span
-                  className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${enabled ? "left-3.5 bg-teal-400" : "left-0.5 bg-white/40"}`}
-                />
-              </button>
+              />
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1064,20 +1144,13 @@ function CustomHookGroupCard({
               </span>
               <p className={`text-[11px] ${text.dimmed} mt-0.5 font-mono`}>/{skill.skillName}</p>
             </div>
-            <button
-              onClick={(e) => {
+            <ToggleSwitch
+              checked={skill.enabled}
+              onToggle={(e) => {
                 e.stopPropagation();
                 onToggleSkill(skill.skillName, !skill.enabled);
               }}
-              className="relative w-7 h-4 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-              style={{
-                backgroundColor: skill.enabled ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)",
-              }}
-            >
-              <span
-                className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${skill.enabled ? "left-3.5 bg-teal-400" : "left-0.5 bg-white/40"}`}
-              />
-            </button>
+            />
             <button
               onClick={(e) => {
                 e.stopPropagation();

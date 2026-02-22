@@ -221,7 +221,7 @@ With `offsetStep: 10`:
 | **Default**  | See below |
 | **Required** | No        |
 
-Activity feed configuration. Controls event retention, per-category filtering, and which events trigger toasts or native OS notifications.
+Activity feed configuration. Controls event retention plus per-category/per-event filtering. Workflow/agent/live updates are tracked in the Activity feed; toasts are reserved for direct user-action success/failure. Native OS notifications (Electron) are reserved for agent-attention events.
 
 ```json
 {
@@ -230,25 +230,11 @@ Activity feed configuration. Controls event retention, per-category filtering, a
     "categories": {
       "agent": true,
       "worktree": true,
-      "git": true,
-      "integration": true,
       "system": true
     },
-    "toastEvents": [
-      "creation_completed",
-      "creation_failed",
-      "crashed",
-      "skill_failed",
-      "pr_merged",
-      "commit_completed",
-      "push_completed"
-    ],
+    "disabledEvents": [],
     "osNotificationEvents": [
-      "creation_completed",
-      "creation_failed",
-      "skill_failed",
-      "pr_merged",
-      "crashed"
+      "agent_awaiting_input"
     ]
   }
 }
@@ -258,10 +244,11 @@ Activity feed configuration. Controls event retention, per-category filtering, a
 | ---------------------- | ------------------------- | ---------- | ----------------------------------------------------------- |
 | `retentionDays`        | `number`                  | `7`        | How many days to keep activity events before pruning        |
 | `categories`           | `Record<string, boolean>` | All `true` | Per-category toggles for which events appear in the feed    |
-| `toastEvents`          | `string[]`                | See above  | Event types that trigger toast notifications in the UI      |
-| `osNotificationEvents` | `string[]`                | See above  | Event types that trigger native OS notifications (Electron) |
+| `disabledEvents`       | `string[]`                | `[]`       | Event-type toggles. Any listed event type is disabled for the Activity feed/SSE stream |
+| `toastEvents`          | `string[]`                | See above  | Legacy compatibility field; do not use it for workflow/agent/live updates |
+| `osNotificationEvents` | `string[]`                | See above  | Default notification event list (`agent_awaiting_input`) kept in activity config |
 
-Activity events are persisted to `.dawg/activity.json` in JSONL format. The file is pruned on server startup and periodically (every hour).
+Activity events are persisted to `.dawg/activity.jsonl` in JSONL format. The file is pruned on server startup and periodically (every hour).
 
 #### `envMapping`
 
@@ -303,14 +290,20 @@ Stores credentials and per-project settings for issue tracker integrations. This
     "oauth": { ... },
     "defaultProjectKey": "PROJ",
     "refreshIntervalMinutes": 5,
-    "dataLifecycle": { ... }
+    "dataLifecycle": { ... },
+    "autoStartClaudeOnNewIssue": false,
+    "autoStartClaudeSkipPermissions": true,
+    "autoStartClaudeFocusTerminal": true
   },
   "linear": {
     "apiKey": "lin_api_...",
     "displayName": "My Workspace",
     "defaultTeamKey": "ENG",
     "refreshIntervalMinutes": 5,
-    "dataLifecycle": { ... }
+    "dataLifecycle": { ... },
+    "autoStartClaudeOnNewIssue": false,
+    "autoStartClaudeSkipPermissions": true,
+    "autoStartClaudeFocusTerminal": true
   }
 }
 ```
@@ -348,6 +341,9 @@ Jira supports two authentication methods:
 | `defaultProjectKey`      | `string` | `undefined` | Default Jira project key for issue fetching (e.g., `"PROJ"`) |
 | `refreshIntervalMinutes` | `number` | `undefined` | How often to re-fetch issue lists (in minutes)               |
 | `dataLifecycle`          | `object` | `undefined` | Controls when and how issue data is cached/cleaned           |
+| `autoStartClaudeOnNewIssue` | `boolean` | `undefined` | Whether newly fetched Jira issues should auto-start a Claude session |
+| `autoStartClaudeSkipPermissions` | `boolean` | `undefined` | Whether auto-started Jira Claude sessions run with `--dangerously-skip-permissions` |
+| `autoStartClaudeFocusTerminal` | `boolean` | `true` | Whether UI should auto-focus the Jira Claude terminal when auto-start begins |
 
 ### Linear Credentials
 
@@ -363,6 +359,9 @@ Jira supports two authentication methods:
 | `defaultTeamKey`         | `string` | `undefined` | Default Linear team key for issue fetching (e.g., `"ENG"`) |
 | `refreshIntervalMinutes` | `number` | `undefined` | How often to re-fetch issue lists (in minutes)             |
 | `dataLifecycle`          | `object` | `undefined` | Controls when and how issue data is cached/cleaned         |
+| `autoStartClaudeOnNewIssue` | `boolean` | `undefined` | Whether newly fetched Linear issues should auto-start a Claude session |
+| `autoStartClaudeSkipPermissions` | `boolean` | `undefined` | Whether auto-started Linear Claude sessions run with `--dangerously-skip-permissions` |
+| `autoStartClaudeFocusTerminal` | `boolean` | `true` | Whether UI should auto-focus the Linear Claude terminal when auto-start begins |
 
 ### Data Lifecycle Config
 

@@ -9,6 +9,7 @@ const pty: { spawn: typeof nodePty.spawn } = (nodePty as any).default ?? nodePty
 interface TerminalSession {
   id: string;
   worktreeId: string;
+  scope: "terminal" | "claude" | null;
   startupCommand: string | null;
   pty: IPty | null;
   ws: WebSocket | null;
@@ -22,7 +23,84 @@ interface TerminalSession {
 export class TerminalManager {
   private static readonly MAX_BUFFER_CHARS = 400_000;
   private sessions = new Map<string, TerminalSession>();
+  private sessionsByScope = new Map<string, string>();
   private idCounter = 0;
+
+  private scopeKey(worktreeId: string, scope: "terminal" | "claude"): string {
+    return `${worktreeId}::${scope}`;
+  }
+
+  private clearScopeIndex(session: TerminalSession): void {
+    if (!session.scope) return;
+    const key = this.scopeKey(session.worktreeId, session.scope);
+    if (this.sessionsByScope.get(key) === session.id) {
+      this.sessionsByScope.delete(key);
+    }
+  }
+
+  private spawnSessionPty(sessionId: string, session: TerminalSession): boolean {
+    if (session.pty) return true;
+
+    const shell = process.env.SHELL || "/bin/zsh";
+    let ptyProcess: IPty;
+    try {
+      const shellArgs = session.startupCommand ? ["-lc", session.startupCommand] : [];
+      ptyProcess = pty.spawn(shell, shellArgs, {
+        name: "xterm-256color",
+        cols: session.cols,
+        rows: session.rows,
+        cwd: session.worktreePath,
+        env: {
+          ...process.env,
+          SHELL: shell,
+          TERM: "xterm-256color",
+          COLORTERM: "truecolor",
+        } as Record<string, string>,
+      });
+    } catch (err) {
+      console.error(`[terminal] Failed to spawn PTY: ${err}`);
+      this.clearScopeIndex(session);
+      this.sessions.delete(sessionId);
+      return false;
+    }
+
+    session.pty = ptyProcess;
+    session.dataHandler = ptyProcess.onData((data: string) => {
+      session.outputBuffer += data;
+      if (session.outputBuffer.length > TerminalManager.MAX_BUFFER_CHARS) {
+        session.outputBuffer = session.outputBuffer.slice(
+          session.outputBuffer.length - TerminalManager.MAX_BUFFER_CHARS,
+        );
+      }
+      try {
+        const activeWs = session.ws;
+        if (activeWs && activeWs.readyState === 1) {
+          activeWs.send(data);
+        }
+      } catch {
+        // ws closed
+      }
+    });
+
+    ptyProcess.onExit(({ exitCode }) => {
+      if (session.dataHandler) {
+        session.dataHandler.dispose();
+        session.dataHandler = null;
+      }
+      if (session.ws) {
+        try {
+          session.ws.send(JSON.stringify({ type: "exit", exitCode }));
+          session.ws.close();
+        } catch {
+          // ws already closed
+        }
+      }
+      this.clearScopeIndex(session);
+      this.sessions.delete(sessionId);
+    });
+
+    return true;
+  }
 
   createSession(
     worktreeId: string,
@@ -30,6 +108,7 @@ export class TerminalManager {
     cols = 80,
     rows = 24,
     startupCommand: string | null = null,
+    scope: "terminal" | "claude" | null = null,
   ): string {
     if (!existsSync(worktreePath)) {
       throw new Error(`Worktree path does not exist: ${worktreePath}`);
@@ -40,11 +119,22 @@ export class TerminalManager {
       throw new Error(`Shell not found: ${shell}`);
     }
 
+    if (scope) {
+      const existingSessionId = this.sessionsByScope.get(this.scopeKey(worktreeId, scope));
+      if (existingSessionId && this.sessions.has(existingSessionId)) {
+        return existingSessionId;
+      }
+      if (existingSessionId) {
+        this.sessionsByScope.delete(this.scopeKey(worktreeId, scope));
+      }
+    }
+
     const sessionId = `term-${++this.idCounter}`;
 
-    this.sessions.set(sessionId, {
+    const session: TerminalSession = {
       id: sessionId,
       worktreeId,
+      scope,
       startupCommand,
       pty: null,
       ws: null,
@@ -53,7 +143,16 @@ export class TerminalManager {
       worktreePath,
       cols,
       rows,
-    });
+    };
+
+    this.sessions.set(sessionId, session);
+    if (scope) {
+      this.sessionsByScope.set(this.scopeKey(worktreeId, scope), sessionId);
+    }
+
+    if (startupCommand && !this.spawnSessionPty(sessionId, session)) {
+      throw new Error("Failed to start terminal session");
+    }
 
     return sessionId;
   }
@@ -71,69 +170,18 @@ export class TerminalManager {
     }
     session.ws = ws;
 
-    // Spawn PTY lazily on first attach, then keep it alive for reconnects.
+    // Spawn PTY lazily on first attach when not already started.
     if (!session.pty) {
-      const shell = process.env.SHELL || "/bin/zsh";
-      let ptyProcess: IPty;
-      try {
-        const shellArgs = session.startupCommand ? ["-lc", session.startupCommand] : [];
-        ptyProcess = pty.spawn(shell, shellArgs, {
-          name: "xterm-256color",
-          cols: session.cols,
-          rows: session.rows,
-          cwd: session.worktreePath,
-          env: {
-            ...process.env,
-            SHELL: shell,
-            TERM: "xterm-256color",
-            COLORTERM: "truecolor",
-          } as Record<string, string>,
-        });
-      } catch (err) {
-        console.error(`[terminal] Failed to spawn PTY: ${err}`);
+      const spawned = this.spawnSessionPty(sessionId, session);
+      if (!spawned) {
         try {
-          ws.send(`\r\nFailed to start terminal: ${err}\r\n`);
+          ws.send("\r\nFailed to start terminal session\r\n");
           ws.close();
         } catch {
           /* ws closed */
         }
-        this.sessions.delete(sessionId);
         return false;
       }
-      session.pty = ptyProcess;
-
-      session.dataHandler = ptyProcess.onData((data: string) => {
-        session.outputBuffer += data;
-        if (session.outputBuffer.length > TerminalManager.MAX_BUFFER_CHARS) {
-          session.outputBuffer = session.outputBuffer.slice(
-            session.outputBuffer.length - TerminalManager.MAX_BUFFER_CHARS,
-          );
-        }
-        try {
-          const activeWs = session.ws;
-          if (activeWs && activeWs.readyState === 1) {
-            activeWs.send(data);
-          }
-        } catch {
-          // ws closed
-        }
-      });
-
-      ptyProcess.onExit(({ exitCode }) => {
-        if (session.dataHandler) {
-          session.dataHandler.dispose();
-          session.dataHandler = null;
-        }
-        if (session.ws) {
-          try {
-            session.ws.send(JSON.stringify({ type: "exit", exitCode }));
-            session.ws.close();
-          } catch {
-            // ws already closed
-          }
-        }
-        this.sessions.delete(sessionId);
-      });
     }
 
     const ptyProcess = session.pty;
@@ -203,6 +251,7 @@ export class TerminalManager {
       /* ignore */
     }
 
+    this.clearScopeIndex(session);
     this.sessions.delete(sessionId);
     return true;
   }
@@ -216,12 +265,23 @@ export class TerminalManager {
   }
 
   destroyAll(): void {
-    for (const id of [...this.sessions.keys()]) {
+    for (const id of this.sessions.keys()) {
       this.destroySession(id);
     }
   }
 
   hasSession(sessionId: string): boolean {
     return this.sessions.has(sessionId);
+  }
+
+  getSessionIdForScope(worktreeId: string, scope: "terminal" | "claude"): string | null {
+    const key = this.scopeKey(worktreeId, scope);
+    const sessionId = this.sessionsByScope.get(key);
+    if (!sessionId) return null;
+    if (!this.sessions.has(sessionId)) {
+      this.sessionsByScope.delete(key);
+      return null;
+    }
+    return sessionId;
   }
 }

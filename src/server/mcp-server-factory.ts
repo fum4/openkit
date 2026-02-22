@@ -86,17 +86,6 @@ export function createMcpServer(ctx: ActionContext): McpServer {
     { instructions: MCP_INSTRUCTIONS },
   );
 
-  // Emit agent connected event
-  if (ctx.activityLog) {
-    ctx.activityLog.addEvent({
-      category: "agent",
-      type: "agent_connected",
-      severity: "info",
-      title: "Agent connected via MCP",
-      projectName,
-    });
-  }
-
   for (const action of actions) {
     const zodShape = buildZodShape(action.params);
 

@@ -30,7 +30,9 @@ function normalizeHookTrigger(value: unknown): HookTrigger {
     value === "pre-implementation" ||
     value === "post-implementation" ||
     value === "custom" ||
-    value === "on-demand"
+    value === "on-demand" ||
+    value === "worktree-created" ||
+    value === "worktree-removed"
   ) {
     return value;
   }
@@ -47,6 +49,10 @@ function formatHookTriggerLabel(trigger: HookTrigger): string {
       return "Custom";
     case "on-demand":
       return "On-Demand";
+    case "worktree-created":
+      return "Worktree Created";
+    case "worktree-removed":
+      return "Worktree Removed";
   }
 }
 
@@ -235,6 +241,7 @@ export function useActivityFeed(
     worktreeId?: string,
   ) => void,
   toastEvents?: string[],
+  disabledEventTypes?: string[],
 ) {
   const serverUrl = useServerUrlOptional();
   const [events, setEvents] = useState<ActivityEvent[]>([]);
@@ -273,6 +280,7 @@ export function useActivityFeed(
 
     const handler = (e: CustomEvent<ActivityEvent>) => {
       const event = withSourceServerUrl(e.detail, serverUrl);
+      if ((disabledEventTypes ?? []).includes(event.type)) return;
       const eventTime = new Date(event.timestamp).getTime();
       if (clearedAt > 0 && Number.isFinite(eventTime) && eventTime <= clearedAt) return;
 
@@ -306,9 +314,12 @@ export function useActivityFeed(
         clearedAt > 0
           ? e.detail.filter((event) => {
               const eventTime = new Date(event.timestamp).getTime();
-              return !Number.isFinite(eventTime) || eventTime > clearedAt;
+              return (
+                (!Number.isFinite(eventTime) || eventTime > clearedAt) &&
+                !(disabledEventTypes ?? []).includes(event.type)
+              );
             })
-          : e.detail;
+          : e.detail.filter((event) => !(disabledEventTypes ?? []).includes(event.type));
       if (filteredHistory.length === 0) return;
       const scopedHistory = filteredHistory.map((event) => withSourceServerUrl(event, serverUrl));
       // History arrives newest-first; replay oldest-first so grouped events end with latest state.
@@ -332,7 +343,13 @@ export function useActivityFeed(
       window.removeEventListener("dawg:activity", handler as EventListener);
       window.removeEventListener("dawg:activity-history", historyHandler as EventListener);
     };
-  }, [serverUrl, onToast, onUpsertToast, toastEvents, clearedAt]);
+  }, [serverUrl, onToast, onUpsertToast, toastEvents, clearedAt, disabledEventTypes]);
+
+  useEffect(() => {
+    if (!disabledEventTypes || disabledEventTypes.length === 0) return;
+    const disabled = new Set(disabledEventTypes);
+    setEvents((prev) => prev.filter((event) => !disabled.has(event.type)));
+  }, [disabledEventTypes]);
 
   const markAllRead = useCallback(() => {
     setUnreadCount(0);

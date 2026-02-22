@@ -12,23 +12,34 @@ interface ActivityEvent {
   detail?: string;
   worktreeId?: string;
   projectName?: string;
+  metadata?: Record<string, unknown>;
 }
 
-// Events that trigger native OS notifications when app is unfocused
-const OS_NOTIFICATION_EVENTS = new Set([
-  "creation_completed",
-  "creation_failed",
-  "skill_failed",
-  "crashed",
-]);
+interface ProjectNotificationPolicy {
+  desktopEvents: Set<string>;
+  fetchedAt: number;
+}
+
+interface ConfigResponse {
+  config?: {
+    activity?: {
+      disabledEvents?: unknown;
+      osNotificationEvents?: unknown;
+    };
+  };
+}
 
 const DEBOUNCE_MS = 10_000; // Max 1 notification per 10s per project
 const RECONNECT_MS = 5_000;
+const CONFIG_CACHE_TTL_MS = 5_000;
+const DEFAULT_DESKTOP_EVENTS = new Set<string>(["agent_awaiting_input"]);
 
 export class NotificationManager {
   private lastNotificationTime: Map<string, number> = new Map();
   private connections: Map<number, http.ClientRequest> = new Map();
   private reconnectTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
+  private notificationPolicies: Map<number, ProjectNotificationPolicy> = new Map();
+  private policyFetches: Map<number, Promise<ProjectNotificationPolicy>> = new Map();
 
   constructor(
     private getMainWindow: () => BrowserWindow | null,
@@ -59,6 +70,8 @@ export class NotificationManager {
       if (!activePorts.has(port)) {
         req.destroy();
         this.connections.delete(port);
+        this.notificationPolicies.delete(port);
+        this.policyFetches.delete(port);
         const timer = this.reconnectTimers.get(port);
         if (timer) {
           clearTimeout(timer);
@@ -69,6 +82,8 @@ export class NotificationManager {
   }
 
   private connectToProject(port: number, projectName: string): void {
+    void this.refreshNotificationPolicy(port);
+
     const req = http.get(`http://localhost:${port}/api/events`, (res) => {
       let buffer = "";
 
@@ -83,7 +98,7 @@ export class NotificationManager {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.type === "activity") {
-                this.handleActivityEvent(data.event as ActivityEvent, projectName);
+                void this.handleActivityEvent(data.event as ActivityEvent, projectName, port);
               }
             } catch {
               // Ignore parse errors
@@ -120,8 +135,14 @@ export class NotificationManager {
     this.reconnectTimers.set(port, timer);
   }
 
-  private handleActivityEvent(event: ActivityEvent, projectName: string): void {
-    if (!OS_NOTIFICATION_EVENTS.has(event.type)) return;
+  private async handleActivityEvent(
+    event: ActivityEvent,
+    projectName: string,
+    port: number,
+  ): Promise<void> {
+    const desktopEvents = await this.getDesktopEvents(port);
+    if (!desktopEvents.has(event.type)) return;
+    if (event.type === "agent_awaiting_input" && !this.isAgentAttentionEvent(event)) return;
 
     const mainWindow = this.getMainWindow();
     if (!mainWindow || mainWindow.isFocused()) return;
@@ -147,6 +168,93 @@ export class NotificationManager {
     notification.show();
   }
 
+  private toEventTypeSet(value: unknown): Set<string> {
+    if (!Array.isArray(value)) return new Set();
+    const set = new Set<string>();
+    for (const item of value) {
+      if (typeof item !== "string") continue;
+      const normalized = item.trim();
+      if (!normalized) continue;
+      set.add(normalized);
+    }
+    return set;
+  }
+
+  private defaultPolicy(): ProjectNotificationPolicy {
+    return {
+      desktopEvents: new Set(DEFAULT_DESKTOP_EVENTS),
+      fetchedAt: Date.now(),
+    };
+  }
+
+  private async fetchNotificationPolicy(port: number): Promise<ProjectNotificationPolicy> {
+    const fallback = this.defaultPolicy();
+
+    try {
+      const response = await fetch(`http://localhost:${port}/api/config`);
+      if (!response.ok) return fallback;
+
+      const body = (await response.json()) as ConfigResponse;
+      const activity = body.config?.activity;
+      if (!activity) return fallback;
+
+      const disabledEvents = this.toEventTypeSet(activity.disabledEvents);
+      const configuredDesktopEvents =
+        activity.osNotificationEvents === undefined
+          ? new Set(DEFAULT_DESKTOP_EVENTS)
+          : this.toEventTypeSet(activity.osNotificationEvents);
+      const desktopEvents = new Set(
+        [...configuredDesktopEvents].filter((eventType) => !disabledEvents.has(eventType)),
+      );
+
+      return {
+        desktopEvents,
+        fetchedAt: Date.now(),
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  private async refreshNotificationPolicy(port: number): Promise<ProjectNotificationPolicy> {
+    const pending = this.policyFetches.get(port);
+    if (pending) return pending;
+
+    const fetchPromise = this.fetchNotificationPolicy(port)
+      .then((policy) => {
+        this.notificationPolicies.set(port, policy);
+        return policy;
+      })
+      .finally(() => {
+        this.policyFetches.delete(port);
+      });
+
+    this.policyFetches.set(port, fetchPromise);
+    return fetchPromise;
+  }
+
+  private async getDesktopEvents(port: number): Promise<Set<string>> {
+    const cached = this.notificationPolicies.get(port);
+    const now = Date.now();
+    if (cached && now - cached.fetchedAt < CONFIG_CACHE_TTL_MS) {
+      return cached.desktopEvents;
+    }
+
+    const policy = await this.refreshNotificationPolicy(port);
+    return policy.desktopEvents;
+  }
+
+  private isAgentAttentionEvent(event: ActivityEvent): boolean {
+    if (event.category !== "agent") return false;
+
+    const requiresUserAction = event.metadata?.requiresUserAction === true;
+    const awaitingUserInput = event.metadata?.awaitingUserInput === true;
+    if (event.type === "agent_awaiting_input") {
+      return requiresUserAction || awaitingUserInput;
+    }
+    return requiresUserAction || awaitingUserInput;
+  }
+
   dispose(): void {
     for (const req of this.connections.values()) {
       req.destroy();
@@ -157,5 +265,7 @@ export class NotificationManager {
       clearTimeout(timer);
     }
     this.reconnectTimers.clear();
+    this.notificationPolicies.clear();
+    this.policyFetches.clear();
   }
 }

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CircleCheck,
   Copy,
+  FolderMinus,
+  FolderPlus,
   Hand,
   ListChecks,
   MessageSquareText,
@@ -249,6 +251,20 @@ const TRIGGER_GROUPS: {
     description: "Manually triggered",
     Icon: Hand,
     iconColor: "text-amber-400",
+  },
+  {
+    trigger: "worktree-created",
+    label: "Worktree Created",
+    description: "Runs after create",
+    Icon: FolderPlus,
+    iconColor: "text-cyan-400",
+  },
+  {
+    trigger: "worktree-removed",
+    label: "Worktree Removed",
+    description: "Runs after remove",
+    Icon: FolderMinus,
+    iconColor: "text-rose-400",
   },
 ];
 

@@ -23,6 +23,8 @@ export function registerTerminalRoutes(
       const body = await c.req.json().catch(() => ({}));
       const cols = body.cols ?? 80;
       const rows = body.rows ?? 24;
+      const scope =
+        body.scope === "terminal" || body.scope === "claude" ? (body.scope as "terminal" | "claude") : null;
       const startupCommand =
         typeof body.startupCommand === "string" && body.startupCommand.trim()
           ? body.startupCommand
@@ -34,13 +36,32 @@ export function registerTerminalRoutes(
         cols,
         rows,
         startupCommand,
+        scope,
       );
+      console.info("[terminal][TEMP] session created", {
+        worktreeId,
+        sessionId,
+        scope,
+        hasStartupCommand: Boolean(startupCommand),
+      });
       return c.json({ success: true, sessionId });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create terminal session";
       console.error("[terminal] Failed to create session:", message);
       return c.json({ success: false, error: message }, 500);
     }
+  });
+
+  app.get("/api/worktrees/:id/terminals/active", (c) => {
+    const worktreeId = c.req.param("id");
+    const scopeQuery = c.req.query("scope");
+    const scope = scopeQuery === "terminal" || scopeQuery === "claude" ? scopeQuery : null;
+    if (!scope) {
+      return c.json({ success: false, error: 'scope is required ("terminal" or "claude")' }, 400);
+    }
+
+    const sessionId = terminalManager.getSessionIdForScope(worktreeId, scope);
+    return c.json({ success: true, sessionId });
   });
 
   app.delete("/api/terminals/:sessionId", (c) => {
@@ -60,10 +81,18 @@ export function registerTerminalRoutes(
       return {
         onOpen(_evt, ws) {
           const rawWs = ws.raw as WebSocket;
+          const hadSession = terminalManager.hasSession(sessionId);
           const attached = terminalManager.attachWebSocket(sessionId, rawWs);
           if (!attached) {
-            ws.close(1008, "Session not found");
+            const reason = hadSession ? "terminal-spawn-failed" : "session-not-found";
+            console.info("[terminal][TEMP] websocket attach failed: session not found or spawn failed", {
+              sessionId,
+              reason,
+            });
+            ws.close(1008, reason);
+            return;
           }
+          console.info("[terminal][TEMP] websocket attached", { sessionId });
         },
       };
     }),

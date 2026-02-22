@@ -67,6 +67,8 @@ args = ["mcp"]
 ```
 
 dawg's UI can deploy this configuration automatically to any supported agent (see [Supported Agents](#supported-agents)).
+Set `DAWG_ENABLE_MCP_SETUP=1` to enable MCP setup routes (`/api/mcp/status`,
+`/api/mcp/setup`, `/api/mcp/remove`).
 
 ### Auto-Approval of MCP Tools
 
@@ -188,6 +190,7 @@ The deployment status endpoint returns a matrix showing, for every server and ev
 ## Skills Management
 
 Skills are reusable instruction sets (prompt templates) that agents can invoke as slash commands. dawg manages them through a central registry with per-agent deployment via symlinks.
+During project initialization, dawg auto-enables the bundled `work-on-task` skill in project skill directories.
 
 ### SKILL.md Format
 
@@ -426,6 +429,8 @@ dawg includes a hooks system that agents can use to run automated checks at defi
 | `post-implementation` | After agents finish implementing a task (default)   |
 | `custom`              | Agent decides based on a natural-language condition |
 | `on-demand`           | Manually triggered from the UI                      |
+| `worktree-created`    | Automatically after worktree creation               |
+| `worktree-removed`    | Automatically after worktree removal                |
 
 ### Item Types
 
@@ -433,6 +438,8 @@ dawg includes a hooks system that agents can use to run automated checks at defi
 | ---------------- | ------------------------------------------------------------------------------------------- |
 | Command steps    | dawg runs shell commands in the worktree directory and returns stdout/stderr with pass/fail |
 | Skill references | Agent is told which skills to invoke; results are reported back                             |
+
+`worktree-created` and `worktree-removed` are command-only triggers (no skills).
 
 The same skill can be used in multiple trigger types (e.g., code-review in both `post-implementation` and `on-demand`). Skills are identified by the composite key `skillName + trigger`.
 
@@ -474,6 +481,7 @@ Each issue can override the global enable/disable state of skills. Overrides are
 5. Report skill results back to dawg via `report_hook_status`
 6. Check run status to verify all steps passed
 7. After all work and hooks are done, ask the user if they'd like to start the worktree dev server automatically
+8. Lifecycle command hooks (`worktree-created` / `worktree-removed`) are triggered automatically by CLI-backed create/remove flows
 
 ---
 

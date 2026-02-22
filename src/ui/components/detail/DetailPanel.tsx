@@ -18,6 +18,8 @@ type WorktreeTab = "logs" | "terminal" | "claude" | "hooks";
 // Persists across unmount/remount (view switches)
 const tabCache: Record<string, WorktreeTab> = {};
 const openClaudeTabCache = new Set<string>();
+const claudeTabLabelCache: Record<string, string> = {};
+let lastProcessedNotificationTabRequestId: number | null = null;
 const OPEN_TARGET_SELECTION_PRIORITY: OpenProjectTarget[] = [
   "cursor",
   "vscode",
@@ -47,6 +49,14 @@ interface ClaudeLaunchRequest {
   worktreeId: string;
   mode: "resume" | "start";
   prompt?: string;
+  tabLabel?: string;
+  skipPermissions?: boolean;
+  requestId: number;
+}
+
+interface NotificationTabRequest {
+  worktreeId: string;
+  tab: "hooks";
   requestId: number;
 }
 
@@ -63,7 +73,10 @@ interface DetailPanelProps {
   onLinkIssue?: (worktreeId: string) => void;
   hookUpdateKey?: number;
   claudeLaunchRequest?: ClaudeLaunchRequest | null;
+  notificationTabRequest?: NotificationTabRequest | null;
 }
+
+const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
 
 export function DetailPanel({
   worktree,
@@ -78,6 +91,7 @@ export function DetailPanel({
   onLinkIssue,
   hookUpdateKey,
   claudeLaunchRequest,
+  notificationTabRequest,
 }: DetailPanelProps) {
   const api = useApi();
   const [isLoading, setIsLoading] = useState(false);
@@ -98,6 +112,9 @@ export function DetailPanel({
   const [openClaudeTabs, setOpenClaudeTabs] = useState<Set<string>>(
     () => new Set(openClaudeTabCache),
   );
+  const [claudeTabLabelsByWorktree, setClaudeTabLabelsByWorktree] = useState<
+    Record<string, string>
+  >(() => ({ ...claudeTabLabelCache }));
   const [currentClaudeLaunchRequest, setCurrentClaudeLaunchRequest] =
     useState<ClaudeLaunchRequest | null>(null);
   const [launchClaudeRequestId, setLaunchClaudeRequestId] = useState<number | null>(null);
@@ -105,11 +122,20 @@ export function DetailPanel({
     Record<string, number>
   >({});
   const processedClaudeRequestIdRef = useRef<number | null>(null);
+  const processedNotificationTabRequestIdRef = useRef<number | null>(
+    lastProcessedNotificationTabRequestId,
+  );
   const localClaudeRequestIdRef = useRef(1_000_000);
   const closeClaudeRequestIdRef = useRef(0);
+  const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
+    if (extra) {
+      console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
+      return;
+    }
+    console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
+  }, []);
 
   const activeTab = worktree ? (tabPerWorktree[worktree.id] ?? "logs") : "logs";
-  const isTerminalTabActive = activeTab === "terminal" || activeTab === "claude";
 
   const setTabForWorktree = useCallback((worktreeId: string, tab: WorktreeTab) => {
     tabCache[worktreeId] = tab;
@@ -135,21 +161,35 @@ export function DetailPanel({
 
   const ensureClaudeTabMounted = useCallback((worktreeId: string) => {
     openClaudeTabCache.add(worktreeId);
+    const label = "Claude";
+    logAutoClaude("Ensuring Claude tab is mounted", { worktreeId, label });
+    claudeTabLabelCache[worktreeId] = label;
     setOpenClaudeTabs((prev) => {
       if (prev.has(worktreeId)) return prev;
       const next = new Set(prev);
       next.add(worktreeId);
       return next;
     });
-  }, []);
+    setClaudeTabLabelsByWorktree((prev) => {
+      if (prev[worktreeId] === label) return prev;
+      return { ...prev, [worktreeId]: label };
+    });
+  }, [logAutoClaude]);
 
   const closeClaudeTab = useCallback(
     (worktreeId: string) => {
       openClaudeTabCache.delete(worktreeId);
+      delete claudeTabLabelCache[worktreeId];
       setOpenClaudeTabs((prev) => {
         if (!prev.has(worktreeId)) return prev;
         const next = new Set(prev);
         next.delete(worktreeId);
+        return next;
+      });
+      setClaudeTabLabelsByWorktree((prev) => {
+        if (!(worktreeId in prev)) return prev;
+        const next = { ...prev };
+        delete next[worktreeId];
         return next;
       });
       setLaunchClaudeRequestId(null);
@@ -169,9 +209,36 @@ export function DetailPanel({
     [],
   );
 
+  const handleClaudeExit = useCallback(
+    (worktreeId: string, exitCode?: number) => {
+      closeClaudeTab(worktreeId);
+      if (exitCode !== 0) return;
+      void (async () => {
+        logAutoClaude("Running post-implementation hooks after Claude exit", {
+          worktreeId,
+          exitCode,
+        });
+        const run = await api.runHooks(worktreeId, "post-implementation");
+        const failedCount = run.steps.filter((step) => step.status === "failed").length;
+        logAutoClaude("Post-implementation hooks finished", {
+          worktreeId,
+          status: run.status,
+          stepCount: run.steps.length,
+          failedCount,
+        });
+      })();
+    },
+    [api, closeClaudeTab, logAutoClaude],
+  );
+
   const openClaudeWithRequest = useCallback(
     (request: ClaudeLaunchRequest) => {
-      if (!worktree || request.worktreeId !== worktree.id) return;
+      logAutoClaude("Opening Claude tab with launch request", {
+        worktreeId: request.worktreeId,
+        requestId: request.requestId,
+        mode: request.mode,
+        tabLabel: request.tabLabel,
+      });
       setCurrentClaudeLaunchRequest(request);
       setCloseClaudeRequestIdByWorktree((prev) => {
         if (!(request.worktreeId in prev)) return prev;
@@ -179,12 +246,12 @@ export function DetailPanel({
         delete next[request.worktreeId];
         return next;
       });
-      const claudeTabAlreadyOpen = openClaudeTabCache.has(worktree.id);
-      setActiveTab("claude");
-      ensureClaudeTabMounted(worktree.id);
+      const claudeTabAlreadyOpen = openClaudeTabCache.has(request.worktreeId);
+      setTabForWorktree(request.worktreeId, "claude");
+      ensureClaudeTabMounted(request.worktreeId);
       setLaunchClaudeRequestId(claudeTabAlreadyOpen ? null : request.requestId);
     },
-    [ensureClaudeTabMounted, setActiveTab, worktree],
+    [ensureClaudeTabMounted, logAutoClaude, setTabForWorktree],
   );
 
   const handleOpenClaudeTab = useCallback(() => {
@@ -241,13 +308,38 @@ export function DetailPanel({
   }, [api, worktree?.id]);
 
   useEffect(() => {
-    if (!worktree || !claudeLaunchRequest || claudeLaunchRequest.worktreeId !== worktree.id) {
-      return;
-    }
+    if (!worktree) return;
+    let cancelled = false;
+
+    void (async () => {
+      const result = await api.fetchActiveTerminalSession(worktree.id, "claude");
+      if (cancelled) return;
+      if (result.success && result.sessionId) {
+        ensureClaudeTabMounted(worktree.id);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, ensureClaudeTabMounted, worktree?.id]);
+
+  useEffect(() => {
+    if (!claudeLaunchRequest) return;
     if (processedClaudeRequestIdRef.current === claudeLaunchRequest.requestId) return;
     processedClaudeRequestIdRef.current = claudeLaunchRequest.requestId;
     openClaudeWithRequest(claudeLaunchRequest);
-  }, [claudeLaunchRequest, openClaudeWithRequest, worktree]);
+  }, [claudeLaunchRequest, openClaudeWithRequest]);
+
+  useEffect(() => {
+    if (!notificationTabRequest) return;
+    if (processedNotificationTabRequestIdRef.current === notificationTabRequest.requestId) return;
+    processedNotificationTabRequestIdRef.current = notificationTabRequest.requestId;
+    lastProcessedNotificationTabRequestId = notificationTabRequest.requestId;
+    if (notificationTabRequest.tab === "hooks") {
+      setTabForWorktree(notificationTabRequest.worktreeId, "hooks");
+    }
+  }, [notificationTabRequest, setTabForWorktree]);
 
   // If terminal/claude tab is restored from cache on remount, ensure that view is mounted.
   useEffect(() => {
@@ -308,9 +400,16 @@ export function DetailPanel({
       return next;
     });
     openClaudeTabCache.delete(deletedId);
+    delete claudeTabLabelCache[deletedId];
     setOpenClaudeTabs((prev) => {
       const next = new Set(prev);
       next.delete(deletedId);
+      return next;
+    });
+    setClaudeTabLabelsByWorktree((prev) => {
+      if (!(deletedId in prev)) return prev;
+      const next = { ...prev };
+      delete next[deletedId];
       return next;
     });
     setTabPerWorktree((prev) => {
@@ -493,7 +592,7 @@ export function DetailPanel({
                   onClick={() => setActiveTab("claude")}
                   className="pl-3 pr-1.5 py-1 text-xs font-medium"
                 >
-                  Claude
+                  {claudeTabLabelsByWorktree[worktree.id] ?? "Claude"}
                 </button>
                 <button
                   type="button"
@@ -797,7 +896,7 @@ export function DetailPanel({
               : null
           }
           closeRequestId={closeClaudeRequestIdByWorktree[wtId] ?? null}
-          onClaudeExit={() => closeClaudeTab(wtId)}
+          onClaudeExit={(exitCode) => handleClaudeExit(wtId, exitCode)}
         />
       ))}
       <HooksTab

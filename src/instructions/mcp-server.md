@@ -20,7 +20,7 @@ Do NOT read `.dawg/` files or make HTTP requests to the dawg server — all comm
 
 1. Poll `list_worktrees` until status is `stopped` (creation done)
 2. Navigate to the worktree path returned in the response
-3. Call `get_hooks_config` to discover all configured hooks (pre/post-implementation, custom, on-demand)
+3. Call `get_hooks_config` to discover all configured hooks (pre/post-implementation, custom, on-demand, plus lifecycle triggers)
 4. Run pre-implementation command hooks via `run_hooks` with `trigger: "pre-implementation"` BEFORE starting work (see Hooks section below)
 5. Read TASK.md to understand the task from the original issue details
 6. Follow AI context directions and work through the todo checklist — these are user-defined and take priority over the original task description when they conflict
@@ -80,6 +80,8 @@ Hooks run at different points in the workflow. Call `get_hooks_config` EARLY (ri
 | **post-implementation** | AFTER you finish implementing — validates changes (type checks, linting, tests, code review)                        |
 | **custom**              | When a natural-language condition is met (e.g. "when changes touch database models") — check conditions as you work |
 | **on-demand**           | Only when explicitly requested by the user — do NOT run these automatically                                         |
+| **worktree-created**    | Runs automatically after worktree creation (command-only trigger)                                                    |
+| **worktree-removed**    | Runs automatically after worktree removal (command-only trigger)                                                     |
 
 ### Hooks Workflow
 
@@ -90,7 +92,7 @@ Hooks run at different points in the workflow. Call `get_hooks_config` EARLY (ri
    > e.g. "Running pre-implementation hooks: typecheck, lint" or "Invoking /code-review skill as a post-implementation hook"
 
 3. **After running** — summarize results to the user AND report them back through MCP tools so the UI stays updated:
-   - **Command steps**: call `run_hooks` with the appropriate trigger (`pre-implementation`, `post-implementation`, `custom`, or `on-demand`). Summarize pass/fail to the user.
+   - **Command steps**: call `run_hooks` with the appropriate trigger (`pre-implementation`, `post-implementation`, `custom`, `on-demand`, `worktree-created`, or `worktree-removed`). Summarize pass/fail to the user.
    - **Skills**: call `report_hook_status` TWICE — once BEFORE invoking (without `success`/`summary`) to show loading, and once AFTER with the result. Include `trigger` whenever possible.
    - **Prompt hooks**: execute the prompt instruction directly (no `run_hooks` call).
 
@@ -123,7 +125,7 @@ For skills that produce detailed output (code review, changes summary, test inst
 | **Code review**                      | Thorough investigation — read actual code files, trace logic, check for bugs, edge cases, security issues, correctness. Don't just summarize the diff.      |
 | **Changes summary**                  | Technical, well-structured, bullet points grouped by area (backend, frontend, types). Not overly verbose, but cover all meaningful changes.                 |
 | **Test instructions / test writing** | Check if the project has a testing framework configured. If not, ask the user whether to integrate one and which framework. Ask about scope and priorities. |
-| **Explain like I'm 5**               | Simple language and analogies. Accessible to non-technical readers.                                                                                         |
+| **Explain like I'm 5**               | Domain onboarding explanation for engineers new to the stack/domain. Define domain terms, relationships, and implications; avoid childlike tone.           |
 
 ---
 
@@ -134,7 +136,7 @@ Use the `notify` tool to keep the user informed about progress on long-running t
 - Call `notify` with a short `message` describing what you're doing or what just happened
 - Use `severity` to indicate the nature of the update: `info` (default), `warning`, or `error`
 - Include `worktreeId` when the update relates to a specific worktree
-- If you are blocked waiting for user input, you MUST call `notify` with `requiresUserAction: true` immediately
+- If you are blocked waiting for user input, you MUST call `notify` with `requiresUserAction: true` immediately, before asking the user in chat/terminal
 - For `requiresUserAction: true` notifications, include a concise message with what you need from the user to continue
 - Good examples: "Analyzing codebase structure", "Found 3 files that need changes", "Running type checker — 2 errors found"
 - Don't over-notify — one update per meaningful progress milestone is enough

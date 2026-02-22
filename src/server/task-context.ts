@@ -45,6 +45,35 @@ export function generateTaskMd(
   lines.push(`**Status:** ${data.status}`);
   lines.push(`**URL:** ${data.url}`);
 
+  lines.push("");
+  lines.push("## Agent Communication");
+  lines.push("");
+  lines.push(
+    '> If you are blocked waiting for user approval or instructions, notify the UI immediately so the user sees "Input needed" in the header:',
+  );
+  lines.push("");
+  lines.push('- Terminal flow: run `dawg activity await-input --message "<what you need>"`');
+  lines.push('- MCP flow: call `notify` with `requiresUserAction: true`');
+
+  lines.push("");
+  lines.push("## Workflow Contract (Mandatory)");
+  lines.push("");
+  lines.push(
+    "> You must follow the canonical workflow phases in order and emit each phase checkpoint.",
+  );
+  lines.push("");
+  lines.push("- `dawg activity phase --phase task-started`");
+  lines.push("- `dawg activity phase --phase pre-hooks-started`");
+  lines.push("- `dawg activity phase --phase pre-hooks-completed`");
+  lines.push("- `dawg activity phase --phase implementation-started`");
+  lines.push("- `dawg activity phase --phase implementation-completed`");
+  lines.push("- `dawg activity phase --phase post-hooks-started`");
+  lines.push("- `dawg activity phase --phase post-hooks-completed`");
+  lines.push("");
+  lines.push(
+    "> Before your final summary, run `dawg activity check-flow --json`. If `compliant` is false, you must complete all `missingActions` and rerun until compliant is true.",
+  );
+
   if (aiContext) {
     lines.push("");
     lines.push("## AI Context");

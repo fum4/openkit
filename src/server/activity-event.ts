@@ -31,6 +31,10 @@ export const ACTIVITY_TYPES = {
   SKILL_FAILED: "skill_failed",
   HOOKS_STARTED: "hooks_started",
   HOOKS_RAN: "hooks_ran",
+  TASK_DETECTED: "task_detected",
+  AUTO_TASK_CLAIMED: "auto_task_claimed",
+  AGENT_AWAITING_INPUT: "agent_awaiting_input",
+  WORKFLOW_PHASE: "workflow_phase",
 
   // Worktree events
   CREATION_STARTED: "creation_started",
@@ -51,6 +55,7 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[keyof typeof ACTIVITY_TYPES];
 export interface ActivityConfig {
   retentionDays: number;
   categories: Record<ActivityCategory, boolean>;
+  disabledEvents: string[];
   toastEvents: string[];
   osNotificationEvents: string[];
 }
@@ -62,6 +67,7 @@ export const DEFAULT_ACTIVITY_CONFIG: ActivityConfig = {
     worktree: true,
     system: true,
   },
+  disabledEvents: [],
   toastEvents: [
     "creation_started",
     "creation_completed",
@@ -72,5 +78,5 @@ export const DEFAULT_ACTIVITY_CONFIG: ActivityConfig = {
     "crashed",
     "connection_lost",
   ],
-  osNotificationEvents: ["creation_completed", "skill_failed", "crashed"],
+  osNotificationEvents: ["agent_awaiting_input"],
 };

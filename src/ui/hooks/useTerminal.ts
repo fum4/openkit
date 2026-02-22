@@ -25,6 +25,7 @@ interface UseTerminalReturn {
 }
 
 const terminalSessionCache = new Map<string, string>();
+const WEBSOCKET_STABLE_OPEN_MS = 180;
 
 function cacheKey(
   worktreeId: string,
@@ -51,6 +52,7 @@ export function useTerminal({
   const sessionIdRef = useRef<string | null>(null);
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const connectGenRef = useRef(0);
+  const lastConnectFailureRef = useRef<string | null>(null);
   const onDataRef = useRef(onData);
   const onExitRef = useRef(onExit);
   const getSizeRef = useRef(getSize);
@@ -74,16 +76,23 @@ export function useTerminal({
         const ws = new WebSocket(getTerminalWsUrl(sid, serverUrl));
         wsRef.current = ws;
         let opened = false;
+        let stableOpen = false;
         let settled = false;
+        let stableTimer: number | null = null;
 
         const settle = (ok: boolean) => {
           if (settled) return;
           settled = true;
+          if (stableTimer !== null) {
+            window.clearTimeout(stableTimer);
+            stableTimer = null;
+          }
           resolve(ok);
         };
 
         ws.onopen = () => {
           if (gen !== connectGenRef.current) {
+            lastConnectFailureRef.current = "connect generation changed before websocket opened";
             ws.close();
             settle(false);
             return;
@@ -91,7 +100,16 @@ export function useTerminal({
           opened = true;
           setIsConnected(true);
           setError(null);
-          settle(true);
+          console.info("[terminal][TEMP] websocket opened", {
+            worktreeId,
+            sessionScope,
+            sessionId: sid,
+            generation: gen,
+          });
+          stableTimer = window.setTimeout(() => {
+            stableOpen = true;
+            settle(true);
+          }, WEBSOCKET_STABLE_OPEN_MS);
         };
 
         ws.onmessage = (event) => {
@@ -114,20 +132,47 @@ export function useTerminal({
           }
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
           if (wsRef.current === ws) {
             wsRef.current = null;
           }
           setIsConnected(false);
-          if (!opened) settle(false);
+          if (!stableOpen) settle(false);
+          if (!stableOpen) {
+            lastConnectFailureRef.current =
+              event.reason?.trim().length > 0
+                ? `websocket closed early (${event.code}: ${event.reason})`
+                : `websocket closed early (${event.code})`;
+          }
+          console.info("[terminal][TEMP] websocket closed", {
+            worktreeId,
+            sessionScope,
+            sessionId: sid,
+            generation: gen,
+            code: event.code,
+            reason: event.reason,
+            opened,
+            stableOpen,
+          });
         };
 
         ws.onerror = () => {
           setIsConnected(false);
-          if (!opened) {
+          if (!stableOpen) {
+            if (!lastConnectFailureRef.current) {
+              lastConnectFailureRef.current = "websocket error before stable connection";
+            }
             settle(false);
             return;
           }
+          console.info("[terminal][TEMP] websocket error", {
+            worktreeId,
+            sessionScope,
+            sessionId: sid,
+            generation: gen,
+            opened,
+            stableOpen,
+          });
           setError("WebSocket connection failed");
         };
       }),
@@ -147,6 +192,7 @@ export function useTerminal({
     disconnect();
     setError(null);
     setConnectionSource(null);
+    lastConnectFailureRef.current = null;
 
     const size = getSizeRef.current?.();
     lastSizeRef.current = size ?? null;
@@ -154,10 +200,22 @@ export function useTerminal({
     const key = cacheKey(worktreeId, serverUrl, sessionScope);
     const cachedSessionId = sessionIdRef.current ?? terminalSessionCache.get(key) ?? null;
     if (cachedSessionId) {
+      console.info("[terminal][TEMP] attempting cached session", {
+        worktreeId,
+        sessionScope,
+        sessionId: cachedSessionId,
+        generation: gen,
+      });
       sessionIdRef.current = cachedSessionId;
       setSessionId(cachedSessionId);
       const reused = await openSessionWebSocket(cachedSessionId, gen);
       if (reused) {
+        console.info("[terminal][TEMP] reused cached session", {
+          worktreeId,
+          sessionScope,
+          sessionId: cachedSessionId,
+          generation: gen,
+        });
         setConnectionSource("reused");
         return;
       }
@@ -166,6 +224,13 @@ export function useTerminal({
       terminalSessionCache.delete(key);
       sessionIdRef.current = null;
       setSessionId(null);
+      await destroyTerminalSession(cachedSessionId, serverUrl);
+      console.info("[terminal][TEMP] cached session unusable; creating new session", {
+        worktreeId,
+        sessionScope,
+        sessionId: cachedSessionId,
+        generation: gen,
+      });
     }
 
     const result = await createTerminalSession(
@@ -173,6 +238,7 @@ export function useTerminal({
       size?.cols,
       size?.rows,
       createSessionStartupCommand ?? undefined,
+      sessionScope,
       serverUrl,
     );
 
@@ -193,11 +259,67 @@ export function useTerminal({
     sessionIdRef.current = sid;
     setSessionId(sid);
     terminalSessionCache.set(key, sid);
+    console.info("[terminal][TEMP] created terminal session", {
+      worktreeId,
+      sessionScope,
+      sessionId: sid,
+      generation: gen,
+    });
 
     const opened = await openSessionWebSocket(sid, gen);
     if (!opened && gen === connectGenRef.current) {
-      setError("Failed to connect to terminal session");
-      setConnectionSource(null);
+      await destroyTerminalSession(sid, serverUrl);
+      terminalSessionCache.delete(key);
+      sessionIdRef.current = null;
+      setSessionId(null);
+
+      const retryResult = await createTerminalSession(
+        worktreeId,
+        size?.cols,
+        size?.rows,
+        createSessionStartupCommand ?? undefined,
+        sessionScope,
+        serverUrl,
+      );
+      if (gen !== connectGenRef.current) {
+        if (retryResult.success && retryResult.sessionId) {
+          void destroyTerminalSession(retryResult.sessionId, serverUrl);
+        }
+        return;
+      }
+      if (!retryResult.success || !retryResult.sessionId) {
+        const retryError = retryResult.error || "Failed to create terminal session";
+        const failureSuffix = lastConnectFailureRef.current
+          ? ` (${lastConnectFailureRef.current})`
+          : "";
+        setError(`${retryError}${failureSuffix}`);
+        setConnectionSource(null);
+        return;
+      }
+
+      const retrySid = retryResult.sessionId;
+      sessionIdRef.current = retrySid;
+      setSessionId(retrySid);
+      terminalSessionCache.set(key, retrySid);
+      console.info("[terminal][TEMP] retrying with fresh terminal session", {
+        worktreeId,
+        sessionScope,
+        sessionId: retrySid,
+        generation: gen,
+      });
+
+      const retryOpened = await openSessionWebSocket(retrySid, gen);
+      if (!retryOpened && gen === connectGenRef.current) {
+        const failureSuffix = lastConnectFailureRef.current
+          ? ` (${lastConnectFailureRef.current})`
+          : "";
+        setError(`Failed to connect to terminal session${failureSuffix}`);
+        setConnectionSource(null);
+        return;
+      }
+      if (gen === connectGenRef.current) {
+        setConnectionSource("new");
+      }
       return;
     }
     if (gen === connectGenRef.current) {

@@ -15,6 +15,15 @@ export function registerNotesRoutes(
 ) {
   const configDir = manager.getConfigDir();
   const worktreesPath = path.join(configDir, CONFIG_DIR_NAME, "worktrees");
+  const getHooksSnapshot = (worktreeId: string) => {
+    if (!hooksManager) return undefined;
+    const config = hooksManager.getConfig();
+    const effectiveSkills = hooksManager.getEffectiveSkills(worktreeId, notesManager);
+    return {
+      checks: config.steps,
+      skills: effectiveSkills,
+    };
+  };
 
   // Get notes for an issue
   app.get("/api/notes/:source/:id", (c) => {
@@ -63,6 +72,7 @@ export function registerNotesRoutes(
           notesManager,
           configDir,
           worktreesPath,
+          getHooksSnapshot(notes.linkedWorktreeId),
         );
       } catch {
         // Non-critical — don't fail the notes update
@@ -97,6 +107,7 @@ export function registerNotesRoutes(
           notesManager,
           configDir,
           worktreesPath,
+          getHooksSnapshot(notes.linkedWorktreeId),
         );
       } catch {
         /* non-critical */
@@ -130,6 +141,7 @@ export function registerNotesRoutes(
             notesManager,
             configDir,
             worktreesPath,
+            getHooksSnapshot(notes.linkedWorktreeId),
           );
         } catch {
           /* non-critical */
@@ -197,11 +209,6 @@ export function registerNotesRoutes(
     // Regenerate TASK.md in linked worktree when hook skills change
     if (notes.linkedWorktreeId && hooksManager) {
       try {
-        const config = hooksManager.getConfig();
-        const effectiveSkills = hooksManager.getEffectiveSkills(
-          notes.linkedWorktreeId,
-          notesManager,
-        );
         regenerateTaskMd(
           source,
           id,
@@ -209,10 +216,7 @@ export function registerNotesRoutes(
           notesManager,
           configDir,
           worktreesPath,
-          {
-            checks: config.steps,
-            skills: effectiveSkills,
-          },
+          getHooksSnapshot(notes.linkedWorktreeId),
         );
       } catch {
         // Non-critical
@@ -243,6 +247,7 @@ export function registerNotesRoutes(
           notesManager,
           configDir,
           worktreesPath,
+          getHooksSnapshot(notes.linkedWorktreeId),
         );
       } catch {
         /* non-critical */

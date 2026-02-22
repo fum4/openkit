@@ -15,6 +15,11 @@ export interface ConfigFile {
   baseBranch?: string;
   ports?: Partial<PortConfig>;
   envMapping?: Record<string, string>;
+  autoInstall?: boolean;
+  localIssuePrefix?: string;
+  localAutoStartClaudeOnNewIssue?: boolean;
+  localAutoStartClaudeSkipPermissions?: boolean;
+  localAutoStartClaudeFocusTerminal?: boolean;
   openProjectTarget?: WorktreeConfig["openProjectTarget"];
 }
 
@@ -59,6 +64,11 @@ export function loadConfig(): { config: WorktreeConfig; configPath: string | nul
       discovered: [],
       offsetStep: 1,
     },
+    autoInstall: true,
+    localIssuePrefix: "LOCAL",
+    localAutoStartClaudeOnNewIssue: false,
+    localAutoStartClaudeSkipPermissions: true,
+    localAutoStartClaudeFocusTerminal: true,
   };
 
   if (!configPath) {
@@ -88,6 +98,16 @@ export function loadConfig(): { config: WorktreeConfig; configPath: string | nul
         offsetStep: fileConfig.ports?.offsetStep ?? defaults.ports.offsetStep,
       },
       envMapping: fileConfig.envMapping,
+      autoInstall: fileConfig.autoInstall ?? defaults.autoInstall,
+      localIssuePrefix: fileConfig.localIssuePrefix ?? defaults.localIssuePrefix,
+      localAutoStartClaudeOnNewIssue:
+        fileConfig.localAutoStartClaudeOnNewIssue ?? defaults.localAutoStartClaudeOnNewIssue,
+      localAutoStartClaudeSkipPermissions:
+        fileConfig.localAutoStartClaudeSkipPermissions ??
+        defaults.localAutoStartClaudeSkipPermissions,
+      localAutoStartClaudeFocusTerminal:
+        fileConfig.localAutoStartClaudeFocusTerminal ??
+        defaults.localAutoStartClaudeFocusTerminal,
       openProjectTarget: fileConfig.openProjectTarget,
     };
 

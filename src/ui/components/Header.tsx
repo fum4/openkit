@@ -1,7 +1,8 @@
-import { AnimatePresence, motion } from "motion/react";
-import { Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ACTIVITY_TYPES } from "../../server/activity-event";
+import { useApi } from "../hooks/useApi";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { ActivityBell, ActivityFeed } from "./ActivityFeed";
 import type { View } from "./NavBar";
@@ -18,15 +19,22 @@ const tabs: { id: View; label: string }[] = [
 interface HeaderProps {
   activeView: View;
   onChangeView: (view: View) => void;
+  currentProjectName?: string | null;
   onNavigateToWorktree?: (target: {
     worktreeId: string;
     projectName?: string;
     sourceServerUrl?: string;
+    openClaudeTab?: boolean;
+    openHooksTab?: boolean;
   }) => void;
+  onNavigateToIssue?: (target: {
+    source: "jira" | "linear";
+    issueId: string;
+    projectName?: string;
+    sourceServerUrl?: string;
+  }) => void;
+  disabledActivityEventTypes?: string[];
 }
-
-const USER_INPUT_HINT =
-  /\b(approve|approval|confirm|confirmation|yes\/no|y\/n|permission|authorize|authorise|need your|need you|waiting for (your )?(input|confirmation|approval|answer|response|reply)|user input|blocked|respond|reply)\b/i;
 
 function eventNeedsUserInput(event: {
   category: string;
@@ -37,59 +45,211 @@ function eventNeedsUserInput(event: {
   metadata?: Record<string, unknown>;
 }): boolean {
   if (event.category !== "agent") return false;
-  if (event.metadata?.requiresUserAction === true) return true;
-  const text = `${event.title} ${event.detail ?? ""}`;
-  return USER_INPUT_HINT.test(text);
+  if (event.type === ACTIVITY_TYPES.AGENT_AWAITING_INPUT) {
+    return (
+      event.metadata?.requiresUserAction === true || event.metadata?.awaitingUserInput === true
+    );
+  }
+  return event.metadata?.requiresUserAction === true;
 }
 
-export function Header({ activeView, onChangeView, onNavigateToWorktree }: HeaderProps) {
+function eventContextKey(event: {
+  projectName?: string;
+  worktreeId?: string;
+  metadata?: Record<string, unknown>;
+}): string {
+  const sourceServerUrl =
+    typeof event.metadata?.sourceServerUrl === "string"
+      ? (event.metadata.sourceServerUrl as string)
+      : "__local__";
+  return `${sourceServerUrl}::${event.projectName ?? "unknown-project"}::${event.worktreeId ?? "global"}`;
+}
+
+function eventIssueId(event: { metadata?: Record<string, unknown>; worktreeId?: string }): string {
+  if (typeof event.metadata?.issueId === "string" && event.metadata.issueId.length > 0) {
+    return event.metadata.issueId as string;
+  }
+  return event.worktreeId ?? "No task id";
+}
+
+export function Header({
+  activeView,
+  onChangeView,
+  currentProjectName,
+  onNavigateToWorktree,
+  onNavigateToIssue,
+  disabledActivityEventTypes,
+}: HeaderProps) {
+  const api = useApi();
   const [feedOpen, setFeedOpen] = useState(false);
-  const { events, unreadCount, markAllRead, clearAll } = useActivityFeed();
-  const [inputBadgeIndex, setInputBadgeIndex] = useState(0);
+  const [showAllProjects, setShowAllProjects] = useState(true);
+  const [seenEventIds, setSeenEventIds] = useState<Set<string>>(() => new Set());
+  const { events, unreadCount, markAllRead, clearAll } = useActivityFeed(
+    undefined,
+    undefined,
+    undefined,
+    disabledActivityEventTypes,
+  );
+  const visibleEvents = useMemo(() => {
+    if (showAllProjects) return events;
+    const normalizedProject = currentProjectName?.trim().toLowerCase();
+    if (!normalizedProject) return events;
+    return events.filter((event) => {
+      const eventProject = event.projectName?.trim().toLowerCase();
+      if (!eventProject) return true;
+      return eventProject === normalizedProject;
+    });
+  }, [currentProjectName, events, showAllProjects]);
+  const unseenEventIds = useMemo(() => {
+    const unseen = new Set<string>();
+    for (const event of visibleEvents) {
+      if (!seenEventIds.has(event.id)) unseen.add(event.id);
+    }
+    return unseen;
+  }, [seenEventIds, visibleEvents]);
+  const [inputMenuOpen, setInputMenuOpen] = useState(false);
+  const [inputHintPopover, setInputHintPopover] = useState<string | null>(null);
+  const inputBadgeRef = useRef<HTMLDivElement>(null);
 
   const inputRequiredEvents = useMemo(() => {
-    const pending = events.filter(eventNeedsUserInput);
-    const latestByContext = new Map<string, (typeof pending)[number]>();
+    const latestByContext = new Map<string, (typeof events)[number]>();
 
-    for (const event of pending) {
-      const key = `${event.projectName ?? "unknown-project"}::${event.worktreeId ?? "unknown-worktree"}`;
-      const existing = latestByContext.get(key);
-      if (
-        !existing ||
-        new Date(event.timestamp).getTime() > new Date(existing.timestamp).getTime()
-      ) {
+    for (const event of visibleEvents) {
+      if (event.category !== "agent") continue;
+      const key = eventContextKey(event);
+      if (!latestByContext.has(key)) {
         latestByContext.set(key, event);
       }
     }
 
-    return [...latestByContext.values()].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    );
-  }, [events]);
+    return [...latestByContext.values()]
+      .filter((event) => eventNeedsUserInput(event))
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [visibleEvents]);
 
   useEffect(() => {
-    if (inputRequiredEvents.length === 0) {
-      setInputBadgeIndex(0);
+    if (inputRequiredEvents.length <= 1) {
+      setInputMenuOpen(false);
+    }
+  }, [inputRequiredEvents.length]);
+
+  useEffect(() => {
+    if (!feedOpen) return;
+    setSeenEventIds((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const event of visibleEvents) {
+        if (!next.has(event.id)) {
+          next.add(event.id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [feedOpen, visibleEvents]);
+
+  useEffect(() => {
+    if (events.length === 0) {
+      setSeenEventIds(new Set());
+    }
+  }, [events.length]);
+
+  useEffect(() => {
+    if (!inputHintPopover) return;
+    const timer = setTimeout(() => setInputHintPopover(null), 4200);
+    return () => clearTimeout(timer);
+  }, [inputHintPopover]);
+
+  useEffect(() => {
+    const onDocumentClick = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target || !inputBadgeRef.current) return;
+      if (!inputBadgeRef.current.contains(target)) {
+        setInputMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocumentClick);
+    return () => document.removeEventListener("mousedown", onDocumentClick);
+  }, []);
+
+  const singleInputRequired = inputRequiredEvents.length === 1 ? inputRequiredEvents[0] : null;
+  const singleInputProject = singleInputRequired?.projectName ?? "Unknown project";
+  const singleInputWorktree = singleInputRequired?.worktreeId ?? "No worktree";
+
+  const clearInputRequired = (event: (typeof inputRequiredEvents)[number]) => {
+    const sourceServerUrl =
+      typeof event.metadata?.sourceServerUrl === "string"
+        ? (event.metadata.sourceServerUrl as string)
+        : undefined;
+    const fallbackGroupKey = event.worktreeId ? `agent-awaiting-input:${event.worktreeId}` : undefined;
+    void api.createActivityEvent({
+      category: "agent",
+      type: ACTIVITY_TYPES.AGENT_AWAITING_INPUT,
+      severity: "info",
+      title: "Input acknowledged",
+      detail: "Opening agent context",
+      worktreeId: event.worktreeId,
+      groupKey: event.groupKey ?? fallbackGroupKey,
+      metadata: {
+        requiresUserAction: false,
+        awaitingUserInput: false,
+        cleared: true,
+        clearedReason: "user-clicked",
+        ...(sourceServerUrl ? { sourceServerUrl } : {}),
+      },
+    });
+  };
+
+  const navigateToPending = (event: (typeof inputRequiredEvents)[number]): boolean => {
+    const sourceServerUrl =
+      typeof event.metadata?.sourceServerUrl === "string"
+        ? (event.metadata.sourceServerUrl as string)
+        : undefined;
+    if (onNavigateToWorktree && event.worktreeId) {
+      onNavigateToWorktree({
+        worktreeId: event.worktreeId,
+        projectName: event.projectName,
+        sourceServerUrl,
+        openClaudeTab: true,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const showNavigationHint = (event: (typeof inputRequiredEvents)[number]) => {
+    const project = event.projectName ?? "this project";
+    const worktree = event.worktreeId;
+    setInputHintPopover(
+      worktree
+        ? `Please open ${project} and go to ${worktree} > Claude.`
+        : `Please open ${project} and check the Claude terminal for required input.`,
+    );
+  };
+
+  const handleInputRequiredClick = () => {
+    if (inputRequiredEvents.length === 0) return;
+    if (inputRequiredEvents.length > 1) {
+      setInputMenuOpen((prev) => !prev);
       return;
     }
-    setInputBadgeIndex((prev) => prev % inputRequiredEvents.length);
-  }, [inputRequiredEvents.length]);
+    if (!singleInputRequired) return;
+    clearInputRequired(singleInputRequired);
+    const navigated = navigateToPending(singleInputRequired);
+    if (!navigated) {
+      showNavigationHint(singleInputRequired);
+    } else {
+      setInputMenuOpen(false);
+    }
+  };
 
-  useEffect(() => {
-    if (inputRequiredEvents.length <= 1) return;
-    const timer = setInterval(() => {
-      setInputBadgeIndex((prev) => (prev + 1) % inputRequiredEvents.length);
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [inputRequiredEvents.length]);
-
-  const activeInputRequired = inputRequiredEvents[inputBadgeIndex] ?? null;
-  const activeInputProject = activeInputRequired?.projectName ?? "Unknown project";
-  const activeInputWorktree = activeInputRequired?.worktreeId ?? "No worktree";
-
-  const openFeed = () => {
-    setFeedOpen(true);
-    setTimeout(() => markAllRead(), 500);
+  const handlePendingSelection = (event: (typeof inputRequiredEvents)[number]) => {
+    clearInputRequired(event);
+    const navigated = navigateToPending(event);
+    if (!navigated) {
+      showNavigationHint(event);
+    }
+    setInputMenuOpen(false);
   };
 
   const handleToggleFeed = () => {
@@ -132,43 +292,79 @@ export function Header({ activeView, onChangeView, onNavigateToWorktree }: Heade
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
         <div className="flex items-center gap-2">
-          <AnimatePresence mode="wait" initial={false}>
-            {activeInputRequired && (
-              <motion.button
-                key={`${activeInputRequired.id}:${inputBadgeIndex}`}
+          {inputRequiredEvents.length > 0 && (
+            <div ref={inputBadgeRef} className="relative">
+              <button
                 type="button"
-                onClick={openFeed}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2 }}
-                className="h-7 max-w-[360px] px-2.5 rounded-md border border-yellow-400/25 bg-yellow-400/10 text-[10px] text-yellow-300/90 hover:text-yellow-200 hover:bg-yellow-400/15 transition-colors duration-150 inline-flex items-center gap-1.5"
-                title={`${activeInputRequired.title} (${activeInputProject} • ${activeInputWorktree})`}
+                onClick={handleInputRequiredClick}
+                className="h-7 max-w-[420px] px-2.5 rounded-md border border-accent/30 bg-accent/10 text-[10px] text-accent hover:bg-accent/20 transition-colors duration-150 inline-flex items-center gap-1.5"
+                title={
+                  inputRequiredEvents.length > 1
+                    ? `${inputRequiredEvents.length} actions require your input`
+                    : `${singleInputRequired?.title ?? ""} (${singleInputProject} • ${singleInputWorktree})`
+                }
               >
-                <motion.span
-                  className="w-1.5 h-1.5 rounded-full bg-yellow-300 flex-shrink-0"
-                  animate={{ opacity: [0.55, 1, 0.55] }}
-                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <Sparkles className="w-3 h-3 flex-shrink-0" />
-                <span className="truncate">
-                  Input needed · {activeInputProject} · {activeInputWorktree}
+                <span
+                  aria-hidden="true"
+                  className="inline-flex w-3.5 h-3.5 items-center justify-center text-[11px] font-bold leading-none flex-shrink-0"
+                >
+                  !
                 </span>
-              </motion.button>
-            )}
-          </AnimatePresence>
+                <span className="truncate">
+                  {inputRequiredEvents.length > 1
+                    ? "Agents await your input"
+                    : "Agent awaits your input"}
+                </span>
+                <span className="inline-flex min-w-4 h-4 px-1 items-center justify-center rounded-full bg-accent/20 text-accent text-[9px] font-semibold leading-none flex-shrink-0">
+                  {inputRequiredEvents.length}
+                </span>
+              </button>
+              {inputMenuOpen && inputRequiredEvents.length > 1 && (
+                <div className="absolute right-0 top-full mt-2 w-[420px] max-h-[320px] overflow-y-auto rounded-md border border-white/[0.12] bg-[#12151a] shadow-xl">
+                  <div className="px-3 py-2 border-b border-white/[0.08] text-[10px] text-[#9ca3af]">
+                    Select a task that needs your input
+                  </div>
+                  <div className="divide-y divide-white/[0.06]">
+                    {inputRequiredEvents.map((event) => (
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={() => handlePendingSelection(event)}
+                        className="w-full text-left px-3 py-2 hover:bg-white/[0.04] transition-colors"
+                      >
+                        <div className="text-[10px] text-accent truncate">
+                          {event.projectName ?? "Unknown project"} · {eventIssueId(event)}
+                        </div>
+                        <div className="text-[10px] text-[#9ca3af] truncate mt-0.5">{event.title}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {inputHintPopover && (
+                <div className="absolute right-0 top-full mt-2 max-w-[340px] px-2.5 py-2 rounded-md border border-white/[0.12] bg-[#12151a] text-[10px] text-[#9ca3af] shadow-xl">
+                  {inputHintPopover}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="relative">
             <ActivityBell unreadCount={unreadCount} isOpen={feedOpen} onClick={handleToggleFeed} />
             <AnimatePresence>
               {feedOpen && (
                 <ActivityFeed
-                  events={events}
+                  events={visibleEvents}
+                  unseenEventIds={unseenEventIds}
                   unreadCount={unreadCount}
                   onMarkAllRead={markAllRead}
                   onClearAll={clearAll}
+                  showAllProjects={showAllProjects}
+                  onToggleShowAllProjects={() => setShowAllProjects((prev) => !prev)}
                   onClose={() => setFeedOpen(false)}
                   onNavigateToWorktree={onNavigateToWorktree}
+                  onNavigateToIssue={onNavigateToIssue}
+                  onResolveActionRequired={clearInputRequired}
                 />
               )}
             </AnimatePresence>

@@ -12,6 +12,7 @@ import { McpServerItem } from "./McpServerItem";
 import { SkillItem } from "./SkillItem";
 import { PluginItem } from "./PluginItem";
 import { Spinner } from "./Spinner";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 export const DAWG_SERVER: McpServerSummary = {
   id: "dawg",
@@ -929,19 +930,7 @@ function RuleItem({
             {exists && <span className="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0 mr-2" />}
           </div>
           <div className="absolute inset-0 hidden group-hover:flex items-center justify-end mr-[4px]">
-            <span
-              role="button"
-              onClick={handleToggle}
-              className={`relative w-6 h-3.5 rounded-full transition-colors duration-200 cursor-pointer block ${
-                exists ? "bg-teal-400/35" : "bg-white/[0.08]"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all duration-200 ${
-                  exists ? "left-[11px] bg-teal-400" : "left-0.5 bg-white/40"
-                }`}
-              />
-            </span>
+            <ToggleSwitch checked={exists} onToggle={handleToggle} size="sm" />
           </div>
         </div>
       </div>
@@ -1009,19 +998,7 @@ function Work3Item({
             )}
           </div>
           <div className="absolute inset-0 hidden group-hover:flex items-center justify-end mr-[4px]">
-            <span
-              role="button"
-              onClick={handleDeploy}
-              className={`relative w-6 h-3.5 rounded-full transition-colors duration-200 cursor-pointer block ${
-                isActive ? "bg-teal-400/35" : "bg-white/[0.08]"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all duration-200 ${
-                  isActive ? "left-[11px] bg-teal-400" : "left-0.5 bg-white/40"
-                }`}
-              />
-            </span>
+            <ToggleSwitch checked={!!isActive} onToggle={handleDeploy} size="sm" />
           </div>
         </div>
       </div>

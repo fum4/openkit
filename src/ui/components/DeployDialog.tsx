@@ -3,6 +3,7 @@ import { useState } from "react";
 import { text } from "../theme";
 import { Modal } from "./Modal";
 import { Spinner } from "./Spinner";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 interface DeployScope {
   key: string;
@@ -97,21 +98,11 @@ export function DeployDialog({
             className={`px-3 py-2 flex items-center justify-between text-xs ${text.secondary} rounded-lg hover:bg-white/[0.04] transition-colors`}
           >
             <span>{label}</span>
-            <button
-              type="button"
-              onClick={() => handleToggle(key)}
+            <ToggleSwitch
+              checked={draft[key]}
+              onToggle={() => handleToggle(key)}
               disabled={applying}
-              className="relative w-7 h-4 rounded-full transition-colors duration-200 focus:outline-none"
-              style={{
-                backgroundColor: draft[key] ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)",
-              }}
-            >
-              <span
-                className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${
-                  draft[key] ? "left-3.5 bg-teal-400" : "left-0.5 bg-white/40"
-                }`}
-              />
-            </button>
+            />
           </div>
         ))}
         {warningText && <p className="px-3 pt-2 text-[11px] text-amber-400/80">{warningText}</p>}

@@ -6,6 +6,7 @@ import path from "path";
 import { APP_NAME } from "../constants";
 import { log } from "../logger";
 import { PortManager } from "../server/port-manager";
+import { enableDefaultProjectSkills } from "../server/lib/project-skill-bootstrap";
 import type { PortConfig, WorktreeConfig } from "../server/types";
 import {
   detectDefaultBranch,
@@ -57,6 +58,7 @@ export async function autoInitConfig(projectDir: string): Promise<void> {
   }
   const configPath = path.join(configDirPath, CONFIG_FILE_NAME);
   writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+  enableDefaultProjectSkills(resolvedProjectDir);
 
   // Create .gitignore
   const gitignorePath = path.join(configDirPath, ".gitignore");
@@ -175,6 +177,7 @@ export async function runInit() {
   }
   const configPath = path.join(configDirPath, CONFIG_FILE_NAME);
   writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+  enableDefaultProjectSkills(resolvedProjectDir);
 
   // Create .gitignore to protect local/sensitive files
   // Use whitelist approach: ignore everything except config.json and .gitignore

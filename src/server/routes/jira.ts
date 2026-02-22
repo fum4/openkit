@@ -48,6 +48,9 @@ export function registerJiraRoutes(app: Hono, manager: WorktreeManager) {
       email,
       domain,
       dataLifecycle: projectConfig.dataLifecycle ?? null,
+      autoStartClaudeOnNewIssue: projectConfig.autoStartClaudeOnNewIssue ?? false,
+      autoStartClaudeSkipPermissions: projectConfig.autoStartClaudeSkipPermissions ?? true,
+      autoStartClaudeFocusTerminal: projectConfig.autoStartClaudeFocusTerminal ?? true,
     });
   });
 
@@ -104,6 +107,9 @@ export function registerJiraRoutes(app: Hono, manager: WorktreeManager) {
         defaultProjectKey?: string;
         refreshIntervalMinutes?: number;
         dataLifecycle?: DataLifecycleConfig;
+        autoStartClaudeOnNewIssue?: boolean;
+        autoStartClaudeSkipPermissions?: boolean;
+        autoStartClaudeFocusTerminal?: boolean;
       }>();
       const configDir = manager.getConfigDir();
       const current = loadJiraProjectConfig(configDir);
@@ -115,6 +121,15 @@ export function registerJiraRoutes(app: Hono, manager: WorktreeManager) {
       }
       if (body.dataLifecycle !== undefined) {
         current.dataLifecycle = body.dataLifecycle;
+      }
+      if (body.autoStartClaudeOnNewIssue !== undefined) {
+        current.autoStartClaudeOnNewIssue = body.autoStartClaudeOnNewIssue;
+      }
+      if (body.autoStartClaudeSkipPermissions !== undefined) {
+        current.autoStartClaudeSkipPermissions = body.autoStartClaudeSkipPermissions;
+      }
+      if (body.autoStartClaudeFocusTerminal !== undefined) {
+        current.autoStartClaudeFocusTerminal = body.autoStartClaudeFocusTerminal;
       }
       saveJiraProjectConfig(configDir, current);
       return c.json({ success: true });

@@ -6,6 +6,7 @@ import { surface, text } from "../theme";
 import { Spinner } from "./Spinner";
 import { Tooltip } from "./Tooltip";
 import { ClaudeIcon } from "../icons";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 interface PluginItemProps {
   plugin: PluginSummary;
@@ -108,27 +109,22 @@ export function PluginItem({
                 >
                   <Trash2 className="w-3 h-3" />
                 </span>
-                <span
-                  role="button"
-                  onClick={disabled ? undefined : handleToggle}
-                  className={`relative w-6 h-3.5 rounded-full transition-colors duration-200 block ${disabled ? "cursor-default opacity-50" : "cursor-pointer"} ${
-                    plugin.enabled
-                      ? plugin.error
-                        ? "bg-red-400/35"
-                        : plugin.warning
-                          ? "bg-yellow-400/35"
-                          : "bg-teal-400/35"
-                      : "bg-white/[0.08]"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all duration-200 ${
-                      plugin.enabled
-                        ? `left-[11px] ${plugin.error ? "bg-red-400" : plugin.warning ? "bg-yellow-400" : "bg-teal-400"}`
-                        : "left-0.5 bg-white/40"
-                    }`}
-                  />
-                </span>
+                <ToggleSwitch
+                  checked={plugin.enabled}
+                  onToggle={handleToggle}
+                  disabled={disabled}
+                  size="sm"
+                  checkedTrackClassName={
+                    plugin.error
+                      ? "bg-red-400/35"
+                      : plugin.warning
+                        ? "bg-yellow-400/35"
+                        : "bg-accent/35"
+                  }
+                  checkedThumbClassName={
+                    plugin.error ? "bg-red-400" : plugin.warning ? "bg-yellow-400" : "bg-accent"
+                  }
+                />
               </div>
             </>
           )}

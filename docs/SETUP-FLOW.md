@@ -2,7 +2,7 @@
 
 ## Overview
 
-When a project is opened for the first time (no `.dawg/config.json` exists), dawg presents a multi-step setup wizard. The wizard guides users through project configuration, agent connections, git setup, and integration linking before dropping them into the main workspace.
+When a project is opened for the first time (no `.dawg/config.json` exists), dawg presents a multi-step setup wizard. The wizard guides users through project configuration, agent skill setup, git setup, and integration linking before dropping them into the main workspace.
 
 The setup flow is implemented in `src/ui/components/ProjectSetupScreen.tsx` as a single component with a `SetupMode` state machine.
 
@@ -40,9 +40,13 @@ stateDiagram-v2
     choice --> agents : "Auto-detect" clicked (config created)
     manual --> agents : config initialized
     manual --> choice : "Back" clicked
+    agents --> choice : "Back" clicked
     agents --> commit_prompt : agents connected or skipped
+    commit_prompt --> agents : "Back" clicked
     commit_prompt --> integrations : committed or skipped
+    integrations --> commit_prompt : "Back" clicked
     integrations --> getting_started : "Continue" clicked
+    getting_started --> integrations : "Back" clicked
     getting_started --> [*] : "Go to workspace"
 ```
 
@@ -61,6 +65,8 @@ stateDiagram-v2
 | Remember choice | Optional checkbox that persists the preference for future projects (Electron only).                                                   |
 
 On mount, the component calls `api.detectConfig()` to pre-fill detected values shown under the auto-detect option.
+During setup, config initialization is called with `force: true` so restarting the flow can overwrite an existing `.dawg/config.json`.
+Config initialization also auto-enables the default `work-on-task` project skill.
 
 ### 2. Manual Setup (`manual`)
 
@@ -82,9 +88,9 @@ Submitting calls `api.initConfig()` and advances to Agents.
 
 ### 3. Agents (`agents`)
 
-**Purpose:** Connect MCP integration to AI coding agents (Claude Code, OpenAI Codex, Cursor, Kimi K2, Gemini CLI, VS Code).
+**Purpose:** Enable the bundled `work-on-task` skill for supported AI coding agents (Claude Code, OpenAI Codex, Cursor, Gemini CLI, VS Code).
 
-Each agent shows **Global** and **Project** scope toggles. The user selects which agents to connect, then clicks "Connect Agents" to apply. Calls `api.setupMcpAgent()` / `api.removeMcpAgent()` for each change.
+Each agent shows **Global** and **Project** scope toggles. The user selects where to enable the skill, then clicks "Connect Agents" to apply. Calls `api.deploySkill("work-on-task", ...)` / `api.undeploySkill("work-on-task", ...)` for each change.
 
 Can be skipped with "Skip for now".
 
@@ -184,9 +190,9 @@ interface ProjectSetupScreenProps {
 | --------------- | ----------------------------------- | --------------------------- |
 | Choice / Manual | `GET /api/config/detect`            | Detect config values        |
 | Choice / Manual | `POST /api/config/init`             | Create config               |
-| Agents          | `GET /api/mcp/status`               | Current agent MCP status    |
-| Agents          | `POST /api/mcp/:agent/:scope/setup` | Connect an agent            |
-| Agents          | `DELETE /api/mcp/:agent/:scope`     | Disconnect an agent         |
+| Agents          | `GET /api/skills/deployment-status` | Current skill deployment status |
+| Agents          | `POST /api/skills/:name/deploy`     | Enable skill for agent scope |
+| Agents          | `POST /api/skills/:name/undeploy`   | Disable skill for agent scope |
 | Commit          | `GET /api/github/status`            | GitHub CLI/auth status      |
 | Commit          | `POST /api/github/install`          | Install gh CLI + start auth |
 | Commit          | `POST /api/github/login`            | Start device-flow login     |
@@ -210,3 +216,17 @@ Every step after Choice can be skipped:
 | Integrations | "Continue without integrations" | Advances to Complete     |
 
 Skipped steps can always be completed later from the corresponding panel in the main workspace (Integrations panel, Agents tab in Configuration, etc.).
+
+---
+
+## Back Navigation
+
+All setup screens after Choice include a Back action.
+
+| Step          | Back target      |
+| ------------- | ---------------- |
+| Manual        | Choice           |
+| Agents        | Choice           |
+| Commit        | Agents           |
+| Integrations  | Commit           |
+| Complete      | Integrations     |

@@ -29,7 +29,7 @@ export function loadJiraCredentials(configDir: string): JiraCredentials | null {
 
 export function saveJiraCredentials(configDir: string, creds: JiraCredentials): void {
   const data = readIntegrations(configDir);
-  data.jira = { ...((data.jira as Record<string, unknown>) ?? {}), ...creds };
+  data.jira = { ...(data.jira as Record<string, unknown>), ...creds };
   writeIntegrations(configDir, data);
 }
 
@@ -40,11 +40,14 @@ export function loadJiraProjectConfig(configDir: string): JiraProjectConfig {
     defaultProjectKey: jira.defaultProjectKey as string | undefined,
     refreshIntervalMinutes: jira.refreshIntervalMinutes as number | undefined,
     dataLifecycle: jira.dataLifecycle as DataLifecycleConfig | undefined,
+    autoStartClaudeOnNewIssue: jira.autoStartClaudeOnNewIssue as boolean | undefined,
+    autoStartClaudeSkipPermissions: jira.autoStartClaudeSkipPermissions as boolean | undefined,
+    autoStartClaudeFocusTerminal: jira.autoStartClaudeFocusTerminal as boolean | undefined,
   };
 }
 
 export function saveJiraProjectConfig(configDir: string, config: JiraProjectConfig): void {
   const data = readIntegrations(configDir);
-  data.jira = { ...((data.jira as Record<string, unknown>) ?? {}), ...config };
+  data.jira = { ...(data.jira as Record<string, unknown>), ...config };
   writeIntegrations(configDir, data);
 }

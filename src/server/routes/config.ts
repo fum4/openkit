@@ -17,6 +17,8 @@ import {
   readCommitMessageRuleContent,
   wrapWithExportDefault as wrapCommitExportDefault,
 } from "../commit-message";
+import { isMcpSetupEnabled } from "../feature-flags";
+import { enableDefaultProjectSkills } from "../lib/project-skill-bootstrap";
 import type { WorktreeManager } from "../manager";
 
 const AGENT_RULE_FILES: Record<string, (dir: string) => string> = {
@@ -81,6 +83,12 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
     const config = manager.getConfig();
     const projectName = manager.getProjectName();
     return c.json({ config, projectName, hasBranchNameRule: true });
+  });
+
+  app.get("/api/config/features", (c) => {
+    return c.json({
+      mcpSetupEnabled: isMcpSetupEnabled(),
+    });
   });
 
   app.patch("/api/config", async (c) => {
@@ -318,13 +326,14 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
     const configPath = path.join(configDirPath, "config.json");
     const gitignorePath = path.join(configDirPath, ".gitignore");
 
-    // Don't overwrite existing config
-    if (existsSync(configPath)) {
-      return c.json({ success: false, error: "Config already exists" }, 400);
-    }
-
     try {
       const body = await c.req.json().catch(() => ({}));
+      const force = body.force === true;
+
+      // Don't overwrite existing config unless force is set.
+      if (existsSync(configPath) && !force) {
+        return c.json({ success: false, error: "Config already exists" }, 400);
+      }
       const detected = detectConfig(projectDir);
 
       // Merge provided values with detected values
@@ -332,9 +341,12 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
         startCommand: body.startCommand ?? detected.startCommand,
         installCommand: body.installCommand ?? detected.installCommand,
         baseBranch: body.baseBranch ?? detected.baseBranch,
-        projectDir: "",
-        autoInstall: true,
-        localIssuePrefix: "LOCAL",
+        projectDir: body.projectDir ?? "",
+        autoInstall: body.autoInstall ?? true,
+        localIssuePrefix: body.localIssuePrefix ?? "LOCAL",
+        localAutoStartClaudeOnNewIssue: body.localAutoStartClaudeOnNewIssue ?? false,
+        localAutoStartClaudeSkipPermissions: body.localAutoStartClaudeSkipPermissions ?? true,
+        localAutoStartClaudeFocusTerminal: body.localAutoStartClaudeFocusTerminal ?? true,
         envMapping: {},
         ports: {
           discovered: [],
@@ -349,6 +361,7 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
 
       // Write config
       writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+      enableDefaultProjectSkills(projectDir);
 
       // Create .gitignore
       if (!existsSync(gitignorePath)) {

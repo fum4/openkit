@@ -16,22 +16,34 @@ interface TerminalViewProps {
   claudeLaunchRequest?: {
     mode: "resume" | "start";
     prompt?: string;
+    skipPermissions?: boolean;
     requestId: number;
   } | null;
   closeRequestId?: number | null;
-  onClaudeExit?: () => void;
+  onClaudeExit?: (exitCode?: number) => void;
 }
 
 const DEFAULT_CLAUDE_START_PROMPT =
   "You are already in the correct worktree. Read TASK.md first, then implement the task. Treat AI context and todo checklist as highest-priority instructions.";
+const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
 
 function shellQuoteSingle(value: string): string {
   if (!value) return "''";
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-function buildClaudeCommand(prompt: string | undefined): string {
-  const claudeInvocation = prompt ? `claude ${shellQuoteSingle(prompt)}` : "claude";
+function buildClaudeCommand(
+  prompt: string | undefined,
+  options?: { skipPermissions?: boolean },
+): string {
+  const args: string[] = [];
+  if (options?.skipPermissions) {
+    args.push("--dangerously-skip-permissions");
+  }
+  if (prompt) {
+    args.push(shellQuoteSingle(prompt));
+  }
+  const claudeInvocation = args.length > 0 ? `claude ${args.join(" ")}` : "claude";
   // Run Claude as the PTY's main process; when it exits, the session exits too.
   return `exec ${claudeInvocation}`;
 }
@@ -54,15 +66,34 @@ export function TerminalView({
   const hasOutputForClaudeRequestRef = useRef(false);
   const awaitingClaudeOutputRef = useRef(false);
   const [isClaudeBooting, setIsClaudeBooting] = useState(false);
+  const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
+    if (extra) {
+      console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
+      return;
+    }
+    console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
+  }, []);
 
   const createSessionStartupCommand = useMemo(() => {
     if (variant !== "claude" || !claudeLaunchRequest) return null;
+    const commandOptions = { skipPermissions: claudeLaunchRequest.skipPermissions };
     if (claudeLaunchRequest.mode === "start") {
       const prompt = claudeLaunchRequest.prompt?.trim() || DEFAULT_CLAUDE_START_PROMPT;
-      return buildClaudeCommand(prompt);
+      return buildClaudeCommand(prompt, commandOptions);
     }
-    return buildClaudeCommand(undefined);
+    return buildClaudeCommand(undefined, commandOptions);
   }, [claudeLaunchRequest, variant]);
+
+  useEffect(() => {
+    if (variant !== "claude" || !claudeLaunchRequest) return;
+    logAutoClaude("Claude terminal launch request received", {
+      worktreeId,
+      requestId: claudeLaunchRequest.requestId,
+      mode: claudeLaunchRequest.mode,
+      hasPrompt: Boolean(claudeLaunchRequest.prompt?.trim()),
+      skipPermissions: claudeLaunchRequest.skipPermissions ?? false,
+    });
+  }, [claudeLaunchRequest, logAutoClaude, variant, worktreeId]);
 
   const handleData = useCallback(
     (data: string) => {
@@ -76,6 +107,7 @@ export function TerminalView({
           setIsClaudeBooting(false);
         }
       }
+
       terminalRef.current?.write(data);
     },
     [claudeLaunchRequest, isClaudeBooting, variant],
@@ -86,7 +118,7 @@ export function TerminalView({
     setIsClaudeBooting(false);
     if (variant === "claude" && !claudeExitNotifiedRef.current) {
       claudeExitNotifiedRef.current = true;
-      onClaudeExit?.();
+      onClaudeExit?.(exitCode);
     }
     terminalRef.current?.write(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`);
   }, [onClaudeExit, variant]);

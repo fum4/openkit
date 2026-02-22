@@ -4,13 +4,13 @@
 
 Hooks are automated checks, prompt instructions, and agent skills that run at defined points in a worktree's lifecycle. They provide a structured way to validate work and extend agent behavior.
 
-Hooks are organized by **trigger type** -- when they fire relative to agent work. Each trigger type can contain **command steps**, **prompt steps**, and **skill references**.
+Hooks are organized by **trigger type** -- when they fire relative to agent work. Agent workflow triggers support command steps, prompt steps, and skill references. Worktree lifecycle triggers support command steps only.
 
 The hooks system is configured through the web UI's Hooks view and stored in `.dawg/.dawg/hooks.json`.
 
 ## Trigger Types
 
-Every hook belongs to one of four trigger types:
+Every hook belongs to one of six trigger types:
 
 | Trigger               | Description                                                      | Icon              | Color       |
 | --------------------- | ---------------------------------------------------------------- | ----------------- | ----------- |
@@ -18,6 +18,8 @@ Every hook belongs to one of four trigger types:
 | `post-implementation` | Runs after agents finish implementing a task                     | CircleCheck       | emerald-400 |
 | `custom`              | Agent decides when to run, based on a natural-language condition | MessageSquareText | violet-400  |
 | `on-demand`           | Manually triggered from the worktree detail panel                | Hand              | amber-400   |
+| `worktree-created`    | Runs automatically after a worktree is created                   | FolderPlus        | cyan-400    |
+| `worktree-removed`    | Runs automatically after a worktree is removed                   | FolderMinus       | rose-400    |
 
 Steps and skills default to `post-implementation` if no trigger is specified.
 
@@ -42,6 +44,7 @@ References to skills from the `~/.dawg/skills/` registry. When hooks run, skill 
 - The same skill can be used in multiple trigger types (e.g., a code-review skill in both `post-implementation` and `on-demand`).
 - Skills are identified by the composite key `skillName + trigger`.
 - Custom-trigger skills include a `condition` field -- a natural-language description of when the agent should invoke them.
+- Lifecycle triggers (`worktree-created`, `worktree-removed`) are command-only and do not accept skills.
 
 ### Prompt Steps
 
@@ -49,7 +52,7 @@ Prompt steps are plain-language instructions sent to the agent (not shell comman
 
 - Stored as hook steps with `kind: "prompt"` and `prompt` text.
 - Prompt steps are never executed via `run_hooks`.
-- Prompt steps are available for pre/post/custom triggers (not on-demand).
+- Prompt steps are available for pre/post/custom triggers only.
 
 ### Per-Issue Skill Overrides
 
@@ -142,6 +145,11 @@ The Hooks view (top navigation) is the configuration interface. Users can:
 
 The worktree detail panel's **Hooks** tab triggers hook runs for a specific worktree. Multiple items can be expanded simultaneously to view their output. When the entire pipeline completes (all enabled steps and skills have results), all items with content are auto-expanded.
 
+When Claude is launched from issue flows (`Code with Claude` or integration auto-start), dawg also triggers command hooks automatically:
+
+- `pre-implementation` runs before Claude launch starts.
+- `post-implementation` runs after Claude exits with code `0`.
+
 Each hook item shows its state visually:
 
 - **Not yet run** -- dashed border, no background.
@@ -172,6 +180,7 @@ When hooks are triggered for a worktree:
 3. Prompt steps are skipped by runtime execution and interpreted by the agent from `TASK.md`.
 4. Results are collected and persisted to `.dawg/.dawg/worktrees/{worktreeId}/hooks/latest-run.json`.
 5. Skill results are reported separately by agents and stored at `.dawg/.dawg/worktrees/{worktreeId}/hooks/skill-results.json` using key `skillName + trigger`.
+6. `worktree-created` and `worktree-removed` command hooks are triggered automatically by CLI-backed create/remove flows (server mode, MCP standalone mode, and `dawg task --init` worktree creation).
 
 ## Data Storage
 
@@ -213,7 +222,7 @@ When hooks are triggered for a worktree:
 The `HooksManager` class manages all hooks state and execution:
 
 - **Config**: `getConfig()`, `saveConfig()`, `addStep()`, `removeStep()`, `updateStep()`
-- **Skills**: `importSkill()`, `removeSkill()`, `toggleSkill()`, `ensureSkillsImported()`, `getEffectiveSkills()`
+- **Skills**: `importSkill()`, `removeSkill()`, `toggleSkill()`, `getEffectiveSkills()`
 - **Execution**: `runAll()`, `runSingle()` -- command step execution with timeout
 - **Skill results**: `reportSkillResult()`, `getSkillResults()` -- agent-reported results
 - **Status**: `getStatus()` -- latest pipeline run for a worktree
@@ -226,12 +235,13 @@ Registered via `registerHooksRoutes(app, manager, hooksManager)` in the server s
 
 ### HooksPanel (`src/ui/components/VerificationPanel.tsx`)
 
-The top-level Hooks view. Displays four sections (one per trigger type), each containing:
+The top-level Hooks view. Displays six sections (one per trigger type). Pre/post/custom/on-demand sections support command/prompt/skill composition; worktree lifecycle sections are command-only.
 
 - A header with icon, title, and description.
 - Command/prompt step cards (editable, toggleable, removable).
 - Skill cards (toggleable, removable).
 - "Add command", "Add skill", and (pre/post) "Add prompt" action buttons (mutually exclusive forms).
+- Worktree lifecycle sections expose only "Add command".
 
 Custom-trigger sections support grouped condition-based commands, prompts, and skills in a single editor.
 
@@ -251,6 +261,6 @@ When a skill result includes a `filePath`, the HooksTab shows a "View report" li
 
 The Agents section in issue detail panels (Linear, Jira, Local) includes a Hooks tab that shows:
 
-- Steps and skills grouped by trigger type (pre-implementation, post-implementation only -- on-demand hooks are not shown).
+- Steps and skills grouped by trigger type (including lifecycle triggers when configured).
 - Command and prompt steps displayed read-only.
 - Skills with per-issue override toggles (Inherit / Enable / Disable).

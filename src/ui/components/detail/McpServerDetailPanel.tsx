@@ -8,6 +8,7 @@ import { useApi } from "../../hooks/useApi";
 import { border, mcpServer, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Spinner } from "../Spinner";
+import { ToggleSwitch } from "../ToggleSwitch";
 
 interface McpServerDetailPanelProps {
   serverId: string;
@@ -562,27 +563,15 @@ export function McpServerDetailPanel({
                         {isToggling ? (
                           <Spinner size="xs" className={text.dimmed} />
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleDeploy(tool.id, scope, !!isDeployed)}
-                            className="relative w-7 h-4 rounded-full transition-colors duration-200 focus:outline-none"
-                            style={{
-                              backgroundColor: isDeployed
-                                ? "rgba(45,212,191,0.35)"
-                                : "rgba(255,255,255,0.08)",
-                            }}
+                          <ToggleSwitch
+                            checked={!!isDeployed}
+                            onToggle={() => handleDeploy(tool.id, scope, !!isDeployed)}
                             title={
                               isDeployed
                                 ? `Remove from ${tool.label} (${scope})`
                                 : `Deploy to ${tool.label} (${scope})`
                             }
-                          >
-                            <span
-                              className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${
-                                isDeployed ? "left-3.5 bg-teal-400" : "left-0.5 bg-white/40"
-                              }`}
-                            />
-                          </button>
+                          />
                         )}
                       </div>
                     );

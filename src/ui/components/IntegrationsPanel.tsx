@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { APP_NAME } from "../../constants";
 import { useApi } from "../hooks/useApi";
 import {
+  fetchSetupFeatures,
   fetchGitHubStatus,
   fetchJiraStatus,
   fetchLinearStatus,
@@ -26,6 +27,7 @@ import { button, infoBanner, input, settings, surface, text } from "../theme";
 import { GitHubSetupModal } from "./GitHubSetupModal";
 import { GitHubIcon, JiraIcon, LinearIcon } from "../icons";
 import { Spinner } from "./Spinner";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 const integrationInput = `px-2.5 py-1.5 rounded-md text-xs bg-white/[0.04] border border-white/[0.06] ${input.text} placeholder-[#4b5563] focus:outline-none focus:bg-white/[0.06] focus:border-white/[0.15] transition-all duration-150`;
 
@@ -130,23 +132,15 @@ function DataLifecycleSection({
             <>
               {/* Auto-delete toggle */}
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() =>
+                <ToggleSwitch
+                  checked={enabled}
+                  onToggle={() =>
                     onChange({
                       ...dataLifecycle,
                       autoCleanup: { ...autoCleanup, enabled: !enabled },
                     })
                   }
-                  className={`relative w-7 h-4 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                    enabled ? "bg-accent" : "bg-white/[0.12]"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                      enabled ? "left-[14px]" : "left-0.5"
-                    }`}
-                  />
-                </button>
+                />
                 <div className="flex flex-col gap-0.5">
                   <label className={`text-[10px] ${settings.label}`}>
                     Delete local data on status change
@@ -237,6 +231,90 @@ function DataLifecycleSection({
               )}
             </>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AutoStartClaudeSection({
+  autoStartEnabled,
+  skipPermissions,
+  focusTerminal,
+  onToggleAutoStart,
+  onToggleSkipPermissions,
+  onToggleFocusTerminal,
+}: {
+  autoStartEnabled: boolean;
+  skipPermissions: boolean;
+  focusTerminal: boolean;
+  onToggleAutoStart: () => void;
+  onToggleSkipPermissions: () => void;
+  onToggleFocusTerminal: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const renderToggle = (
+    checked: boolean,
+    onToggle: () => void,
+    options?: { disabled?: boolean },
+  ) => <ToggleSwitch checked={checked} onToggle={onToggle} disabled={options?.disabled} />;
+
+  return (
+    <div className="border-t border-white/[0.06] pt-3 mt-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={`flex items-center gap-1.5 text-[11px] font-medium ${text.secondary} hover:text-white transition-colors duration-150 w-full`}
+      >
+        <ChevronDown
+          className={`w-3 h-3 transition-transform duration-150 ${expanded ? "" : "-rotate-90"}`}
+        />
+        Claude Auto-Start
+      </button>
+
+      {expanded && (
+        <div className="flex flex-col gap-3 mt-4 pl-0.5">
+          <div className="flex items-center gap-3">
+            {renderToggle(autoStartEnabled, onToggleAutoStart)}
+            <div className="flex flex-col gap-0.5">
+              <label className={`text-[10px] ${settings.label}`}>Auto-start Claude on new issue</label>
+              <span className={`text-[10px] ${text.dimmed}`}>
+                When a newly fetched issue appears, create/open its worktree and start Claude.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {renderToggle(skipPermissions, onToggleSkipPermissions, {
+              disabled: !autoStartEnabled,
+            })}
+            <div className="flex flex-col gap-0.5">
+              <label
+                className={`text-[10px] ${!autoStartEnabled ? text.dimmed : settings.label}`}
+              >
+                Skip Claude permission prompts
+              </label>
+              <span className={`text-[10px] ${text.dimmed}`}>
+                Runs Claude with `--dangerously-skip-permissions`. Enabled by default.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {renderToggle(focusTerminal, onToggleFocusTerminal, {
+              disabled: !autoStartEnabled,
+            })}
+            <div className="flex flex-col gap-0.5">
+              <label
+                className={`text-[10px] ${!autoStartEnabled ? text.dimmed : settings.label}`}
+              >
+                Focus Claude terminal on auto-start
+              </label>
+              <span className={`text-[10px] ${text.dimmed}`}>
+                Redirects you to the worktree Claude terminal when auto-start begins.
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -563,6 +641,9 @@ function JiraCard({
   const [projectKey, setProjectKey] = useState("");
   const [refreshInterval, setRefreshInterval] = useState(5);
   const [lifecycle, setLifecycle] = useState<DataLifecycleConfig>(DEFAULT_LIFECYCLE);
+  const [autoStartClaudeOnNewIssue, setAutoStartClaudeOnNewIssue] = useState(false);
+  const [autoStartClaudeSkipPermissions, setAutoStartClaudeSkipPermissions] = useState(true);
+  const [autoStartClaudeFocusTerminal, setAutoStartClaudeFocusTerminal] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
     null,
@@ -580,6 +661,15 @@ function JiraCard({
     if (status?.dataLifecycle) {
       setLifecycle(status.dataLifecycle);
     }
+    if (status?.autoStartClaudeOnNewIssue !== undefined) {
+      setAutoStartClaudeOnNewIssue(status.autoStartClaudeOnNewIssue);
+    }
+    if (status?.autoStartClaudeSkipPermissions !== undefined) {
+      setAutoStartClaudeSkipPermissions(status.autoStartClaudeSkipPermissions);
+    }
+    if (status?.autoStartClaudeFocusTerminal !== undefined) {
+      setAutoStartClaudeFocusTerminal(status.autoStartClaudeFocusTerminal);
+    }
     if (status?.configured) {
       const t = setTimeout(() => {
         configReadyRef.current = true;
@@ -590,6 +680,9 @@ function JiraCard({
     status?.defaultProjectKey,
     status?.refreshIntervalMinutes,
     status?.dataLifecycle,
+    status?.autoStartClaudeOnNewIssue,
+    status?.autoStartClaudeSkipPermissions,
+    status?.autoStartClaudeFocusTerminal,
     status?.configured,
   ]);
 
@@ -598,11 +691,27 @@ function JiraCard({
     if (!configReadyRef.current) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
-      const result = await api.updateJiraConfig(projectKey, refreshInterval, lifecycle);
+      const result = await api.updateJiraConfig(
+        projectKey,
+        refreshInterval,
+        lifecycle,
+        autoStartClaudeOnNewIssue,
+        autoStartClaudeSkipPermissions,
+        autoStartClaudeFocusTerminal,
+      );
       if (result.success) onStatusChange();
     }, 300);
     return () => clearTimeout(saveTimerRef.current);
-  }, [projectKey, refreshInterval, lifecycle, api, onStatusChange]);
+  }, [
+    projectKey,
+    refreshInterval,
+    lifecycle,
+    autoStartClaudeOnNewIssue,
+    autoStartClaudeSkipPermissions,
+    autoStartClaudeFocusTerminal,
+    api,
+    onStatusChange,
+  ]);
 
   const handleConnect = async () => {
     if (!baseUrl || !email || !token) return;
@@ -684,6 +793,15 @@ function JiraCard({
               />
             </div>
           </div>
+
+          <AutoStartClaudeSection
+            autoStartEnabled={autoStartClaudeOnNewIssue}
+            skipPermissions={autoStartClaudeSkipPermissions}
+            focusTerminal={autoStartClaudeFocusTerminal}
+            onToggleAutoStart={() => setAutoStartClaudeOnNewIssue((prev) => !prev)}
+            onToggleSkipPermissions={() => setAutoStartClaudeSkipPermissions((prev) => !prev)}
+            onToggleFocusTerminal={() => setAutoStartClaudeFocusTerminal((prev) => !prev)}
+          />
 
           <DataLifecycleSection dataLifecycle={lifecycle} onChange={setLifecycle} />
 
@@ -795,6 +913,9 @@ function LinearCard({
   const [teamKey, setTeamKey] = useState("");
   const [refreshInterval, setRefreshInterval] = useState(5);
   const [lifecycle, setLifecycle] = useState<DataLifecycleConfig>(DEFAULT_LIFECYCLE);
+  const [autoStartClaudeOnNewIssue, setAutoStartClaudeOnNewIssue] = useState(false);
+  const [autoStartClaudeSkipPermissions, setAutoStartClaudeSkipPermissions] = useState(true);
+  const [autoStartClaudeFocusTerminal, setAutoStartClaudeFocusTerminal] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
     null,
@@ -812,6 +933,15 @@ function LinearCard({
     if (status?.dataLifecycle) {
       setLifecycle(status.dataLifecycle);
     }
+    if (status?.autoStartClaudeOnNewIssue !== undefined) {
+      setAutoStartClaudeOnNewIssue(status.autoStartClaudeOnNewIssue);
+    }
+    if (status?.autoStartClaudeSkipPermissions !== undefined) {
+      setAutoStartClaudeSkipPermissions(status.autoStartClaudeSkipPermissions);
+    }
+    if (status?.autoStartClaudeFocusTerminal !== undefined) {
+      setAutoStartClaudeFocusTerminal(status.autoStartClaudeFocusTerminal);
+    }
     if (status?.configured) {
       const t = setTimeout(() => {
         configReadyRef.current = true;
@@ -822,6 +952,9 @@ function LinearCard({
     status?.defaultTeamKey,
     status?.refreshIntervalMinutes,
     status?.dataLifecycle,
+    status?.autoStartClaudeOnNewIssue,
+    status?.autoStartClaudeSkipPermissions,
+    status?.autoStartClaudeFocusTerminal,
     status?.configured,
   ]);
 
@@ -830,11 +963,27 @@ function LinearCard({
     if (!configReadyRef.current) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
-      const result = await api.updateLinearConfig(teamKey, refreshInterval, lifecycle);
+      const result = await api.updateLinearConfig(
+        teamKey,
+        refreshInterval,
+        lifecycle,
+        autoStartClaudeOnNewIssue,
+        autoStartClaudeSkipPermissions,
+        autoStartClaudeFocusTerminal,
+      );
       if (result.success) onStatusChange();
     }, 300);
     return () => clearTimeout(saveTimerRef.current);
-  }, [teamKey, refreshInterval, lifecycle, api, onStatusChange]);
+  }, [
+    teamKey,
+    refreshInterval,
+    lifecycle,
+    autoStartClaudeOnNewIssue,
+    autoStartClaudeSkipPermissions,
+    autoStartClaudeFocusTerminal,
+    api,
+    onStatusChange,
+  ]);
 
   const handleConnect = async () => {
     if (!apiKey) return;
@@ -912,6 +1061,15 @@ function LinearCard({
               />
             </div>
           </div>
+
+          <AutoStartClaudeSection
+            autoStartEnabled={autoStartClaudeOnNewIssue}
+            skipPermissions={autoStartClaudeSkipPermissions}
+            focusTerminal={autoStartClaudeFocusTerminal}
+            onToggleAutoStart={() => setAutoStartClaudeOnNewIssue((prev) => !prev)}
+            onToggleSkipPermissions={() => setAutoStartClaudeSkipPermissions((prev) => !prev)}
+            onToggleFocusTerminal={() => setAutoStartClaudeFocusTerminal((prev) => !prev)}
+          />
 
           <DataLifecycleSection dataLifecycle={lifecycle} onChange={setLifecycle} />
 
@@ -1285,6 +1443,7 @@ export function IntegrationsPanel({
   const [currentGithubStatus, setCurrentGithubStatus] = useState<GitHubStatus | null>(null);
   const [currentJiraStatus, setCurrentJiraStatus] = useState<JiraStatus | null>(null);
   const [currentLinearStatus, setCurrentLinearStatus] = useState<LinearStatus | null>(null);
+  const [mcpSetupEnabled, setMcpSetupEnabled] = useState(false);
 
   const dismissBanner = () => {
     setShowBanner(false);
@@ -1318,6 +1477,21 @@ export function IntegrationsPanel({
         setCurrentLinearStatus((prev) => (prev ? { ...prev, configured: false } : prev));
       }
     });
+  }, [serverUrl]);
+
+  useEffect(() => {
+    if (serverUrl === null) {
+      setMcpSetupEnabled(false);
+      return;
+    }
+    fetchSetupFeatures(serverUrl)
+      .then((features) => {
+        setMcpSetupEnabled(features.mcpSetupEnabled);
+      })
+      .catch(() => {
+        // MCP setup UI is opt-in and remains hidden when feature detection fails.
+        setMcpSetupEnabled(false);
+      });
   }, [serverUrl]);
 
   useEffect(() => {
@@ -1389,9 +1563,12 @@ export function IntegrationsPanel({
             onStatusChange={() => setLinearRefreshKey((k) => k + 1)}
           />
         </div>
-        <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
-          <CodingAgentsCard />
-        </div>
+        {mcpSetupEnabled && (
+          <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
+            {/* Show MCP setup UI only when DAWG_ENABLE_MCP_SETUP is enabled on the server. */}
+            <CodingAgentsCard />
+          </div>
+        )}
       </div>
     </div>
   );

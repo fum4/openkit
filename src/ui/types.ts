@@ -49,6 +49,9 @@ export interface JiraStatus {
   email: string | null;
   domain: string | null;
   dataLifecycle: DataLifecycleConfig | null;
+  autoStartClaudeOnNewIssue: boolean;
+  autoStartClaudeSkipPermissions: boolean;
+  autoStartClaudeFocusTerminal: boolean;
 }
 
 export interface GitHubStatus {
@@ -78,6 +81,9 @@ export interface LinearStatus {
   refreshIntervalMinutes: number;
   displayName: string | null;
   dataLifecycle: DataLifecycleConfig | null;
+  autoStartClaudeOnNewIssue: boolean;
+  autoStartClaudeSkipPermissions: boolean;
+  autoStartClaudeFocusTerminal: boolean;
 }
 
 export interface LinearState {
@@ -188,9 +194,11 @@ export interface SkillSummary {
   displayName: string;
   description: string;
   path: string;
+  builtIn: boolean;
 }
 
 export interface SkillDetail extends SkillSummary {
+  originalSkillMd?: string;
   skillMd: string;
   frontmatter: {
     name: string;

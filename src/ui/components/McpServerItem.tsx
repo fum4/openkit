@@ -2,6 +2,7 @@ import { Server, Trash2 } from "lucide-react";
 
 import type { McpServerSummary } from "../types";
 import { mcpServer, surface, text } from "../theme";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 interface McpServerItemProps {
   server: McpServerSummary;
@@ -78,19 +79,7 @@ export function McpServerItem({
             >
               <Trash2 className="w-3 h-3" />
             </span>
-            <span
-              role="button"
-              onClick={handleDeploy}
-              className={`relative w-6 h-3.5 rounded-full transition-colors duration-200 cursor-pointer block ${
-                isActive ? "bg-teal-400/35" : "bg-white/[0.08]"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all duration-200 ${
-                  isActive ? "left-[11px] bg-teal-400" : "left-0.5 bg-white/40"
-                }`}
-              />
-            </span>
+            <ToggleSwitch checked={!!isActive} onToggle={handleDeploy} size="sm" />
           </div>
         </div>
       </div>

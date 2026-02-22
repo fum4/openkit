@@ -29,7 +29,7 @@ export function loadLinearCredentials(configDir: string): LinearCredentials | nu
 
 export function saveLinearCredentials(configDir: string, creds: LinearCredentials): void {
   const data = readIntegrations(configDir);
-  data.linear = { ...((data.linear as Record<string, unknown>) ?? {}), ...creds };
+  data.linear = { ...(data.linear as Record<string, unknown>), ...creds };
   writeIntegrations(configDir, data);
 }
 
@@ -40,11 +40,14 @@ export function loadLinearProjectConfig(configDir: string): LinearProjectConfig 
     defaultTeamKey: linear.defaultTeamKey as string | undefined,
     refreshIntervalMinutes: linear.refreshIntervalMinutes as number | undefined,
     dataLifecycle: linear.dataLifecycle as DataLifecycleConfig | undefined,
+    autoStartClaudeOnNewIssue: linear.autoStartClaudeOnNewIssue as boolean | undefined,
+    autoStartClaudeSkipPermissions: linear.autoStartClaudeSkipPermissions as boolean | undefined,
+    autoStartClaudeFocusTerminal: linear.autoStartClaudeFocusTerminal as boolean | undefined,
   };
 }
 
 export function saveLinearProjectConfig(configDir: string, config: LinearProjectConfig): void {
   const data = readIntegrations(configDir);
-  data.linear = { ...((data.linear as Record<string, unknown>) ?? {}), ...config };
+  data.linear = { ...(data.linear as Record<string, unknown>), ...config };
   writeIntegrations(configDir, data);
 }

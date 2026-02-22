@@ -14,7 +14,7 @@ import { promisify } from "util";
 const execFile = promisify(execFileCb);
 
 import pc from "picocolors";
-import { APP_NAME, CONFIG_DIR_NAME } from "../constants";
+import { CONFIG_DIR_NAME } from "../constants";
 import { copyEnvFiles } from "../core/env-files";
 import { log } from "../logger";
 import { generateBranchName } from "./branch-name";
@@ -28,6 +28,7 @@ import {
   saveTaskData,
 } from "../integrations/jira/api";
 import { getApiBase, getAuthHeaders } from "../integrations/jira/auth";
+import type { JiraTaskData } from "../integrations/jira/types";
 import { loadLinearCredentials, loadLinearProjectConfig } from "../integrations/linear/credentials";
 import {
   fetchIssue as fetchLinearIssue,
@@ -38,11 +39,13 @@ import {
 import type { LinearTaskData } from "../integrations/linear/types";
 
 import { ActivityLog } from "./activity-log";
+import { ACTIVITY_TYPES } from "./activity-event";
 import { NotesManager } from "./notes-manager";
 import { PortManager } from "./port-manager";
-import type { PendingTaskContext } from "./task-context";
+import type { HooksInfo, PendingTaskContext } from "./task-context";
 import { writeTaskMd, generateTaskMd } from "./task-context";
 import type {
+  WorktreeLifecycleHookTrigger,
   RunningProcess,
   WorktreeConfig,
   WorktreeCreateRequest,
@@ -89,6 +92,38 @@ function isConfiguredOpenProjectTarget(
     typeof value === "string" &&
     OPEN_PROJECT_TARGETS.has(value as NonNullable<WorktreeConfig["openProjectTarget"]>)
   );
+}
+
+function normalizeEventTypeList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const unique = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const normalized = item.trim();
+    if (!normalized) continue;
+    unique.add(normalized);
+  }
+  return [...unique];
+}
+
+function sanitizeActivityConfig(
+  activity: WorktreeConfig["activity"] | undefined,
+): WorktreeConfig["activity"] | undefined {
+  if (!activity) return activity;
+
+  const disabledEvents = normalizeEventTypeList(activity.disabledEvents);
+  const disabledSet = new Set(disabledEvents);
+  const toastEvents = normalizeEventTypeList(activity.toastEvents);
+  const osNotificationEvents = normalizeEventTypeList(activity.osNotificationEvents).filter(
+    (eventType) => !disabledSet.has(eventType),
+  );
+
+  return {
+    ...activity,
+    disabledEvents,
+    toastEvents,
+    osNotificationEvents,
+  };
 }
 
 function getWorktreeColor(id: string): (s: string) => string {
@@ -138,13 +173,26 @@ export class WorktreeManager {
 
   private hookUpdateListeners: Set<(worktreeId: string) => void> = new Set();
 
+  private worktreeLifecycleHookRunner:
+    | ((
+        trigger: WorktreeLifecycleHookTrigger,
+        worktreeId: string,
+        worktreePath: string,
+      ) => Promise<void>)
+    | null = null;
+
+  private taskHooksProvider: ((worktreeId: string) => HooksInfo | null) | null = null;
+
   constructor(config: WorktreeConfig, configFilePath: string | null = null) {
-    this.config = config;
+    this.config = {
+      ...config,
+      activity: sanitizeActivityConfig(config.activity),
+    };
     this.configFilePath = configFilePath;
     this.configDir = configFilePath ? path.dirname(path.dirname(configFilePath)) : process.cwd();
     this.portManager = new PortManager(config, configFilePath);
     this.notesManager = new NotesManager(this.configDir);
-    this.activityLog = new ActivityLog(this.configDir);
+    this.activityLog = new ActivityLog(this.configDir, this.config.activity);
 
     const worktreesPath = this.getWorktreesAbsolutePath();
     if (!existsSync(worktreesPath)) {
@@ -179,9 +227,18 @@ export class WorktreeManager {
         envMapping: fileConfig.envMapping ?? this.config.envMapping,
         autoInstall: fileConfig.autoInstall,
         localIssuePrefix: fileConfig.localIssuePrefix,
+        localAutoStartClaudeOnNewIssue:
+          fileConfig.localAutoStartClaudeOnNewIssue ?? this.config.localAutoStartClaudeOnNewIssue,
+        localAutoStartClaudeSkipPermissions:
+          fileConfig.localAutoStartClaudeSkipPermissions ??
+          this.config.localAutoStartClaudeSkipPermissions,
+        localAutoStartClaudeFocusTerminal:
+          fileConfig.localAutoStartClaudeFocusTerminal ??
+          this.config.localAutoStartClaudeFocusTerminal,
         openProjectTarget: isConfiguredOpenProjectTarget(fileConfig.openProjectTarget)
           ? fileConfig.openProjectTarget
           : this.config.openProjectTarget,
+        activity: sanitizeActivityConfig(fileConfig.activity ?? this.config.activity),
       };
 
       // Update the config file path for future reloads
@@ -189,6 +246,7 @@ export class WorktreeManager {
 
       // Recreate port manager with new config
       this.portManager = new PortManager(this.config, configPath);
+      this.activityLog.updateConfig(this.config.activity ?? {});
 
       // Ensure worktrees directory exists
       const worktreesPath = this.getWorktreesAbsolutePath();
@@ -257,6 +315,20 @@ export class WorktreeManager {
 
   emitHookUpdate(worktreeId: string): void {
     this.hookUpdateListeners.forEach((listener) => listener(worktreeId));
+  }
+
+  setWorktreeLifecycleHookRunner(
+    runner: (
+      trigger: WorktreeLifecycleHookTrigger,
+      worktreeId: string,
+      worktreePath: string,
+    ) => Promise<void>,
+  ): void {
+    this.worktreeLifecycleHookRunner = runner;
+  }
+
+  setTaskHooksProvider(provider: (worktreeId: string) => HooksInfo | null): void {
+    this.taskHooksProvider = provider;
   }
 
   private notifyListeners(): void {
@@ -811,13 +883,18 @@ export class WorktreeManager {
       const pendingCtx = this.pendingWorktreeContext.get(worktreeId);
       if (pendingCtx) {
         try {
-          const content = generateTaskMd(pendingCtx.data, pendingCtx.aiContext);
+          const notes = this.notesManager.loadNotes(pendingCtx.data.source, pendingCtx.data.issueId);
+          const hooks = this.taskHooksProvider?.(worktreeId) ?? undefined;
+          const content = generateTaskMd(pendingCtx.data, pendingCtx.aiContext, notes.todos, hooks);
           writeTaskMd(worktreePath, content);
         } catch {
           // Non-critical — don't fail worktree creation
         }
         this.pendingWorktreeContext.delete(worktreeId);
       }
+
+      updateStatus("Running worktree-created hooks...");
+      await this.runWorktreeLifecycleHooks("worktree-created", worktreeId, worktreePath);
 
       // Done — remove from creating map; getWorktrees() will pick it up from filesystem
       this.creatingWorktrees.delete(worktreeId);
@@ -982,6 +1059,7 @@ export class WorktreeManager {
     const worktreesPath = this.getWorktreesAbsolutePath();
     const worktreePath = path.join(worktreesPath, id);
     if (!existsSync(worktreePath)) {
+      this.clearAwaitingInputForWorktree(id);
       return { success: true };
     }
 
@@ -1013,6 +1091,8 @@ export class WorktreeManager {
       }
 
       this.notifyListeners();
+      this.clearAwaitingInputForWorktree(id);
+      await this.runWorktreeLifecycleHooks("worktree-removed", id, worktreePath);
       return { success: true };
     } catch (error) {
       return {
@@ -1224,6 +1304,46 @@ export class WorktreeManager {
     return this.getProjectName() ?? undefined;
   }
 
+  private async runWorktreeLifecycleHooks(
+    trigger: WorktreeLifecycleHookTrigger,
+    worktreeId: string,
+    worktreePath: string,
+  ): Promise<void> {
+    if (!this.worktreeLifecycleHookRunner) return;
+    try {
+      log.info(`[hooks] Running ${trigger} hooks for "${worktreeId}"`);
+      await this.worktreeLifecycleHookRunner(trigger, worktreeId, worktreePath);
+      log.info(`[hooks] Finished ${trigger} hooks for "${worktreeId}"`);
+    } catch (error) {
+      log.warn(
+        `Failed running ${trigger} hooks for "${worktreeId}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private clearAwaitingInputForWorktree(worktreeId: string): void {
+    this.activityLog.addEvent({
+      // Keep the agent-awaiting-input group key so pending-input state is cleared,
+      // but present this as a worktree lifecycle notification in the activity feed.
+      category: "worktree",
+      type: ACTIVITY_TYPES.NOTIFY,
+      severity: "info",
+      title: "Worktree removed",
+      detail: `Worktree "${worktreeId}" has been removed.`,
+      worktreeId,
+      projectName: this.activityProjectName(),
+      groupKey: `agent-awaiting-input:${worktreeId}`,
+      metadata: {
+        requiresUserAction: false,
+        awaitingUserInput: false,
+        cleared: true,
+        clearedReason: "worktree-removed",
+      },
+    });
+  }
+
   getConfig(): WorktreeConfig {
     return this.config;
   }
@@ -1249,6 +1369,9 @@ export class WorktreeManager {
         "projectDir",
         "autoInstall",
         "localIssuePrefix",
+        "localAutoStartClaudeOnNewIssue",
+        "localAutoStartClaudeSkipPermissions",
+        "localAutoStartClaudeFocusTerminal",
         "openProjectTarget",
         "allowAgentCommits",
         "allowAgentPushes",
@@ -1284,11 +1407,13 @@ export class WorktreeManager {
 
       // Handle activity settings
       if (partial.activity !== undefined) {
-        existing.activity = {
-          ...((existing.activity as Record<string, unknown>) ?? {}),
+        const mergedActivity = sanitizeActivityConfig({
+          ...(existing.activity as Record<string, unknown>),
           ...partial.activity,
-        };
-        this.config.activity = { ...(this.config.activity ?? {}), ...partial.activity };
+        } as WorktreeConfig["activity"]);
+        existing.activity = (mergedActivity ?? {}) as Record<string, unknown>;
+        this.config.activity = mergedActivity;
+        this.activityLog.updateConfig(mergedActivity ?? {});
       }
 
       writeFileSync(configPath, JSON.stringify(existing, null, 2) + "\n");
@@ -1316,7 +1441,6 @@ export class WorktreeManager {
     const creds = loadJiraCredentials(this.configDir);
     if (!creds) return { issues: [], error: "Jira not configured" };
 
-    const projectConfig = loadJiraProjectConfig(this.configDir);
     const apiBase = getApiBase(creds);
     const headers = await getAuthHeaders(creds, this.configDir);
 
@@ -1513,7 +1637,7 @@ export class WorktreeManager {
       };
     }
 
-    let taskData;
+    let taskData: JiraTaskData;
     try {
       taskData = await fetchIssue(resolvedKey, creds, this.configDir);
     } catch (err) {
@@ -1656,6 +1780,9 @@ export class WorktreeManager {
     error?: string;
     code?: string;
   }> {
+    log.info(
+      `[AUTO-CLAUDE][TEMP] createWorktreeFromLinear called (identifier=${identifier}, branch=${branch ?? "auto"})`,
+    );
     const creds = loadLinearCredentials(this.configDir);
     if (!creds) {
       return { success: false, error: "Linear credentials not configured" };
@@ -1755,6 +1882,9 @@ export class WorktreeManager {
           this.notesManager.setLinkedWorktreeId("linear", resolvedId, resolvedId);
         },
       },
+    );
+    log.info(
+      `[AUTO-CLAUDE][TEMP] createWorktreeFromLinear -> createWorktree result (identifier=${resolvedId}, success=${result.success}, code=${result.code ?? "none"}, worktreeId=${result.worktreeId ?? resolvedId})`,
     );
 
     if (!result.success) {

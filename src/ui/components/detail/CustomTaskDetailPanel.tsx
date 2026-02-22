@@ -18,7 +18,12 @@ interface CustomTaskDetailPanelProps {
   onDeleted: () => void;
   onCreateWorktree: () => void;
   onViewWorktree: (id: string) => void;
-  onCodeWithClaude: (intent: { worktreeId: string; mode: "resume" | "start"; prompt?: string }) => void;
+  onCodeWithClaude: (intent: {
+    worktreeId: string;
+    mode: "resume" | "start";
+    prompt?: string;
+    tabLabel?: string;
+  }) => void;
 }
 
 function formatDate(iso: string) {
@@ -113,7 +118,7 @@ export function CustomTaskDetailPanel({
       onCodeWithClaude({
         worktreeId: result.worktreeId ?? taskId,
         mode: "start",
-        prompt: `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task. Treat AI context and todo checklist as highest-priority instructions. Use dawg MCP tools only if you need refreshed context, todo updates, or hooks status.`,
+        prompt: `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal dawg flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify dawg before asking by calling notify with requiresUserAction=true (or run dawg activity await-input in terminal flow).`,
       });
     } else {
       setCreateError(result.error ?? "Failed to create worktree");

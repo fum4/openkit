@@ -36,6 +36,12 @@ export interface WorktreeConfig {
   autoInstall?: boolean;
   /** Prefix for local issue identifiers (default: "LOCAL") */
   localIssuePrefix?: string;
+  /** Auto-start Claude for newly discovered local tasks (default: false) */
+  localAutoStartClaudeOnNewIssue?: boolean;
+  /** Skip Claude permission prompts for local auto-start (default: true) */
+  localAutoStartClaudeSkipPermissions?: boolean;
+  /** Focus Claude terminal when local auto-start begins (default: true) */
+  localAutoStartClaudeFocusTerminal?: boolean;
   /** Preferred app target for "Open project in" */
   openProjectTarget?: OpenProjectTarget;
   /** Whether MCP agents are allowed to commit (default: false) */
@@ -48,6 +54,7 @@ export interface WorktreeConfig {
   activity?: {
     retentionDays?: number;
     categories?: Record<string, boolean>;
+    disabledEvents?: string[];
     toastEvents?: string[];
     osNotificationEvents?: string[];
   };
@@ -130,7 +137,15 @@ export interface WorktreeListResponse {
 
 // ─── Hooks Pipeline ─────────────────────────────────────────────
 
-export type HookTrigger = "pre-implementation" | "post-implementation" | "on-demand" | "custom";
+export type HookTrigger =
+  | "pre-implementation"
+  | "post-implementation"
+  | "on-demand"
+  | "custom"
+  | "worktree-created"
+  | "worktree-removed";
+
+export type WorktreeLifecycleHookTrigger = "worktree-created" | "worktree-removed";
 export type HookStepKind = "command" | "prompt";
 
 export interface HookStep {

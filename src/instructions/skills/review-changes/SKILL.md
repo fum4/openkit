@@ -9,6 +9,7 @@ You are a hook skill for the dawg worktree manager.
 ## Task
 
 Review the code changes in this worktree for bugs, security vulnerabilities, and quality issues.
+This skill is review-only: it must not modify code or apply fixes.
 
 ## Steps
 
@@ -25,5 +26,7 @@ Review the code changes in this worktree for bugs, security vulnerabilities, and
    - `success`: `true` if no critical issues found, `false` if there are blocking problems
    - `summary`: one-line verdict (e.g. "No critical issues. 2 minor suggestions.")
    - `content`: full review in markdown with file:line references
+   - `filePath`: absolute path to the review markdown file (for example `{issueDir}/skill-review-changes.md`)
 
 Be honest and specific. Flag real issues, not style preferences.
+Do not implement or suggest that fixes were applied in this skill.

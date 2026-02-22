@@ -12,7 +12,7 @@ Use the dawg MCP server tools to create a worktree for issue "{{ISSUE_ID}}".
 8. **Follow AI context** directions and todo checklist — these are user-defined and take priority over the task description when they conflict
 9. **Plan before coding** — analyze the codebase in the worktree, understand existing patterns and conventions, create an implementation approach, and present it to the user for approval before writing any code
 10. **Start implementing** the task
-11. **If blocked on user input at any point**, call `notify` with `requiresUserAction: true` and include a concise message about what you need to proceed
+11. **If blocked on user input at any point**, call `notify` with `requiresUserAction: true` and include a concise message about what you need to proceed **before asking the user in chat/terminal**
 12. **After completing** all work and post-implementation hooks (`run_hooks` with `trigger: "post-implementation"` for command hooks), call `get_git_policy` — if commit/push/create_pr are allowed, do them automatically. If the dev server is not already running, ask the user if they'd like to start it (via `start_worktree`)
 
 ## Skill Reports

@@ -4,6 +4,7 @@ import path from "path";
 import { promisify } from "util";
 
 import { CONFIG_DIR_NAME } from "../constants";
+import { log } from "../logger";
 import type { WorktreeManager } from "./manager";
 import type { NotesManager } from "./notes-manager";
 import type {
@@ -14,6 +15,7 @@ import type {
   PipelineRun,
   SkillHookResult,
   StepResult,
+  WorktreeLifecycleHookTrigger,
 } from "./types";
 
 const execFile = promisify(execFileCb);
@@ -29,6 +31,10 @@ export class HooksManager {
 
   // ─── Config ─────────────────────────────────────────────────────
 
+  private isLifecycleTrigger(trigger: HookTrigger | undefined): boolean {
+    return trigger === "worktree-created" || trigger === "worktree-removed";
+  }
+
   private configPath(): string {
     return path.join(this.manager.getConfigDir(), CONFIG_DIR_NAME, "hooks.json");
   }
@@ -38,7 +44,9 @@ export class HooksManager {
     if (!existsSync(p)) return defaultConfig();
     try {
       const raw = JSON.parse(readFileSync(p, "utf-8"));
-      raw.skills ??= [];
+      raw.skills = (raw.skills ?? []).filter(
+        (skill: HookSkillRef) => !this.isLifecycleTrigger(skill.trigger),
+      );
       raw.steps = (raw.steps ?? []).map((step: HookStep) => {
         const isPrompt = step.kind === "prompt" || (!!step.prompt && !step.command);
         if (isPrompt) {
@@ -61,10 +69,14 @@ export class HooksManager {
   }
 
   saveConfig(config: HooksConfig): HooksConfig {
+    const sanitized: HooksConfig = {
+      ...config,
+      skills: (config.skills ?? []).filter((skill) => !this.isLifecycleTrigger(skill.trigger)),
+    };
     const dir = path.dirname(this.configPath());
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(this.configPath(), JSON.stringify(config, null, 2) + "\n");
-    return config;
+    writeFileSync(this.configPath(), JSON.stringify(sanitized, null, 2) + "\n");
+    return sanitized;
   }
 
   addStep(
@@ -129,6 +141,9 @@ export class HooksManager {
     conditionTitle?: string,
   ): HooksConfig {
     const config = this.getConfig();
+    if (this.isLifecycleTrigger(trigger as HookTrigger | undefined)) {
+      return config;
+    }
     const effectiveTrigger = trigger ?? "post-implementation";
     // Allow same skill in different triggers
     if (
@@ -165,19 +180,6 @@ export class HooksManager {
     );
     if (skill) skill.enabled = enabled;
     return this.saveConfig(config);
-  }
-
-  ensureSkillsImported(skillNames: string[]): void {
-    if (existsSync(this.configPath())) return;
-    const config = this.getConfig();
-    let changed = false;
-    for (const name of skillNames) {
-      if (!config.skills.some((s) => s.skillName === name)) {
-        config.skills.push({ skillName: name, enabled: true });
-        changed = true;
-      }
-    }
-    if (changed) this.saveConfig(config);
   }
 
   getEffectiveSkills(worktreeId: string, notesManager: NotesManager): HookSkillRef[] {
@@ -279,6 +281,46 @@ export class HooksManager {
     return !this.isPromptStep(step) && !!step.command?.trim();
   }
 
+  async runWorktreeLifecycleCommands(
+    trigger: WorktreeLifecycleHookTrigger,
+    worktreeId: string,
+    worktreePath?: string,
+  ): Promise<StepResult[]> {
+    const config = this.getConfig();
+    const enabledSteps = config.steps.filter(
+      (step) =>
+        step.enabled !== false && this.matchesTrigger(step, trigger) && this.isRunnableCommandStep(step),
+    );
+    if (enabledSteps.length === 0) return [];
+
+    const executionCwd =
+      trigger === "worktree-created" && worktreePath && existsSync(worktreePath)
+        ? worktreePath
+        : this.manager.getGitRoot();
+
+    const env: NodeJS.ProcessEnv = {
+      DAWG_HOOK_TRIGGER: trigger,
+      DAWG_WORKTREE_ID: worktreeId,
+      ...(worktreePath ? { DAWG_WORKTREE_PATH: worktreePath } : {}),
+    };
+
+    const results = await Promise.all(
+      enabledSteps.map((step) => this.executeStep(step, executionCwd, env)),
+    );
+    // Persist lifecycle command results so they appear in the worktree Hooks tab
+    // alongside pre/post/custom/on-demand runs.
+    this.mergeAndPersistRun(worktreeId, results);
+
+    const failed = results.filter((result) => result.status === "failed");
+    if (failed.length > 0) {
+      log.warn(
+        `Lifecycle hooks (${trigger}) had ${failed.length} failure(s) for worktree "${worktreeId}"`,
+      );
+    }
+
+    return results;
+  }
+
   async runAll(
     worktreeId: string,
     trigger: HookTrigger = "post-implementation",
@@ -310,18 +352,32 @@ export class HooksManager {
     }
 
     const runStartedAt = new Date().toISOString();
+    const existing = this.getStatus(worktreeId);
+    const existingSteps = existing?.steps ?? [];
+    const enabledStepIds = new Set(enabledSteps.map((step) => step.id));
+    const stepConfigById = new Map(config.steps.map((step) => [step.id, step] as const));
+    const preservedLifecycleSteps = existingSteps.filter((step) => {
+      if (enabledStepIds.has(step.stepId)) return false;
+      const configStep = stepConfigById.get(step.stepId);
+      return (
+        configStep?.trigger === "worktree-created" || configStep?.trigger === "worktree-removed"
+      );
+    });
     const runningRun: PipelineRun = {
       id: `run-${Date.now()}`,
       worktreeId,
       status: "running",
       startedAt: runStartedAt,
-      steps: enabledSteps.map((step) => ({
-        stepId: step.id,
-        stepName: step.name,
-        command: step.command,
-        status: "running",
-        startedAt: runStartedAt,
-      })),
+      steps: [
+        ...preservedLifecycleSteps,
+        ...enabledSteps.map((step) => ({
+          stepId: step.id,
+          stepName: step.name,
+          command: step.command,
+          status: "running" as const,
+          startedAt: runStartedAt,
+        })),
+      ],
     };
     this.persistRun(worktreeId, runningRun);
 
@@ -375,7 +431,11 @@ export class HooksManager {
     return result;
   }
 
-  private async executeStep(step: HookStep, worktreePath: string): Promise<StepResult> {
+  private async executeStep(
+    step: HookStep,
+    worktreePath: string,
+    extraEnv?: NodeJS.ProcessEnv,
+  ): Promise<StepResult> {
     const startedAt = new Date().toISOString();
     const start = Date.now();
 
@@ -387,7 +447,7 @@ export class HooksManager {
       const { stdout, stderr } = await execFile(bin, args, {
         cwd: worktreePath,
         timeout: 120_000,
-        env: { ...process.env, FORCE_COLOR: "0" },
+        env: { ...process.env, ...extraEnv, FORCE_COLOR: "0" },
       });
       const output = [stdout, stderr].filter(Boolean).join("\n").trim();
       return {

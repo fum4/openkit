@@ -13,6 +13,7 @@ import type { TaskContextData } from "./server/task-context";
 import type { HookStep, HookTrigger } from "./server/types";
 import type { HooksManager } from "./server/verification-manager";
 import type { ActivityLog } from "./server/activity-log";
+import { ACTIVITY_TYPES } from "./server/activity-event";
 
 export interface ActionParam {
   type: "string" | "number" | "boolean";
@@ -46,7 +47,9 @@ function normalizeHookTrigger(value: unknown): HookTrigger {
     value === "pre-implementation" ||
     value === "post-implementation" ||
     value === "custom" ||
-    value === "on-demand"
+    value === "on-demand" ||
+    value === "worktree-created" ||
+    value === "worktree-removed"
   ) {
     return value;
   }
@@ -75,6 +78,10 @@ function formatHookTriggerLabel(trigger: HookTrigger): string {
       return "Custom";
     case "on-demand":
       return "On-Demand";
+    case "worktree-created":
+      return "Worktree Created";
+    case "worktree-removed":
+      return "Worktree Removed";
   }
 }
 
@@ -680,6 +687,7 @@ export const actions: Action[] = [
         requiresUserActionRaw === true ||
         requiresUserActionRaw === "true" ||
         USER_ACTION_HINT.test(message);
+      const eventType = requiresUserAction ? ACTIVITY_TYPES.AGENT_AWAITING_INPUT : ACTIVITY_TYPES.NOTIFY;
       const projectName = ctx.manager.getProjectName() ?? undefined;
 
       if (!["info", "success", "warning", "error"].includes(severity)) {
@@ -692,12 +700,14 @@ export const actions: Action[] = [
       if (ctx.activityLog) {
         ctx.activityLog.addEvent({
           category: "agent",
-          type: "notify",
+          type: eventType,
           severity: severity as "info" | "success" | "warning" | "error",
           title: message,
           worktreeId,
           projectName,
-          metadata: requiresUserAction ? { requiresUserAction: true } : undefined,
+          metadata: requiresUserAction
+            ? { requiresUserAction: true, awaitingUserInput: true, source: "mcp" }
+            : undefined,
         });
       }
 
@@ -744,7 +754,7 @@ export const actions: Action[] = [
       trigger: {
         type: "string",
         description:
-          'Optional hook trigger to run: "pre-implementation", "post-implementation" (default), "custom", or "on-demand".',
+          'Optional hook trigger to run: "pre-implementation", "post-implementation" (default), "custom", "on-demand", "worktree-created", or "worktree-removed".',
       },
     },
     handler: async (ctx, params) => {
@@ -864,6 +874,11 @@ export const actions: Action[] = [
         (triggerParam === undefined || triggerParam === null
           ? hooksConfig.skills.find((s) => s.skillName === skillName)?.trigger
           : normalizeHookTrigger(triggerParam)) ?? "post-implementation";
+      if (trigger === "worktree-created" || trigger === "worktree-removed") {
+        return {
+          error: "Lifecycle hooks are command-only; skill status reporting is not supported.",
+        };
+      }
       const triggerLabel = formatHookTriggerLabel(trigger);
       const projectName = ctx.manager.getProjectName() ?? undefined;
       const groupKey = `hooks:${worktreeId}:${trigger}`;

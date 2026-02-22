@@ -2,16 +2,16 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
 
-import { PREDEFINED_SKILLS } from "../instructions";
+import { BUNDLED_SKILLS } from "../instructions";
 
 function getRegistryDir(): string {
   return path.join(os.homedir(), ".dawg", "skills");
 }
 
-export function ensurePredefinedHookSkills(): void {
+export function ensureBundledSkills(): void {
   const registryDir = getRegistryDir();
 
-  for (const skill of PREDEFINED_SKILLS) {
+  for (const skill of BUNDLED_SKILLS) {
     const skillDir = path.join(registryDir, skill.dirName);
     const skillMdPath = path.join(skillDir, "SKILL.md");
 
@@ -20,8 +20,4 @@ export function ensurePredefinedHookSkills(): void {
     mkdirSync(skillDir, { recursive: true });
     writeFileSync(skillMdPath, skill.content);
   }
-}
-
-export function getPredefinedSkillNames(): string[] {
-  return PREDEFINED_SKILLS.map((s) => s.dirName);
 }

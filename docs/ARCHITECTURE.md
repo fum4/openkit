@@ -6,7 +6,7 @@ dawg is a CLI tool, web UI, and optional Electron desktop app for managing multi
 
 The system is organized into three primary layers:
 
-1. **CLI** -- The entry point. Routes subcommands (`init`, `mcp`, `task`, `add`), starts the HTTP server, and opens the UI in Electron or a browser.
+1. **CLI** -- The entry point. Routes subcommands (`init`, `mcp`, `task`, `add`, `activity`), starts the HTTP server, and opens the UI in Electron or a browser.
 2. **Server** -- A Hono-based HTTP server that exposes a REST API, SSE event streams, WebSocket terminals, and a Streamable HTTP MCP transport. All state is managed here.
 3. **Clients** -- The React SPA (web UI), the Electron shell, and MCP agents (e.g. Claude Code) all connect to the same server instance.
 
@@ -121,13 +121,13 @@ The `buildWorktreeLinkMap()` method scans all notes files to produce a reverse m
 
 Key responsibilities:
 
-- **Event persistence**: Events are appended to `.dawg/activity.json` in JSONL format (one JSON object per line)
+- **Event persistence**: Events are appended to `.dawg/activity.jsonl` in JSONL format (one JSON object per line)
 - **Real-time broadcast**: Maintains a set of subscriber callbacks, notified on every new event
 - **Querying**: `getEvents(filter?)` supports filtering by category, timestamp, and limit
 - **Pruning**: Removes events older than the configured retention period (default 7 days), runs on startup and every hour
-- **Toast/notification classification**: `isToastEvent()` and `isOsNotificationEvent()` check events against configurable event type lists
+- **Notification classification**: `isToastEvent()` and `isOsNotificationEvent()` expose config-based checks in `ActivityLog`; product policy routes workflow/agent/live updates to the Activity feed, reserves toasts for direct user actions, and reserves Electron native alerts for agent-attention events
 
-Shared types are defined in `src/server/activity-event.ts`: `ActivityCategory` (`agent` | `worktree` | `git` | `integration` | `system`), `ActivitySeverity` (`info` | `success` | `warning` | `error`), `ActivityEvent`, and the `ACTIVITY_TYPES` event catalog.
+Shared types are defined in `src/server/activity-event.ts`: `ActivityCategory` (`agent` | `worktree` | `system`), `ActivitySeverity` (`info` | `success` | `warning` | `error`), `ActivityEvent`, and the `ACTIVITY_TYPES` event catalog.
 
 ### HooksManager
 
@@ -136,7 +136,7 @@ Shared types are defined in `src/server/activity-event.ts`: `ActivityCategory` (
 1. **Command steps**: Shell commands (lint, typecheck, build) that run in the worktree directory. Each step has a trigger type, can be enabled/disabled, and custom-trigger steps include a natural-language condition.
 2. **Skill references**: References to skills from the `~/.dawg/skills/` registry. The same skill can be used in multiple trigger types (identified by `skillName + trigger` composite key). Skills support per-issue overrides (inherit/enable/disable).
 
-Four trigger types: `pre-implementation` (before agent work), `post-implementation` (after agent work), `custom` (agent decides based on condition), `on-demand` (manually triggered).
+Six trigger types: `pre-implementation` (before agent work), `post-implementation` (after agent work), `custom` (agent decides based on condition), `on-demand` (manually triggered), `worktree-created` (auto-run after worktree creation), and `worktree-removed` (auto-run after worktree removal). Lifecycle triggers are command-only.
 
 Command step runs are persisted to `.dawg/worktrees/{id}/hooks/latest-run.json`. Skill results reported by agents are stored at `.dawg/worktrees/{id}/hooks/skill-results.json`.
 
@@ -278,7 +278,7 @@ Agent instruction text (MCP instructions, IDE skill/rule files, hook skill defin
 
 ### How it works
 
-1. Each instruction is a `.md` file under `src/instructions/` (or subdirectories `agents/`, `skills/`)
+1. Each instruction is a `.md` file under `src/instructions/` (or subdirectories `mcp/`, `skills/`)
 2. `src/instructions/index.ts` imports all `.md` files, resolves placeholders, and exports typed constants
 3. Consumer files (`actions.ts`, `mcp-server-factory.ts`, `builtin-instructions.ts`, `verification-skills.ts`) import from the barrel
 4. `src/md.d.ts` provides TypeScript declarations for `*.md` imports
@@ -288,7 +288,7 @@ Agent instruction text (MCP instructions, IDE skill/rule files, hook skill defin
 | Placeholder    | Resolved                          | Value                                  |
 | -------------- | --------------------------------- | -------------------------------------- |
 | `{{APP_NAME}}` | At module load time in `index.ts` | `APP_NAME` constant ("dawg")           |
-| `{{WORKFLOW}}` | At module load time in `index.ts` | Content of `agents/shared-workflow.md` |
+| `{{WORKFLOW}}` | At module load time in `index.ts` | Content of `mcp/instructions.md`        |
 | `{{ISSUE_ID}}` | At runtime by the caller          | Function argument (e.g. "PROJ-123")    |
 
 ### File map
@@ -297,11 +297,11 @@ Agent instruction text (MCP instructions, IDE skill/rule files, hook skill defin
 | --------------------------- | ------------------------- | ------------------------------------------------------------------ |
 | `mcp-server.md`             | `MCP_INSTRUCTIONS`        | `mcp-server-factory.ts` (server instructions)                      |
 | `mcp-work-on-task.md`       | `MCP_WORK_ON_TASK_PROMPT` | `mcp-server-factory.ts` (prompt template)                          |
-| `agents/claude-skill.md`    | `CLAUDE_SKILL`            | `builtin-instructions.ts` (deployed to `~/.claude/skills/`)        |
-| `agents/cursor-rule.md`     | `CURSOR_RULE`             | `builtin-instructions.ts` (deployed to `.cursor/rules/`)           |
-| `agents/vscode-prompt.md`   | `VSCODE_PROMPT`           | `builtin-instructions.ts` (deployed to `.github/prompts/`)         |
-| `agents/shared-workflow.md` | _(internal)_              | Interpolated into cursor-rule and vscode-prompt via `{{WORKFLOW}}` |
-| `skills/*.md`               | `PREDEFINED_SKILLS`       | `verification-skills.ts` (deployed to `~/.dawg/skills/`)           |
+| `mcp/claude-skill.md`       | `CLAUDE_SKILL`            | `builtin-instructions.ts` (deployed to `~/.claude/skills/`)        |
+| `mcp/cursor-rule.md`        | `CURSOR_RULE`             | `builtin-instructions.ts` (deployed to `.cursor/rules/`)           |
+| `mcp/vscode-prompt.md`      | `VSCODE_PROMPT`           | `builtin-instructions.ts` (deployed to `.github/prompts/`)         |
+| `mcp/instructions.md`       | _(internal)_              | Interpolated into claude-skill, cursor-rule, and vscode-prompt via `{{WORKFLOW}}` |
+| `skills/*/SKILL.md`         | `BUNDLED_SKILLS`          | `verification-skills.ts` (seeded into `~/.dawg/skills/` registry only)             |
 
 ## Server-as-Hub Pattern
 

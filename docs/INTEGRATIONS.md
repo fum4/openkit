@@ -177,6 +177,9 @@ Auto-cleanup runs as a fire-and-forget operation whenever the issue list is fetc
 | `defaultProjectKey`      | Project key prefix for short issue IDs (e.g., `"PROJ"`) | none                               |
 | `refreshIntervalMinutes` | How often to poll for issue list updates                | `5`                                |
 | `dataLifecycle`          | Data persistence and cleanup settings                   | `saveOn: "view"`, cleanup disabled |
+| `autoStartClaudeOnNewIssue` | Automatically create/open a worktree and start Claude when newly fetched issues appear | `false` |
+| `autoStartClaudeSkipPermissions` | Run auto-started Claude with `--dangerously-skip-permissions` | `true` |
+| `autoStartClaudeFocusTerminal` | Redirect UI to Claude terminal when auto-start begins | `true` |
 
 ---
 
@@ -257,6 +260,9 @@ dawg uses the `type` field for auto-cleanup triggers. Issues with `completedAt` 
 | `defaultTeamKey`         | Team key prefix for short identifiers (e.g., `"ENG"`)          | none                               |
 | `refreshIntervalMinutes` | How often to poll for issue list updates                       | `5`                                |
 | `dataLifecycle`          | Data persistence and cleanup settings (same structure as Jira) | `saveOn: "view"`, cleanup disabled |
+| `autoStartClaudeOnNewIssue` | Automatically create/open a worktree and start Claude when newly fetched issues appear | `false` |
+| `autoStartClaudeSkipPermissions` | Run auto-started Claude with `--dangerously-skip-permissions` | `true` |
+| `autoStartClaudeFocusTerminal` | Redirect UI to Claude terminal when auto-start begins | `true` |
 
 ---
 
@@ -361,6 +367,8 @@ Navigate to the **Integrations** view in the dawg UI. Each integration has a ded
 - **Jira**: API token setup form (base URL, email, token). After connecting: project key, refresh interval, and data lifecycle settings with auto-save.
 - **Linear**: API key setup form. After connecting: team key, refresh interval, and data lifecycle settings with auto-save.
 
+Both Jira and Linear cards include a `Claude Auto-Start` section. When auto-start is enabled, dawg watches freshly fetched issue lists and, for newly discovered issues, creates (or reuses) the issue worktree, starts a Claude terminal session using the standard TASK.md-first workflow, and records activity feed events for both task detection and Claude auto-start. Additional toggles control whether Claude runs with `--dangerously-skip-permissions` and whether the UI auto-focuses the Claude terminal as soon as work begins.
+
 Configuration changes in the UI are auto-saved with a 300ms debounce.
 
 ### CLI (`dawg add`)
@@ -398,14 +406,20 @@ Stored in `.dawg/integrations.json`:
     "oauth": { "clientId": "...", "accessToken": "...", "...": "..." },
     "defaultProjectKey": "PROJ",
     "refreshIntervalMinutes": 5,
-    "dataLifecycle": { "...": "..." }
+    "dataLifecycle": { "...": "..." },
+    "autoStartClaudeOnNewIssue": false,
+    "autoStartClaudeSkipPermissions": true,
+    "autoStartClaudeFocusTerminal": true
   },
   "linear": {
     "apiKey": "lin_api_...",
     "displayName": "Jane Developer",
     "defaultTeamKey": "ENG",
     "refreshIntervalMinutes": 5,
-    "dataLifecycle": { "...": "..." }
+    "dataLifecycle": { "...": "..." },
+    "autoStartClaudeOnNewIssue": false,
+    "autoStartClaudeSkipPermissions": true,
+    "autoStartClaudeFocusTerminal": true
   }
 }
 ```
@@ -459,7 +473,7 @@ When creating a worktree from an issue (`POST /api/jira/task` or `POST /api/line
 | -------- | ----------------------- | --------------------------------------------------------------- |
 | `GET`    | `/api/jira/status`      | Connection status, config, and data lifecycle settings          |
 | `POST`   | `/api/jira/setup`       | Connect with API token (`{ baseUrl, email, token }`)            |
-| `PATCH`  | `/api/jira/config`      | Update project key, refresh interval, or lifecycle config       |
+| `PATCH`  | `/api/jira/config`      | Update project key, refresh interval, lifecycle config, and auto-start Claude options |
 | `DELETE` | `/api/jira/credentials` | Disconnect (removes jira key from integrations.json)            |
 | `GET`    | `/api/jira/issues`      | List assigned unresolved issues (optional `?query=` for search) |
 | `GET`    | `/api/jira/issues/:key` | Fetch full issue detail                                         |
@@ -472,7 +486,7 @@ When creating a worktree from an issue (`POST /api/jira/task` or `POST /api/line
 | -------- | -------------------------------- | ----------------------------------------------------------- |
 | `GET`    | `/api/linear/status`             | Connection status, config, and data lifecycle settings      |
 | `POST`   | `/api/linear/setup`              | Connect with API key (`{ apiKey }`)                         |
-| `PATCH`  | `/api/linear/config`             | Update team key, refresh interval, or lifecycle config      |
+| `PATCH`  | `/api/linear/config`             | Update team key, refresh interval, lifecycle config, and auto-start Claude options |
 | `DELETE` | `/api/linear/credentials`        | Disconnect (removes linear key from integrations.json)      |
 | `GET`    | `/api/linear/issues`             | List assigned active issues (optional `?query=` for search) |
 | `GET`    | `/api/linear/issues/:identifier` | Fetch full issue detail                                     |

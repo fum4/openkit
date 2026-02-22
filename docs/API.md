@@ -193,18 +193,34 @@ Auto-detect configuration values from the project directory without creating a c
 
 #### `POST /api/config/init`
 
-Initialize a new `.dawg/config.json` with provided or auto-detected values. Creates the `.dawg` directory, config file, and `.gitignore`. Will not overwrite existing config.
+Initialize `.dawg/config.json` with provided or auto-detected values. Creates the `.dawg` directory, config file, and `.gitignore`.
 
 - **Request** (all optional, falls back to auto-detected):
   ```json
   {
     "startCommand": "pnpm dev",
     "installCommand": "pnpm install",
-    "baseBranch": "origin/main"
+    "baseBranch": "origin/main",
+    "force": true
   }
   ```
+- `force: true` allows overwriting an existing `.dawg/config.json`.
 - **Response**: `{ success: true, config: {...} }`
 - **Error** (400): `{ success: false, error: "Config already exists" }`
+
+Also enables default project skills (currently `work-on-task`) by deploying them to per-agent
+project skill directories (best-effort, non-fatal).
+
+#### `GET /api/config/features`
+
+Get setup-related feature flags.
+
+- **Response**:
+  ```json
+  {
+    "mcpSetupEnabled": false
+  }
+  ```
 
 #### `GET /api/config/setup-status`
 
@@ -391,7 +407,10 @@ Get Jira integration status and configuration.
     "refreshIntervalMinutes": 5,
     "email": "user@example.com",
     "domain": "yoursite.atlassian.net",
-    "dataLifecycle": { ... }
+    "dataLifecycle": { ... },
+    "autoStartClaudeOnNewIssue": false,
+    "autoStartClaudeSkipPermissions": true,
+    "autoStartClaudeFocusTerminal": true
   }
   ```
 
@@ -412,14 +431,17 @@ Configure Jira with API token credentials. Validates the connection before savin
 
 #### `PATCH /api/jira/config`
 
-Update Jira project configuration.
+Update Jira project configuration, including optional auto-start Claude behavior for newly fetched issues.
 
 - **Request**:
   ```json
   {
     "defaultProjectKey": "PROJ",
     "refreshIntervalMinutes": 10,
-    "dataLifecycle": { ... }
+    "dataLifecycle": { ... },
+    "autoStartClaudeOnNewIssue": true,
+    "autoStartClaudeSkipPermissions": true,
+    "autoStartClaudeFocusTerminal": true
   }
   ```
 - **Response**: `{ success: true }`
@@ -488,7 +510,10 @@ Get Linear integration status and configuration.
     "defaultTeamKey": "TEAM",
     "refreshIntervalMinutes": 5,
     "displayName": "User Name",
-    "dataLifecycle": { ... }
+    "dataLifecycle": { ... },
+    "autoStartClaudeOnNewIssue": false,
+    "autoStartClaudeSkipPermissions": true,
+    "autoStartClaudeFocusTerminal": true
   }
   ```
 
@@ -505,14 +530,17 @@ Configure Linear with an API key. Validates the connection before saving.
 
 #### `PATCH /api/linear/config`
 
-Update Linear project configuration.
+Update Linear project configuration, including optional auto-start Claude behavior for newly fetched issues.
 
 - **Request**:
   ```json
   {
     "defaultTeamKey": "TEAM",
     "refreshIntervalMinutes": 10,
-    "dataLifecycle": { ... }
+    "dataLifecycle": { ... },
+    "autoStartClaudeOnNewIssue": true,
+    "autoStartClaudeSkipPermissions": true,
+    "autoStartClaudeFocusTerminal": true
   }
   ```
 - **Response**: `{ success: true }`
@@ -578,7 +606,28 @@ Query persisted activity events with optional filters.
 
 Each `ActivityEvent` includes: `id`, `timestamp`, `category`, `type`, `severity` (`info` | `success` | `warning` | `error`), `title`, `detail?`, `worktreeId?`, `projectName?`, `metadata?`.
 
-Events are persisted to `.dawg/activity.json` (JSONL format) and pruned based on the `activity.retentionDays` config setting.
+Events are persisted to `.dawg/activity.jsonl` (JSONL format) and pruned based on the `activity.retentionDays` config setting.
+
+#### `POST /api/activity`
+
+Create a new activity event (used by the UI for app-level notifications such as Jira/Linear task detection and Claude auto-start updates).
+
+- **Request**:
+  ```json
+  {
+    "category": "agent",
+    "type": "auto_task_claimed",
+    "severity": "info",
+    "title": "Claude started working on PROJ-123",
+    "detail": "Issue summary text",
+    "worktreeId": "PROJ-123",
+    "groupKey": "auto-task-claimed:PROJ-123",
+    "metadata": { "source": "jira", "issueId": "PROJ-123", "issueTitle": "Issue summary text", "autoClaimed": true }
+  }
+  ```
+- `severity`, `detail`, `worktreeId`, `groupKey`, and `metadata` are optional.
+- **Response**: `{ success: true, event: ActivityEvent }`
+- **Error** (400): `{ success: false, error: "..." }`
 
 ---
 
@@ -609,6 +658,7 @@ The connection stays open until the client disconnects.
 ## MCP Management
 
 Configure dawg as an MCP server in various AI agent tool configurations.
+These endpoints are registered only when `DAWG_ENABLE_MCP_SETUP=1`.
 
 #### `GET /api/mcp/status`
 
@@ -1357,10 +1407,11 @@ Create a new terminal session for a worktree.
   {
     "cols": 120,
     "rows": 40,
-    "startupCommand": "exec claude 'Implement task in TASK.md'"
+    "startupCommand": "exec claude 'Implement task in TASK.md'",
+    "scope": "claude"
   }
   ```
-  Defaults to 80 columns and 24 rows. `startupCommand` (optional) runs via shell startup (`$SHELL -lc <command>`) when the PTY is first created.
+  Defaults to 80 columns and 24 rows. `startupCommand` (optional) runs via shell startup (`$SHELL -lc <command>`). `scope` (optional: `"terminal"` or `"claude"`) reuses a single session per worktree+scope when present.
 - **Response**: `{ success: true, sessionId: "string" }`
 - **Error** (404): `{ success: false, error: "Worktree not found" }`
 
@@ -1370,6 +1421,13 @@ Destroy a terminal session.
 
 - **Response**: `{ success: true }`
 - **Error** (404): `{ success: false, error: "Session not found" }`
+
+#### `GET /api/worktrees/:id/terminals/active?scope=terminal|claude`
+
+Look up the currently active scoped terminal session for a worktree (used to reattach after refresh).
+
+- **Response**: `{ success: true, sessionId: "string" | null }`
+- **Error** (400): `{ success: false, error: "scope is required (\"terminal\" or \"claude\")" }`
 
 #### `GET /api/terminals/:sessionId/ws` (WebSocket)
 
@@ -1385,7 +1443,7 @@ WebSocket endpoint for bidirectional terminal communication. Upgrades the HTTP c
 
 ## Hooks
 
-Automated checks and agent skills organized by trigger type. Supports shell command steps and skill references from the registry.
+Automated checks and agent skills organized by trigger type. Supports shell command steps and skill references from the registry. Lifecycle triggers (`worktree-created`, `worktree-removed`) are command-only.
 
 #### `GET /api/hooks/config`
 
@@ -1433,6 +1491,7 @@ Import a skill from the registry into hooks.
   { "skillName": "review-changes", "trigger": "post-implementation", "condition": "optional" }
   ```
   The same skill can be imported into multiple trigger types. Deduplication is by `skillName + trigger`.
+  `worktree-created` and `worktree-removed` reject skill imports (command-only triggers).
 - **Response**: `{ success: true, config: HooksConfig }`
 
 #### `GET /api/hooks/skills/available`
@@ -1467,7 +1526,7 @@ Run all enabled steps for a worktree.
   ```json
   { "trigger": "pre-implementation" }
   ```
-  Trigger defaults to `"post-implementation"` when omitted.
+  Trigger defaults to `"post-implementation"` when omitted. Accepted values: `pre-implementation`, `post-implementation`, `custom`, `on-demand`, `worktree-created`, `worktree-removed`.
 - **Response**: `PipelineRun` object with `id`, `worktreeId`, `status`, `startedAt`, `steps`
 
 #### `POST /api/worktrees/:id/hooks/run/:stepId`
@@ -1497,6 +1556,7 @@ Report a skill hook result from an agent.
   }
   ```
 - **Response**: `{ success: true }`
+- **Error** (400): lifecycle triggers (`worktree-created`, `worktree-removed`) are command-only and reject skill reports.
 
 #### `GET /api/worktrees/:id/hooks/skill-results`
 
