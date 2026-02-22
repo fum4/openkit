@@ -16,7 +16,7 @@ export interface AppPreferences {
   } | null;
 }
 
-const STATE_DIR = path.join(os.homedir(), ".dawg");
+const STATE_DIR = path.join(os.homedir(), ".openkit");
 const PREFERENCES_FILE = path.join(STATE_DIR, "app-preferences.json");
 
 const DEFAULT_PORT = 6969;

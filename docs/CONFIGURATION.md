@@ -1,30 +1,30 @@
 # Configuration Reference
 
-dawg uses several configuration files at both the project level (`.dawg/` directory) and the global level (`~/.dawg/` directory). This document covers every file and field.
+OpenKit uses several configuration files at both the project level (`.openkit/` directory) and the global level (`~/.openkit/` directory). This document covers every file and field.
 
 ---
 
 ## Table of Contents
 
-- [Project Configuration (`.dawg/config.json`)](#project-configuration-dawgconfigjson)
-- [Integrations (`.dawg/integrations.json`)](#integrations-dawgintegrationsjson)
-- [Hooks (`.dawg/.dawg/hooks.json`)](#hooks-dawgdawghooksjson)
-- [Branch Naming Rules (`.dawg/scripts/branch-name.mjs`)](#branch-naming-rules)
-- [Commit Message Rules (`.dawg/scripts/commit-message.mjs`)](#commit-message-rules)
-- [Server Discovery (`.dawg/server.json`)](#server-discovery-dawgserverjson)
-- [Issue Data (`.dawg/issues/`)](#issue-data-dawgissues)
-- [Issue Notes (`.dawg/issues/<source>/<id>/notes.json`)](#issue-notes)
-- [MCP Environment Overrides (`.dawg/mcp-env.json`)](#mcp-environment-overrides-dawgmcp-envjson)
-- [Worktree Directory (`.dawg/worktrees/`)](#worktree-directory-dawgworktrees)
-- [Git Ignore (`.dawg/.gitignore`)](#git-ignore-dawggitignore)
-- [Global Preferences (`~/.dawg/app-preferences.json`)](#global-preferences-dawgapp-preferencesjson)
-- [MCP Server Registry (`~/.dawg/mcp-servers.json`)](#mcp-server-registry-dawgmcp-serversjson)
+- [Project Configuration (`.openkit/config.json`)](#project-configuration-openkitconfigjson)
+- [Integrations (`.openkit/integrations.json`)](#integrations-openkitintegrationsjson)
+- [Hooks (`.openkit/hooks.json`)](#hooks-openkithooksjson)
+- [Branch Naming Rules (`.openkit/scripts/branch-name.mjs`)](#branch-naming-rules)
+- [Commit Message Rules (`.openkit/scripts/commit-message.mjs`)](#commit-message-rules)
+- [Server Discovery (`.openkit/server.json`)](#server-discovery-openkitserverjson)
+- [Issue Data (`.openkit/issues/`)](#issue-data-openkitissues)
+- [Issue Notes (`.openkit/issues/<source>/<id>/notes.json`)](#issue-notes)
+- [MCP Environment Overrides (`.openkit/mcp-env.json`)](#mcp-environment-overrides-openkitmcp-envjson)
+- [Worktree Directory (`.openkit/worktrees/`)](#worktree-directory-openkitworktrees)
+- [Git Ignore (`.openkit/.gitignore`)](#git-ignore-openkitgitignore)
+- [Global Preferences (`~/.openkit/app-preferences.json`)](#global-preferences-openkitapp-preferencesjson)
+- [MCP Server Registry (`~/.openkit/mcp-servers.json`)](#mcp-server-registry-openkitmcp-serversjson)
 
 ---
 
-## Project Configuration (`.dawg/config.json`)
+## Project Configuration (`.openkit/config.json`)
 
-The primary configuration file. Created by `dawg init` (interactive CLI) or via the UI's setup wizard. This file should be committed to your repository so that all team members share the same configuration.
+The primary configuration file. Created by `openkit init` (interactive CLI) or via the UI's setup wizard. This file should be committed to your repository so that all team members share the same configuration.
 
 ### Full Example
 
@@ -70,7 +70,7 @@ Subdirectory to `cd` into before running the start command, relative to the repo
 | **Default**  | `""` (empty) |
 | **Required** | Yes          |
 
-Command to start the dev server in each worktree. Auto-detected from the package manager lockfile during `dawg init`.
+Command to start the dev server in each worktree. Auto-detected from the package manager lockfile during `openkit init`.
 
 Examples: `"pnpm dev"`, `"npm run dev"`, `"yarn dev"`, `"bun dev"`
 
@@ -82,7 +82,7 @@ Examples: `"pnpm dev"`, `"npm run dev"`, `"yarn dev"`, `"bun dev"`
 | **Default**  | `""` (empty) |
 | **Required** | Yes          |
 
-Command to install dependencies when a new worktree is created. Auto-detected from the package manager lockfile during `dawg init`.
+Command to install dependencies when a new worktree is created. Auto-detected from the package manager lockfile during `openkit init`.
 
 Examples: `"pnpm install"`, `"npm install"`, `"yarn install"`, `"bun install"`
 
@@ -94,7 +94,7 @@ Examples: `"pnpm install"`, `"npm install"`, `"yarn install"`, `"bun install"`
 | **Default**  | `"origin/main"` |
 | **Required** | No              |
 
-The base branch from which new worktrees are created. During `dawg init`, this is auto-detected by checking `refs/remotes/origin/HEAD` and then falling back to `origin/develop`, `origin/main`, or `origin/master` in that order.
+The base branch from which new worktrees are created. During `openkit init`, this is auto-detected by checking `refs/remotes/origin/HEAD` and then falling back to `origin/develop`, `origin/main`, or `origin/master` in that order.
 
 Examples: `"origin/main"`, `"origin/develop"`, `"origin/master"`
 
@@ -248,7 +248,7 @@ Activity feed configuration. Controls event retention plus per-category/per-even
 | `toastEvents`          | `string[]`                | See above  | Legacy compatibility field; do not use it for workflow/agent/live updates |
 | `osNotificationEvents` | `string[]`                | See above  | Default notification event list (`agent_awaiting_input`) kept in activity config |
 
-Activity events are persisted to `.dawg/activity.jsonl` in JSONL format. The file is pruned on server startup and periodically (every hour).
+Activity events are persisted to `.openkit/activity.jsonl` in JSONL format. The file is pruned on server startup and periodically (every hour).
 
 #### `envMapping`
 
@@ -277,9 +277,9 @@ The UI includes a "Detect Env Mapping" button that scans your project's `.env` f
 
 ---
 
-## Integrations (`.dawg/integrations.json`)
+## Integrations (`.openkit/integrations.json`)
 
-Stores credentials and per-project settings for issue tracker integrations. This file is **not** committed to git (covered by `.dawg/.gitignore`).
+Stores credentials and per-project settings for issue tracker integrations. This file is **not** committed to git (covered by `.openkit/.gitignore`).
 
 ### Structure
 
@@ -397,7 +397,7 @@ Both Jira and Linear share the same data lifecycle structure:
 
 ---
 
-## Hooks (`.dawg/.dawg/hooks.json`)
+## Hooks (`.openkit/hooks.json`)
 
 Configures automated checks (command steps) and agent skills organized by trigger type. Managed through the UI's Hooks panel or the MCP API.
 
@@ -408,8 +408,8 @@ For full documentation of the hooks system including trigger types, item types, 
 Hook run results are stored per-worktree at:
 
 ```
-.dawg/.dawg/worktrees/<worktreeId>/hooks/latest-run.json
-.dawg/.dawg/worktrees/<worktreeId>/hooks/skill-results.json
+.openkit/worktrees/<worktreeId>/hooks/latest-run.json
+.openkit/worktrees/<worktreeId>/hooks/skill-results.json
 ```
 
 ---
@@ -422,10 +422,10 @@ Branch names are generated from issue metadata when creating worktrees from issu
 
 | File                                   | Scope                        |
 | -------------------------------------- | ---------------------------- |
-| `.dawg/scripts/branch-name.mjs`        | Default rule for all sources |
-| `.dawg/scripts/branch-name.jira.mjs`   | Override for Jira issues     |
-| `.dawg/scripts/branch-name.linear.mjs` | Override for Linear issues   |
-| `.dawg/scripts/branch-name.local.mjs`  | Override for local issues    |
+| `.openkit/scripts/branch-name.mjs`        | Default rule for all sources |
+| `.openkit/scripts/branch-name.jira.mjs`   | Override for Jira issues     |
+| `.openkit/scripts/branch-name.linear.mjs` | Override for Linear issues   |
+| `.openkit/scripts/branch-name.local.mjs`  | Override for local issues    |
 
 Source-specific overrides take priority over the default rule when the issue comes from that source.
 
@@ -492,10 +492,10 @@ Similar to branch naming, commit messages can be formatted via JavaScript functi
 
 | File                                      | Scope                                     |
 | ----------------------------------------- | ----------------------------------------- |
-| `.dawg/scripts/commit-message.mjs`        | Default rule for all sources              |
-| `.dawg/scripts/commit-message.jira.mjs`   | Override for Jira-linked worktrees        |
-| `.dawg/scripts/commit-message.linear.mjs` | Override for Linear-linked worktrees      |
-| `.dawg/scripts/commit-message.local.mjs`  | Override for local-issue-linked worktrees |
+| `.openkit/scripts/commit-message.mjs`        | Default rule for all sources              |
+| `.openkit/scripts/commit-message.jira.mjs`   | Override for Jira-linked worktrees        |
+| `.openkit/scripts/commit-message.linear.mjs` | Override for Linear-linked worktrees      |
+| `.openkit/scripts/commit-message.local.mjs`  | Override for local-issue-linked worktrees |
 
 Source-specific overrides take priority over the default rule.
 
@@ -535,9 +535,9 @@ export default ({ issueId, message }) => {
 
 ---
 
-## Server Discovery (`.dawg/server.json`)
+## Server Discovery (`.openkit/server.json`)
 
-A runtime file written when the dawg server starts and deleted on shutdown. It is **not** committed to git.
+A runtime file written when the OpenKit server starts and deleted on shutdown. It is **not** committed to git.
 
 ### Structure
 
@@ -550,25 +550,25 @@ A runtime file written when the dawg server starts and deleted on shutdown. It i
 
 | Field | Type     | Description                                   |
 | ----- | -------- | --------------------------------------------- |
-| `url` | `string` | The URL where the dawg server is listening    |
+| `url` | `string` | The URL where the OpenKit server is listening    |
 | `pid` | `number` | The operating system process ID of the server |
 
 ### Purpose
 
-- Used by `dawg mcp` to find a running server and start in proxy mode (relaying MCP messages to the HTTP server instead of spawning a standalone instance).
-- Used by `dawg connect` to connect the Electron app to an existing server.
+- Used by `openkit mcp` to find a running server and start in proxy mode (relaying MCP messages to the HTTP server instead of spawning a standalone instance).
+- Used by `openkit connect` to connect the Electron app to an existing server.
 - The `pid` is validated with `process.kill(pid, 0)` to check whether the process is still alive. If the process is dead, the stale `server.json` is ignored.
 
 ---
 
-## Issue Data (`.dawg/issues/`)
+## Issue Data (`.openkit/issues/`)
 
 Cached issue data from integrations, organized by source and issue identifier.
 
 ### Directory Structure
 
 ```
-.dawg/issues/
+.openkit/issues/
   jira/
     <issueKey>/           # e.g., "PROJ-123"
       issue.json          # Cached Jira issue data (JiraTaskData)
@@ -631,7 +631,7 @@ Each issue (regardless of source) can have a `notes.json` file stored alongside 
 ### File Location
 
 ```
-.dawg/issues/<source>/<id>/notes.json
+.openkit/issues/<source>/<id>/notes.json
 ```
 
 ### Structure
@@ -697,7 +697,7 @@ The `gitPolicy` object allows overriding the global agent git policy on a per-wo
 
 ---
 
-## MCP Environment Overrides (`.dawg/mcp-env.json`)
+## MCP Environment Overrides (`.openkit/mcp-env.json`)
 
 Per-project environment variable overrides for MCP servers. When deploying an MCP server to an agent's config, these values are merged on top of the server's global `env` (from the registry).
 
@@ -716,28 +716,28 @@ The keys are MCP server IDs (from the registry), and the values are `Record<stri
 
 ---
 
-## Worktree Directory (`.dawg/worktrees/`)
+## Worktree Directory (`.openkit/worktrees/`)
 
-Git worktrees are stored under `.dawg/worktrees/<worktreeId>/`. Each subdirectory is a full git worktree checkout. When a worktree is created from an issue, a `TASK.md` file is generated in the worktree root containing the issue context, description, comments, AI context notes, and todos.
+Git worktrees are stored under `.openkit/worktrees/<worktreeId>/`. Each subdirectory is a full git worktree checkout. When a worktree is created from an issue, a `TASK.md` file is generated in the worktree root containing the issue context, description, comments, AI context notes, and todos.
 
 The `TASK.md` file is automatically added to the worktree's git exclude file (`.git/worktrees/<name>/info/exclude`) so it does not appear as an untracked file.
 
 ### Per-Worktree Hooks Data
 
 ```
-.dawg/.dawg/worktrees/<worktreeId>/hooks/
+.openkit/worktrees/<worktreeId>/hooks/
   latest-run.json       # Most recent command step run results
   skill-results.json    # Agent-reported skill results
 ```
 
 ---
 
-## Git Ignore (`.dawg/.gitignore`)
+## Git Ignore (`.openkit/.gitignore`)
 
-Created automatically during `dawg init`. Uses a whitelist approach: everything in `.dawg/` is ignored except the files that should be shared with the team.
+Created automatically during `openkit init`. Uses a whitelist approach: everything in `.openkit/` is ignored except the files that should be shared with the team.
 
 ```gitignore
-# Ignore everything in .dawg by default
+# Ignore everything in .openkit by default
 *
 
 # Except these files (tracked/shared)
@@ -759,7 +759,7 @@ If you want to share branch naming or commit message rules with your team, add t
 
 ---
 
-## Global Preferences (`~/.dawg/app-preferences.json`)
+## Global Preferences (`~/.openkit/app-preferences.json`)
 
 User-level preferences stored in the home directory. Not project-specific.
 
@@ -783,7 +783,7 @@ User-level preferences stored in the home directory. Not project-specific.
 
 | Field                 | Type             | Default | Description                                                                                                             |
 | --------------------- | ---------------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `basePort`            | `number`         | `6969`  | The port the dawg server listens on                                                                                     |
+| `basePort`            | `number`         | `6969`  | The port the OpenKit server listens on                                                                                     |
 | `setupPreference`     | `string`         | `"ask"` | How to handle missing config: `"auto"` (auto-detect and create), `"manual"` (prompt), or `"ask"` (show UI setup screen) |
 | `sidebarWidth`        | `number`         | `300`   | Sidebar width in pixels (persisted across sessions)                                                                     |
 | `windowBounds`        | `object \| null` | `null`  | Electron window position and size                                                                                       |
@@ -794,9 +794,9 @@ User-level preferences stored in the home directory. Not project-specific.
 
 ---
 
-## MCP Server Registry (`~/.dawg/mcp-servers.json`)
+## MCP Server Registry (`~/.openkit/mcp-servers.json`)
 
-A global registry of MCP servers that can be deployed to various AI agents (Claude Code, Cursor, Windsurf, etc.). Managed via the dawg UI.
+A global registry of MCP servers that can be deployed to various AI agents (Claude Code, Cursor, Windsurf, etc.). Managed via the OpenKit UI.
 
 ### Structure
 
@@ -847,6 +847,6 @@ For reference, the following constants are defined in the codebase:
 
 | Constant          | Value     | Description                                      |
 | ----------------- | --------- | ------------------------------------------------ |
-| `APP_NAME`        | `"dawg"`  | Application name used in CLI output and branding |
-| `CONFIG_DIR_NAME` | `".dawg"` | Name of the config directory at the project root |
+| `APP_NAME`        | `"OpenKit"`  | Application name used in CLI output and branding |
+| `CONFIG_DIR_NAME` | `".openkit"` | Name of the config directory at the project root |
 | `DEFAULT_PORT`    | `6969`    | Default server port                              |

@@ -5,7 +5,7 @@ import path from "path";
 import { BUNDLED_SKILLS } from "../instructions";
 
 function getRegistryDir(): string {
-  return path.join(os.homedir(), ".dawg", "skills");
+  return path.join(os.homedir(), ".openkit", "skills");
 }
 
 export function ensureBundledSkills(): void {

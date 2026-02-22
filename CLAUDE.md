@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-dawg is a CLI tool + web UI (with optional Electron app) for managing multiple git worktrees with automatic port offsetting and Jira/Linear/GitHub integrations.
+OpenKit is a CLI tool + web UI (with optional Electron app) for managing multiple git worktrees with automatic port offsetting and Jira/Linear/GitHub integrations.
 
 ## Naming and File Hygiene
 

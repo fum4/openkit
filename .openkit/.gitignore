@@ -1,4 +1,4 @@
-# Ignore everything in .dawg by default
+# Ignore everything in .openkit by default
 *
 
 # Except these files (tracked/shared)

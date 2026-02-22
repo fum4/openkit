@@ -151,7 +151,7 @@ function resolveTaskSource(configDir: string, inputIssueId: string): ResolvedTas
       source: "local",
       input: raw,
       resolvedId: localId,
-      reason: "Found in .dawg/issues/local",
+      reason: "Found in .openkit/issues/local",
     });
   }
 
@@ -161,7 +161,7 @@ function resolveTaskSource(configDir: string, inputIssueId: string): ResolvedTas
         source: "jira",
         input: raw,
         resolvedId: upper,
-        reason: "Found in .dawg/issues/jira",
+        reason: "Found in .openkit/issues/jira",
       });
     }
     if (hasStoredIssue(configDir, "linear", upper)) {
@@ -169,7 +169,7 @@ function resolveTaskSource(configDir: string, inputIssueId: string): ResolvedTas
         source: "linear",
         input: raw,
         resolvedId: upper,
-        reason: "Found in .dawg/issues/linear",
+        reason: "Found in .openkit/issues/linear",
       });
     }
   } else {

@@ -1,6 +1,6 @@
 node_modules/
 dist/
 release/
-.dawg/*
-!.dawg/config.json
+.openkit/*
+!.openkit/config.json
 .DS_Store

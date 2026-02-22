@@ -23,11 +23,11 @@ jobs:
           - os_name: Linux
             runner: ubuntu-latest
             port: 6979
-            log_file: /tmp/dawg-linux-smoke.log
+            log_file: /tmp/OpenKit-linux-smoke.log
           - os_name: macOS
             runner: macos-latest
             port: 6980
-            log_file: /tmp/dawg-macos-smoke.log
+            log_file: /tmp/OpenKit-macos-smoke.log
 
     steps:
       - uses: actions/checkout@v4
@@ -41,33 +41,33 @@ jobs:
       - name: Smoke test CLI startup
         run: |
           set -euo pipefail
-          export DAWG_NO_OPEN=1
-          export DAWG_AUTO_INIT=1
-          export DAWG_PORT=${{ matrix.port }}
+          export OPENKIT_NO_OPEN=1
+          export OPENKIT_AUTO_INIT=1
+          export OPENKIT_PORT=${{ matrix.port }}
 
           node dist/cli/index.js --no-open > "${{ matrix.log_file }}" 2>&1 &
-          DAWG_PID=$!
+          OPENKIT_PID=$!
 
           cleanup() {
-            kill "$DAWG_PID" 2>/dev/null || true
-            wait "$DAWG_PID" 2>/dev/null || true
+            kill "$OPENKIT_PID" 2>/dev/null || true
+            wait "$OPENKIT_PID" 2>/dev/null || true
           }
           trap cleanup EXIT
 
           for i in $(seq 1 60); do
-            if ! kill -0 "$DAWG_PID" 2>/dev/null; then
-              echo "dawg process exited before startup completed"
+            if ! kill -0 "$OPENKIT_PID" 2>/dev/null; then
+              echo "OpenKit process exited before startup completed"
               cat "${{ matrix.log_file }}" || true
               exit 1
             fi
 
-            if curl --silent --fail "http://127.0.0.1:${DAWG_PORT}/api/config" >/dev/null; then
+            if curl --silent --fail "http://127.0.0.1:${OPENKIT_PORT}/api/config" >/dev/null; then
               exit 0
             fi
 
             sleep 1
           done
 
-          echo "dawg failed to become ready within timeout"
+          echo "OpenKit failed to become ready within timeout"
           cat "${{ matrix.log_file }}" || true
           exit 1

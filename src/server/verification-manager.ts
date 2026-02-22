@@ -299,9 +299,9 @@ export class HooksManager {
         : this.manager.getGitRoot();
 
     const env: NodeJS.ProcessEnv = {
-      DAWG_HOOK_TRIGGER: trigger,
-      DAWG_WORKTREE_ID: worktreeId,
-      ...(worktreePath ? { DAWG_WORKTREE_PATH: worktreePath } : {}),
+      OPENKIT_HOOK_TRIGGER: trigger,
+      OPENKIT_WORKTREE_ID: worktreeId,
+      ...(worktreePath ? { OPENKIT_WORKTREE_PATH: worktreePath } : {}),
     };
 
     const results = await Promise.all(

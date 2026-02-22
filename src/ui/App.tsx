@@ -191,9 +191,9 @@ export default function App() {
   const handleSetupComplete = () => {
     // Clear stale workspace state from a previous config
     if (serverUrl) {
-      localStorage.removeItem(`dawg:wsSel:${serverUrl}`);
-      localStorage.removeItem(`dawg:wsTab:${serverUrl}`);
-      localStorage.removeItem(`dawg:view:${serverUrl}`);
+      localStorage.removeItem(`OpenKit:wsSel:${serverUrl}`);
+      localStorage.removeItem(`OpenKit:wsTab:${serverUrl}`);
+      localStorage.removeItem(`OpenKit:view:${serverUrl}`);
     }
     setSelectionState(null);
     setActiveCreateTabState("branch");
@@ -224,7 +224,7 @@ export default function App() {
 
   const [activeView, setActiveViewState] = useState<View>(() => {
     if (serverUrl) {
-      const saved = localStorage.getItem(`dawg:view:${serverUrl}`);
+      const saved = localStorage.getItem(`OpenKit:view:${serverUrl}`);
       if (
         saved === "workspace" ||
         saved === "agents" ||
@@ -241,14 +241,14 @@ export default function App() {
   const setActiveView = (view: View) => {
     setActiveViewState(view);
     if (serverUrl) {
-      localStorage.setItem(`dawg:view:${serverUrl}`, view);
+      localStorage.setItem(`OpenKit:view:${serverUrl}`, view);
     }
   };
 
   // Restore view when switching projects
   useEffect(() => {
     if (!serverUrl) return;
-    const saved = localStorage.getItem(`dawg:view:${serverUrl}`);
+    const saved = localStorage.getItem(`OpenKit:view:${serverUrl}`);
     if (
       saved === "workspace" ||
       saved === "agents" ||
@@ -265,7 +265,7 @@ export default function App() {
   const [selection, setSelectionState] = useState<Selection>(() => {
     if (serverUrl) {
       try {
-        const saved = localStorage.getItem(`dawg:wsSel:${serverUrl}`);
+        const saved = localStorage.getItem(`OpenKit:wsSel:${serverUrl}`);
         if (saved) return JSON.parse(saved);
       } catch {
         /* ignore */
@@ -277,7 +277,7 @@ export default function App() {
   const setSelection = (sel: Selection) => {
     setSelectionState(sel);
     if (serverUrl) {
-      localStorage.setItem(`dawg:wsSel:${serverUrl}`, JSON.stringify(sel));
+      localStorage.setItem(`OpenKit:wsSel:${serverUrl}`, JSON.stringify(sel));
     }
   };
 
@@ -325,7 +325,7 @@ export default function App() {
     const sel: Selection = { type: "worktree", id: pendingNotificationNav.worktreeId };
     setSelectionState(sel);
     if (serverUrl) {
-      localStorage.setItem(`dawg:wsSel:${serverUrl}`, JSON.stringify(sel));
+      localStorage.setItem(`OpenKit:wsSel:${serverUrl}`, JSON.stringify(sel));
     }
     if (pendingNotificationNav.openClaudeTab) {
       setPendingClaudeLaunches((prev) => [
@@ -358,11 +358,11 @@ export default function App() {
         : { type: "linear-issue", identifier: pendingIssueNotificationNav.issueId };
     setActiveCreateTabState("issues");
     if (serverUrl) {
-      localStorage.setItem(`dawg:wsTab:${serverUrl}`, "issues");
+      localStorage.setItem(`OpenKit:wsTab:${serverUrl}`, "issues");
     }
     setSelectionState(sel);
     if (serverUrl) {
-      localStorage.setItem(`dawg:wsSel:${serverUrl}`, JSON.stringify(sel));
+      localStorage.setItem(`OpenKit:wsSel:${serverUrl}`, JSON.stringify(sel));
     }
     setPendingIssueNotificationNav(null);
   }, [pendingIssueNotificationNav, activeProject?.id, serverUrl]);
@@ -395,7 +395,7 @@ export default function App() {
   useEffect(() => {
     if (!serverUrl) return;
     try {
-      const saved = localStorage.getItem(`dawg:wsSel:${serverUrl}`);
+      const saved = localStorage.getItem(`OpenKit:wsSel:${serverUrl}`);
       if (saved) setSelectionState(JSON.parse(saved));
       else setSelectionState(null);
     } catch {
@@ -404,7 +404,7 @@ export default function App() {
   }, [serverUrl]);
   const [activeCreateTab, setActiveCreateTabState] = useState<"branch" | "issues">(() => {
     if (serverUrl) {
-      const saved = localStorage.getItem(`dawg:wsTab:${serverUrl}`);
+      const saved = localStorage.getItem(`OpenKit:wsTab:${serverUrl}`);
       if (saved === "branch" || saved === "issues") return saved;
     }
     return "branch";
@@ -413,13 +413,13 @@ export default function App() {
   const setActiveCreateTab = (tab: "branch" | "issues") => {
     setActiveCreateTabState(tab);
     if (serverUrl) {
-      localStorage.setItem(`dawg:wsTab:${serverUrl}`, tab);
+      localStorage.setItem(`OpenKit:wsTab:${serverUrl}`, tab);
     }
   };
 
   useEffect(() => {
     if (!serverUrl) return;
-    const saved = localStorage.getItem(`dawg:wsTab:${serverUrl}`);
+    const saved = localStorage.getItem(`OpenKit:wsTab:${serverUrl}`);
     if (saved === "branch" || saved === "issues") {
       setActiveCreateTabState(saved);
     } else {
@@ -810,7 +810,7 @@ export default function App() {
     async (issue: { key: string; summary: string }) => {
       const skipPermissions = jiraStatus?.autoStartClaudeSkipPermissions ?? true;
       const focusTerminal = jiraStatus?.autoStartClaudeFocusTerminal ?? true;
-      const prompt = `Implement Jira issue ${issue.key}${issue.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal dawg flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify dawg before asking by calling notify with requiresUserAction=true (or run dawg activity await-input in terminal flow).`;
+      const prompt = `Implement Jira issue ${issue.key}${issue.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify OpenKit before asking by calling notify with requiresUserAction=true (or run openkit activity await-input in terminal flow).`;
       logAutoClaude("Starting Jira auto-launch", { issueKey: issue.key });
       const result = await api.createFromJira(issue.key);
       logAutoClaude("Jira create-from-issue response received", {
@@ -862,7 +862,7 @@ export default function App() {
     async (issue: { identifier: string; title: string }) => {
       const skipPermissions = linearStatus?.autoStartClaudeSkipPermissions ?? true;
       const focusTerminal = linearStatus?.autoStartClaudeFocusTerminal ?? true;
-      const prompt = `Implement Linear issue ${issue.identifier}${issue.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal dawg flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify dawg before asking by calling notify with requiresUserAction=true (or run dawg activity await-input in terminal flow).`;
+      const prompt = `Implement Linear issue ${issue.identifier}${issue.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify OpenKit before asking by calling notify with requiresUserAction=true (or run openkit activity await-input in terminal flow).`;
       logAutoClaude("Starting Linear auto-launch", { identifier: issue.identifier });
       const result = await api.createFromLinear(issue.identifier);
       logAutoClaude("Linear create-from-issue response received", {
@@ -921,7 +921,7 @@ export default function App() {
     async (task: { id: string; title: string }) => {
       const skipPermissions = config?.localAutoStartClaudeSkipPermissions ?? true;
       const focusTerminal = config?.localAutoStartClaudeFocusTerminal ?? true;
-      const prompt = `Implement local task ${task.id}${task.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal dawg flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify dawg before asking by calling notify with requiresUserAction=true (or run dawg activity await-input in terminal flow).`;
+      const prompt = `Implement local task ${task.id}${task.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify OpenKit before asking by calling notify with requiresUserAction=true (or run openkit activity await-input in terminal flow).`;
       logAutoClaude("Starting local task auto-launch", { taskId: task.id });
       const result = await api.createWorktreeFromCustomTask(task.id);
       logAutoClaude("Local task create-worktree response received", {
@@ -1704,7 +1704,7 @@ export default function App() {
         />
       )}
 
-      {/* Setup commit modal for dawg config files */}
+      {/* Setup commit modal for OpenKit config files */}
       {showSetupCommitModal && (
         <SetupCommitModal
           onCommit={handleSetupCommit}

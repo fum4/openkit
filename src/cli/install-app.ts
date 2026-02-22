@@ -70,7 +70,7 @@ async function downloadDmg(url: string, dest: string): Promise<void> {
 }
 
 async function installFromDmg(dmgPath: string): Promise<string> {
-  const mountPoint = `/tmp/dawg-mount-${process.pid}`;
+  const mountPoint = `/tmp/OpenKit-mount-${process.pid}`;
 
   try {
     // Mount DMG
@@ -144,7 +144,7 @@ export async function promptAndInstallApp(port: number): Promise<boolean> {
     }
 
     // 3. Download DMG
-    const dmgPath = `/tmp/dawg-install-${process.pid}.dmg`;
+    const dmgPath = `/tmp/OpenKit-install-${process.pid}.dmg`;
     const s2 = spinner(`Downloading ${asset.name}...`);
     try {
       await downloadDmg(asset.browser_download_url, dmgPath);
@@ -176,7 +176,7 @@ export async function promptAndInstallApp(port: number): Promise<boolean> {
 
     // 5. Open the app
     log.info("Opening app...");
-    execFile("open", [`dawg://open?port=${port}`], (err) => {
+    execFile("open", [`OpenKit://open?port=${port}`], (err) => {
       if (err) {
         // Fallback: open the app bundle directly
         execFile("open", ["-a", appPath, "--args", "--port", String(port)], () => {});

@@ -1,8 +1,9 @@
 {
-  "name": "dawg",
+  "name": "OpenKit",
   "version": "0.0.8",
   "bin": {
-    "dawg": "./dist/cli/index.js"
+    "ok": "./dist/cli/index.js",
+    "openkit": "./dist/cli/index.js"
   },
   "type": "module",
   "main": "dist/electron/main.js",

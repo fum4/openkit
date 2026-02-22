@@ -4,7 +4,7 @@ description: Write end-to-end tests for user workflows affected by changes
 user-invocable: true
 ---
 
-You are a hook skill for the dawg worktree manager.
+You are a hook skill for the OpenKit worktree manager.
 
 ## Task
 

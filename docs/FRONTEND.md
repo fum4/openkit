@@ -2,11 +2,11 @@
 
 ## Overview
 
-The dawg frontend is a React single-page application built with TypeScript, Tailwind CSS, React Query, and Framer Motion. Vite bundles it into `dist/ui/`, which the Hono backend serves as static files. The UI connects to the backend via REST API calls, Server-Sent Events (SSE) for real-time worktree status, and WebSockets for interactive terminal sessions.
+The OpenKit frontend is a React single-page application built with TypeScript, Tailwind CSS, React Query, and Framer Motion. Vite bundles it into `dist/ui/`, which the Hono backend serves as static files. The UI connects to the backend via REST API calls, Server-Sent Events (SSE) for real-time worktree status, and WebSockets for interactive terminal sessions.
 
 The app operates in two modes:
 
-- **Web mode** (single-project) -- served directly by the dawg server, uses relative URLs for API calls.
+- **Web mode** (single-project) -- served directly by the OpenKit server, uses relative URLs for API calls.
 - **Electron mode** (multi-project) -- each project runs its own server instance; the app manages multiple projects with a tab bar and routes API calls to the active project's server URL.
 
 ---
@@ -58,7 +58,7 @@ Configures automated checks and agent skills organized by trigger type (pre-impl
 
 ### Configuration
 
-Edits the `.dawg/config.json` settings: start commands, install commands, base branch, port discovery, environment variable mappings, and agent policy defaults.
+Edits the `.openkit/config.json` settings: start commands, install commands, base branch, port discovery, environment variable mappings, and agent policy defaults.
 
 ### Integrations
 
@@ -236,7 +236,7 @@ The worktree detail view. Contains:
 - **Tab bar** -- Logs | Terminal | Hooks, plus Claude controls. Claude appears as its own tab only when opened, otherwise a `+ Claude` quick action is shown. The Claude tab label is always `Claude`.
 - **Git action toolbar** -- contextual buttons for Commit (when uncommitted changes exist), Push (when unpushed commits exist), and PR (when pushed but no PR exists). Each expands an inline input form.
 - **LogsViewer** -- streaming process output for running worktrees.
-- **TerminalView** -- interactive xterm.js terminal. Sessions are reused per worktree+scope (`terminal`/`claude`). Sessions with startup commands (Claude auto-start) are bootstrapped server-side and later reattached in the UI, including after full page refresh via active-session lookup. Awaiting-input notifications are explicit agent events (`notify` with `requiresUserAction=true` or `dawg activity await-input`), not terminal-text heuristics. Closing the Claude tab explicitly destroys its session.
+- **TerminalView** -- interactive xterm.js terminal. Sessions are reused per worktree+scope (`terminal`/`claude`). Sessions with startup commands (Claude auto-start) are bootstrapped server-side and later reattached in the UI, including after full page refresh via active-session lookup. Awaiting-input notifications are explicit agent events (`notify` with `requiresUserAction=true` or `openkit activity await-input`), not terminal-text heuristics. Closing the Claude tab explicitly destroys its session.
 - **HooksTab** -- runs and displays hook results with visual state indicators (dashed/no-bg for unrun and running items, spinner during execution, solid card background for completed/disabled items). Supports command, prompt, and skill entries for agent workflow triggers, plus command-only lifecycle trigger steps; auto-expands items with output when the pipeline completes. Receives real-time updates via `hook-update` SSE events.
 
 Claude launch integration:
@@ -290,8 +290,8 @@ All hooks live in `src/ui/hooks/`.
 - `worktrees` -- worktree state updates (status, logs, git state)
 - `notification` -- direct user-action success/failure messages displayed as toast messages
 - `hook-update` -- signals that hook results changed for a worktree, triggering auto-refetch in the HooksTab
-- `activity-history` -- batch of recent events on initial connection (dispatched as `dawg:activity-history` CustomEvent)
-- `activity` -- individual real-time activity events (dispatched as `dawg:activity` CustomEvent)
+- `activity-history` -- batch of recent events on initial connection (dispatched as `OpenKit:activity-history` CustomEvent)
+- `activity` -- individual real-time activity events (dispatched as `OpenKit:activity` CustomEvent)
 
 On connection error, it falls back to polling with a 5-second retry.
 
@@ -340,7 +340,7 @@ Sessions are keyed by `worktreeId + scope` (`terminal` or `claude`). `TerminalVi
 
 ### Configuration
 
-**`useConfig`** (`useConfig.ts`) fetches `.dawg/config.json` from the server. Returns the config object, project name, whether a branch name rule exists, and loading state.
+**`useConfig`** (`useConfig.ts`) fetches `.openkit/config.json` from the server. Returns the config object, project name, whether a branch name rule exists, and loading state.
 
 ---
 
@@ -391,13 +391,13 @@ type Selection =
 
 ### Persistence
 
-Selection state is persisted to `localStorage` under the key `dawg:wsSel:{serverUrl}`. This means each project in Electron mode remembers its own selection independently.
+Selection state is persisted to `localStorage` under the key `OpenKit:wsSel:{serverUrl}`. This means each project in Electron mode remembers its own selection independently.
 
 Similarly persisted per server URL:
 
-- Active view: `dawg:view:{serverUrl}`
-- Active sidebar tab (branch/issues): `dawg:wsTab:{serverUrl}`
-- Sidebar width: `dawg:sidebarWidth` (global, not per-project)
+- Active view: `OpenKit:view:{serverUrl}`
+- Active sidebar tab (branch/issues): `OpenKit:wsTab:{serverUrl}`
+- Sidebar width: `OpenKit:sidebarWidth` (global, not per-project)
 
 ### Auto-Selection
 
@@ -434,7 +434,7 @@ interface ServerContextValue {
 }
 ```
 
-Each project is a separate dawg server running on a different port. The `serverUrl` is derived from the active project's port: `http://localhost:{port}`.
+Each project is a separate OpenKit server running on a different port. The `serverUrl` is derived from the active project's port: `http://localhost:{port}`.
 
 Hooks like `useServerUrlOptional()` return `null` when no project is active, which disables API calls and SSE connections.
 
@@ -477,7 +477,7 @@ The app uses Framer Motion for transitions:
 | `AppSettingsModal.tsx`      | Electron app settings (themes, preferences)                                                                                                                  |
 | `AttachmentImage.tsx`       | Image attachment preview with lightbox                                                                                                                       |
 | `Button.tsx`                | Reusable button component                                                                                                                                    |
-| `ConfigurationPanel.tsx`    | Edit `.dawg/config.json` settings                                                                                                                            |
+| `ConfigurationPanel.tsx`    | Edit `.openkit/config.json` settings                                                                                                                            |
 | `ConfirmDialog.tsx`         | Confirmation dialog for destructive actions                                                                                                                  |
 | `ConfirmModal.tsx`          | Generic confirmation modal                                                                                                                                   |
 | `CreateCustomTaskModal.tsx` | Create new custom task form                                                                                                                                  |
@@ -505,7 +505,7 @@ The app uses Framer Motion for transitions:
 | `PluginItem.tsx`            | Plugin sidebar item                                                                                                                                          |
 | `ProjectSetupScreen.tsx`    | First-run setup for new Electron projects                                                                                                                    |
 | `ResizableHandle.tsx`       | Drag handle for sidebar resizing                                                                                                                             |
-| `SetupCommitModal.tsx`      | Commit dawg config files modal                                                                                                                               |
+| `SetupCommitModal.tsx`      | Commit OpenKit config files modal                                                                                                                               |
 | `SkillCreateModal.tsx`      | Create/edit skill modal                                                                                                                                      |
 | `SkillItem.tsx`             | Skill sidebar item                                                                                                                                           |
 | `Spinner.tsx`               | Loading spinner component                                                                                                                                    |
@@ -548,7 +548,7 @@ The app uses Framer Motion for transitions:
 | ------------------------- | ---------------------------------------------------------------------------------------------- |
 | `api.ts`                  | Raw fetch functions for all API endpoints                                                      |
 | `useApi.ts`               | Hook that pre-binds API functions to current server URL                                        |
-| `useConfig.ts`            | Fetch and cache `.dawg/config.json`                                                            |
+| `useConfig.ts`            | Fetch and cache `.openkit/config.json`                                                            |
 | `useCustomTasks.ts`       | React Query hook for custom tasks list                                                         |
 | `useCustomTaskDetail.ts`  | React Query hook for single custom task                                                        |
 | `useJiraIssues.ts`        | React Query hook for Jira issues with search debouncing                                        |

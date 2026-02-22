@@ -1,6 +1,6 @@
 # Integrations
 
-dawg connects to external issue trackers and source control platforms to create a seamless workflow between issues and worktrees. You can browse issues, create worktrees directly from them, and manage git operations -- all from the web UI or CLI.
+openkit connects to external issue trackers and source control platforms to create a seamless workflow between issues and worktrees. You can browse issues, create worktrees directly from them, and manage git operations -- all from the web UI or CLI.
 
 Three integrations are available:
 
@@ -16,7 +16,7 @@ All integrations are optional and can be configured independently.
 
 ### Authentication
 
-Jira supports two authentication methods. Both are configured per-project and stored in `.dawg/integrations.json`.
+Jira supports two authentication methods. Both are configured per-project and stored in `.openkit/integrations.json`.
 
 #### OAuth 2.0 (Recommended)
 
@@ -29,14 +29,14 @@ OAuth is the primary authentication method. It uses Atlassian's OAuth 2.0 author
 
 **How the flow works:**
 
-1. dawg starts an ephemeral HTTP server on a random port (e.g., `http://localhost:54321/callback`)
+1. OpenKit starts an ephemeral HTTP server on a random port (e.g., `http://localhost:54321/callback`)
 2. It opens the Atlassian authorization URL in your browser with the scopes `read:jira-work` and `offline_access`
 3. After you authorize, Atlassian redirects to the local callback URL with an authorization code
-4. dawg exchanges the code for an access token, refresh token, and expiration time
-5. dawg calls the Atlassian accessible-resources API to discover the `cloudId` and site URL for your Jira instance (if multiple sites are found, it uses the first one)
-6. Credentials are saved to `.dawg/integrations.json`
+4. OpenKit exchanges the code for an access token, refresh token, and expiration time
+5. OpenKit calls the Atlassian accessible-resources API to discover the `cloudId` and site URL for your Jira instance (if multiple sites are found, it uses the first one)
+6. Credentials are saved to `.openkit/integrations.json`
 
-**Token refresh:** Before every API call, dawg checks if the access token expires within 60 seconds. If so, it automatically refreshes using the refresh token and persists the new credentials to disk. This is transparent to the user.
+**Token refresh:** Before every API call, OpenKit checks if the access token expires within 60 seconds. If so, it automatically refreshes using the refresh token and persists the new credentials to disk. This is transparent to the user.
 
 **OAuth flow timeout:** The local callback server times out after 5 minutes.
 
@@ -123,27 +123,27 @@ Fetches the full issue with `expand=renderedFields`, plus comments (up to 50, ne
 | `url`         | Direct link to the issue in Jira       |
 | `fetchedAt`   | ISO timestamp of when data was fetched |
 
-**Issue key resolution:** If a user provides just a number (e.g., `123`), dawg prepends the configured `defaultProjectKey` to form the full key (e.g., `PROJ-123`). If no default is set, the user must provide the full key.
+**Issue key resolution:** If a user provides just a number (e.g., `123`), OpenKit prepends the configured `defaultProjectKey` to form the full key (e.g., `PROJ-123`). If no default is set, the user must provide the full key.
 
 ### ADF-to-Markdown Conversion
 
-Jira stores rich text in Atlassian Document Format (ADF), a JSON-based document structure. dawg converts ADF to Markdown for rendering in the UI. Supported node types:
+Jira stores rich text in Atlassian Document Format (ADF), a JSON-based document structure. OpenKit converts ADF to Markdown for rendering in the UI. Supported node types:
 
 - **Block-level**: `paragraph`, `heading` (levels 1-6), `codeBlock` (with language), `blockquote`, `bulletList`, `orderedList`, `rule`
 - **Inline**: `text` with marks (`strong`, `em`, `code`, `strike`, `link`), `mention`, `inlineCard`, `hardBreak`
 - **Media**: `mediaSingle`, `mediaGroup`, `media` -- images render as `![name](url)`, other files as `[name](url)`
 
-Attachments referenced in ADF media nodes are resolved via an attachment map keyed by filename and ID. Image URLs are rewritten to go through dawg's attachment proxy (`/api/jira/attachment?url=...`), which adds the necessary auth headers.
+Attachments referenced in ADF media nodes are resolved via an attachment map keyed by filename and ID. Image URLs are rewritten to go through OpenKit's attachment proxy (`/api/jira/attachment?url=...`), which adds the necessary auth headers.
 
 ### Attachments
 
 **Proxy endpoint** (`GET /api/jira/attachment`):
 
-Since Jira attachment URLs require authentication, dawg provides a proxy that fetches the attachment with the stored credentials and streams it to the client. Responses are cached for 1 hour (`Cache-Control: private, max-age=3600`).
+Since Jira attachment URLs require authentication, OpenKit provides a proxy that fetches the attachment with the stored credentials and streams it to the client. Responses are cached for 1 hour (`Cache-Control: private, max-age=3600`).
 
 **Download to disk:**
 
-When `saveOn` is set to `"view"`, attachments are downloaded to `.dawg/issues/jira/{KEY}/attachments/` in the background after fetching issue detail. Duplicate filenames are handled by appending a counter suffix (e.g., `image_1.png`). Downloaded attachment paths are written back into the issue's `issue.json`.
+When `saveOn` is set to `"view"`, attachments are downloaded to `.openkit/issues/jira/{KEY}/attachments/` in the background after fetching issue detail. Duplicate filenames are handled by appending a counter suffix (e.g., `image_1.png`). Downloaded attachment paths are written back into the issue's `issue.json`.
 
 ### Data Lifecycle
 
@@ -193,7 +193,7 @@ Linear uses API key authentication. There is no OAuth flow.
 
 1. Create a personal API key at [linear.app/settings/account/security/api-keys/new](https://linear.app/settings/account/security/api-keys/new)
 
-The API key is sent directly in the `Authorization` header (no `Bearer` prefix). On setup, dawg validates the key by querying the `viewer` field and stores the user's display name alongside the key.
+The API key is sent directly in the `Authorization` header (no `Bearer` prefix). On setup, OpenKit validates the key by querying the `viewer` field and stores the user's display name alongside the key.
 
 **Stored fields:**
 
@@ -204,7 +204,7 @@ displayName  (fetched automatically on connection)
 
 ### GraphQL Queries
 
-Linear's API is GraphQL-only, accessed at `https://api.linear.app/graphql`. dawg uses the following queries:
+Linear's API is GraphQL-only, accessed at `https://api.linear.app/graphql`. OpenKit uses the following queries:
 
 **Connection test:**
 
@@ -236,7 +236,7 @@ Parses the identifier (e.g., `ENG-123`) into team key and issue number, then fet
 
 ### Issue Identifier Resolution
 
-Same pattern as Jira: if a user provides just a number (e.g., `123`), dawg prepends the configured `defaultTeamKey` (e.g., `ENG-123`). If no default is set, the full identifier must be provided.
+Same pattern as Jira: if a user provides just a number (e.g., `123`), OpenKit prepends the configured `defaultTeamKey` (e.g., `ENG-123`). If no default is set, the full identifier must be provided.
 
 ### State Types
 
@@ -251,7 +251,7 @@ Linear issues have a `state` object with `name`, `type`, and `color` fields. The
 | `completed` | Done           |
 | `canceled`  | Canceled       |
 
-dawg uses the `type` field for auto-cleanup triggers. Issues with `completedAt` or `canceledAt` set are excluded from the default list fetch.
+OpenKit uses the `type` field for auto-cleanup triggers. Issues with `completedAt` or `canceledAt` set are excluded from the default list fetch.
 
 ### Configuration
 
@@ -270,14 +270,14 @@ dawg uses the `type` field for auto-cleanup triggers. Issues with `completedAt` 
 
 ### Dependency
 
-GitHub integration requires the [GitHub CLI (`gh`)](https://cli.github.com/) to be installed and authenticated. dawg does **not** store any GitHub credentials itself; it delegates entirely to `gh`.
+GitHub integration requires the [GitHub CLI (`gh`)](https://cli.github.com/) to be installed and authenticated. OpenKit does **not** store any GitHub credentials itself; it delegates entirely to `gh`.
 
-dawg checks for `gh` availability in two steps:
+OpenKit checks for `gh` availability in two steps:
 
 1. `which gh` -- Is the CLI installed?
 2. `gh auth status` -- Is the user authenticated?
 
-If both pass, dawg queries repo info via `gh repo view --json nameWithOwner,defaultBranchRef` to determine the owner, repo name, and default branch.
+If both pass, OpenKit queries repo info via `gh repo view --json nameWithOwner,defaultBranchRef` to determine the owner, repo name, and default branch.
 
 ### Installation and Authentication
 
@@ -285,7 +285,7 @@ If both pass, dawg queries repo info via `gh repo view --json nameWithOwner,defa
 
 The Integrations panel can install `gh` automatically using `brew install gh` (macOS only). After installation, it initiates the GitHub device flow (`gh auth login --web`) with the `user` scope, parses the one-time code from stderr, opens the browser, and copies the code to the clipboard.
 
-After successful authentication, dawg automatically:
+After successful authentication, OpenKit automatically:
 
 1. Runs `gh auth setup-git` to configure `gh` as the git credential helper
 2. Configures local `git user.name` and `git user.email` from the authenticated GitHub account
@@ -294,7 +294,7 @@ After successful authentication, dawg automatically:
 
 ```bash
 # Check status
-dawg add github
+openkit add github
 
 # Or manually
 gh auth login
@@ -334,7 +334,7 @@ Runs `gh pr create --title "..." --body "..." --base <defaultBranch>` in the wor
 
 ### Repository Setup
 
-For projects without a GitHub remote, dawg provides a setup flow that can:
+For projects without a GitHub remote, OpenKit provides a setup flow that can:
 
 1. **Create an initial commit** -- `git add -A && git commit -m "Initial commit"`
 2. **Create a GitHub repository** -- `gh repo create --source . --private --push` (or `--public`)
@@ -361,29 +361,29 @@ For projects without a GitHub remote, dawg provides a setup flow that can:
 
 ### Web UI (Integrations Panel)
 
-Navigate to the **Integrations** view in the dawg UI. Each integration has a dedicated card:
+Navigate to the **Integrations** view in the OpenKit UI. Each integration has a dedicated card:
 
 - **GitHub**: Shows CLI/auth/repo status. Can install `gh`, trigger login, create repos.
 - **Jira**: API token setup form (base URL, email, token). After connecting: project key, refresh interval, and data lifecycle settings with auto-save.
 - **Linear**: API key setup form. After connecting: team key, refresh interval, and data lifecycle settings with auto-save.
 
-Both Jira and Linear cards include a `Claude Auto-Start` section. When auto-start is enabled, dawg watches freshly fetched issue lists and, for newly discovered issues, creates (or reuses) the issue worktree, starts a Claude terminal session using the standard TASK.md-first workflow, and records activity feed events for both task detection and Claude auto-start. Additional toggles control whether Claude runs with `--dangerously-skip-permissions` and whether the UI auto-focuses the Claude terminal as soon as work begins.
+Both Jira and Linear cards include a `Claude Auto-Start` section. When auto-start is enabled, OpenKit watches freshly fetched issue lists and, for newly discovered issues, creates (or reuses) the issue worktree, starts a Claude terminal session using the standard TASK.md-first workflow, and records activity feed events for both task detection and Claude auto-start. Additional toggles control whether Claude runs with `--dangerously-skip-permissions` and whether the UI auto-focuses the Claude terminal as soon as work begins.
 
 Configuration changes in the UI are auto-saved with a 300ms debounce.
 
-### CLI (`dawg add`)
+### CLI (`openkit add`)
 
 ```bash
 # Interactive picker
-dawg add
+openkit add
 
 # Direct setup
-dawg add github
-dawg add jira
-dawg add linear
+openkit add github
+openkit add jira
+openkit add linear
 ```
 
-The `dawg add` command provides an interactive setup flow:
+The `openkit add` command provides an interactive setup flow:
 
 - **GitHub**: Checks `gh` installation and auth status, displays repo info.
 - **Jira**: Prompts for OAuth or API token auth method, runs the appropriate setup flow, and asks for an optional default project key.
@@ -393,11 +393,11 @@ The `dawg add` command provides an interactive setup flow:
 
 ## Data Storage
 
-All integration data lives under the `.dawg/` configuration directory.
+All integration data lives under the `.openkit/` configuration directory.
 
 ### Credentials
 
-Stored in `.dawg/integrations.json`:
+Stored in `.openkit/integrations.json`:
 
 ```json
 {
@@ -428,10 +428,10 @@ This file contains secrets and **must be gitignored**. GitHub credentials are no
 
 ### Cached Issue Data
 
-Issue data is saved to disk under `.dawg/issues/` with the following structure:
+Issue data is saved to disk under `.openkit/issues/` with the following structure:
 
 ```
-.dawg/issues/
+.openkit/issues/
   jira/
     PROJ-123/
       issue.json          # Full issue data (description, comments, etc.)

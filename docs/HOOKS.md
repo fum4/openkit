@@ -6,7 +6,7 @@ Hooks are automated checks, prompt instructions, and agent skills that run at de
 
 Hooks are organized by **trigger type** -- when they fire relative to agent work. Agent workflow triggers support command steps, prompt steps, and skill references. Worktree lifecycle triggers support command steps only.
 
-The hooks system is configured through the web UI's Hooks view and stored in `.dawg/.dawg/hooks.json`.
+The hooks system is configured through the web UI's Hooks view and stored in `.openkit/hooks.json`.
 
 ## Trigger Types
 
@@ -37,7 +37,7 @@ Shell commands that run in the worktree directory and return pass/fail results.
 
 ### Skill References
 
-References to skills from the `~/.dawg/skills/` registry. When hooks run, skill references tell the agent which skills to invoke.
+References to skills from the `~/.openkit/skills/` registry. When hooks run, skill references tell the agent which skills to invoke.
 
 - Skills are imported by name from the registry.
 - Each skill reference can be individually enabled/disabled.
@@ -68,7 +68,7 @@ The `getEffectiveSkills()` method resolves overrides by looking up the worktree'
 
 ## Configuration
 
-Hooks configuration is stored in `.dawg/.dawg/hooks.json`:
+Hooks configuration is stored in `.openkit/hooks.json`:
 
 ```json
 {
@@ -127,7 +127,7 @@ Hooks configuration is stored in `.dawg/.dawg/hooks.json`:
 
 | Field       | Type        | Description                                           |
 | ----------- | ----------- | ----------------------------------------------------- |
-| `skillName` | string      | Name of the skill in `~/.dawg/skills/`                |
+| `skillName` | string      | Name of the skill in `~/.openkit/skills/`                |
 | `enabled`   | boolean     | Whether this skill is active                          |
 | `trigger`   | HookTrigger | When this skill runs (default: `post-implementation`) |
 | `condition` | string      | Natural-language condition for `custom` trigger type  |
@@ -145,7 +145,7 @@ The Hooks view (top navigation) is the configuration interface. Users can:
 
 The worktree detail panel's **Hooks** tab triggers hook runs for a specific worktree. Multiple items can be expanded simultaneously to view their output. When the entire pipeline completes (all enabled steps and skills have results), all items with content are auto-expanded.
 
-When Claude is launched from issue flows (`Code with Claude` or integration auto-start), dawg also triggers command hooks automatically:
+When Claude is launched from issue flows (`Code with Claude` or integration auto-start), OpenKit also triggers command hooks automatically:
 
 - `pre-implementation` runs before Claude launch starts.
 - `post-implementation` runs after Claude exits with code `0`.
@@ -167,7 +167,7 @@ Agents interact with hooks through the following workflow:
 2. Run `pre-implementation` hooks before starting work (`run_hooks` with `trigger: "pre-implementation"` for commands; prompt steps and skills invoked directly).
 3. While working, check `custom` hook conditions — if changes match a condition, run those hooks.
 4. Run `post-implementation` hooks after completing work (`run_hooks` with `trigger: "post-implementation"` for commands).
-5. Report skill results back via `report_hook_status` (call twice: once before invoking without `success`/`summary` to show loading, once after with the result). Include `trigger` when reporting. For skills with detailed output, write an MD file to `{worktreePath}/.dawg-{skillName}.md` and pass the path via `filePath`.
+5. Report skill results back via `report_hook_status` (call twice: once before invoking without `success`/`summary` to show loading, once after with the result). Include `trigger` when reporting. For skills with detailed output, write an MD file to `{worktreePath}/.openkit-{skillName}.md` and pass the path via `filePath`.
 6. Call `get_hooks_status` to verify all steps passed.
 7. After all work and hooks are done, ask the user if they'd like to start the worktree dev server automatically (via `start_worktree`).
 
@@ -178,15 +178,15 @@ When hooks are triggered for a worktree:
 1. The `HooksManager` filters steps by the target trigger type and enabled state.
 2. All matching enabled command steps run in parallel via `execFile` in the worktree directory.
 3. Prompt steps are skipped by runtime execution and interpreted by the agent from `TASK.md`.
-4. Results are collected and persisted to `.dawg/.dawg/worktrees/{worktreeId}/hooks/latest-run.json`.
-5. Skill results are reported separately by agents and stored at `.dawg/.dawg/worktrees/{worktreeId}/hooks/skill-results.json` using key `skillName + trigger`.
-6. `worktree-created` and `worktree-removed` command hooks are triggered automatically by CLI-backed create/remove flows (server mode, MCP standalone mode, and `dawg task --init` worktree creation).
+4. Results are collected and persisted to `.openkit/worktrees/{worktreeId}/hooks/latest-run.json`.
+5. Skill results are reported separately by agents and stored at `.openkit/worktrees/{worktreeId}/hooks/skill-results.json` using key `skillName + trigger`.
+6. `worktree-created` and `worktree-removed` command hooks are triggered automatically by CLI-backed create/remove flows (server mode, MCP standalone mode, and `openkit task --init` worktree creation).
 
 ## Data Storage
 
 ```
-.dawg/
-  .dawg/
+.openkit/
+  .openkit/
     hooks.json                              # Global hooks configuration
     worktrees/
       <worktreeId>/

@@ -5,5 +5,5 @@ function isTruthy(value: string | undefined): boolean {
 }
 
 export function isMcpSetupEnabled(): boolean {
-  return isTruthy(process.env.DAWG_ENABLE_MCP_SETUP);
+  return isTruthy(process.env.OPENKIT_ENABLE_MCP_SETUP);
 }

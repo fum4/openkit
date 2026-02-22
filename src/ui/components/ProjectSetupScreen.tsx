@@ -974,7 +974,7 @@ export function ProjectSetupScreen({
             <p className={`text-sm ${text.secondary} leading-relaxed`}>
               Enable the <span className="font-mono">{ONBOARDING_SKILL_NAME}</span> skill so your agents can
               <br />
-              run the dawg task workflow automatically.
+              run the openkit task workflow automatically.
             </p>
           </div>
 

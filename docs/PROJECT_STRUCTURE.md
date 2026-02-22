@@ -10,7 +10,7 @@ Use this together with:
 ## Top-Level
 
 ```text
-dawg/
+OpenKit/
 ├── src/                 Core application code (CLI, server, UI, integrations, MCP)
 ├── electron/            Electron desktop app shell
 ├── website/             Public landing page (Astro)
@@ -29,7 +29,7 @@ dawg/
 ```text
 src/
 ├── cli/                 CLI entrypoints and commands
-│   ├── index.ts         Main CLI router (`dawg`, `init`, `mcp`, `task`, etc.)
+│   ├── index.ts         Main CLI router (`OpenKit`, `init`, `mcp`, `task`, etc.)
 │   ├── init.ts          Interactive setup flow
 │   ├── add.ts           Integration setup command
 │   └── task.ts          Issue/task worktree creation command
@@ -103,7 +103,7 @@ src/
 electron/
 ├── main.ts              Main process window/lifecycle code
 ├── preload.cjs          Renderer bridge
-├── server-spawner.ts    Per-project dawg server lifecycle
+├── server-spawner.ts    Per-project OpenKit server lifecycle
 ├── project-manager.ts   Multi-project tab state
 ├── notification-manager.ts
 └── preferences-manager.ts

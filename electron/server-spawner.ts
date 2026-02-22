@@ -3,7 +3,7 @@ import { appendFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const debugLog = "/tmp/dawg-debug.log";
+const debugLog = "/tmp/OpenKit-debug.log";
 function debug(msg: string) {
   appendFileSync(debugLog, `${new Date().toISOString()} ${msg}\n`);
 }
@@ -35,8 +35,8 @@ export function spawnServer(projectDir: string, port: number): ChildProcess {
     cwd: projectDir,
     env: {
       ...process.env,
-      DAWG_PORT: String(port),
-      DAWG_NO_OPEN: "1",
+      OPENKIT_PORT: String(port),
+      OPENKIT_NO_OPEN: "1",
       ...(isPackaged ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
     },
     detached: false,

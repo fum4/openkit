@@ -128,7 +128,7 @@ function buildSkillMd(frontmatter: SkillFrontmatter, body: string): string {
 // ─── Registry ───────────────────────────────────────────────────
 
 function getRegistryDir(): string {
-  return path.join(os.homedir(), ".dawg", "skills");
+  return path.join(os.homedir(), ".openkit", "skills");
 }
 
 interface SkillInfo {
@@ -230,7 +230,7 @@ function removeDeploy(deployDir: string, skillName: string): { success: boolean;
     } else if (stat.isDirectory()) {
       rmSync(linkPath, { recursive: true });
     } else {
-      return { success: false, error: "Target is not a skill deployment managed by dawg" };
+      return { success: false, error: "Target is not a skill deployment managed by OpenKit" };
     }
     return { success: true };
   } catch (e: unknown) {
@@ -295,7 +295,7 @@ function scanForSkills(
           name === ".git" ||
           name === "dist" ||
           name === "build" ||
-          name === ".dawg"
+          name === ".openkit"
         )
           continue;
 

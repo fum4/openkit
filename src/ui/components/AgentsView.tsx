@@ -20,7 +20,7 @@ import { McpServerScanModal } from "./McpServerScanModal";
 import { SkillCreateModal } from "./SkillCreateModal";
 import { PluginInstallModal } from "./PluginInstallModal";
 import { ResizableHandle } from "./ResizableHandle";
-import { DAWG_SERVER } from "./AgentsSidebar";
+import { OPENKIT_SERVER } from "./AgentsSidebar";
 import { text } from "../theme";
 
 const BANNER_DISMISSED_KEY = `${APP_NAME}:agentsBannerDismissed`;
@@ -39,7 +39,7 @@ export function AgentsView() {
   const [selection, setSelectionState] = useState<AgentSelection>(() => {
     if (serverUrl) {
       try {
-        const saved = localStorage.getItem(`dawg:agentSel:${serverUrl}`);
+        const saved = localStorage.getItem(`OpenKit:agentSel:${serverUrl}`);
         if (saved) return JSON.parse(saved);
       } catch {
         /* ignore */
@@ -51,7 +51,7 @@ export function AgentsView() {
   const setSelection = (sel: AgentSelection) => {
     setSelectionState(sel);
     if (serverUrl) {
-      localStorage.setItem(`dawg:agentSel:${serverUrl}`, JSON.stringify(sel));
+      localStorage.setItem(`OpenKit:agentSel:${serverUrl}`, JSON.stringify(sel));
     }
   };
   const [showCreateServerModal, setShowCreateServerModal] = useState(false);
@@ -103,14 +103,14 @@ export function AgentsView() {
     localStorage.setItem(STORAGE_KEY, String(sidebarWidth));
   };
 
-  // Auto-select dawg built-in if nothing selected
+  // Auto-select OpenKit built-in if nothing selected
   useEffect(() => {
     if (!selection) {
-      setSelection({ type: "mcp-server", id: DAWG_SERVER.id });
-    } else if (selection.type === "mcp-server" && selection.id !== DAWG_SERVER.id) {
+      setSelection({ type: "mcp-server", id: OPENKIT_SERVER.id });
+    } else if (selection.type === "mcp-server" && selection.id !== OPENKIT_SERVER.id) {
       // Check if selected server still exists
       if (!serversLoading && servers.length > 0 && !servers.find((s) => s.id === selection.id)) {
-        setSelection({ type: "mcp-server", id: DAWG_SERVER.id });
+        setSelection({ type: "mcp-server", id: OPENKIT_SERVER.id });
       }
     }
   }, [servers, serversLoading, selection]);
@@ -212,7 +212,7 @@ export function AgentsView() {
     Promise.all([api.scanMcpServers(options), api.scanSkills(options)])
       .then(([mcpRes, skillRes]) => {
         const mcpResults = (mcpRes.discovered ?? []).filter(
-          (r) => !r.alreadyInRegistry && r.key !== "dawg",
+          (r) => !r.alreadyInRegistry && r.key !== "OpenKit",
         );
         const skillResults = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
         setPersistedDiscoveryResults({ mcpResults, skillResults });
@@ -371,7 +371,7 @@ export function AgentsView() {
         ) : null}
         {selection?.type === "agent-rule" ? (
           <AgentRuleDetailPanel fileId={selection.fileId} />
-        ) : selection?.type === "mcp-server" && selection.id !== DAWG_SERVER.id ? (
+        ) : selection?.type === "mcp-server" && selection.id !== OPENKIT_SERVER.id ? (
           <McpServerDetailPanel
             serverId={selection.id}
             onDeleted={() => {
@@ -380,10 +380,10 @@ export function AgentsView() {
               refetchDeployment();
             }}
           />
-        ) : selection?.type === "mcp-server" && selection.id === DAWG_SERVER.id ? (
+        ) : selection?.type === "mcp-server" && selection.id === OPENKIT_SERVER.id ? (
           <McpServerDetailPanel
-            serverId={DAWG_SERVER.id}
-            builtInServer={DAWG_SERVER}
+            serverId={OPENKIT_SERVER.id}
+            builtInServer={OPENKIT_SERVER}
             onDeleted={() => setSelection(null)}
           />
         ) : selection?.type === "skill" ? (

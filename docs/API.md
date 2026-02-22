@@ -1,8 +1,8 @@
-# dawg REST API Reference
+# OpenKit REST API Reference
 
 ## Overview
 
-dawg exposes a REST API via a [Hono](https://hono.dev/) HTTP server. The web UI, Electron app, MCP clients, and external integrations all communicate through this API. The server runs on `localhost` (default port `4040`, auto-incremented if occupied).
+OpenKit exposes a REST API via a [Hono](https://hono.dev/) HTTP server. The web UI, Electron app, MCP clients, and external integrations all communicate through this API. The server runs on `localhost` (default port `4040`, auto-incremented if occupied).
 
 All endpoints return JSON unless otherwise noted. Standard response patterns:
 
@@ -167,7 +167,7 @@ Delete an agent rule file from disk.
 
 ## Configuration
 
-Manage `.dawg/config.json` and related settings.
+Manage `.openkit/config.json` and related settings.
 
 #### `GET /api/config`
 
@@ -193,7 +193,7 @@ Auto-detect configuration values from the project directory without creating a c
 
 #### `POST /api/config/init`
 
-Initialize `.dawg/config.json` with provided or auto-detected values. Creates the `.dawg` directory, config file, and `.gitignore`.
+Initialize `.openkit/config.json` with provided or auto-detected values. Creates the `.openkit` directory, config file, and `.gitignore`.
 
 - **Request** (all optional, falls back to auto-detected):
   ```json
@@ -204,7 +204,7 @@ Initialize `.dawg/config.json` with provided or auto-detected values. Creates th
     "force": true
   }
   ```
-- `force: true` allows overwriting an existing `.dawg/config.json`.
+- `force: true` allows overwriting an existing `.openkit/config.json`.
 - **Response**: `{ success: true, config: {...} }`
 - **Error** (400): `{ success: false, error: "Config already exists" }`
 
@@ -224,17 +224,17 @@ Get setup-related feature flags.
 
 #### `GET /api/config/setup-status`
 
-Check whether `.dawg` config files need to be committed and/or pushed to the remote.
+Check whether `.openkit` config files need to be committed and/or pushed to the remote.
 
 - **Response**: `{ needsPush: boolean, files: string[] }`
 
 #### `POST /api/config/commit-setup`
 
-Commit and push the `.dawg/config.json` and `.dawg/.gitignore` files.
+Commit and push the `.openkit/config.json` and `.openkit/.gitignore` files.
 
 - **Request** (optional):
   ```json
-  { "message": "chore: add dawg configuration" }
+  { "message": "chore: add OpenKit configuration" }
   ```
 - **Response**: `{ success: true }` or `{ success: true, alreadyCommitted: true }` or `{ success: true, pushFailed: true }`
 - **Error**: `{ success: false, error: "..." }`
@@ -568,7 +568,7 @@ Get detailed information for a specific Linear issue.
 
 #### `GET /api/linear/attachment`
 
-Proxy a Linear attachment through the dawg server using the configured Linear API key. Use this URL for image previews/downloads in the UI to avoid auth/CORS failures.
+Proxy a Linear attachment through the OpenKit server using the configured Linear API key. Use this URL for image previews/downloads in the UI to avoid auth/CORS failures.
 
 - **Query params**: `?url=https://...` (required)
 - **Response**: Raw attachment bytes with `Content-Type` + `Content-Disposition`
@@ -606,7 +606,7 @@ Query persisted activity events with optional filters.
 
 Each `ActivityEvent` includes: `id`, `timestamp`, `category`, `type`, `severity` (`info` | `success` | `warning` | `error`), `title`, `detail?`, `worktreeId?`, `projectName?`, `metadata?`.
 
-Events are persisted to `.dawg/activity.jsonl` (JSONL format) and pruned based on the `activity.retentionDays` config setting.
+Events are persisted to `.openkit/activity.jsonl` (JSONL format) and pruned based on the `activity.retentionDays` config setting.
 
 #### `POST /api/activity`
 
@@ -657,8 +657,8 @@ The connection stays open until the client disconnects.
 
 ## MCP Management
 
-Configure dawg as an MCP server in various AI agent tool configurations.
-These endpoints are registered only when `DAWG_ENABLE_MCP_SETUP=1`.
+Configure OpenKit as an MCP server in various AI agent tool configurations.
+These endpoints are registered only when `OPENKIT_ENABLE_MCP_SETUP=1`.
 
 #### `GET /api/mcp/status`
 
@@ -677,7 +677,7 @@ Get MCP registration status across all supported agents (Claude, Cursor, Windsur
 
 #### `POST /api/mcp/setup`
 
-Register dawg as an MCP server in an agent's configuration file.
+Register OpenKit as an MCP server in an agent's configuration file.
 
 - **Request**:
   ```json
@@ -693,7 +693,7 @@ Also deploys agent-specific instruction files.
 
 #### `POST /api/mcp/remove`
 
-Remove dawg from an agent's MCP server configuration.
+Remove OpenKit from an agent's MCP server configuration.
 
 - **Request**:
   ```json
@@ -710,7 +710,7 @@ Also removes agent-specific instruction files.
 
 ## MCP Servers Registry
 
-Manage a centralized registry of MCP servers stored at `~/.dawg/mcp-servers.json`. Deploy them to any agent's configuration.
+Manage a centralized registry of MCP servers stored at `~/.openkit/mcp-servers.json`. Deploy them to any agent's configuration.
 
 #### `GET /api/mcp-servers`
 
@@ -725,7 +725,7 @@ Each server includes: `id`, `name`, `description`, `tags`, `command`, `args`, `e
 
 #### `GET /api/mcp-servers/deployment-status`
 
-Get deployment status of all registry servers (plus built-in `dawg`) across all agents and scopes.
+Get deployment status of all registry servers (plus built-in `OpenKit`) across all agents and scopes.
 
 - **Response**:
   ```json
@@ -879,7 +879,7 @@ Set per-project environment variable overrides for an MCP server.
 
 ## Skills
 
-Manage a centralized skills registry stored at `~/.dawg/skills/`. Skills are directories containing a `SKILL.md` file with frontmatter metadata and instructions.
+Manage a centralized skills registry stored at `~/.openkit/skills/`. Skills are directories containing a `SKILL.md` file with frontmatter metadata and instructions.
 
 #### `GET /api/skills`
 
@@ -917,7 +917,7 @@ Get detailed information about a skill, including its `SKILL.md` content, frontm
       "name": "my-skill",
       "displayName": "My Skill",
       "description": "...",
-      "path": "/Users/.../.dawg/skills/my-skill",
+      "path": "/Users/.../.openkit/skills/my-skill",
       "skillMd": "---\nname: ...\n---\n...",
       "frontmatter": { "name": "...", "description": "...", ... },
       "hasReference": true,
@@ -1219,7 +1219,7 @@ Streamable HTTP transport endpoint for direct MCP protocol connections.
 
 MCP Streamable HTTP transport. Handles `POST` requests with JSON-RPC MCP protocol messages, as well as `GET` for SSE-based streaming.
 
-This is a stateless transport (no session tracking) designed for single-user local dev tool use. The endpoint connects to the same MCP server that `dawg mcp` exposes via stdio.
+This is a stateless transport (no session tracking) designed for single-user local dev tool use. The endpoint connects to the same MCP server that `openkit mcp` exposes via stdio.
 
 - **Request** (POST): JSON-RPC 2.0 messages per the MCP specification
 - **Response**: JSON-RPC 2.0 responses (with `enableJsonResponse: true`)
@@ -1303,7 +1303,7 @@ Update the git policy for an issue (controls agent commit/push/PR permissions).
 
 ## Local Tasks
 
-CRUD operations for local (non-integrated) tasks stored at `.dawg/issues/local/`. Tasks use auto-incrementing identifiers (e.g., `LOCAL-1`, `LOCAL-2`).
+CRUD operations for local (non-integrated) tasks stored at `.openkit/issues/local/`. Tasks use auto-incrementing identifiers (e.g., `LOCAL-1`, `LOCAL-2`).
 
 #### `GET /api/tasks`
 
@@ -1496,7 +1496,7 @@ Import a skill from the registry into hooks.
 
 #### `GET /api/hooks/skills/available`
 
-List available skills from the `~/.dawg/skills/` registry.
+List available skills from the `~/.openkit/skills/` registry.
 
 - **Response**: `{ available: [{ name, displayName, description }] }`
 

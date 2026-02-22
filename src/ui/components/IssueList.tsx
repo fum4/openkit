@@ -138,11 +138,11 @@ export function IssueList({
   const [linearCollapsed, setLinearCollapsed] = useState(false);
   const [customCollapsed, setCustomCollapsed] = useState(false);
   const [showPriority, setShowPriority] = useState(() => {
-    const saved = localStorage.getItem("dawg:issueShowPriority");
+    const saved = localStorage.getItem("OpenKit:issueShowPriority");
     return saved !== null ? saved === "1" : true;
   });
   const [showStatus, setShowStatus] = useState(() => {
-    const saved = localStorage.getItem("dawg:issueShowStatus");
+    const saved = localStorage.getItem("OpenKit:issueShowStatus");
     return saved !== null ? saved === "1" : true;
   });
   const [configOpen, setConfigOpen] = useState(false);
@@ -160,11 +160,11 @@ export function IssueList({
   }, [configOpen]);
 
   useEffect(() => {
-    localStorage.setItem("dawg:issueShowPriority", showPriority ? "1" : "0");
+    localStorage.setItem("OpenKit:issueShowPriority", showPriority ? "1" : "0");
   }, [showPriority]);
 
   useEffect(() => {
-    localStorage.setItem("dawg:issueShowStatus", showStatus ? "1" : "0");
+    localStorage.setItem("OpenKit:issueShowStatus", showStatus ? "1" : "0");
   }, [showStatus]);
 
   // Build map of issueKey -> worktreeId (Jira)

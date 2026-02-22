@@ -12,10 +12,10 @@ import {
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 // Set app name (shows in dock, menu bar, etc.)
-app.setName("dawg");
+app.setName("OpenKit");
 
 // Custom protocol for opening projects
-const PROTOCOL = "dawg";
+const PROTOCOL = "OpenKit";
 
 // Single main window and project manager
 let mainWindow: BrowserWindow | null = null;
@@ -45,7 +45,7 @@ function createMainWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 700,
     backgroundColor: "#0a0c10",
-    title: "dawg",
+    title: "OpenKit",
     titleBarStyle: "hiddenInset" as const,
     trafficLightPosition: { x: 12, y: 12 },
     icon: path.join(currentDir, "..", "assets", "icon.png"),
@@ -228,7 +228,7 @@ function createTray() {
   icon.setTemplateImage(true);
 
   tray = new Tray(icon);
-  tray.setToolTip("dawg - Worktree Manager");
+  tray.setToolTip("OpenKit - Worktree Manager");
 
   tray.on("click", () => {
     if (mainWindow) {
@@ -279,7 +279,7 @@ function handleProtocolUrl(url: string) {
   }
 }
 
-// Register as handler for dawg:// protocol
+// Register as handler for OpenKit:// protocol
 if (process.defaultApp) {
   app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
 } else {

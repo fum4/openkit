@@ -356,7 +356,7 @@ export function registerHooksRoutes(
 
   // List registry skills (same skill can be used in multiple trigger types)
   app.get("/api/hooks/skills/available", (c) => {
-    const registryDir = path.join(os.homedir(), ".dawg", "skills");
+    const registryDir = path.join(os.homedir(), ".openkit", "skills");
     const available: Array<{ name: string; displayName: string; description: string }> = [];
 
     if (existsSync(registryDir)) {
@@ -637,7 +637,7 @@ export function registerHooksRoutes(
     const missingActions = new Set<string>();
     for (const phase of missingPhases) {
       missingActions.add(
-        `Emit workflow phase "${phase}" (dawg activity phase --phase ${phase} --worktree ${worktreeId}).`,
+        `Emit workflow phase "${phase}" (openkit activity phase --phase ${phase} --worktree ${worktreeId}).`,
       );
     }
     for (const { previous, current } of outOfOrder) {

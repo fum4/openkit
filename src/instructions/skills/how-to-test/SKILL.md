@@ -4,7 +4,7 @@ description: Explain how to manually test the changes in this worktree
 user-invocable: true
 ---
 
-You are a hook skill for the dawg worktree manager.
+You are a hook skill for the OpenKit worktree manager.
 
 ## Task
 

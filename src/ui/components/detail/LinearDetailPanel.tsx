@@ -142,7 +142,7 @@ export function LinearDetailPanel({
         worktreeId,
         mode: "start",
         tabLabel: identifier,
-        prompt: `Implement Linear issue ${identifier}${issue?.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal dawg flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify dawg before asking by calling notify with requiresUserAction=true (or run dawg activity await-input in terminal flow).`,
+        prompt: `Implement Linear issue ${identifier}${issue?.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify OpenKit before asking by calling notify with requiresUserAction=true (or run openkit activity await-input in terminal flow).`,
       });
     } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
       setExistingWorktree({ id: result.worktreeId, branch: identifier });

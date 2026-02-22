@@ -1,6 +1,6 @@
 # Development Guide
 
-This document covers everything you need to develop, build, and extend dawg.
+This document covers everything you need to develop, build, and extend OpenKit.
 
 ## Prerequisites
 
@@ -327,23 +327,23 @@ For reference, these are the CLI entry points (all in `src/cli/`):
 
 | Command                      | Description                                            |
 | ---------------------------- | ------------------------------------------------------ |
-| `dawg`                       | Start the server and open UI (Electron or browser)     |
-| `dawg init`                  | Interactive setup wizard to create `.dawg/config.json` |
-| `dawg connect`               | Connect to an existing running dawg server             |
-| `dawg mcp`                   | Start as an MCP server (for Claude Code integration)   |
-| `dawg task [source|resolve] [ID...]` | Resolve issues and create worktrees (jira, linear, local) |
+| `OpenKit`                       | Start the server and open UI (Electron or browser)     |
+| `openkit init`                  | Interactive setup wizard to create `.openkit/config.json` |
+| `openkit connect`               | Connect to an existing running OpenKit server             |
+| `openkit mcp`                   | Start as an MCP server (for Claude Code integration)   |
+| `openkit task [source|resolve] [ID...]` | Resolve issues and create worktrees (jira, linear, local) |
 
 ## Configuration
 
-The project config lives at `.dawg/config.json` in the project root. Key fields:
+The project config lives at `.openkit/config.json` in the project root. Key fields:
 
 - `projectDir` -- absolute path to the project root
 - `startCommand` -- command to start the dev server (e.g., `pnpm dev`)
 - `installCommand` -- command to install dependencies (e.g., `pnpm install`)
 - `baseBranch` -- default base branch (e.g., `main`)
-- `serverPort` -- dawg server port (default 6969)
+- `serverPort` -- OpenKit server port (default 6969)
 - `ports` -- array of discovered ports with `offsetStep`
 - `envMapping` -- environment variable mappings for port offsetting
 - Integration settings for Jira, GitHub, and Linear
 
-Worktrees are stored in `.dawg/worktrees/`. The server writes `server.json` to `.dawg/` for agent discovery (contains URL and PID of the running server).
+Worktrees are stored in `.openkit/worktrees/`. The server writes `server.json` to `.openkit/` for agent discovery (contains URL and PID of the running server).

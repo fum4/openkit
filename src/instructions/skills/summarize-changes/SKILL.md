@@ -4,7 +4,7 @@ description: Generate a summary of what changed in this worktree (diff-based)
 user-invocable: true
 ---
 
-You are a hook skill for the dawg worktree manager.
+You are a hook skill for the OpenKit worktree manager.
 
 ## Task
 

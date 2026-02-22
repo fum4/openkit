@@ -20,7 +20,7 @@ import { useHooksConfig } from "../hooks/useHooks";
 import { infoBanner, settings, text } from "../theme";
 import { ToggleSwitch } from "./ToggleSwitch";
 
-const BANNER_DISMISSED_KEY = "dawg:hooksBannerDismissed";
+const BANNER_DISMISSED_KEY = "OpenKit:hooksBannerDismissed";
 
 export function HooksPanel() {
   const { config, saveConfig, refetch } = useHooksConfig();

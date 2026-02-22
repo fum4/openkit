@@ -18,11 +18,11 @@ export class ActivityLog {
   private pruneTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(configDir: string, config?: Partial<ActivityConfig>) {
-    const dawgDir = path.join(configDir, CONFIG_DIR_NAME);
-    if (!existsSync(dawgDir)) {
-      mkdirSync(dawgDir, { recursive: true });
+    const OpenKitDir = path.join(configDir, CONFIG_DIR_NAME);
+    if (!existsSync(OpenKitDir)) {
+      mkdirSync(OpenKitDir, { recursive: true });
     }
-    this.filePath = path.join(dawgDir, "activity.jsonl");
+    this.filePath = path.join(OpenKitDir, "activity.jsonl");
     this.config = {
       ...DEFAULT_ACTIVITY_CONFIG,
       ...config,

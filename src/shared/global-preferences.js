@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import os from "os";
-const STATE_DIR = path.join(os.homedir(), ".dawg");
+const STATE_DIR = path.join(os.homedir(), ".openkit");
 const PREFERENCES_FILE = path.join(STATE_DIR, "app-preferences.json");
 const DEFAULT_PREFERENCES = {
   basePort: 6969,

@@ -26,7 +26,7 @@ interface CustomTask {
 }
 
 function getTasksDir(configDir: string): string {
-  return path.join(configDir, ".dawg", "issues", "local");
+  return path.join(configDir, ".openkit", "issues", "local");
 }
 
 function ensureTasksDir(configDir: string): string {

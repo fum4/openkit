@@ -10,7 +10,7 @@ import { cors } from "hono/cors";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { APP_NAME } from "../constants";
+import { APP_NAME, CLI_COMMAND, CLI_COMMAND_ALIAS, LEGACY_CLI_COMMAND } from "../constants";
 
 import { CONFIG_DIR_NAME, DEFAULT_PORT } from "../constants";
 import { log } from "../logger";
@@ -140,7 +140,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
     };
   });
 
-  // Seed bundled skills into ~/.dawg/skills/ registry only.
+  // Seed bundled skills into ~/.openkit/skills/ registry only.
   // Hook selection/import is explicit and user-controlled.
   ensureBundledSkills();
 
@@ -163,7 +163,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
   if (mcpSetupEnabled) {
     registerMcpRoutes(app, manager);
   } else {
-    log.info("MCP setup routes disabled. Set DAWG_ENABLE_MCP_SETUP=1 to enable.");
+    log.info("MCP setup routes disabled. Set OPENKIT_ENABLE_MCP_SETUP=1 to enable.");
   }
   registerMcpServerRoutes(app, manager);
   registerSkillRoutes(app, manager);
@@ -231,16 +231,11 @@ export function createWorktreeServer(manager: WorktreeManager) {
 }
 
 /**
- * Ensure the dawg CLI is available in PATH.
+ * Ensure the OpenKit CLI is available in PATH.
  * If not found, creates a shell wrapper in ~/.local/bin/ pointing to the CLI entry point.
  */
 function ensureCliInPath() {
-  try {
-    execFileSync("which", [APP_NAME], { stdio: "ignore" });
-    return; // Already in PATH
-  } catch {
-    // Not in PATH — set it up
-  }
+  const commandNames = [CLI_COMMAND, CLI_COMMAND_ALIAS, LEGACY_CLI_COMMAND];
 
   // Always point to the built CLI (works regardless of dev/prod mode)
   const builtCliPath = path.resolve(projectRoot, "dist", "cli", "index.js");
@@ -250,18 +245,14 @@ function ensureCliInPath() {
   }
 
   const binDir = path.join(os.homedir(), ".local", "bin");
-  const wrapperPath = path.join(binDir, APP_NAME);
   const runtimePath = process.execPath;
   const needsElectronNodeMode = Boolean(process.versions.electron);
+  const pathDirs = (process.env.PATH ?? "").split(":");
+  const hasLocalBinInPath = pathDirs.includes(binDir);
 
   try {
     if (!existsSync(binDir)) {
       mkdirSync(binDir, { recursive: true });
-    }
-
-    // Remove stale file if it exists
-    if (existsSync(wrapperPath)) {
-      unlinkSync(wrapperPath);
     }
 
     // Write a shell wrapper that calls the current runtime with the built CLI.
@@ -269,18 +260,33 @@ function ensureCliInPath() {
     const wrapperBody = needsElectronNodeMode
       ? `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "${runtimePath}" "${builtCliPath}" "$@"\n`
       : `#!/bin/sh\nexec "${runtimePath}" "${builtCliPath}" "$@"\n`;
-    writeFileSync(wrapperPath, wrapperBody, { mode: 0o755 });
-    log.success(`Installed ${APP_NAME} CLI → ${wrapperPath}`);
 
-    // Check if ~/.local/bin is actually in PATH
-    const pathDirs = (process.env.PATH ?? "").split(":");
-    if (!pathDirs.includes(binDir)) {
+    const wrappersToInstall = commandNames.filter((cmd) => {
+      try {
+        execFileSync("which", [cmd], { stdio: "ignore" });
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    if (wrappersToInstall.length === 0) return;
+
+    for (const commandName of wrappersToInstall) {
+      const wrapperPath = path.join(binDir, commandName);
+      if (existsSync(wrapperPath)) {
+        unlinkSync(wrapperPath);
+      }
+      writeFileSync(wrapperPath, wrapperBody, { mode: 0o755 });
+      log.success(`Installed ${commandName} CLI → ${wrapperPath}`);
+    }
+
+    if (!hasLocalBinInPath) {
       log.warn(
         `${binDir} is not in your PATH. Add it to your shell profile: export PATH="$HOME/.local/bin:$PATH"`,
       );
     }
   } catch (err) {
-    log.warn(`Could not install ${APP_NAME} CLI: ${err instanceof Error ? err.message : err}`);
+    log.warn(`Could not install ${APP_NAME} CLI wrappers: ${err instanceof Error ? err.message : err}`);
   }
 }
 

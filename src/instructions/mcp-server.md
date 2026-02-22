@@ -1,7 +1,7 @@
 {{APP_NAME}} manages git worktrees with automatic port offsetting.
 
-IMPORTANT: When a user mentions an issue key, ticket number, or says "work on <something>", immediately use the appropriate dawg MCP tool to create a worktree.
-Do NOT read `.dawg/` files or make HTTP requests to the dawg server — all communication goes through these MCP tools.
+IMPORTANT: When a user mentions an issue key, ticket number, or says "work on <something>", immediately use the appropriate OpenKit MCP tool to create a worktree.
+Do NOT read `.openkit/` files or make HTTP requests to the OpenKit server — all communication goes through these MCP tools.
 
 ---
 
@@ -43,7 +43,7 @@ Do NOT read `.dawg/` files or make HTTP requests to the dawg server — all comm
 ## Issue Data
 
 - `get_jira_issue` and `get_linear_issue` check locally cached data first, only fetching from the remote API if not found locally.
-- Prefer these tools over reading `.dawg/` files directly.
+- Prefer these tools over reading `.openkit/` files directly.
 
 ---
 

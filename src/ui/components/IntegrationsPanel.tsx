@@ -1565,7 +1565,7 @@ export function IntegrationsPanel({
         </div>
         {mcpSetupEnabled && (
           <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
-            {/* Show MCP setup UI only when DAWG_ENABLE_MCP_SETUP is enabled on the server. */}
+            {/* Show MCP setup UI only when OPENKIT_ENABLE_MCP_SETUP is enabled on the server. */}
             <CodingAgentsCard />
           </div>
         )}

@@ -2,9 +2,9 @@
 
 ## Overview
 
-When you run multiple instances of a dev server simultaneously -- one per git worktree -- they all try to bind the same ports and fail. dawg solves this by discovering which ports your application uses, then transparently offsetting them for each worktree instance at runtime.
+When you run multiple instances of a dev server simultaneously -- one per git worktree -- they all try to bind the same ports and fail. OpenKit solves this by discovering which ports your application uses, then transparently offsetting them for each worktree instance at runtime.
 
-The mechanism is fully automatic: once ports are discovered, every worktree process launched by dawg has its `net.Server.listen` and `net.Socket.connect` calls monkey-patched so that known base ports are shifted by a per-worktree offset. No changes to application code are required.
+The mechanism is fully automatic: once ports are discovered, every worktree process launched by OpenKit has its `net.Server.listen` and `net.Socket.connect` calls monkey-patched so that known base ports are shifted by a per-worktree offset. No changes to application code are required.
 
 ## Port Discovery
 
@@ -19,7 +19,7 @@ The sequence:
 3. **Walk the process tree** -- Uses `pgrep -P <pid>` recursively to find all child PIDs descended from the spawned process.
 4. **Scan for listening ports** -- Runs `lsof -P -n -iTCP -sTCP:LISTEN -a -p <pid_list>` to find all TCP ports in LISTEN state across the process tree.
 5. **Kill the discovery process** -- Sends `SIGTERM` to the process group, waits 2 seconds, then `SIGKILL` if still alive.
-6. **Persist results** -- Discovered ports are saved to `.dawg/config.json` under `ports.discovered`.
+6. **Persist results** -- Discovered ports are saved to `.openkit/config.json` under `ports.discovered`.
 7. **Auto-detect env mappings** -- After discovery, scans all `.env*` files in the project for values containing discovered ports and builds a template mapping (see [Environment Variable Mapping](#environment-variable-mapping)).
 
 ### API endpoints
@@ -32,7 +32,7 @@ The sequence:
 
 ### What gets stored
 
-In `.dawg/config.json`:
+In `.openkit/config.json`:
 
 ```json
 {
@@ -133,13 +133,13 @@ Only connections to **localhost addresses** are offset. The hook recognizes: `12
 
 ```mermaid
 flowchart LR
-    subgraph without ["Without dawg"]
+    subgraph without ["Without OpenKit"]
         A1["App calls listen(3000)"] --> B1[":3000"]
         A2["App calls listen(3001)"] --> B2[":3001"]
         A3["App calls connect(3000)"] --> C1[":3000"]
     end
 
-    subgraph with_dawg ["With dawg (offset=10)"]
+    subgraph with_OpenKit ["With OpenKit (offset=10)"]
         D1["App calls listen(3000)"] -->|"hook rewrites"| E1[":3010"]
         D2["App calls listen(3001)"] -->|"hook rewrites"| E2[":3011"]
         D3["App calls connect(3000)"] -->|"hook rewrites"| F1[":3010"]
@@ -216,7 +216,7 @@ VITE_API_URL=http://localhost:3010/api
 
 ### Manual configuration
 
-You can also define `envMapping` manually in `.dawg/config.json` for cases where auto-detection misses something, or where env vars are not defined in `.env` files:
+You can also define `envMapping` manually in `.openkit/config.json` for cases where auto-detection misses something, or where env vars are not defined in `.env` files:
 
 ```json
 {

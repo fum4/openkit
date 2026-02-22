@@ -30,7 +30,7 @@ const AGENT_INSTRUCTIONS: Partial<Record<AgentId, InstructionFile[]>> = {
     {
       getPath: (projectDir, scope) =>
         // Cursor global rules are in IDE settings, not files — project only
-        scope === "project" ? path.join(projectDir, ".cursor", "rules", "dawg.mdc") : null,
+        scope === "project" ? path.join(projectDir, ".cursor", "rules", "OpenKit.mdc") : null,
       content: CURSOR_RULE,
     },
   ],
@@ -46,7 +46,7 @@ const AGENT_INSTRUCTIONS: Partial<Record<AgentId, InstructionFile[]>> = {
   // that we can't safely auto-deploy into. MCP_INSTRUCTIONS cover them.
 };
 
-const CLAUDE_AUTO_ALLOW = ["mcp__dawg__*"];
+const CLAUDE_AUTO_ALLOW = ["mcp__OpenKit__*"];
 
 function mergeClaudeSettings(filePath: string, permissions: string[]): void {
   let settings: Record<string, unknown> = {};
@@ -102,7 +102,7 @@ export function deployAgentInstructions(agent: AgentId, projectDir: string, scop
     writeFileSync(filePath, file.content);
   }
 
-  // Auto-approve dawg MCP tools in Claude settings
+  // Auto-approve OpenKit MCP tools in Claude settings
   if (agent === "claude") {
     const settingsPath =
       scope === "global"
@@ -128,7 +128,7 @@ export function removeAgentInstructions(agent: AgentId, projectDir: string, scop
     }
   }
 
-  // Remove dawg MCP tool permissions from Claude settings
+  // Remove OpenKit MCP tool permissions from Claude settings
   if (agent === "claude") {
     const settingsPath =
       scope === "global"

@@ -74,7 +74,7 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
   });
 
   app.get("/api/config", (c) => {
-    // Check if config file still exists (user may have deleted .dawg folder)
+    // Check if config file still exists (user may have deleted .openkit folder)
     const configPath = path.join(manager.getConfigDir(), CONFIG_DIR_NAME, "config.json");
     if (!existsSync(configPath)) {
       return c.json({ config: null, projectName: null });
@@ -141,7 +141,7 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
     });
   });
 
-  // Check if .dawg config files need to be committed/pushed
+  // Check if .openkit config files need to be committed/pushed
   app.get("/api/config/setup-status", (c) => {
     const projectDir = manager.getConfigDir();
     const configPath = path.join(projectDir, CONFIG_DIR_NAME, "config.json");
@@ -212,14 +212,14 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
       const needsPush = unpushedResult !== "";
       return c.json({
         needsPush,
-        files: needsPush ? [".dawg/config.json", ".dawg/.gitignore"] : [],
+        files: needsPush ? [".openkit/config.json", ".openkit/.gitignore"] : [],
       });
     } catch {
       return c.json({ needsPush: false, files: [] });
     }
   });
 
-  // Commit and push the .dawg config files
+  // Commit and push the .openkit config files
   app.post("/api/config/commit-setup", async (c) => {
     const projectDir = manager.getConfigDir();
     const configPath = path.join(projectDir, CONFIG_DIR_NAME, "config.json");

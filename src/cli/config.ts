@@ -24,12 +24,12 @@ export interface ConfigFile {
 }
 
 /**
- * Check if a path is inside a dawg worktree directory.
- * Worktrees are stored at .dawg/worktrees/<name>/, so any config found
+ * Check if a path is inside a OpenKit worktree directory.
+ * Worktrees are stored at .openkit/worktrees/<name>/, so any config found
  * inside such a path belongs to the worktree's checkout, not the main project.
  */
 function isInsideWorktree(configPath: string): boolean {
-  // Normalize and check if path contains .dawg/worktrees/
+  // Normalize and check if path contains .openkit/worktrees/
   const normalized = configPath.replace(/\\/g, "/");
   return normalized.includes(`${CONFIG_DIR_NAME}/worktrees/`);
 }
@@ -121,6 +121,6 @@ export function loadConfig(): { config: WorktreeConfig; configPath: string | nul
 export function findConfigDir(): string | null {
   const configPath = findConfigFile();
   if (!configPath) return null;
-  // configPath is like /path/to/project/.dawg/config.json → project dir is two levels up
+  // configPath is like /path/to/project/.openkit/config.json → project dir is two levels up
   return path.dirname(path.dirname(configPath));
 }

@@ -1,5 +1,5 @@
-appId: com.dawg.app
-productName: dawg
+appId: com.openkit.app
+productName: OpenKit
 directories:
   output: release
 files:

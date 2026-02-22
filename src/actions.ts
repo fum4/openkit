@@ -664,7 +664,7 @@ export const actions: Action[] = [
   {
     name: "notify",
     description:
-      "Send a status update to the dawg activity feed. Use to keep the user informed about progress on long-running tasks. If you are blocked waiting for user input, you MUST call this with requiresUserAction=true.",
+      "Send a status update to the openkit activity feed. Use to keep the user informed about progress on long-running tasks. If you are blocked waiting for user input, you MUST call this with requiresUserAction=true.",
     params: {
       message: { type: "string", description: "Status message to display", required: true },
       severity: {
@@ -827,7 +827,7 @@ export const actions: Action[] = [
   {
     name: "report_hook_status",
     description:
-      "Report hook skill status to the dawg UI. Call this TWICE for each skill: once BEFORE invoking (without success/summary) to show a loading state, and once AFTER with the result. Pass trigger whenever possible to avoid ambiguity across hook phases.",
+      "Report hook skill status to the OpenKit UI. Call this TWICE for each skill: once BEFORE invoking (without success/summary) to show a loading state, and once AFTER with the result. Pass trigger whenever possible to avoid ambiguity across hook phases.",
     params: {
       worktreeId: { type: "string", description: "Worktree ID", required: true },
       skillName: {

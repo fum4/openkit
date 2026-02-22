@@ -1,4 +1,4 @@
-Use the dawg MCP server tools to create a worktree for issue "{{ISSUE_ID}}".
+Use the OpenKit MCP server tools to create a worktree for issue "{{ISSUE_ID}}".
 
 ## Workflow
 

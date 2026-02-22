@@ -6,7 +6,7 @@ import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { APP_NAME, CONFIG_DIR_NAME } from "../constants";
+import { APP_NAME, CLI_COMMAND, CLI_COMMAND_ALIAS, CONFIG_DIR_NAME } from "../constants";
 import { log } from "../logger";
 import { loadGlobalPreferences } from "../shared/global-preferences";
 import { startWorktreeServer } from "../server/index";
@@ -23,7 +23,7 @@ function findElectron():
 
   // 1. Check for installed .app bundle
   try {
-    const result = execFileSync("mdfind", ['kMDItemCFBundleIdentifier == "com.dawg.app"'], {
+    const result = execFileSync("mdfind", ['kMDItemCFBundleIdentifier == "com.openkit.app"'], {
       encoding: "utf-8",
       timeout: 3000,
     });
@@ -35,7 +35,7 @@ function findElectron():
     /* ignore */
   }
 
-  // 2. Check for electron binary in the dawg project's node_modules
+  // 2. Check for electron binary in the OpenKit project's node_modules
   //    (dev mode — cliDir is dist/cli or src/cli)
   const projectRoot = path.resolve(cliDir, "..", "..");
   const electronBin = path.join(projectRoot, "node_modules", ".bin", "electron");
@@ -52,7 +52,7 @@ async function openUI(port: number): Promise<void> {
 
   if (electron?.type === "app") {
     log.info("Opening in app...");
-    execFile("open", [`dawg://open?port=${port}`], (err) => {
+    execFile("open", [`OpenKit://open?port=${port}`], (err) => {
       if (err) {
         log.info("Falling back to browser...");
         openBrowser(`http://localhost:${port}`);
@@ -102,7 +102,7 @@ function isElectronRunning(): boolean {
 
 function openProjectInElectron(projectDir: string): void {
   const encodedDir = encodeURIComponent(projectDir);
-  const url = `dawg://open-project?dir=${encodedDir}`;
+  const url = `OpenKit://open-project?dir=${encodedDir}`;
 
   if (process.platform === "darwin") {
     execFile("open", [url], (err) => {
@@ -119,11 +119,12 @@ function openProjectInElectron(projectDir: string): void {
 function printHelp() {
   log.plain(`${APP_NAME} — git worktree manager with automatic port offsetting
 
-Usage: ${APP_NAME} [command] [options]
+Usage: ${CLI_COMMAND} [command] [options]
+Alias: ${CLI_COMMAND_ALIAS} [command] [options]
 
 Commands:
   (default)     Start the server and open the UI
-  init          Interactive setup wizard to create .dawg/config.json
+  init          Interactive setup wizard to create .openkit/config.json
   add [name]    Set up an integration (github, linear, jira)
   mcp           Start as an MCP server (for AI coding agents)
   activity      Emit workflow activity events (for agent/user coordination)
@@ -140,17 +141,17 @@ function printTaskHelp() {
   log.plain(`${APP_NAME} task — create worktrees from issue IDs
 
 Usage:
-  ${APP_NAME} task [source|resolve] [ID...] [--init|--save|--link]
-  ${APP_NAME} task [source] [--init|--save|--link]          # prompt for ID from source issues
-  ${APP_NAME} task [ID...] [--init|--save|--link]            # auto-resolve source
-  ${APP_NAME} task resolve [ID...] [--json]                  # deterministic resolver only
+  ${CLI_COMMAND} task [source|resolve] [ID...] [--init|--save|--link]
+  ${CLI_COMMAND} task [source] [--init|--save|--link]          # prompt for ID from source issues
+  ${CLI_COMMAND} task [ID...] [--init|--save|--link]            # auto-resolve source
+  ${CLI_COMMAND} task resolve [ID...] [--json]                  # deterministic resolver only
 
 Examples:
-  ${APP_NAME} task jira PROJ-123
-  ${APP_NAME} task linear ENG-42
-  ${APP_NAME} task local 7 --init
-  ${APP_NAME} task NOM-42 --init
-  ${APP_NAME} task resolve 123 --json
+  ${CLI_COMMAND} task jira PROJ-123
+  ${CLI_COMMAND} task linear ENG-42
+  ${CLI_COMMAND} task local 7 --init
+  ${CLI_COMMAND} task NOM-42 --init
+  ${CLI_COMMAND} task resolve 123 --json
 
 Options:
   --init        Skip prompt and initialize (create/link) worktree immediately
@@ -243,7 +244,7 @@ async function main() {
     if (first === "resolve") {
       const ids = args.slice(1);
       if (ids.length === 0) {
-        log.error(`Usage: ${APP_NAME} task resolve <ID> [ID...] [--json]`);
+        log.error(`Usage: ${CLI_COMMAND} task resolve <ID> [ID...] [--json]`);
         process.exit(1);
       }
       if (action) {
@@ -280,14 +281,14 @@ async function main() {
     return;
   }
 
-  const noOpen = process.argv.includes("--no-open") || process.env.DAWG_NO_OPEN === "1";
-  const autoInit = process.argv.includes("--auto-init") || process.env.DAWG_AUTO_INIT === "1";
+  const noOpen = process.argv.includes("--no-open") || process.env.OPENKIT_NO_OPEN === "1";
+  const autoInit = process.argv.includes("--auto-init") || process.env.OPENKIT_AUTO_INIT === "1";
   const projectDir = process.cwd();
 
-  // Determine port: DAWG_PORT env override → global preferences → default
+  // Determine port: OPENKIT_PORT env override → global preferences → default
   const globalPrefs = loadGlobalPreferences();
-  const basePort = process.env.DAWG_PORT
-    ? parseInt(process.env.DAWG_PORT, 10)
+  const basePort = process.env.OPENKIT_PORT
+    ? parseInt(process.env.OPENKIT_PORT, 10)
     : globalPrefs.basePort;
 
   log.info("Starting...");

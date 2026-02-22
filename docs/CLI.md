@@ -1,55 +1,58 @@
 # CLI Commands Reference
 
-dawg is primarily a CLI tool. Running `dawg` with no arguments starts the server and opens the web UI. All other functionality is accessed through subcommands.
+OpenKit is primarily a CLI tool. Running `openkit` with no arguments starts the server and opens the web UI. All other functionality is accessed through subcommands.
+The short alias `ok` is also available and accepts the same subcommands/options.
 
 ```
-dawg [command] [options]
+openkit [command] [options]
+ok [command] [options]
 ```
 
 ## Command Inventory
 
 | Command                                                 | Description                                                              |
 | ------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `dawg [--no-open] [--auto-init]`                        | Start dawg server/UI for the current project.                            |
-| `dawg init`                                             | Run setup wizard and create `.dawg/config.json`.                         |
-| `dawg add [github\|linear\|jira]`                       | Connect or configure an integration.                                     |
-| `dawg mcp`                                              | Run dawg as an MCP server for agents.                                    |
-| `dawg activity await-input ...`                         | Emit an "agent awaiting user input" activity event for the UI.           |
-| `dawg activity phase ...`                               | Emit a canonical workflow phase checkpoint event for a worktree.         |
-| `dawg activity check-flow ...`                          | Validate whether required workflow phases/hooks were completed.           |
-| `dawg task`                                             | Open interactive task flow (choose source, then pick or enter issue ID). |
-| `dawg task [ID...] [--init] [--save] [--link]`          | Auto-resolve source from ID(s), then continue with selected action.      |
-| `dawg task [source] [--init] [--save] [--link]`         | Open source-specific issue picker, then continue with selected action.   |
-| `dawg task [source] [ID...] [--init] [--save] [--link]` | Fetch task(s) from explicit source and optionally initialize/link/save.  |
-| `dawg task resolve [ID...] [--json]`                    | Resolve issue source/normalized key without creating worktrees.          |
+| `openkit [--no-open] [--auto-init]`                        | Start OpenKit server/UI for the current project.                            |
+| `ok [--no-open] [--auto-init]`                             | Alias for `openkit [--no-open] [--auto-init]`.                              |
+| `openkit init`                                             | Run setup wizard and create `.openkit/config.json`.                         |
+| `openkit add [github\|linear\|jira]`                       | Connect or configure an integration.                                     |
+| `openkit mcp`                                              | Run OpenKit as an MCP server for agents.                                    |
+| `openkit activity await-input ...`                         | Emit an "agent awaiting user input" activity event for the UI.           |
+| `openkit activity phase ...`                               | Emit a canonical workflow phase checkpoint event for a worktree.         |
+| `openkit activity check-flow ...`                          | Validate whether required workflow phases/hooks were completed.           |
+| `openkit task`                                             | Open interactive task flow (choose source, then pick or enter issue ID). |
+| `openkit task [ID...] [--init] [--save] [--link]`          | Auto-resolve source from ID(s), then continue with selected action.      |
+| `openkit task [source] [--init] [--save] [--link]`         | Open source-specific issue picker, then continue with selected action.   |
+| `openkit task [source] [ID...] [--init] [--save] [--link]` | Fetch task(s) from explicit source and optionally initialize/link/save.  |
+| `openkit task resolve [ID...] [--json]`                    | Resolve issue source/normalized key without creating worktrees.          |
 
 ---
 
 ## Commands
 
-### `dawg` (default)
+### `openkit` (default)
 
 Start the server and open the UI.
 
 ```bash
-dawg
-dawg --no-open
-dawg --auto-init
+openkit
+openkit --no-open
+openkit --auto-init
 ```
 
-When run without a subcommand, dawg does the following:
+When run without a subcommand, OpenKit does the following:
 
-1. Loads global preferences from `~/.dawg/app-preferences.json`
+1. Loads global preferences from `~/.openkit/app-preferences.json`
 2. Determines the server port (see [Port Selection](#port-selection))
 3. If the Electron app is already running, opens the current project as a new tab in the existing window and exits
-4. If no `.dawg/config.json` is found:
+4. If no `.openkit/config.json` is found:
    - With `--auto-init`: auto-initializes config using detected defaults (start command, install command, base branch)
-   - In an interactive terminal: launches the setup wizard (`dawg init`)
+   - In an interactive terminal: launches the setup wizard (`openkit init`)
    - Non-interactive (e.g., spawned by Electron): proceeds with defaults
 5. Starts the Hono HTTP server
-6. Writes `server.json` to `.dawg/` for agent discovery (contains the server URL and PID)
+6. Writes `server.json` to `.openkit/` for agent discovery (contains the server URL and PID)
 7. Opens the UI:
-   - If the Electron app is installed, opens it via the `dawg://` protocol
+   - If the Electron app is installed, opens it via the `OpenKit://` protocol
    - If running in dev mode with Electron available, spawns Electron directly
    - If no Electron is found and the terminal is interactive, prompts to install the desktop app (macOS only — downloads and installs the latest DMG from GitHub Releases)
    - If the user declines or the terminal is non-interactive, just prints the server URL
@@ -58,19 +61,19 @@ When run without a subcommand, dawg does the following:
 
 | Option        | Environment Variable | Description                                                         |
 | ------------- | -------------------- | ------------------------------------------------------------------- |
-| `--no-open`   | `DAWG_NO_OPEN=1`     | Start the server without opening the UI                             |
-| `--auto-init` | `DAWG_AUTO_INIT=1`   | Auto-initialize config if none is found (skips interactive prompts) |
+| `--no-open`   | `OPENKIT_NO_OPEN=1`     | Start the server without opening the UI                             |
+| `--auto-init` | `OPENKIT_AUTO_INIT=1`   | Auto-initialize config if none is found (skips interactive prompts) |
 
-On first run, dawg also installs itself into `~/.local/bin/` (as a shell wrapper) so the `dawg` command is available system-wide. If `~/.local/bin` is not in your `PATH`, it will print a warning with instructions.
+On first run, OpenKit also installs itself into `~/.local/bin/` (as shell wrappers) so both `openkit` and `ok` are available system-wide. If `~/.local/bin` is not in your `PATH`, it will print a warning with instructions.
 
 ---
 
-### `dawg init`
+### `openkit init`
 
-Interactive setup wizard to create `.dawg/config.json`.
+Interactive setup wizard to create `.openkit/config.json`.
 
 ```bash
-dawg init
+openkit init
 ```
 
 Must be run inside a git repository. Exits with an error if a config file already exists.
@@ -86,13 +89,13 @@ The wizard prompts for:
 
 After writing the config, `init` also:
 
-- Creates a `.dawg/.gitignore` with a whitelist approach (ignores everything except `config.json` and `.gitignore`)
+- Creates a `.openkit/.gitignore` with a whitelist approach (ignores everything except `config.json` and `.gitignore`)
 - Auto-enables the default project skill (`work-on-task`) in per-agent project skill directories
 - Stages both files with `git add` so they are ready to commit
 - Detects environment variable mappings if ports are already configured
 - Prints next steps for getting started
 
-The generated config file (`.dawg/config.json`) looks like:
+The generated config file (`.openkit/config.json`) looks like:
 
 ```json
 {
@@ -108,20 +111,20 @@ The generated config file (`.dawg/config.json`) looks like:
 
 ---
 
-### `dawg add [name]`
+### `openkit add [name]`
 
 Set up an integration.
 
 ```bash
-dawg add            # Interactive picker
-dawg add github     # Set up GitHub directly
-dawg add linear     # Set up Linear directly
-dawg add jira       # Set up Jira directly
+openkit add            # Interactive picker
+openkit add github     # Set up GitHub directly
+openkit add linear     # Set up Linear directly
+openkit add jira       # Set up Jira directly
 ```
 
-Requires an existing config (`dawg init` must have been run first). If no integration name is provided, an interactive picker is shown with the current status of each integration.
+Requires an existing config (`openkit init` must have been run first). If no integration name is provided, an interactive picker is shown with the current status of each integration.
 
-#### `dawg add github`
+#### `openkit add github`
 
 Checks for the GitHub CLI (`gh`) and verifies authentication. Does not store any credentials -- GitHub integration relies entirely on the `gh` CLI being installed and authenticated.
 
@@ -130,9 +133,9 @@ Prerequisites:
 - Install `gh`: `brew install gh` (macOS) or see [GitHub CLI docs](https://github.com/cli/cli)
 - Authenticate: `gh auth login`
 
-Once set up, enables PR creation, commit, and push from the dawg UI.
+Once set up, enables PR creation, commit, and push from the OpenKit UI.
 
-#### `dawg add linear`
+#### `openkit add linear`
 
 Connects to Linear for issue tracking.
 
@@ -141,9 +144,9 @@ Prompts for:
 - **API Key** -- create one at https://linear.app/settings/account/security/api-keys/new
 - **Default team key** (optional, e.g., `ENG`)
 
-Tests the connection before saving. Credentials are stored in `.dawg/integrations.json` (gitignored by default).
+Tests the connection before saving. Credentials are stored in `.openkit/integrations.json` (gitignored by default).
 
-#### `dawg add jira`
+#### `openkit add jira`
 
 Connects to Atlassian Jira for issue tracking. Offers two authentication methods:
 
@@ -160,23 +163,23 @@ Connects to Atlassian Jira for issue tracking. Offers two authentication methods
 - Create a token at https://id.atlassian.com/manage-profile/security/api-tokens
 - Prompts for site URL, email, and API token
 
-Both methods prompt for an optional default project key (e.g., `PROJ`). Credentials are stored in `.dawg/integrations.json`.
+Both methods prompt for an optional default project key (e.g., `PROJ`). Credentials are stored in `.openkit/integrations.json`.
 
 ---
 
-### `dawg mcp`
+### `openkit mcp`
 
 Start as an MCP (Model Context Protocol) server for AI coding agents.
 
 ```bash
-dawg mcp
+openkit mcp
 ```
 
 Uses stdio for JSON-RPC communication. All `console.log` output is redirected to stderr because stdout is reserved for JSON-RPC messages.
 
 Operates in one of two modes:
 
-- **Proxy mode**: If a dawg server is already running (detected via `.dawg/server.json`), relays JSON-RPC messages between stdio and the HTTP server's `/mcp` endpoint. This gives the agent shared state with the UI.
+- **Proxy mode**: If a OpenKit server is already running (detected via `.openkit/server.json`), relays JSON-RPC messages between stdio and the HTTP server's `/mcp` endpoint. This gives the agent shared state with the UI.
 - **Standalone mode**: If no server is running, creates its own `WorktreeManager` instance and operates independently.
 
 Typical usage in a Claude Code MCP configuration:
@@ -184,8 +187,8 @@ Typical usage in a Claude Code MCP configuration:
 ```json
 {
   "mcpServers": {
-    "dawg": {
-      "command": "dawg",
+    "OpenKit": {
+      "command": "openkit",
       "args": ["mcp"]
     }
   }
@@ -194,39 +197,39 @@ Typical usage in a Claude Code MCP configuration:
 
 ---
 
-### `dawg activity await-input`
+### `openkit activity await-input`
 
 Emit an activity event when an agent is blocked waiting for user input/approval. This powers the special **Input needed** badge shown to the left of the bell icon in the header.
 
 ```bash
-dawg activity await-input --message "Need approval to run DB migration"
-dawg activity await-input "Need product decision on checkout copy" --worktree NOM-18
-dawg activity await-input --message "Need confirmation" --detail "Ship with flag on?" --severity warning
+openkit activity await-input --message "Need approval to run DB migration"
+openkit activity await-input "Need product decision on checkout copy" --worktree NOM-18
+openkit activity await-input --message "Need confirmation" --detail "Ship with flag on?" --severity warning
 ```
 
 Behavior:
 
-1. Finds the running project server via `.dawg/server.json`
+1. Finds the running project server via `.openkit/server.json`
 2. Posts `agent_awaiting_input` to `POST /api/activity`
 3. Sets `metadata.requiresUserAction=true` so the event appears in the Activity feed's action-required section
 
 Options:
 
 - `--message <text>` (required, positional text also supported)
-- `--worktree <id>` (optional, inferred from `.dawg/worktrees/<id>/...` path when omitted)
+- `--worktree <id>` (optional, inferred from `.openkit/worktrees/<id>/...` path when omitted)
 - `--detail <text>` (optional)
 - `--severity <info|success|warning|error>` (optional, default `warning`)
 
 ---
 
-### `dawg activity phase`
+### `openkit activity phase`
 
 Emit a canonical workflow checkpoint event so agents can prove they respected the required flow.
 
 ```bash
-dawg activity phase --phase task-started --worktree NOM-18
-dawg activity phase pre-hooks-started --worktree NOM-18
-dawg activity phase --phase implementation-completed --detail "Core feature done; preparing post-hooks"
+openkit activity phase --phase task-started --worktree NOM-18
+openkit activity phase pre-hooks-started --worktree NOM-18
+openkit activity phase --phase implementation-completed --detail "Core feature done; preparing post-hooks"
 ```
 
 Supported phases:
@@ -242,20 +245,20 @@ Supported phases:
 Options:
 
 - `--phase <name>` (required, positional also supported)
-- `--worktree <id>` (optional, inferred from `.dawg/worktrees/<id>/...` path when omitted)
+- `--worktree <id>` (optional, inferred from `.openkit/worktrees/<id>/...` path when omitted)
 - `--message <text>` (optional custom title; defaults to `Workflow phase: <phase>`)
 - `--detail <text>` (optional)
 - `--severity <info|success|warning|error>` (optional, default `info`)
 
 ---
 
-### `dawg activity check-flow`
+### `openkit activity check-flow`
 
 Validate flow compliance for a worktree. This checks required workflow phases plus required hook/skill execution evidence.
 
 ```bash
-dawg activity check-flow --worktree NOM-18
-dawg activity check-flow --worktree NOM-18 --json
+openkit activity check-flow --worktree NOM-18
+openkit activity check-flow --worktree NOM-18 --json
 ```
 
 Behavior:
@@ -271,22 +274,22 @@ Options:
 
 ---
 
-### `dawg task [source|resolve] [ID...]`
+### `openkit task [source|resolve] [ID...]`
 
 Create worktrees from issue IDs. Supports Jira, Linear, and local issues.
 
 ```bash
-dawg task
-dawg task jira
-dawg task jira PROJ-123
-dawg task linear ENG-42
-dawg task local 7
-dawg task PROJ-123 --init
-dawg task local LOCAL-1 --init
-dawg task jira PROJ-123 --save
-dawg task jira PROJ-123 PROJ-456
-dawg task jira 123
-dawg task resolve ENG-42 --json
+openkit task
+openkit task jira
+openkit task jira PROJ-123
+openkit task linear ENG-42
+openkit task local 7
+openkit task PROJ-123 --init
+openkit task local LOCAL-1 --init
+openkit task jira PROJ-123 --save
+openkit task jira PROJ-123 PROJ-456
+openkit task jira 123
+openkit task resolve ENG-42 --json
 ```
 
 The first argument can be:
@@ -296,11 +299,11 @@ The first argument can be:
 - `resolve` followed by IDs (resolution-only mode)
 - an ID directly (source auto-resolution mode)
 
-Requires the relevant integration to be connected (`dawg add jira` for Jira, `dawg add linear` for Linear). Local issues don't require an integration.
+Requires the relevant integration to be connected (`openkit add jira` for Jira, `openkit add linear` for Linear). Local issues don't require an integration.
 
 **Single task mode:** Fetches the issue, prints a summary, saves task data, then prompts for an action (create worktree, link to existing, or just save).
 
-When source is provided without an ID (for example `dawg task jira`), CLI shows:
+When source is provided without an ID (for example `openkit task jira`), CLI shows:
 
 - `Type issue ID manually`
 - followed by tracker issues in the format `<ID> — <title>`
@@ -312,20 +315,20 @@ When source is provided without an ID (for example `dawg task jira`), CLI shows:
 - `--init` -- initialize (create/link) worktree immediately
 - `--save` -- fetch/save task only
 - `--link` -- jump directly to "select existing worktree"
-- `--json` -- machine-readable output for `dawg task resolve`
+- `--json` -- machine-readable output for `openkit task resolve`
 
-**Resolver behavior (`dawg task resolve`)**
+**Resolver behavior (`openkit task resolve`)**
 
 Resolution checks happen in this order:
 
-1. Existing issue files under `.dawg/issues/` (local/jira/linear)
-2. Connected integrations in `.dawg/integrations.json`
+1. Existing issue files under `.openkit/issues/` (local/jira/linear)
+2. Connected integrations in `.openkit/integrations.json`
 3. Default keys when both integrations are connected:
    - Jira: `jira.defaultProjectKey`
    - Linear: `linear.defaultTeamKey`
 
 If the source is ambiguous, the command exits with an error and asks you to specify source explicitly.
-When a prefixed Jira/Linear key is validated, dawg updates the corresponding default key in `.dawg/integrations.json` automatically.
+When a prefixed Jira/Linear key is validated, OpenKit updates the corresponding default key in `.openkit/integrations.json` automatically.
 
 This command:
 
@@ -347,20 +350,20 @@ This command:
 Show the help message with a summary of all commands and options.
 
 ```bash
-dawg --help
-dawg -h
+openkit --help
+openkit -h
 ```
 
 Output:
 
 ```
-dawg -- git worktree manager with automatic port offsetting
+OpenKit -- git worktree manager with automatic port offsetting
 
-Usage: dawg [command] [options]
+Usage: openkit [command] [options]
 
 Commands:
   (default)     Start the server and open the UI
-  init          Interactive setup wizard to create .dawg/config.json
+  init          Interactive setup wizard to create .openkit/config.json
   add [name]    Set up an integration (github, linear, jira)
   mcp           Start as an MCP server (for AI coding agents)
   activity      Emit workflow activity events (for agent/user coordination)
@@ -380,25 +383,25 @@ Options:
 Show the current version.
 
 ```bash
-dawg --version
-dawg -v
+openkit --version
+openkit -v
 ```
 
 ---
 
 ## Configuration Discovery
 
-When dawg starts, it searches for `.dawg/config.json` by walking up the directory tree from the current working directory:
+When OpenKit starts, it searches for `.openkit/config.json` by walking up the directory tree from the current working directory:
 
-1. Check `$CWD/.dawg/config.json`
-2. Check `$CWD/../.dawg/config.json`
+1. Check `$CWD/.openkit/config.json`
+2. Check `$CWD/../.openkit/config.json`
 3. Continue up to the filesystem root
 
-Config files found inside worktree directories (paths containing `.dawg/worktrees/`) are skipped. This ensures that when you `cd` into a worktree checkout, dawg still finds the main project's config rather than a config from the worktree's source tree.
+Config files found inside worktree directories (paths containing `.openkit/worktrees/`) are skipped. This ensures that when you `cd` into a worktree checkout, OpenKit still finds the main project's config rather than a config from the worktree's source tree.
 
-Once found, dawg changes the working directory to the project root (the parent of `.dawg/`).
+Once found, OpenKit changes the working directory to the project root (the parent of `.openkit/`).
 
-If no config is found, dawg uses defaults:
+If no config is found, OpenKit uses defaults:
 
 | Setting            | Default       |
 | ------------------ | ------------- |
@@ -415,11 +418,11 @@ If no config is found, dawg uses defaults:
 
 The server port is determined by the following priority (highest first):
 
-1. **`DAWG_PORT` environment variable** -- e.g., `DAWG_PORT=7070 dawg`
-2. **Global preferences** -- `basePort` in `~/.dawg/app-preferences.json` (configurable through the Electron app or API)
+1. **`OPENKIT_PORT` environment variable** -- e.g., `OPENKIT_PORT=7070 OpenKit`
+2. **Global preferences** -- `basePort` in `~/.openkit/app-preferences.json` (configurable through the Electron app or API)
 3. **Default** -- `6969`
 
-If the chosen port is already in use, dawg automatically increments and tries the next port until it finds an available one.
+If the chosen port is already in use, OpenKit automatically increments and tries the next port until it finds an available one.
 
 ---
 
@@ -427,16 +430,16 @@ If the chosen port is already in use, dawg automatically increments and tries th
 
 | Variable         | Description                                                                       |
 | ---------------- | --------------------------------------------------------------------------------- |
-| `DAWG_PORT`      | Override the server port (highest priority)                                       |
-| `DAWG_NO_OPEN`   | Set to `1` to start the server without opening the UI (equivalent to `--no-open`) |
-| `DAWG_AUTO_INIT` | Set to `1` to auto-initialize config if none found (equivalent to `--auto-init`)  |
-| `DAWG_ENABLE_MCP_SETUP` | Set to `1` to enable MCP setup routes |
+| `OPENKIT_PORT`      | Override the server port (highest priority)                                       |
+| `OPENKIT_NO_OPEN`   | Set to `1` to start the server without opening the UI (equivalent to `--no-open`) |
+| `OPENKIT_AUTO_INIT` | Set to `1` to auto-initialize config if none found (equivalent to `--auto-init`)  |
+| `OPENKIT_ENABLE_MCP_SETUP` | Set to `1` to enable MCP setup routes |
 
 ---
 
 ## Global Preferences
 
-Stored at `~/.dawg/app-preferences.json`. These preferences persist across all projects.
+Stored at `~/.openkit/app-preferences.json`. These preferences persist across all projects.
 
 | Key               | Type                          | Default | Description                       |
 | ----------------- | ----------------------------- | ------- | --------------------------------- |
@@ -449,10 +452,10 @@ Stored at `~/.dawg/app-preferences.json`. These preferences persist across all p
 
 ## File Layout
 
-After initialization, the `.dawg/` directory contains:
+After initialization, the `.openkit/` directory contains:
 
 ```
-.dawg/
+.openkit/
   config.json          # Project configuration (committed to git)
   .gitignore           # Whitelist gitignore (committed to git)
   server.json          # Running server info (auto-generated, gitignored)
@@ -462,10 +465,10 @@ After initialization, the `.dawg/` directory contains:
   local-issues/        # Local issue storage
 ```
 
-The global `~/.dawg/` directory contains:
+The global `~/.openkit/` directory contains:
 
 ```
-~/.dawg/
+~/.openkit/
   app-preferences.json # Global preferences
   electron.lock        # Electron process lock file
 ```

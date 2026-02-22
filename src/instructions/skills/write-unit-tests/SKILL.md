@@ -4,7 +4,7 @@ description: Write focused unit tests for isolated logic changes
 user-invocable: true
 ---
 
-You are a hook skill for the dawg worktree manager.
+You are a hook skill for the OpenKit worktree manager.
 
 ## Task
 

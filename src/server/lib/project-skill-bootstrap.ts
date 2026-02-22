@@ -46,7 +46,7 @@ export function enableDefaultProjectSkills(projectDir: string): void {
   ensureBundledSkills();
 
   for (const skillName of DEFAULT_PROJECT_SKILLS) {
-    const targetPath = path.join(os.homedir(), ".dawg", "skills", skillName);
+    const targetPath = path.join(os.homedir(), ".openkit", "skills", skillName);
     if (!existsSync(targetPath)) continue;
     deploySkillToProjectDir(projectDir, skillName, targetPath);
   }

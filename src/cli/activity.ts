@@ -61,8 +61,8 @@ Usage:
   ${APP_NAME} activity check-flow --worktree <id> [--json]
 
 Notes:
-  - This command requires a running dawg server in the current project.
-  - If --worktree is omitted, dawg tries to infer it from the current path where possible.`);
+  - This command requires a running OpenKit server in the current project.
+  - If --worktree is omitted, OpenKit tries to infer it from the current path where possible.`);
 }
 
 function parseValueArg(arg: string, name: string): string | null {
@@ -357,7 +357,7 @@ function findRunningServerUrl(startDir: string): string | null {
 async function emitAwaitingInputEvent(args: ParsedAwaitInputArgs): Promise<void> {
   const serverUrl = findRunningServerUrl(process.cwd());
   if (!serverUrl) {
-    throw new Error("No running dawg server found for this project");
+    throw new Error("No running OpenKit server found for this project");
   }
 
   const worktreeId = args.worktreeId ?? inferWorktreeIdFromCwd() ?? undefined;
@@ -389,7 +389,7 @@ async function emitAwaitingInputEvent(args: ParsedAwaitInputArgs): Promise<void>
 async function emitWorkflowPhaseEvent(args: ParsedPhaseArgs): Promise<void> {
   const serverUrl = findRunningServerUrl(process.cwd());
   if (!serverUrl) {
-    throw new Error("No running dawg server found for this project");
+    throw new Error("No running OpenKit server found for this project");
   }
   const worktreeId = args.worktreeId ?? inferWorktreeIdFromCwd();
   if (!worktreeId) {
@@ -451,7 +451,7 @@ function printFlowComplianceReport(report: FlowComplianceReport): void {
 async function runCheckFlow(args: ParsedCheckFlowArgs): Promise<void> {
   const serverUrl = findRunningServerUrl(process.cwd());
   if (!serverUrl) {
-    throw new Error("No running dawg server found for this project");
+    throw new Error("No running OpenKit server found for this project");
   }
   const worktreeId = args.worktreeId ?? inferWorktreeIdFromCwd();
   if (!worktreeId) {

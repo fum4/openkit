@@ -14,7 +14,7 @@ import {
   removeServerFromConfig,
 } from "../lib/tool-configs";
 
-const DAWG_MCP_ENTRY = { command: "dawg", args: ["mcp"] };
+const OPENKIT_MCP_ENTRY = { command: "openkit", args: ["mcp"] };
 
 export function registerMcpRoutes(app: Hono, manager: WorktreeManager) {
   app.get("/api/mcp/status", (c) => {
@@ -25,11 +25,11 @@ export function registerMcpRoutes(app: Hono, manager: WorktreeManager) {
       const entry: { global?: boolean; project?: boolean } = {};
       if (spec.global) {
         const filePath = resolveConfigPath(spec.global.configPath, projectDir);
-        entry.global = isServerConfigured(filePath, spec.global, "dawg");
+        entry.global = isServerConfigured(filePath, spec.global, "openkit");
       }
       if (spec.project) {
         const filePath = resolveConfigPath(spec.project.configPath, projectDir);
-        entry.project = isServerConfigured(filePath, spec.project, "dawg");
+        entry.project = isServerConfigured(filePath, spec.project, "openkit");
       }
       statuses[id] = entry;
     }
@@ -56,7 +56,7 @@ export function registerMcpRoutes(app: Hono, manager: WorktreeManager) {
 
       const projectDir = manager.getConfigDir();
       const filePath = resolveConfigPath(spec.configPath, projectDir);
-      const result = writeServerToConfig(filePath, spec, "dawg", DAWG_MCP_ENTRY);
+      const result = writeServerToConfig(filePath, spec, "openkit", OPENKIT_MCP_ENTRY);
 
       if (result.success) {
         deployAgentInstructions(agent, projectDir, scope);
@@ -94,7 +94,7 @@ export function registerMcpRoutes(app: Hono, manager: WorktreeManager) {
 
       const projectDir = manager.getConfigDir();
       const filePath = resolveConfigPath(spec.configPath, projectDir);
-      const result = removeServerFromConfig(filePath, spec, "dawg");
+      const result = removeServerFromConfig(filePath, spec, "openkit");
 
       if (result.success) {
         removeAgentInstructions(agent, projectDir, scope);

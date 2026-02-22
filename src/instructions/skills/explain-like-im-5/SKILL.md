@@ -4,7 +4,7 @@ description: Explain changes for developers who are new to the project domain an
 user-invocable: true
 ---
 
-You are a hook skill for the dawg worktree manager.
+You are a hook skill for the OpenKit worktree manager.
 
 ## Task
 

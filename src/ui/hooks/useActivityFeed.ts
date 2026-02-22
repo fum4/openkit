@@ -249,7 +249,7 @@ export function useActivityFeed(
   const [clearedAt, setClearedAt] = useState<number>(() => {
     if (serverUrl === null) return 0;
     try {
-      const stored = localStorage.getItem(`dawg:activityClearedAt:${serverUrl}`);
+      const stored = localStorage.getItem(`OpenKit:activityClearedAt:${serverUrl}`);
       const parsed = stored ? Number(stored) : 0;
       return Number.isFinite(parsed) ? parsed : 0;
     } catch {
@@ -263,7 +263,7 @@ export function useActivityFeed(
       return;
     }
     try {
-      const stored = localStorage.getItem(`dawg:activityClearedAt:${serverUrl}`);
+      const stored = localStorage.getItem(`OpenKit:activityClearedAt:${serverUrl}`);
       const parsed = stored ? Number(stored) : 0;
       setClearedAt(Number.isFinite(parsed) ? parsed : 0);
     } catch {
@@ -336,12 +336,12 @@ export function useActivityFeed(
       });
     };
 
-    window.addEventListener("dawg:activity", handler as EventListener);
-    window.addEventListener("dawg:activity-history", historyHandler as EventListener);
+    window.addEventListener("OpenKit:activity", handler as EventListener);
+    window.addEventListener("OpenKit:activity-history", historyHandler as EventListener);
 
     return () => {
-      window.removeEventListener("dawg:activity", handler as EventListener);
-      window.removeEventListener("dawg:activity-history", historyHandler as EventListener);
+      window.removeEventListener("OpenKit:activity", handler as EventListener);
+      window.removeEventListener("OpenKit:activity-history", historyHandler as EventListener);
     };
   }, [serverUrl, onToast, onUpsertToast, toastEvents, clearedAt, disabledEventTypes]);
 
@@ -362,7 +362,7 @@ export function useActivityFeed(
     setClearedAt(now);
     if (serverUrl !== null) {
       try {
-        localStorage.setItem(`dawg:activityClearedAt:${serverUrl}`, String(now));
+        localStorage.setItem(`OpenKit:activityClearedAt:${serverUrl}`, String(now));
       } catch {
         // Ignore localStorage errors.
       }

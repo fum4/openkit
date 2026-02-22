@@ -2,7 +2,7 @@
 
 ## Overview
 
-dawg has a unified notification system that tracks events across worktrees, agents, git operations, and integrations. Events flow through a central **Activity Log** on the backend and surface in three ways:
+OpenKit has a unified notification system that tracks events across worktrees, agents, git operations, and integrations. Events flow through a central **Activity Log** on the backend and surface in three ways:
 
 1. **Activity Feed** — a dropdown panel in the header (bell icon) showing a scrollable timeline of events
 2. **Toast notifications** — ephemeral in-app popups for direct user-action success/failure only
@@ -17,11 +17,11 @@ Policy: workflow, agent, and live progress updates belong in the Activity feed (
 ```
 ActivityLog (backend)
   │
-  ├─ Persists events to disk (.dawg/activity.jsonl)
+  ├─ Persists events to disk (.openkit/activity.jsonl)
   ├─ Broadcasts via SSE (/api/events → "activity" messages)
   │     │
   │     ├─ useWorktrees (SSE listener)
-  │     │     └─ dispatches CustomEvent "dawg:activity" / "dawg:activity-history"
+  │     │     └─ dispatches CustomEvent "OpenKit:activity" / "OpenKit:activity-history"
   │     │
   │     └─ NotificationManager (Electron)
   │           └─ listens to each project's SSE stream → fires native Notification
@@ -42,7 +42,7 @@ ActivityLog (backend)
 | `src/cli/activity.ts`                      | CLI command for terminal agents to emit awaiting-input activity      |
 | `src/ui/components/ActivityFeed.tsx`       | `ActivityFeed` panel + `ActivityBell` button components              |
 | `src/ui/components/detail/TerminalView.tsx`| Claude terminal rendering/session lifecycle (no heuristic awaiting-input detection) |
-| `src/ui/hooks/useActivityFeed.ts`          | Hook — listens for `dawg:activity` CustomEvents, manages state       |
+| `src/ui/hooks/useActivityFeed.ts`          | Hook — listens for `OpenKit:activity` CustomEvents, manages state       |
 | `src/ui/hooks/useWorktrees.ts`             | SSE client — bridges SSE messages to window CustomEvents             |
 | `src/ui/components/Header.tsx`             | Wires bell + feed panel into the app header                          |
 | `src/ui/App.tsx`                           | Emits task-detected + Claude-started activity events for Jira/Linear auto-start |
@@ -128,7 +128,7 @@ Feed row dots are an unseen marker only (teal), not severity-coded.
 
 ### Storage
 
-Events are persisted as newline-delimited JSON (NDJSON) in `.dawg/activity.jsonl`. Each line is one `ActivityEvent` JSON object.
+Events are persisted as newline-delimited JSON (NDJSON) in `.openkit/activity.jsonl`. Each line is one `ActivityEvent` JSON object.
 
 ### Pub/Sub
 
@@ -203,8 +203,8 @@ The existing SSE endpoint streams activity events alongside worktree updates. Me
 
 `useWorktrees` (`src/ui/hooks/useWorktrees.ts`) is the SSE client. When it receives `activity` or `activity-history` messages, it dispatches window-level CustomEvents:
 
-- `dawg:activity` — `detail` is a single `ActivityEvent`
-- `dawg:activity-history` — `detail` is an `ActivityEvent[]`
+- `OpenKit:activity` — `detail` is a single `ActivityEvent`
+- `OpenKit:activity-history` — `detail` is an `ActivityEvent[]`
 
 This decouples the activity feed from the SSE connection hook.
 
@@ -349,14 +349,14 @@ When `requiresUserAction` is true, `notify` emits `type: "agent_awaiting_input"`
 Terminal-first agents (not connected through MCP) can emit the same special notification via CLI:
 
 ```bash
-dawg activity await-input --message "Need approval to run migration"
+openkit activity await-input --message "Need approval to run migration"
 ```
 
-This posts `agent_awaiting_input` to `/api/activity` using the running project's `.dawg/server.json` discovery.
+This posts `agent_awaiting_input` to `/api/activity` using the running project's `.openkit/server.json` discovery.
 
-Claude terminal tabs do not infer awaiting-input state from terminal text. Awaiting-input events should be emitted explicitly by the agent (`notify` with `requiresUserAction: true` in MCP flow, or `dawg activity await-input` in terminal flow).
+Claude terminal tabs do not infer awaiting-input state from terminal text. Awaiting-input events should be emitted explicitly by the agent (`notify` with `requiresUserAction: true` in MCP flow, or `openkit activity await-input` in terminal flow).
 
-When a worktree is removed, dawg also emits a clearing `notify` event for that worktree's `agent-awaiting-input:{worktreeId}` group, so stale "agent needs input" indicators are dismissed automatically.
+When a worktree is removed, OpenKit also emits a clearing `notify` event for that worktree's `agent-awaiting-input:{worktreeId}` group, so stale "agent needs input" indicators are dismissed automatically.
 
 Clicking an awaiting-input badge/dropdown item (or action-required link in Activity feed) also emits a clearing event for that same context/group, so the indicator clears as soon as the user acknowledges it.
 

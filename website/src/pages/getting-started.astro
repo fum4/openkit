@@ -5,22 +5,22 @@ import Footer from "../components/Footer.astro";
 
 const mcpJson = `{
   "mcpServers": {
-    "dawg": {
-      "command": "dawg",
+    "OpenKit": {
+      "command": "openkit",
       "args": ["mcp"]
     }
   }
 }`;
 
-const mcpToml = `[mcp_servers.dawg]
-command = "dawg"
+const mcpToml = `[mcp_servers.openkit]
+command = "openkit"
 args = ["mcp"]`;
 
 const mcpVscode = `{
   "mcp": {
     "servers": {
-      "dawg": {
-        "command": "dawg",
+      "OpenKit": {
+        "command": "openkit",
         "args": ["mcp"]
       }
     }
@@ -41,8 +41,8 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
 ---
 
 <Layout
-  title="Getting Started — dawg"
-  description="Set up dawg and let your AI agents start shipping pull requests autonomously."
+  title="Getting Started — OpenKit"
+  description="Set up OpenKit and let your AI agents start shipping pull requests autonomously."
 >
   <Nav />
   <main class="docs-page">
@@ -50,7 +50,7 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
       <header class="docs-header fade-in">
         <h1>Getting Started</h1>
         <p class="docs-lead">
-          Set up dawg and let your AI agents start shipping.
+          Set up OpenKit and let your AI agents start shipping.
         </p>
       </header>
       <div class="docs-layout">
@@ -61,11 +61,11 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
             <a href="#cli-setup" class="toc-link" data-section="cli-setup">CLI Setup</a>
             <a href="#agents" class="toc-link" data-section="agents">Agent Setup</a>
             <a href="#cli" class="toc-link" data-section="cli">CLI Reference</a>
-            <a href="#cli-default" class="toc-link toc-sub" data-section="cli-default">dawg</a>
-            <a href="#cli-init" class="toc-link toc-sub" data-section="cli-init">dawg init</a>
-            <a href="#cli-add" class="toc-link toc-sub" data-section="cli-add">dawg add</a>
-            <a href="#cli-mcp" class="toc-link toc-sub" data-section="cli-mcp">dawg mcp</a>
-            <a href="#cli-task" class="toc-link toc-sub" data-section="cli-task">dawg task</a>
+            <a href="#cli-default" class="toc-link toc-sub" data-section="cli-default">OpenKit</a>
+            <a href="#cli-init" class="toc-link toc-sub" data-section="cli-init">openkit init</a>
+            <a href="#cli-add" class="toc-link toc-sub" data-section="cli-add">openkit add</a>
+            <a href="#cli-mcp" class="toc-link toc-sub" data-section="cli-mcp">openkit mcp</a>
+            <a href="#cli-task" class="toc-link toc-sub" data-section="cli-task">openkit task</a>
           </nav>
         </aside>
 
@@ -76,7 +76,7 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
             <p>Download the desktop app. It includes a guided setup wizard that walks you through everything — no prerequisites needed.</p>
             <div class="install-primary">
               <a
-                href="https://github.com/fum4/dawg/releases/latest"
+                href="https://github.com/fum4/OpenKit/releases/latest"
                 target="_blank"
                 rel="noopener"
                 class="install-btn"
@@ -104,9 +104,9 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
             <p>Install the CLI globally:</p>
             <div class="cli-block">
               <div class="cli-lines">
-                <div class="cli-line"><span class="cli-prompt">$ </span>npm install -g dawg</div>
+                <div class="cli-line"><span class="cli-prompt">$ </span>npm install -g openkit</div>
               </div>
-              <button class="copy-btn" data-copy="npm install -g dawg" aria-label="Copy">
+              <button class="copy-btn" data-copy="npm install -g openkit" aria-label="Copy">
                 <Fragment set:html={copySvg} />
                 <Fragment set:html={checkSvg} />
               </button>
@@ -114,30 +114,30 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
             <p>Navigate to your project root and run the setup wizard:</p>
             <div class="cli-block">
               <div class="cli-lines">
-                <div class="cli-line"><span class="cli-prompt">$ </span>dawg init</div>
+                <div class="cli-line"><span class="cli-prompt">$ </span>openkit init</div>
               </div>
-              <button class="copy-btn" data-copy="dawg init" aria-label="Copy">
+              <button class="copy-btn" data-copy="openkit init" aria-label="Copy">
                 <Fragment set:html={copySvg} />
                 <Fragment set:html={checkSvg} />
               </button>
             </div>
             <p>
               The wizard auto-detects your package manager, dev start command, and base branch.
-              It creates a <code>.dawg/config.json</code> that you can commit to share settings with your team.
+              It creates a <code>.openkit/config.json</code> that you can commit to share settings with your team.
             </p>
-            <p>Once the server is running, click <strong>Discover Ports</strong> in the UI to detect which ports your dev server binds. dawg uses these to auto-offset ports per worktree so you can run multiple environments in parallel.</p>
+            <p>Once the server is running, click <strong>Discover Ports</strong> in the UI to detect which ports your dev server binds. OpenKit uses these to auto-offset ports per worktree so you can run multiple environments in parallel.</p>
             <div class="callout">
               <span class="callout-icon">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
               </span>
-              <span>dawg integrates with <strong>Jira</strong>, <strong>Linear</strong>, and <strong>GitHub</strong>. Connect them from the UI or via <code>dawg add</code>.</span>
+              <span>OpenKit integrates with <strong>Jira</strong>, <strong>Linear</strong>, and <strong>GitHub</strong>. Connect them from the UI or via <code>openkit add</code>.</span>
             </div>
           </section>
 
           <!-- ─── Agent Setup ──────────────────────────────────── -->
           <section id="agents" class="docs-section fade-in">
             <h2>Agent Setup</h2>
-            <p>dawg exposes 20+ tools via <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">MCP</a> that let AI agents manage your full development workflow. Add dawg as an MCP server in your agent's config:</p>
+            <p>OpenKit exposes 20+ tools via <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">MCP</a> that let AI agents manage your full development workflow. Add OpenKit as an MCP server in your agent's config:</p>
 
             <div class="agent-tabs">
               <div class="agent-tab-bar">
@@ -171,7 +171,7 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
               <li>Commit, push, and create pull requests</li>
             </ul>
 
-            <p>If the dawg UI is running, agents share live state with it — you see every action in the activity feed in real time. If no UI is running, agents work standalone.</p>
+            <p>If the OpenKit UI is running, agents share live state with it — you see every action in the activity feed in real time. If no UI is running, agents work standalone.</p>
           </section>
 
           <!-- ─── CLI Reference ────────────────────────────────── -->
@@ -179,26 +179,26 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
             <h2>CLI Reference</h2>
             <div class="cli-block">
               <div class="cli-lines">
-                <div class="cli-line"><span class="cli-prompt">$ </span>dawg [command] [options]</div>
+                <div class="cli-line"><span class="cli-prompt">$ </span>openkit [command] [options]</div>
               </div>
             </div>
 
-            <!-- dawg (default) -->
+            <!-- OpenKit (default) -->
             <article id="cli-default" class="cli-entry">
-              <h3><code>dawg</code></h3>
+              <h3><code>OpenKit</code></h3>
               <p>Start the server.</p>
               <div class="cli-block">
                 <div class="cli-lines">
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg</div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg --no-open</div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg --auto-init</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>OpenKit</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>OpenKit --no-open</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>OpenKit --auto-init</div>
                 </div>
-                <button class="copy-btn" data-copy="dawg" aria-label="Copy">
+                <button class="copy-btn" data-copy="OpenKit" aria-label="Copy">
                   <Fragment set:html={copySvg} />
                   <Fragment set:html={checkSvg} />
                 </button>
               </div>
-              <p>Loads config from <code>.dawg/config.json</code>, starts the HTTP server, and opens the UI. On first run, installs the <code>dawg</code> command to <code>~/.local/bin/</code>.</p>
+              <p>Loads config from <code>.openkit/config.json</code>, starts the HTTP server, and opens the UI. On first run, installs the <code>OpenKit</code> command to <code>~/.local/bin/</code>.</p>
               <table>
                 <thead><tr><th>Option</th><th>Description</th></tr></thead>
                 <tbody>
@@ -208,15 +208,15 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
               </table>
             </article>
 
-            <!-- dawg init -->
+            <!-- openkit init -->
             <article id="cli-init" class="cli-entry">
-              <h3><code>dawg init</code></h3>
-              <p>Interactive setup wizard. Creates <code>.dawg/config.json</code> with your project settings.</p>
+              <h3><code>openkit init</code></h3>
+              <p>Interactive setup wizard. Creates <code>.openkit/config.json</code> with your project settings.</p>
               <div class="cli-block">
                 <div class="cli-lines">
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg init</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit init</div>
                 </div>
-                <button class="copy-btn" data-copy="dawg init" aria-label="Copy">
+                <button class="copy-btn" data-copy="openkit init" aria-label="Copy">
                   <Fragment set:html={copySvg} />
                   <Fragment set:html={checkSvg} />
                 </button>
@@ -231,21 +231,21 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
                   <tr><td>Ports</td><td>Discovered from running dev server</td></tr>
                 </tbody>
               </table>
-              <p>After setup, both <code>.dawg/config.json</code> and <code>.dawg/.gitignore</code> are staged and ready to commit.</p>
+              <p>After setup, both <code>.openkit/config.json</code> and <code>.openkit/.gitignore</code> are staged and ready to commit.</p>
             </article>
 
-            <!-- dawg add -->
+            <!-- openkit add -->
             <article id="cli-add" class="cli-entry">
-              <h3><code>dawg add [integration]</code></h3>
+              <h3><code>openkit add [integration]</code></h3>
               <p>Connect an integration. Run without arguments for an interactive picker.</p>
               <div class="cli-block">
                 <div class="cli-lines">
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg add<span class="cli-comment">            # Interactive picker</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg add github<span class="cli-comment">     # Requires gh CLI</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg add linear<span class="cli-comment">     # Requires API key</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg add jira<span class="cli-comment">       # OAuth or API token</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add<span class="cli-comment">            # Interactive picker</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add github<span class="cli-comment">     # Requires gh CLI</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add linear<span class="cli-comment">     # Requires API key</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add jira<span class="cli-comment">       # OAuth or API token</span></div>
                 </div>
-                <button class="copy-btn" data-copy="dawg add" aria-label="Copy">
+                <button class="copy-btn" data-copy="openkit add" aria-label="Copy">
                   <Fragment set:html={copySvg} />
                   <Fragment set:html={checkSvg} />
                 </button>
@@ -260,15 +260,15 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
               </table>
             </article>
 
-            <!-- dawg mcp -->
+            <!-- openkit mcp -->
             <article id="cli-mcp" class="cli-entry">
-              <h3><code>dawg mcp</code></h3>
+              <h3><code>openkit mcp</code></h3>
               <p>Start as an MCP server for AI coding agents. Uses stdio for JSON-RPC communication.</p>
               <div class="cli-block">
                 <div class="cli-lines">
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg mcp</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit mcp</div>
                 </div>
-                <button class="copy-btn" data-copy="dawg mcp" aria-label="Copy">
+                <button class="copy-btn" data-copy="openkit mcp" aria-label="Copy">
                   <Fragment set:html={copySvg} />
                   <Fragment set:html={checkSvg} />
                 </button>
@@ -280,19 +280,19 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
               </ul>
             </article>
 
-            <!-- dawg task -->
+            <!-- openkit task -->
             <article id="cli-task" class="cli-entry">
-              <h3><code>dawg task [source] [ID...]</code></h3>
+              <h3><code>openkit task [source] [ID...]</code></h3>
               <p>Create worktrees from Jira, Linear, or local issues. Run without arguments for an interactive prompt.</p>
               <div class="cli-block">
                 <div class="cli-lines">
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg task<span class="cli-comment"> # Interactive</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg task jira PROJ-123<span class="cli-comment"> # Jira</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg task linear ENG-42<span class="cli-comment"> # Linear</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg task local 7<span class="cli-comment"> # Local</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>dawg task jira 101 102 103<span class="cli-comment"> # Batch</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task<span class="cli-comment"> # Interactive</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task jira PROJ-123<span class="cli-comment"> # Jira</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task linear ENG-42<span class="cli-comment"> # Linear</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task local 7<span class="cli-comment"> # Local</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task jira 101 102 103<span class="cli-comment"> # Batch</span></div>
                 </div>
-                <button class="copy-btn" data-copy="dawg task jira PROJ-123" aria-label="Copy">
+                <button class="copy-btn" data-copy="openkit task jira PROJ-123" aria-label="Copy">
                   <Fragment set:html={copySvg} />
                   <Fragment set:html={checkSvg} />
                 </button>

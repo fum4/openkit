@@ -9,7 +9,10 @@ import { input, text } from "../theme";
 import { Spinner } from "./Spinner";
 
 const isWork3Server = (r: McpScanResult) =>
-  r.key === "dawg" || (r.command === "npx" && r.args.includes("dawg"));
+  r.key === "OpenKit" ||
+  r.key === "openkit" ||
+  r.command === "openkit" ||
+  (r.command === "npx" && (r.args.includes("OpenKit") || r.args.includes("openkit")));
 
 type ScanMode = "project" | "folder" | "device";
 type ResultTab = "servers" | "skills" | "plugins";
@@ -105,7 +108,7 @@ export function McpServerScanModal({
         return;
       }
 
-      // Filter: hide dawg and already-imported items
+      // Filter: hide OpenKit and already-imported items
       const newMcps = (mcpRes.discovered ?? []).filter(
         (r) => !isWork3Server(r) && !r.alreadyInRegistry,
       );

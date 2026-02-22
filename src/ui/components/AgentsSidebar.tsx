@@ -14,12 +14,12 @@ import { PluginItem } from "./PluginItem";
 import { Spinner } from "./Spinner";
 import { ToggleSwitch } from "./ToggleSwitch";
 
-export const DAWG_SERVER: McpServerSummary = {
-  id: "dawg",
-  name: "dawg",
+export const OPENKIT_SERVER: McpServerSummary = {
+  id: "OpenKit",
+  name: "OpenKit",
   description: "Worktree management, issue tracking, and more",
   tags: ["built-in"],
-  command: "dawg",
+  command: "openkit",
   args: ["mcp"],
   env: {},
   source: "built-in",
@@ -103,24 +103,24 @@ export function AgentsSidebar({
   const queryClient = useQueryClient();
 
   const [rulesCollapsed, setRulesCollapsed] = useState(
-    () => localStorage.getItem("dawg:agentsRulesCollapsed") === "1",
+    () => localStorage.getItem("OpenKit:agentsRulesCollapsed") === "1",
   );
   const [mcpCollapsed, setMcpCollapsed] = useState(
-    () => localStorage.getItem("dawg:agentsMcpCollapsed") === "1",
+    () => localStorage.getItem("OpenKit:agentsMcpCollapsed") === "1",
   );
   const [skillsCollapsed, setSkillsCollapsed] = useState(
-    () => localStorage.getItem("dawg:agentsSkillsCollapsed") === "1",
+    () => localStorage.getItem("OpenKit:agentsSkillsCollapsed") === "1",
   );
   const [pluginsCollapsed, setPluginsCollapsed] = useState(
-    () => localStorage.getItem("dawg:agentsPluginsCollapsed") === "1",
+    () => localStorage.getItem("OpenKit:agentsPluginsCollapsed") === "1",
   );
 
   const [showGlobal, setShowGlobal] = useState(() => {
-    const saved = localStorage.getItem("dawg:agentsShowGlobal");
+    const saved = localStorage.getItem("OpenKit:agentsShowGlobal");
     return saved !== null ? saved === "1" : true;
   });
   const [showProject, setShowProject] = useState(() => {
-    const saved = localStorage.getItem("dawg:agentsShowProject");
+    const saved = localStorage.getItem("OpenKit:agentsShowProject");
     return saved !== null ? saved === "1" : true;
   });
   const [configOpen, setConfigOpen] = useState(false);
@@ -139,29 +139,29 @@ export function AgentsSidebar({
   } | null>(null);
 
   const [hiddenMarketplaces, setHiddenMarketplaces] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem("dawg:hiddenMarketplaces");
+    const saved = localStorage.getItem("OpenKit:hiddenMarketplaces");
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    localStorage.setItem("dawg:agentsRulesCollapsed", rulesCollapsed ? "1" : "0");
+    localStorage.setItem("OpenKit:agentsRulesCollapsed", rulesCollapsed ? "1" : "0");
   }, [rulesCollapsed]);
   useEffect(() => {
-    localStorage.setItem("dawg:agentsMcpCollapsed", mcpCollapsed ? "1" : "0");
+    localStorage.setItem("OpenKit:agentsMcpCollapsed", mcpCollapsed ? "1" : "0");
   }, [mcpCollapsed]);
   useEffect(() => {
-    localStorage.setItem("dawg:agentsSkillsCollapsed", skillsCollapsed ? "1" : "0");
+    localStorage.setItem("OpenKit:agentsSkillsCollapsed", skillsCollapsed ? "1" : "0");
   }, [skillsCollapsed]);
   useEffect(() => {
-    localStorage.setItem("dawg:agentsPluginsCollapsed", pluginsCollapsed ? "1" : "0");
+    localStorage.setItem("OpenKit:agentsPluginsCollapsed", pluginsCollapsed ? "1" : "0");
   }, [pluginsCollapsed]);
   useEffect(() => {
-    localStorage.setItem("dawg:agentsShowGlobal", showGlobal ? "1" : "0");
+    localStorage.setItem("OpenKit:agentsShowGlobal", showGlobal ? "1" : "0");
   }, [showGlobal]);
   useEffect(() => {
-    localStorage.setItem("dawg:agentsShowProject", showProject ? "1" : "0");
+    localStorage.setItem("OpenKit:agentsShowProject", showProject ? "1" : "0");
   }, [showProject]);
   useEffect(() => {
     if (!configOpen) return;
@@ -174,7 +174,7 @@ export function AgentsSidebar({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [configOpen]);
   useEffect(() => {
-    localStorage.setItem("dawg:hiddenMarketplaces", JSON.stringify([...hiddenMarketplaces]));
+    localStorage.setItem("OpenKit:hiddenMarketplaces", JSON.stringify([...hiddenMarketplaces]));
   }, [hiddenMarketplaces]);
   useEffect(() => {
     if (!filterOpen) return;
@@ -187,9 +187,16 @@ export function AgentsSidebar({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [filterOpen]);
 
-  // Filter servers (exclude dawg duplicates — handled as built-in item)
+  // Filter servers (exclude OpenKit duplicates — handled as built-in item)
   const filteredServers = servers.filter(
-    (s) => s.id !== DAWG_SERVER.id && !(s.name === "dawg" && s.command === "dawg"),
+    (s) =>
+      s.id !== OPENKIT_SERVER.id &&
+      !(
+        s.name === "OpenKit" &&
+        (s.command === "openkit" || s.command === "OpenKit") &&
+        Array.isArray(s.args) &&
+        s.args[0] === "mcp"
+      ),
   );
 
   const filteredSkills = search
@@ -209,13 +216,13 @@ export function AgentsSidebar({
       )
     : plugins;
 
-  const dawgSeen =
-    typeof localStorage !== "undefined" && localStorage.getItem("dawg:mcpWork3Seen") === "1";
-  const isWork3New = !dawgSeen;
+  const OpenKitSeen =
+    typeof localStorage !== "undefined" && localStorage.getItem("OpenKit:mcpWork3Seen") === "1";
+  const isWork3New = !OpenKitSeen;
 
   const handleSelectWork3 = () => {
-    if (isWork3New) localStorage.setItem("dawg:mcpWork3Seen", "1");
-    onSelect({ type: "mcp-server", id: DAWG_SERVER.id });
+    if (isWork3New) localStorage.setItem("OpenKit:mcpWork3Seen", "1");
+    onSelect({ type: "mcp-server", id: OPENKIT_SERVER.id });
   };
 
   // Filter helpers
@@ -356,35 +363,35 @@ export function AgentsSidebar({
             <div className="space-y-px">
               {serversLoading ? (
                 <Work3Item
-                  isSelected={selection?.type === "mcp-server" && selection.id === DAWG_SERVER.id}
+                  isSelected={selection?.type === "mcp-server" && selection.id === OPENKIT_SERVER.id}
                   onSelect={handleSelectWork3}
                   isNew={isWork3New}
-                  isActive={Object.values(deploymentStatus[DAWG_SERVER.id] ?? {}).some(
+                  isActive={Object.values(deploymentStatus[OPENKIT_SERVER.id] ?? {}).some(
                     (v) => v.global || v.project,
                   )}
                   onDeploy={() =>
-                    setDeployDialog({ type: "mcp", id: DAWG_SERVER.id, name: "dawg" })
+                    setDeployDialog({ type: "mcp", id: OPENKIT_SERVER.id, name: "OpenKit" })
                   }
                 />
               ) : (
                 (() => {
-                  const dawgStatus = deploymentStatus[DAWG_SERVER.id] ?? {};
-                  const dawgActive = Object.values(dawgStatus).some((v) => v.global || v.project);
+                  const OpenKitStatus = deploymentStatus[OPENKIT_SERVER.id] ?? {};
+                  const OpenKitActive = Object.values(OpenKitStatus).some((v) => v.global || v.project);
 
-                  type SortEntry = { type: "server"; server: McpServerSummary } | { type: "dawg" };
+                  type SortEntry = { type: "server"; server: McpServerSummary } | { type: "OpenKit" };
                   const entries: SortEntry[] = [
-                    ...(isServerVisible(DAWG_SERVER.id) ? [{ type: "dawg" as const }] : []),
+                    ...(isServerVisible(OPENKIT_SERVER.id) ? [{ type: "OpenKit" as const }] : []),
                     ...filteredServers
                       .filter((s) => isServerVisible(s.id))
                       .map((s) => ({ type: "server" as const, server: s })),
                   ];
 
                   const isActive = (e: SortEntry) => {
-                    if (e.type === "dawg") return dawgActive;
+                    if (e.type === "OpenKit") return OpenKitActive;
                     const st = deploymentStatus[e.server.id] ?? {};
                     return Object.values(st).some((v) => v.global || v.project);
                   };
-                  const getName = (e: SortEntry) => (e.type === "dawg" ? "dawg" : e.server.name);
+                  const getName = (e: SortEntry) => (e.type === "OpenKit" ? "OpenKit" : e.server.name);
 
                   entries.sort((a, b) => {
                     const aAct = isActive(a);
@@ -394,18 +401,18 @@ export function AgentsSidebar({
                   });
 
                   return entries.map((entry) => {
-                    if (entry.type === "dawg") {
+                    if (entry.type === "OpenKit") {
                       return (
                         <Work3Item
-                          key={DAWG_SERVER.id}
+                          key={OPENKIT_SERVER.id}
                           isSelected={
-                            selection?.type === "mcp-server" && selection.id === DAWG_SERVER.id
+                            selection?.type === "mcp-server" && selection.id === OPENKIT_SERVER.id
                           }
                           onSelect={handleSelectWork3}
                           isNew={isWork3New}
-                          isActive={dawgActive}
+                          isActive={OpenKitActive}
                           onDeploy={() =>
-                            setDeployDialog({ type: "mcp", id: DAWG_SERVER.id, name: "dawg" })
+                            setDeployDialog({ type: "mcp", id: OPENKIT_SERVER.id, name: "OpenKit" })
                           }
                         />
                       );
@@ -977,7 +984,7 @@ function Work3Item({
             <span
               className={`text-xs font-medium truncate ${isSelected ? text.primary : text.secondary}`}
             >
-              dawg
+              OpenKit
             </span>
             {isNew && (
               <span className="relative flex-shrink-0">

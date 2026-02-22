@@ -915,7 +915,7 @@ export async function verifyIntegrations(
   }
 }
 
-// Check if dawg config files need to be pushed
+// Check if OpenKit config files need to be pushed
 export async function fetchSetupStatus(
   serverUrl: string | null = null,
 ): Promise<{ needsPush: boolean; files: string[] }> {
@@ -938,7 +938,7 @@ export async function fetchSetupFeatures(
   }
 }
 
-// Commit dawg config files
+// Commit OpenKit config files
 export async function commitSetup(
   message: string,
   serverUrl: string | null = null,

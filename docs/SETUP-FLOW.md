@@ -2,7 +2,7 @@
 
 ## Overview
 
-When a project is opened for the first time (no `.dawg/config.json` exists), dawg presents a multi-step setup wizard. The wizard guides users through project configuration, agent skill setup, git setup, and integration linking before dropping them into the main workspace.
+When a project is opened for the first time (no `.openkit/config.json` exists), OpenKit presents a multi-step setup wizard. The wizard guides users through project configuration, agent skill setup, git setup, and integration linking before dropping them into the main workspace.
 
 The setup flow is implemented in `src/ui/components/ProjectSetupScreen.tsx` as a single component with a `SetupMode` state machine.
 
@@ -65,7 +65,7 @@ stateDiagram-v2
 | Remember choice | Optional checkbox that persists the preference for future projects (Electron only).                                                   |
 
 On mount, the component calls `api.detectConfig()` to pre-fill detected values shown under the auto-detect option.
-During setup, config initialization is called with `force: true` so restarting the flow can overwrite an existing `.dawg/config.json`.
+During setup, config initialization is called with `force: true` so restarting the flow can overwrite an existing `.openkit/config.json`.
 Config initialization also auto-enables the default `work-on-task` project skill.
 
 ### 2. Manual Setup (`manual`)
@@ -96,7 +96,7 @@ Can be skipped with "Skip for now".
 
 ### 4. Commit & Push (`commit-prompt`)
 
-**Purpose:** Commit and push the `.dawg/config.json` and `.dawg/.gitignore` files so the config is available in all worktrees.
+**Purpose:** Commit and push the `.openkit/config.json` and `.openkit/.gitignore` files so the config is available in all worktrees.
 
 Handles three GitHub CLI states:
 
@@ -196,7 +196,7 @@ interface ProjectSetupScreenProps {
 | Commit          | `GET /api/github/status`            | GitHub CLI/auth status      |
 | Commit          | `POST /api/github/install`          | Install gh CLI + start auth |
 | Commit          | `POST /api/github/login`            | Start device-flow login     |
-| Commit          | `POST /api/config/commit-setup`     | Commit & push .dawg files   |
+| Commit          | `POST /api/config/commit-setup`     | Commit & push .openkit files   |
 | Integrations    | `GET /api/github/status`            | GitHub status               |
 | Integrations    | `GET /api/jira/status`              | Jira connection status      |
 | Integrations    | `GET /api/linear/status`            | Linear connection status    |

@@ -40,7 +40,7 @@ export const MCP_WORK_ON_TASK_PROMPT = mcpWorkOnTaskMd;
 /** Claude Code SKILL.md content (deployed to ~/.claude/skills/work/SKILL.md) */
 export const CLAUDE_SKILL = resolve(claudeSkillMd, withWorkflow);
 
-/** Cursor rule content (deployed to .cursor/rules/dawg.mdc) */
+/** Cursor rule content (deployed to .cursor/rules/OpenKit.mdc) */
 export const CURSOR_RULE = resolve(cursorRuleMd, withWorkflow);
 
 /** VS Code Copilot prompt content (deployed to .github/prompts/work.prompt.md) */

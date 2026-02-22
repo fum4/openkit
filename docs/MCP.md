@@ -4,15 +4,15 @@
 
 [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) is an open standard for connecting AI agents to external tools and data sources. It defines a JSON-RPC-based protocol that allows agents (like Claude Code, Cursor, or any MCP-compatible client) to discover and invoke tools exposed by a server.
 
-dawg exposes its entire worktree management surface as MCP tools. This means an AI agent can create worktrees from Jira or Linear issues, start and stop dev servers, commit and push code, manage todo checklists, and run hooks -- all through structured tool calls rather than brittle shell commands or file system access.
+OpenKit exposes its entire worktree management surface as MCP tools. This means an AI agent can create worktrees from Jira or Linear issues, start and stop dev servers, commit and push code, manage todo checklists, and run hooks -- all through structured tool calls rather than brittle shell commands or file system access.
 
 ## Two Modes
 
-When you run `dawg mcp`, the CLI decides how to operate based on whether a dawg HTTP server is already running.
+When you run `openkit mcp`, the CLI decides how to operate based on whether a OpenKit HTTP server is already running.
 
 ### Proxy Mode (stdio-to-HTTP relay)
 
-If a running server is detected (via `.dawg/server.json`), the CLI acts as a **proxy**. It does not create its own `WorktreeManager`. Instead:
+If a running server is detected (via `.openkit/server.json`), the CLI acts as a **proxy**. It does not create its own `WorktreeManager`. Instead:
 
 1. It opens a `StdioServerTransport` to communicate with the agent over stdin/stdout (JSON-RPC).
 2. It opens a `StreamableHTTPClientTransport` pointed at the running server's `/mcp` endpoint.
@@ -20,7 +20,7 @@ If a running server is detected (via `.dawg/server.json`), the CLI acts as a **p
 
 This mode ensures that the MCP tools share the same state as the web UI -- worktree status, logs, port allocations, and SSE events are all consistent.
 
-**How detection works:** The CLI reads `.dawg/server.json` (which contains `url` and `pid`), verifies the process is still alive with `process.kill(pid, 0)`, and uses the URL if the process responds. If the file is missing, unreadable, or the process is dead, it falls back to standalone mode.
+**How detection works:** The CLI reads `.openkit/server.json` (which contains `url` and `pid`), verifies the process is still alive with `process.kill(pid, 0)`, and uses the URL if the process responds. If the file is missing, unreadable, or the process is dead, it falls back to standalone mode.
 
 ### Standalone Mode
 
@@ -32,14 +32,14 @@ This mode is useful when you want MCP tools without running the full web UI -- f
 
 ## HTTP Transport
 
-For MCP clients that support HTTP-based transport directly (without stdio), dawg exposes a streamable HTTP endpoint:
+For MCP clients that support HTTP-based transport directly (without stdio), OpenKit exposes a streamable HTTP endpoint:
 
 - **Endpoint:** `POST /mcp` (GET and DELETE return 405 — SSE and session management are not needed)
 - **Transport:** `WebStandardStreamableHTTPServerTransport` from the MCP SDK, created per request (stateless mode)
-- **Session management:** Stateless (no session tracking). dawg is a single-user local dev tool, so session multiplexing is unnecessary.
+- **Session management:** Stateless (no session tracking). OpenKit is a single-user local dev tool, so session multiplexing is unnecessary.
 - **Response format:** JSON responses enabled (`enableJsonResponse: true`)
 
-This endpoint is registered automatically when the dawg HTTP server starts. Proxy mode uses this endpoint internally.
+This endpoint is registered automatically when the OpenKit HTTP server starts. Proxy mode uses this endpoint internally.
 
 ## Complete Tool Reference
 
@@ -90,13 +90,13 @@ All git operations are subject to the agent git policy. Call `get_git_policy` fi
 
 | Tool     | Description                                                                                                                                                               | Parameters                                                                                                                                                                                                                                                               |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `notify` | Send a free-form status update to the dawg activity feed. Use to keep the user informed about progress on long-running tasks. Other tool calls are tracked automatically. | `message` (string, **required**) -- status message; `severity` (string, optional) -- `"info"` (default), `"warning"`, or `"error"`; `worktreeId` (string, optional) -- related worktree ID; `requiresUserAction` (boolean, optional) -- mark when user input is required |
+| `notify` | Send a free-form status update to the openkit activity feed. Use to keep the user informed about progress on long-running tasks. Other tool calls are tracked automatically. | `message` (string, **required**) -- status message; `severity` (string, optional) -- `"info"` (default), `"warning"`, or `"error"`; `worktreeId` (string, optional) -- related worktree ID; `requiresUserAction` (boolean, optional) -- mark when user input is required |
 
 ### Configuration
 
 | Tool         | Description                                          | Parameters |
 | ------------ | ---------------------------------------------------- | ---------- |
-| `get_config` | Get the current dawg configuration and project name. | _(none)_   |
+| `get_config` | Get the current OpenKit configuration and project name. | _(none)_   |
 
 ### Hooks
 
@@ -124,11 +124,11 @@ In addition to tools, the MCP server registers a **prompt** called `work-on-task
 The MCP server sends an instructions prompt to connected agents. This prompt teaches agents the "work-on-task" workflow and how to use the tools correctly. Here is the full text:
 
 ```
-dawg manages git worktrees with automatic port offsetting.
+OpenKit manages git worktrees with automatic port offsetting.
 
 IMPORTANT: When a user mentions an issue key, ticket number, or says "work on <something>",
-you should immediately use the appropriate dawg MCP tool to create a worktree.
-Do NOT read .dawg/ files or make HTTP requests to the dawg server. All communication goes through these MCP tools.
+you should immediately use the appropriate OpenKit MCP tool to create a worktree.
+Do NOT read .openkit/ files or make HTTP requests to the OpenKit server. All communication goes through these MCP tools.
 
 ## Quick Start
 - Issue key like "PROJ-123" or number like "456" -> call create_from_jira with issueKey param
@@ -153,7 +153,7 @@ Do NOT read .dawg/ files or make HTTP requests to the dawg server. All communica
 
 ## Issue Data
 - get_jira_issue and get_linear_issue check locally cached data first. They only fetch from the remote API if no local data is found.
-- Prefer these tools over reading .dawg/ files directly.
+- Prefer these tools over reading .openkit/ files directly.
 
 ## Todo Workflow
 Todos are a checklist of sub-tasks defined by the user. They appear in TASK.md and in get_task_context output.
@@ -223,15 +223,15 @@ Add to your `.mcp.json` (project-level) or `~/.claude/claude_desktop_config.json
 ```json
 {
   "mcpServers": {
-    "dawg": {
-      "command": "dawg",
+    "OpenKit": {
+      "command": "openkit",
       "args": ["mcp"]
     }
   }
 }
 ```
 
-When configured this way, `dawg mcp` runs as a stdio-based MCP server. It will automatically detect whether a dawg HTTP server is running and choose proxy or standalone mode accordingly.
+When configured this way, `openkit mcp` runs as a stdio-based MCP server. It will automatically detect whether a OpenKit HTTP server is running and choose proxy or standalone mode accordingly.
 
 ### As HTTP Transport
 
@@ -240,15 +240,15 @@ For MCP clients that support direct HTTP connections (no stdio wrapper needed):
 ```json
 {
   "mcpServers": {
-    "dawg": {
+    "OpenKit": {
       "url": "http://localhost:6969/mcp"
     }
   }
 }
 ```
 
-Replace `6969` with your configured `serverPort` if different. This requires the dawg HTTP server to be running (`dawg` or `dawg connect`).
+Replace `6969` with your configured `serverPort` if different. This requires the OpenKit HTTP server to be running (`OpenKit` or `openkit connect`).
 
 ### Verifying the Connection
 
-Once configured, the agent should have access to all dawg tools. You can verify by asking the agent to call `list_worktrees` or `get_config`. If the connection is working, it will return your project configuration and any existing worktrees.
+Once configured, the agent should have access to all OpenKit tools. You can verify by asking the agent to call `list_worktrees` or `get_config`. If the connection is working, it will return your project configuration and any existing worktrees.

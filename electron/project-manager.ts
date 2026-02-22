@@ -26,7 +26,7 @@ interface AppState {
   lastActiveProjectDir: string | null;
 }
 
-const STATE_DIR = path.join(os.homedir(), ".dawg");
+const STATE_DIR = path.join(os.homedir(), ".openkit");
 const STATE_FILE = path.join(STATE_DIR, "app-state.json");
 const LOCK_FILE = path.join(STATE_DIR, "electron.lock");
 

@@ -155,7 +155,7 @@ export class NotificationManager {
 
     // Fire native notification
     const notification = new Notification({
-      title: `dawg - ${projectName}`,
+      title: `OpenKit - ${projectName}`,
       body: event.title,
       silent: false,
     });

@@ -561,7 +561,7 @@ export function scanFilesystemForServers(rootDir: string, maxDepth = 5): Filesys
 
 /** Known dot-directories that may contain tool configs */
 function isKnownDotDir(name: string): boolean {
-  return [".claude", ".cursor", ".gemini", ".codex", ".vscode", ".dawg", ".config"].includes(name);
+  return [".claude", ".cursor", ".gemini", ".codex", ".vscode", ".openkit", ".config"].includes(name);
 }
 
 /**
