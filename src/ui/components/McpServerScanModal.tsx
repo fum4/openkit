@@ -366,8 +366,7 @@ export function McpServerScanModal({
             <div key="plugins-tab">
               <p className={`${text.dimmed} text-[11px] mb-3`}>
                 Claude Plugins are managed by Claude CLI and appear automatically in the sidebar. No
-                import
-                needed.
+                import needed.
               </p>
               <div className="space-y-1 max-h-72 overflow-y-auto">
                 {plugins.map((p) => (
