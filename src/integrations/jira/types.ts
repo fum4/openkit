@@ -18,6 +18,7 @@ export interface JiraProjectConfig {
   defaultProjectKey?: string;
   refreshIntervalMinutes?: number;
   dataLifecycle?: DataLifecycleConfig;
+  autoStartAgent?: "claude" | "codex" | "gemini" | "opencode";
   autoStartClaudeOnNewIssue?: boolean;
   autoStartClaudeSkipPermissions?: boolean;
   autoStartClaudeFocusTerminal?: boolean;

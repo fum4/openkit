@@ -148,16 +148,25 @@ export function registerTaskRoutes(
   notesManager: NotesManager,
 ) {
   const configDir = manager.getConfigDir();
+  const resolveActiveLinkedWorktreeId = (taskId: string): string | null => {
+    const notes = notesManager.loadNotes("local", taskId);
+    if (!notes.linkedWorktreeId) return null;
+    const exists = manager
+      .getWorktrees()
+      .some((worktree) => worktree.id === notes.linkedWorktreeId);
+    if (exists) return notes.linkedWorktreeId;
+    notesManager.setLinkedWorktreeId("local", taskId, null);
+    return null;
+  };
 
   // List all custom tasks — enrich with linkedWorktreeId from notes
   app.get("/api/tasks", (c) => {
     const tasks = loadAllTasks(configDir);
     const enriched = tasks.map((task) => {
-      const notes = notesManager.loadNotes("local", task.id);
       const attachments = listAttachments(configDir, task.id);
       return {
         ...task,
-        linkedWorktreeId: notes.linkedWorktreeId,
+        linkedWorktreeId: resolveActiveLinkedWorktreeId(task.id),
         attachmentCount: attachments.length,
       };
     });
@@ -168,9 +177,14 @@ export function registerTaskRoutes(
   app.get("/api/tasks/:id", (c) => {
     const task = loadTask(configDir, c.req.param("id"));
     if (!task) return c.json({ error: "Task not found" }, 404);
-    const notes = notesManager.loadNotes("local", task.id);
     const attachments = listAttachments(configDir, task.id);
-    return c.json({ task: { ...task, linkedWorktreeId: notes.linkedWorktreeId, attachments } });
+    return c.json({
+      task: {
+        ...task,
+        linkedWorktreeId: resolveActiveLinkedWorktreeId(task.id),
+        attachments,
+      },
+    });
   });
 
   // Create task
@@ -248,8 +262,10 @@ export function registerTaskRoutes(
     task.updatedAt = new Date().toISOString();
     saveTask(configDir, task);
 
-    const notes = notesManager.loadNotes("local", task.id);
-    return c.json({ success: true, task: { ...task, linkedWorktreeId: notes.linkedWorktreeId } });
+    return c.json({
+      success: true,
+      task: { ...task, linkedWorktreeId: resolveActiveLinkedWorktreeId(task.id) },
+    });
   });
 
   // Delete task

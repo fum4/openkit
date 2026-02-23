@@ -227,6 +227,8 @@ export class WorktreeManager {
         envMapping: fileConfig.envMapping ?? this.config.envMapping,
         autoInstall: fileConfig.autoInstall,
         localIssuePrefix: fileConfig.localIssuePrefix,
+        localAutoStartAgent:
+          fileConfig.localAutoStartAgent ?? this.config.localAutoStartAgent ?? "claude",
         localAutoStartClaudeOnNewIssue:
           fileConfig.localAutoStartClaudeOnNewIssue ?? this.config.localAutoStartClaudeOnNewIssue,
         localAutoStartClaudeSkipPermissions:
@@ -688,6 +690,15 @@ export class WorktreeManager {
 
     // Check if worktree directory exists OR if git has a stale worktree entry
     const gitRoot = this.getGitRoot();
+    try {
+      execFileSync("git", ["worktree", "prune"], {
+        cwd: gitRoot,
+        encoding: "utf-8",
+        stdio: "pipe",
+      });
+    } catch {
+      // Ignore prune errors - existence checks below still provide guardrails.
+    }
     const worktreeExistsOnDisk = existsSync(worktreePath);
     let gitWorktreeExists = false;
 
@@ -883,7 +894,10 @@ export class WorktreeManager {
       const pendingCtx = this.pendingWorktreeContext.get(worktreeId);
       if (pendingCtx) {
         try {
-          const notes = this.notesManager.loadNotes(pendingCtx.data.source, pendingCtx.data.issueId);
+          const notes = this.notesManager.loadNotes(
+            pendingCtx.data.source,
+            pendingCtx.data.issueId,
+          );
           const hooks = this.taskHooksProvider?.(worktreeId) ?? undefined;
           const content = generateTaskMd(pendingCtx.data, pendingCtx.aiContext, notes.todos, hooks);
           writeTaskMd(worktreePath, content);
@@ -1059,7 +1073,9 @@ export class WorktreeManager {
     const worktreesPath = this.getWorktreesAbsolutePath();
     const worktreePath = path.join(worktreesPath, id);
     if (!existsSync(worktreePath)) {
+      this.notesManager.clearLinkedWorktreeId(id);
       this.clearAwaitingInputForWorktree(id);
+      this.notifyListeners();
       return { success: true };
     }
 
@@ -1090,6 +1106,7 @@ export class WorktreeManager {
         }
       }
 
+      this.notesManager.clearLinkedWorktreeId(id);
       this.notifyListeners();
       this.clearAwaitingInputForWorktree(id);
       await this.runWorktreeLifecycleHooks("worktree-removed", id, worktreePath);
@@ -1369,6 +1386,7 @@ export class WorktreeManager {
         "projectDir",
         "autoInstall",
         "localIssuePrefix",
+        "localAutoStartAgent",
         "localAutoStartClaudeOnNewIssue",
         "localAutoStartClaudeSkipPermissions",
         "localAutoStartClaudeFocusTerminal",
@@ -1385,6 +1403,15 @@ export class WorktreeManager {
             !isConfiguredOpenProjectTarget(partial.openProjectTarget)
           ) {
             return { success: false, error: "Invalid open project target" };
+          }
+          if (
+            key === "localAutoStartAgent" &&
+            partial.localAutoStartAgent !== "claude" &&
+            partial.localAutoStartAgent !== "codex" &&
+            partial.localAutoStartAgent !== "gemini" &&
+            partial.localAutoStartAgent !== "opencode"
+          ) {
+            return { success: false, error: "Invalid local auto-start agent" };
           }
           existing[key] = partial[key];
           (this.config as unknown as Record<string, unknown>)[key] = partial[key];

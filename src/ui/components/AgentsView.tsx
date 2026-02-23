@@ -20,7 +20,6 @@ import { McpServerScanModal } from "./McpServerScanModal";
 import { SkillCreateModal } from "./SkillCreateModal";
 import { PluginInstallModal } from "./PluginInstallModal";
 import { ResizableHandle } from "./ResizableHandle";
-import { OPENKIT_SERVER } from "./AgentsSidebar";
 import { text } from "../theme";
 
 const BANNER_DISMISSED_KEY = `${APP_NAME}:agentsBannerDismissed`;
@@ -103,15 +102,14 @@ export function AgentsView() {
     localStorage.setItem(STORAGE_KEY, String(sidebarWidth));
   };
 
-  // Auto-select OpenKit built-in if nothing selected
+  // Clear stale selection when selected MCP server no longer exists
   useEffect(() => {
-    if (!selection) {
-      setSelection({ type: "mcp-server", id: OPENKIT_SERVER.id });
-    } else if (selection.type === "mcp-server" && selection.id !== OPENKIT_SERVER.id) {
-      // Check if selected server still exists
-      if (!serversLoading && servers.length > 0 && !servers.find((s) => s.id === selection.id)) {
-        setSelection({ type: "mcp-server", id: OPENKIT_SERVER.id });
-      }
+    if (
+      selection?.type === "mcp-server" &&
+      !serversLoading &&
+      !servers.find((s) => s.id === selection.id)
+    ) {
+      setSelection(null);
     }
   }, [servers, serversLoading, selection]);
 
@@ -211,9 +209,7 @@ export function AgentsView() {
     const options = { mode: "device" as const };
     Promise.all([api.scanMcpServers(options), api.scanSkills(options)])
       .then(([mcpRes, skillRes]) => {
-        const mcpResults = (mcpRes.discovered ?? []).filter(
-          (r) => !r.alreadyInRegistry && r.key !== "OpenKit",
-        );
+        const mcpResults = (mcpRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
         const skillResults = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
         setPersistedDiscoveryResults({ mcpResults, skillResults });
         setDiscoveryCounts({ servers: mcpResults.length, skills: skillResults.length });
@@ -371,7 +367,7 @@ export function AgentsView() {
         ) : null}
         {selection?.type === "agent-rule" ? (
           <AgentRuleDetailPanel fileId={selection.fileId} />
-        ) : selection?.type === "mcp-server" && selection.id !== OPENKIT_SERVER.id ? (
+        ) : selection?.type === "mcp-server" ? (
           <McpServerDetailPanel
             serverId={selection.id}
             onDeleted={() => {
@@ -379,12 +375,6 @@ export function AgentsView() {
               refetchServers();
               refetchDeployment();
             }}
-          />
-        ) : selection?.type === "mcp-server" && selection.id === OPENKIT_SERVER.id ? (
-          <McpServerDetailPanel
-            serverId={OPENKIT_SERVER.id}
-            builtInServer={OPENKIT_SERVER}
-            onDeleted={() => setSelection(null)}
           />
         ) : selection?.type === "skill" ? (
           <SkillDetailPanel

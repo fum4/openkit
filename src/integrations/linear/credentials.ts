@@ -40,6 +40,7 @@ export function loadLinearProjectConfig(configDir: string): LinearProjectConfig 
     defaultTeamKey: linear.defaultTeamKey as string | undefined,
     refreshIntervalMinutes: linear.refreshIntervalMinutes as number | undefined,
     dataLifecycle: linear.dataLifecycle as DataLifecycleConfig | undefined,
+    autoStartAgent: linear.autoStartAgent as LinearProjectConfig["autoStartAgent"] | undefined,
     autoStartClaudeOnNewIssue: linear.autoStartClaudeOnNewIssue as boolean | undefined,
     autoStartClaudeSkipPermissions: linear.autoStartClaudeSkipPermissions as boolean | undefined,
     autoStartClaudeFocusTerminal: linear.autoStartClaudeFocusTerminal as boolean | undefined,

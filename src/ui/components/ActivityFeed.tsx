@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { ACTIVITY_TYPES } from "../../server/activity-event";
 import type { ActivityEvent } from "../hooks/api";
 import type { HookFeedItem } from "../hooks/useActivityFeed";
-import { ClaudeIcon, JiraIcon, LinearIcon } from "../icons";
+import { ClaudeIcon, CodexIcon, GeminiIcon, JiraIcon, LinearIcon, OpenCodeIcon } from "../icons";
 import { activity, integration, text } from "../theme";
 import { ToggleSwitch } from "./ToggleSwitch";
 
@@ -97,10 +97,45 @@ function hookItems(event: ActivityEvent): HookFeedItem[] {
   return Array.isArray(items) ? items : [];
 }
 
+type ActivityFilterGroup = "worktree" | "hooks" | "agents" | "system";
+
 function HookStatusIcon({ status }: { status: HookFeedItem["status"] }) {
   if (status === "running") return <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />;
   if (status === "failed") return <X className="w-3.5 h-3.5 text-red-400" />;
   return <Check className="w-3.5 h-3.5 text-emerald-400" />;
+}
+
+function normalizeAgentToken(value: unknown): "claude" | "codex" | "gemini" | "opencode" | null {
+  if (typeof value !== "string") return null;
+  const token = value.trim().toLowerCase();
+  if (!token) return null;
+  if (token.includes("claude")) return "claude";
+  if (token.includes("codex")) return "codex";
+  if (token.includes("gemini")) return "gemini";
+  if (token.includes("opencode")) return "opencode";
+  return null;
+}
+
+function getAgentIconVariant(
+  event: ActivityEvent,
+): "claude" | "codex" | "gemini" | "opencode" | null {
+  const metadataAgent = normalizeAgentToken(event.metadata?.agent);
+  if (metadataAgent) return metadataAgent;
+  const metadataModel = normalizeAgentToken(event.metadata?.model);
+  if (metadataModel) return metadataModel;
+  const scanText = `${event.title ?? ""} ${event.detail ?? ""}`.toLowerCase();
+  if (scanText.includes("claude")) return "claude";
+  if (scanText.includes("codex")) return "codex";
+  if (scanText.includes("gemini")) return "gemini";
+  if (scanText.includes("opencode")) return "opencode";
+  return null;
+}
+
+function isInFilterGroup(event: ActivityEvent, group: ActivityFilterGroup): boolean {
+  if (group === "worktree") return event.category === "worktree";
+  if (group === "hooks") return isHookEvent(event);
+  if (group === "agents") return event.category === "agent" && !isHookEvent(event);
+  return event.category === "system";
 }
 
 interface ActivityFeedProps {
@@ -111,6 +146,9 @@ interface ActivityFeedProps {
   onClearAll: () => void;
   showAllProjects: boolean;
   onToggleShowAllProjects: () => void;
+  selectedFilterGroups: ActivityFilterGroup[];
+  onToggleFilterGroup: (group: ActivityFilterGroup) => void;
+  onClearFilterGroups: () => void;
   onClose: () => void;
   onNavigateToWorktree?: (target: {
     worktreeId: string;
@@ -136,6 +174,9 @@ export function ActivityFeed({
   onClearAll,
   showAllProjects,
   onToggleShowAllProjects,
+  selectedFilterGroups,
+  onToggleFilterGroup,
+  onClearFilterGroups,
   onClose,
   onNavigateToWorktree,
   onNavigateToIssue,
@@ -170,14 +211,24 @@ export function ActivityFeed({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const actionRequiredEvents = useMemo(() => getActiveActionRequiredEvents(events), [events]);
+  const selectedGroupSet = useMemo(() => new Set(selectedFilterGroups), [selectedFilterGroups]);
+  const filteredEvents = useMemo(() => {
+    if (selectedGroupSet.size === 0) return events;
+    return events.filter((event) =>
+      [...selectedGroupSet].some((group) => isInFilterGroup(event, group)),
+    );
+  }, [events, selectedGroupSet]);
+  const actionRequiredEvents = useMemo(
+    () => getActiveActionRequiredEvents(filteredEvents),
+    [filteredEvents],
+  );
   const actionRequiredIds = useMemo(
     () => new Set(actionRequiredEvents.map((event) => event.id)),
     [actionRequiredEvents],
   );
   const regularEvents = useMemo(
-    () => events.filter((event) => !actionRequiredIds.has(event.id)),
-    [actionRequiredIds, events],
+    () => filteredEvents.filter((event) => !actionRequiredIds.has(event.id)),
+    [actionRequiredIds, filteredEvents],
   );
 
   return (
@@ -228,12 +279,52 @@ export function ActivityFeed({
           </div>
         </div>
       </div>
+      <div className="px-4 py-3.5 border-b border-white/[0.06] flex items-center gap-1.5 overflow-x-auto">
+        <button
+          type="button"
+          onClick={onClearFilterGroups}
+          className={`px-2 py-0.5 rounded-md text-[10px] whitespace-nowrap transition-colors ${
+            selectedGroupSet.size === 0
+              ? "bg-accent/20 text-accent"
+              : `${text.muted} bg-white/[0.04] hover:bg-white/[0.08] hover:text-white`
+          }`}
+        >
+          All
+        </button>
+        {[
+          { id: "worktree", label: "Worktree" },
+          { id: "hooks", label: "Hooks" },
+          { id: "agents", label: "Agents" },
+          { id: "system", label: "System" },
+        ].map((group) => {
+          const selected = selectedGroupSet.has(group.id as ActivityFilterGroup);
+          return (
+            <button
+              key={group.id}
+              type="button"
+              onClick={() => onToggleFilterGroup(group.id as ActivityFilterGroup)}
+              className={`px-2 py-0.5 rounded-md text-[10px] whitespace-nowrap transition-colors ${
+                selected
+                  ? "bg-accent/20 text-accent"
+                  : `${text.muted} bg-white/[0.04] hover:bg-white/[0.08] hover:text-white`
+              }`}
+            >
+              {group.label}
+            </button>
+          );
+        })}
+      </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <MoonStar className={`w-7 h-7 ${text.dimmed} mb-2`} />
             <p className={`text-xs ${text.dimmed}`}>No recent activity</p>
+          </div>
+        ) : filteredEvents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <MoonStar className={`w-7 h-7 ${text.dimmed} mb-2`} />
+            <p className={`text-xs ${text.dimmed}`}>No activity matches selected types</p>
           </div>
         ) : (
           <div className="divide-y divide-white/[0.04]">
@@ -312,6 +403,7 @@ function ActivityRow({
     (!issueId || !issueSource || event.worktreeId.toLowerCase() !== issueId.toLowerCase()),
   );
   const Icon = hookEvent ? FishingHook : (CATEGORY_ICONS[event.category] ?? Monitor);
+  const agentIconVariant = event.category === "agent" ? getAgentIconVariant(event) : null;
   const categoryColor = hookEvent
     ? "text-yellow-400"
     : (activity.categoryColor[event.category] ?? "text-[#6b7280]");
@@ -398,8 +490,14 @@ function ActivityRow({
         <div
           className={`flex-shrink-0 w-7 h-7 rounded-lg ${categoryBg} flex items-center justify-center mt-0.5`}
         >
-          {claudeRelated ? (
+          {agentIconVariant === "claude" ? (
             <ClaudeIcon className="w-3.5 h-3.5 text-[#D97757]" />
+          ) : agentIconVariant === "codex" ? (
+            <CodexIcon className="w-3.5 h-3.5 text-white/90" />
+          ) : agentIconVariant === "gemini" ? (
+            <GeminiIcon className="w-3.5 h-3.5 text-[#8AB4FF]/95" />
+          ) : agentIconVariant === "opencode" ? (
+            <OpenCodeIcon className="w-3.5 h-3.5 text-[#78D0A9]/95" />
           ) : issueSource === "jira" ? (
             <JiraIcon className={`w-3.5 h-3.5 ${integration.jira}`} />
           ) : issueSource === "linear" ? (

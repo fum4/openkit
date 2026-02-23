@@ -176,6 +176,7 @@ export const button = {
   secondary:
     "bg-white/[0.06] text-[#9ca3af] hover:bg-white/[0.10] hover:text-white disabled:pointer-events-none",
   confirm: "text-red-400 bg-red-900/30 hover:bg-red-900/50 disabled:pointer-events-none",
+  warning: "text-amber-300 bg-amber-900/30 hover:bg-amber-900/50 disabled:pointer-events-none",
 } as const;
 
 // ─── Tabs (create form Branch / Jira) ───────────────────────────

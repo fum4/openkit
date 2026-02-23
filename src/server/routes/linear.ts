@@ -19,6 +19,10 @@ import type { DataLifecycleConfig } from "../../integrations/linear/types";
 import { log } from "../../logger";
 import type { WorktreeManager } from "../manager";
 
+function resolveAutoStartAgent(value: unknown): "claude" | "codex" | "gemini" | "opencode" {
+  return value === "codex" || value === "gemini" || value === "opencode" ? value : "claude";
+}
+
 export function registerLinearRoutes(app: Hono, manager: WorktreeManager) {
   app.get("/api/linear/status", (c) => {
     const configDir = manager.getConfigDir();
@@ -31,6 +35,7 @@ export function registerLinearRoutes(app: Hono, manager: WorktreeManager) {
       refreshIntervalMinutes: projectConfig.refreshIntervalMinutes ?? 5,
       displayName: creds?.displayName ?? null,
       dataLifecycle: projectConfig.dataLifecycle ?? null,
+      autoStartAgent: resolveAutoStartAgent(projectConfig.autoStartAgent),
       autoStartClaudeOnNewIssue: projectConfig.autoStartClaudeOnNewIssue ?? false,
       autoStartClaudeSkipPermissions: projectConfig.autoStartClaudeSkipPermissions ?? true,
       autoStartClaudeFocusTerminal: projectConfig.autoStartClaudeFocusTerminal ?? true,
@@ -84,6 +89,7 @@ export function registerLinearRoutes(app: Hono, manager: WorktreeManager) {
         defaultTeamKey?: string;
         refreshIntervalMinutes?: number;
         dataLifecycle?: DataLifecycleConfig;
+        autoStartAgent?: "claude" | "codex" | "gemini" | "opencode";
         autoStartClaudeOnNewIssue?: boolean;
         autoStartClaudeSkipPermissions?: boolean;
         autoStartClaudeFocusTerminal?: boolean;
@@ -98,6 +104,9 @@ export function registerLinearRoutes(app: Hono, manager: WorktreeManager) {
       }
       if (body.dataLifecycle !== undefined) {
         current.dataLifecycle = body.dataLifecycle;
+      }
+      if (body.autoStartAgent !== undefined) {
+        current.autoStartAgent = resolveAutoStartAgent(body.autoStartAgent);
       }
       if (body.autoStartClaudeOnNewIssue !== undefined) {
         current.autoStartClaudeOnNewIssue = body.autoStartClaudeOnNewIssue;

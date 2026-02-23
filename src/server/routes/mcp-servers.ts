@@ -143,7 +143,6 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
     > = {};
 
     const serverIds = new Set(Object.keys(registry.servers));
-    serverIds.add("OpenKit"); // built-in server
 
     for (const serverId of serverIds) {
       status[serverId] = {};
@@ -158,20 +157,12 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
 
         if (spec.global) {
           const filePath = resolveConfigPath(spec.global.configPath, projectDir);
-          entry.global =
-            serverId === "OpenKit"
-              ? isServerConfigured(filePath, spec.global, "openkit") ||
-                isServerConfigured(filePath, spec.global, "OpenKit")
-              : isServerConfigured(filePath, spec.global, serverId);
+          entry.global = isServerConfigured(filePath, spec.global, serverId);
           entry.globalPath = filePath;
         }
         if (spec.project) {
           const filePath = resolveConfigPath(spec.project.configPath, projectDir);
-          entry.project =
-            serverId === "OpenKit"
-              ? isServerConfigured(filePath, spec.project, "openkit") ||
-                isServerConfigured(filePath, spec.project, "OpenKit")
-              : isServerConfigured(filePath, spec.project, serverId);
+          entry.project = isServerConfigured(filePath, spec.project, serverId);
           entry.projectPath = filePath;
         }
 

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
 
@@ -46,50 +46,6 @@ const AGENT_INSTRUCTIONS: Partial<Record<AgentId, InstructionFile[]>> = {
   // that we can't safely auto-deploy into. MCP_INSTRUCTIONS cover them.
 };
 
-const CLAUDE_AUTO_ALLOW = ["mcp__OpenKit__*"];
-
-function mergeClaudeSettings(filePath: string, permissions: string[]): void {
-  let settings: Record<string, unknown> = {};
-  if (existsSync(filePath)) {
-    try {
-      settings = JSON.parse(readFileSync(filePath, "utf-8"));
-    } catch {
-      /* ignore */
-    }
-  }
-  const perms = (settings.permissions ?? {}) as Record<string, unknown>;
-  const allow = new Set<string>((perms.allow ?? []) as string[]);
-  for (const p of permissions) allow.add(p);
-  perms.allow = [...allow];
-  settings.permissions = perms;
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(settings, null, 2) + "\n");
-}
-
-function unmergeClaudeSettings(filePath: string, permissions: string[]): void {
-  if (!existsSync(filePath)) return;
-  try {
-    const settings = JSON.parse(readFileSync(filePath, "utf-8"));
-    const perms = settings.permissions ?? {};
-    const allow = ((perms.allow ?? []) as string[]).filter((p: string) => !permissions.includes(p));
-    if (allow.length > 0) {
-      perms.allow = allow;
-      settings.permissions = perms;
-      writeFileSync(filePath, JSON.stringify(settings, null, 2) + "\n");
-    } else {
-      delete perms.allow;
-      if (Object.keys(perms).length === 0) delete settings.permissions;
-      if (Object.keys(settings).length === 0) {
-        rmSync(filePath);
-      } else {
-        writeFileSync(filePath, JSON.stringify(settings, null, 2) + "\n");
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
 export function deployAgentInstructions(agent: AgentId, projectDir: string, scope: Scope): void {
   const files = AGENT_INSTRUCTIONS[agent];
   if (!files) return;
@@ -100,15 +56,6 @@ export function deployAgentInstructions(agent: AgentId, projectDir: string, scop
 
     mkdirSync(path.dirname(filePath), { recursive: true });
     writeFileSync(filePath, file.content);
-  }
-
-  // Auto-approve OpenKit MCP tools in Claude settings
-  if (agent === "claude") {
-    const settingsPath =
-      scope === "global"
-        ? path.join(os.homedir(), ".claude", "settings.json")
-        : path.join(projectDir, ".claude", "settings.json");
-    mergeClaudeSettings(settingsPath, CLAUDE_AUTO_ALLOW);
   }
 }
 
@@ -126,14 +73,5 @@ export function removeAgentInstructions(agent: AgentId, projectDir: string, scop
     } else {
       rmSync(filePath);
     }
-  }
-
-  // Remove OpenKit MCP tool permissions from Claude settings
-  if (agent === "claude") {
-    const settingsPath =
-      scope === "global"
-        ? path.join(os.homedir(), ".claude", "settings.json")
-        : path.join(projectDir, ".claude", "settings.json");
-    unmergeClaudeSettings(settingsPath, CLAUDE_AUTO_ALLOW);
   }
 }

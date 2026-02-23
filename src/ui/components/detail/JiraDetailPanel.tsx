@@ -10,16 +10,18 @@ import { Tooltip } from "../Tooltip";
 import { TruncatedTooltip } from "../TruncatedTooltip";
 import { AttachmentImage } from "../AttachmentImage";
 import { MarkdownContent } from "../MarkdownContent";
-import { ClaudeIcon, GitHubIcon, JiraIcon } from "../../icons";
+import { GitHubIcon, JiraIcon } from "../../icons";
 import { PersonalNotesSection, AgentSection } from "./NotesSection";
 import { Spinner } from "../Spinner";
 import { WorktreeExistsModal } from "../WorktreeExistsModal";
 import { ImageModal } from "../ImageModal";
+import { CodeAgentSplitButton, type CodingAgent } from "./CodeAgentSplitButton";
 
 interface JiraDetailPanelProps {
   issueKey: string;
   linkedWorktreeId: string | null;
   linkedWorktreePrUrl?: string | null;
+  activeWorktreeIds: Set<string>;
   onCreateWorktree: (key: string) => void;
   onViewWorktree: (id: string) => void;
   onCodeWithClaude: (intent: {
@@ -27,7 +29,28 @@ interface JiraDetailPanelProps {
     mode: "resume" | "start";
     prompt?: string;
     tabLabel?: string;
+    skipPermissions?: boolean;
   }) => void;
+  onCodeWithCodex: (intent: {
+    worktreeId: string;
+    mode: "resume" | "start";
+    prompt?: string;
+    tabLabel?: string;
+  }) => void;
+  onCodeWithGemini: (intent: {
+    worktreeId: string;
+    mode: "resume" | "start";
+    prompt?: string;
+    tabLabel?: string;
+  }) => void;
+  onCodeWithOpenCode: (intent: {
+    worktreeId: string;
+    mode: "resume" | "start";
+    prompt?: string;
+    tabLabel?: string;
+  }) => void;
+  selectedCodingAgent: CodingAgent;
+  onSelectCodingAgent: (agent: CodingAgent) => void;
   refreshIntervalMinutes?: number;
   onSetupNeeded?: () => void;
 }
@@ -176,9 +199,15 @@ export function JiraDetailPanel({
   issueKey,
   linkedWorktreeId,
   linkedWorktreePrUrl,
+  activeWorktreeIds,
   onCreateWorktree,
   onViewWorktree,
   onCodeWithClaude,
+  onCodeWithCodex,
+  onCodeWithGemini,
+  onCodeWithOpenCode,
+  selectedCodingAgent,
+  onSelectCodingAgent,
   refreshIntervalMinutes,
   onSetupNeeded,
 }: JiraDetailPanelProps) {
@@ -189,7 +218,7 @@ export function JiraDetailPanel({
     refreshIntervalMinutes,
   );
   const [isCreating, setIsCreating] = useState(false);
-  const [isCodingWithClaude, setIsCodingWithClaude] = useState(false);
+  const [isCodingWithAgent, setIsCodingWithAgent] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [existingWorktree, setExistingWorktree] = useState<{ id: string; branch: string } | null>(
     null,
@@ -199,6 +228,9 @@ export function JiraDetailPanel({
     filename: string;
     type: "image" | "pdf";
   } | null>(null);
+  const activeLinkedWorktreeId =
+    linkedWorktreeId && activeWorktreeIds.has(linkedWorktreeId) ? linkedWorktreeId : null;
+  const activeLinkedWorktreePrUrl = activeLinkedWorktreeId ? linkedWorktreePrUrl : null;
 
   const handleImageClick = (src: string, alt: string) => {
     const isPdf = src.includes("application%2Fpdf") || alt.toLowerCase().endsWith(".pdf");
@@ -231,26 +263,46 @@ export function JiraDetailPanel({
     }
   };
 
-  const handleCodeWithClaude = async () => {
-    if (linkedWorktreeId) {
-      onCodeWithClaude({ worktreeId: linkedWorktreeId, mode: "resume" });
+  const launchCodingAgent = (
+    agent: CodingAgent,
+    intent: {
+      worktreeId: string;
+      mode: "resume" | "start";
+      prompt?: string;
+      tabLabel?: string;
+    },
+  ) => {
+    if (agent === "claude") {
+      onCodeWithClaude(intent);
       return;
     }
+    if (agent === "codex") {
+      onCodeWithCodex(intent);
+      return;
+    }
+    if (agent === "gemini") {
+      onCodeWithGemini(intent);
+      return;
+    }
+    onCodeWithOpenCode(intent);
+  };
 
-    setIsCodingWithClaude(true);
+  const handleCodeWithAgent = async (agent: CodingAgent) => {
+    onSelectCodingAgent(agent);
+    setIsCodingWithAgent(true);
     setCreateError(null);
     const result = await api.createFromJira(issueKey);
-    setIsCodingWithClaude(false);
+    setIsCodingWithAgent(false);
     if (result.success) {
       const worktreeId = result.worktreeId ?? issueKey;
-      onCodeWithClaude({
+      launchCodingAgent(agent, {
         worktreeId,
         mode: "start",
         tabLabel: issueKey,
-        prompt: `Implement Jira issue ${issueKey}${issue?.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify OpenKit before asking by calling notify with requiresUserAction=true (or run openkit activity await-input in terminal flow).`,
+        prompt: `Implement Jira issue ${issueKey}${issue?.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`,
       });
     } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
-      setExistingWorktree({ id: result.worktreeId, branch: issueKey });
+      launchCodingAgent(agent, { worktreeId: result.worktreeId, mode: "resume" });
     } else {
       const errorMsg = result.error || "Failed to create worktree";
       if (errorMsg.includes("no commits") || errorMsg.includes("invalid reference")) {
@@ -371,19 +423,19 @@ export function JiraDetailPanel({
               <JiraIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-blue-400" />
               Open in Jira
             </a>
-            {linkedWorktreeId ? (
+            {activeLinkedWorktreeId ? (
               <>
                 <button
                   type="button"
-                  onClick={() => onViewWorktree(linkedWorktreeId)}
+                  onClick={() => onViewWorktree(activeLinkedWorktreeId)}
                   className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
                 >
                   <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
                   View Worktree
                 </button>
-                {linkedWorktreePrUrl && (
+                {activeLinkedWorktreePrUrl && (
                   <a
-                    href={linkedWorktreePrUrl}
+                    href={activeLinkedWorktreePrUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
@@ -392,40 +444,34 @@ export function JiraDetailPanel({
                     View PR
                   </a>
                 )}
-                <button
-                  type="button"
-                  onClick={handleCodeWithClaude}
-                  disabled={isCodingWithClaude}
-                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 disabled:opacity-50`}
-                >
-                  <ClaudeIcon
-                    className={`w-3.5 h-3.5 transition-colors ${isCodingWithClaude ? "text-[#D97757]" : "text-[#6b7280] group-hover:text-[#D97757]"}`}
-                  />
-                  {isCodingWithClaude ? "Opening..." : "Code with Claude"}
-                </button>
+                <CodeAgentSplitButton
+                  selectedAgent={selectedCodingAgent}
+                  onSelectAgent={onSelectCodingAgent}
+                  onLaunch={(agent) => void handleCodeWithAgent(agent)}
+                  disabled={isCodingWithAgent}
+                  isLoading={isCodingWithAgent}
+                  loadingLabel="Opening..."
+                />
               </>
             ) : (
               <>
                 <button
                   type="button"
                   onClick={handleCreate}
-                  disabled={isCreating || isCodingWithClaude}
+                  disabled={isCreating || isCodingWithAgent}
                   className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 active:scale-[0.98]`}
                 >
                   <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
                   {isCreating ? "Creating..." : "Create Worktree"}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleCodeWithClaude}
-                  disabled={isCreating || isCodingWithClaude}
-                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 active:scale-[0.98] disabled:opacity-50`}
-                >
-                  <ClaudeIcon
-                    className={`w-3.5 h-3.5 transition-colors ${isCodingWithClaude ? "text-[#D97757]" : "text-[#6b7280] group-hover:text-[#D97757]"}`}
-                  />
-                  {isCodingWithClaude ? "Preparing..." : "Code with Claude"}
-                </button>
+                <CodeAgentSplitButton
+                  selectedAgent={selectedCodingAgent}
+                  onSelectAgent={onSelectCodingAgent}
+                  onLaunch={(agent) => void handleCodeWithAgent(agent)}
+                  disabled={isCreating || isCodingWithAgent}
+                  isLoading={isCodingWithAgent}
+                  loadingLabel="Preparing..."
+                />
               </>
             )}
           </div>

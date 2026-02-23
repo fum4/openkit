@@ -92,6 +92,23 @@ export class NotesManager {
     this.saveNotes(source, id, notes);
   }
 
+  clearLinkedWorktreeId(worktreeId: string): void {
+    const issuesDir = path.join(this.configDir, CONFIG_DIR_NAME, "issues");
+
+    for (const source of ["jira", "linear", "local"] as IssueSource[]) {
+      const sourceDir = path.join(issuesDir, source);
+      if (!existsSync(sourceDir)) continue;
+
+      for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const notes = this.loadNotes(source, entry.name);
+        if (notes.linkedWorktreeId !== worktreeId) continue;
+        notes.linkedWorktreeId = null;
+        this.saveNotes(source, entry.name, notes);
+      }
+    }
+  }
+
   addTodo(source: IssueSource, id: string, text: string): IssueNotes {
     const notes = this.loadNotes(source, id);
     notes.todos.push({

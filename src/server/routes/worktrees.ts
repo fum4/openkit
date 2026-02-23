@@ -332,7 +332,9 @@ async function isTargetAvailable(target: OpenProjectTarget): Promise<boolean> {
   }
 }
 
-async function getAvailableOpenTargets(): Promise<Array<{ target: OpenProjectTarget; label: string }>> {
+async function getAvailableOpenTargets(): Promise<
+  Array<{ target: OpenProjectTarget; label: string }>
+> {
   const targets: Array<{ target: OpenProjectTarget; label: string }> = [];
 
   for (const target of OPEN_TARGET_DISPLAY_ORDER) {

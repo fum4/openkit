@@ -344,6 +344,12 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
         projectDir: body.projectDir ?? "",
         autoInstall: body.autoInstall ?? true,
         localIssuePrefix: body.localIssuePrefix ?? "LOCAL",
+        localAutoStartAgent:
+          body.localAutoStartAgent === "codex" ||
+          body.localAutoStartAgent === "gemini" ||
+          body.localAutoStartAgent === "opencode"
+            ? body.localAutoStartAgent
+            : "claude",
         localAutoStartClaudeOnNewIssue: body.localAutoStartClaudeOnNewIssue ?? false,
         localAutoStartClaudeSkipPermissions: body.localAutoStartClaudeSkipPermissions ?? true,
         localAutoStartClaudeFocusTerminal: body.localAutoStartClaudeFocusTerminal ?? true,

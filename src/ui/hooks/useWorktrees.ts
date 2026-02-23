@@ -75,7 +75,9 @@ export function useWorktrees(
         } else if (data.type === "activity") {
           window.dispatchEvent(new CustomEvent("OpenKit:activity", { detail: data.event }));
         } else if (data.type === "activity-history") {
-          window.dispatchEvent(new CustomEvent("OpenKit:activity-history", { detail: data.events }));
+          window.dispatchEvent(
+            new CustomEvent("OpenKit:activity-history", { detail: data.events }),
+          );
         }
       } catch {
         // Ignore parse errors

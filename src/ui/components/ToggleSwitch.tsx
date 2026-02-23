@@ -50,8 +50,14 @@ export function ToggleSwitch({
   uncheckedThumbClassName = "bg-white/40",
 }: ToggleSwitchProps) {
   const sizeClasses = SIZE_CLASSES[size];
-  const cursorClass = interactive ? (disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer") : "cursor-default";
-  const cursorStyle = { cursor: interactive ? (disabled ? "not-allowed" : "pointer") : "default" } as const;
+  const cursorClass = interactive
+    ? disabled
+      ? "opacity-50 cursor-not-allowed"
+      : "cursor-pointer"
+    : "cursor-default";
+  const cursorStyle = {
+    cursor: interactive ? (disabled ? "not-allowed" : "pointer") : "default",
+  } as const;
   const trackClassName = `relative ${sizeClasses.track} rounded-full transition-colors duration-200 flex-shrink-0 ${cursorClass} ${checked ? checkedTrackClassName : uncheckedTrackClassName} ${className}`;
   const thumbClassName = `absolute ${sizeClasses.thumb} rounded-full transition-all duration-200 ${checked ? `${sizeClasses.thumbOn} ${checkedThumbClassName}` : `${sizeClasses.thumbOff} ${uncheckedThumbClassName}`}`;
 

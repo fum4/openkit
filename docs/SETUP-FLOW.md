@@ -186,22 +186,22 @@ interface ProjectSetupScreenProps {
 
 ## API Endpoints Used
 
-| Step            | Endpoint                            | Purpose                     |
-| --------------- | ----------------------------------- | --------------------------- |
-| Choice / Manual | `GET /api/config/detect`            | Detect config values        |
-| Choice / Manual | `POST /api/config/init`             | Create config               |
+| Step            | Endpoint                            | Purpose                         |
+| --------------- | ----------------------------------- | ------------------------------- |
+| Choice / Manual | `GET /api/config/detect`            | Detect config values            |
+| Choice / Manual | `POST /api/config/init`             | Create config                   |
 | Agents          | `GET /api/skills/deployment-status` | Current skill deployment status |
-| Agents          | `POST /api/skills/:name/deploy`     | Enable skill for agent scope |
-| Agents          | `POST /api/skills/:name/undeploy`   | Disable skill for agent scope |
-| Commit          | `GET /api/github/status`            | GitHub CLI/auth status      |
-| Commit          | `POST /api/github/install`          | Install gh CLI + start auth |
-| Commit          | `POST /api/github/login`            | Start device-flow login     |
-| Commit          | `POST /api/config/commit-setup`     | Commit & push .openkit files   |
-| Integrations    | `GET /api/github/status`            | GitHub status               |
-| Integrations    | `GET /api/jira/status`              | Jira connection status      |
-| Integrations    | `GET /api/linear/status`            | Linear connection status    |
-| Integrations    | `POST /api/jira/setup`              | Connect Jira                |
-| Integrations    | `POST /api/linear/setup`            | Connect Linear              |
+| Agents          | `POST /api/skills/:name/deploy`     | Enable skill for agent scope    |
+| Agents          | `POST /api/skills/:name/undeploy`   | Disable skill for agent scope   |
+| Commit          | `GET /api/github/status`            | GitHub CLI/auth status          |
+| Commit          | `POST /api/github/install`          | Install gh CLI + start auth     |
+| Commit          | `POST /api/github/login`            | Start device-flow login         |
+| Commit          | `POST /api/config/commit-setup`     | Commit & push .openkit files    |
+| Integrations    | `GET /api/github/status`            | GitHub status                   |
+| Integrations    | `GET /api/jira/status`              | Jira connection status          |
+| Integrations    | `GET /api/linear/status`            | Linear connection status        |
+| Integrations    | `POST /api/jira/setup`              | Connect Jira                    |
+| Integrations    | `POST /api/linear/setup`            | Connect Linear                  |
 
 ---
 
@@ -223,10 +223,10 @@ Skipped steps can always be completed later from the corresponding panel in the 
 
 All setup screens after Choice include a Back action.
 
-| Step          | Back target      |
-| ------------- | ---------------- |
-| Manual        | Choice           |
-| Agents        | Choice           |
-| Commit        | Agents           |
-| Integrations  | Commit           |
-| Complete      | Integrations     |
+| Step         | Back target  |
+| ------------ | ------------ |
+| Manual       | Choice       |
+| Agents       | Choice       |
+| Commit       | Agents       |
+| Integrations | Commit       |
+| Complete     | Integrations |

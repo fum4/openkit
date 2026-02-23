@@ -285,23 +285,23 @@ Agent instruction text (MCP instructions, IDE skill/rule files, hook skill defin
 
 ### Placeholders
 
-| Placeholder    | Resolved                          | Value                                  |
-| -------------- | --------------------------------- | -------------------------------------- |
-| `{{APP_NAME}}` | At module load time in `index.ts` | `APP_NAME` constant ("OpenKit")           |
-| `{{WORKFLOW}}` | At module load time in `index.ts` | Content of `mcp/instructions.md`        |
-| `{{ISSUE_ID}}` | At runtime by the caller          | Function argument (e.g. "PROJ-123")    |
+| Placeholder    | Resolved                          | Value                               |
+| -------------- | --------------------------------- | ----------------------------------- |
+| `{{APP_NAME}}` | At module load time in `index.ts` | `APP_NAME` constant ("OpenKit")     |
+| `{{WORKFLOW}}` | At module load time in `index.ts` | Content of `mcp/instructions.md`    |
+| `{{ISSUE_ID}}` | At runtime by the caller          | Function argument (e.g. "PROJ-123") |
 
 ### File map
 
-| File                        | Export                    | Used by                                                            |
-| --------------------------- | ------------------------- | ------------------------------------------------------------------ |
-| `mcp-server.md`             | `MCP_INSTRUCTIONS`        | `mcp-server-factory.ts` (server instructions)                      |
-| `mcp-work-on-task.md`       | `MCP_WORK_ON_TASK_PROMPT` | `mcp-server-factory.ts` (prompt template)                          |
-| `mcp/claude-skill.md`       | `CLAUDE_SKILL`            | `builtin-instructions.ts` (deployed to `~/.claude/skills/`)        |
-| `mcp/cursor-rule.md`        | `CURSOR_RULE`             | `builtin-instructions.ts` (deployed to `.cursor/rules/`)           |
-| `mcp/vscode-prompt.md`      | `VSCODE_PROMPT`           | `builtin-instructions.ts` (deployed to `.github/prompts/`)         |
-| `mcp/instructions.md`       | _(internal)_              | Interpolated into claude-skill, cursor-rule, and vscode-prompt via `{{WORKFLOW}}` |
-| `skills/*/SKILL.md`         | `BUNDLED_SKILLS`          | `verification-skills.ts` (seeded into `~/.openkit/skills/` registry only)             |
+| File                   | Export                    | Used by                                                                           |
+| ---------------------- | ------------------------- | --------------------------------------------------------------------------------- |
+| `mcp-server.md`        | `MCP_INSTRUCTIONS`        | `mcp-server-factory.ts` (server instructions)                                     |
+| `mcp-work-on-task.md`  | `MCP_WORK_ON_TASK_PROMPT` | `mcp-server-factory.ts` (prompt template)                                         |
+| `mcp/claude-skill.md`  | `CLAUDE_SKILL`            | `builtin-instructions.ts` (deployed to `~/.claude/skills/`)                       |
+| `mcp/cursor-rule.md`   | `CURSOR_RULE`             | `builtin-instructions.ts` (deployed to `.cursor/rules/`)                          |
+| `mcp/vscode-prompt.md` | `VSCODE_PROMPT`           | `builtin-instructions.ts` (deployed to `.github/prompts/`)                        |
+| `mcp/instructions.md`  | _(internal)_              | Interpolated into claude-skill, cursor-rule, and vscode-prompt via `{{WORKFLOW}}` |
+| `skills/*/SKILL.md`    | `BUNDLED_SKILLS`          | `verification-skills.ts` (seeded into `~/.openkit/skills/` registry only)         |
 
 ## Server-as-Hub Pattern
 

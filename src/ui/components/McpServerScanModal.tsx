@@ -8,12 +8,6 @@ import { Modal } from "./Modal";
 import { input, text } from "../theme";
 import { Spinner } from "./Spinner";
 
-const isWork3Server = (r: McpScanResult) =>
-  r.key === "OpenKit" ||
-  r.key === "openkit" ||
-  r.command === "openkit" ||
-  (r.command === "npx" && (r.args.includes("OpenKit") || r.args.includes("openkit")));
-
 type ScanMode = "project" | "folder" | "device";
 type ResultTab = "servers" | "skills" | "plugins";
 
@@ -108,10 +102,8 @@ export function McpServerScanModal({
         return;
       }
 
-      // Filter: hide OpenKit and already-imported items
-      const newMcps = (mcpRes.discovered ?? []).filter(
-        (r) => !isWork3Server(r) && !r.alreadyInRegistry,
-      );
+      // Filter: hide already-imported items
+      const newMcps = (mcpRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
       const newSkills = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
 
       applyResults(newMcps, newSkills);

@@ -122,7 +122,7 @@ export function WorktreeItem({
                     : worktree.githubPrState === "closed"
                       ? "text-[#6b7280] hover:text-red-400"
                       : worktree.githubPrState === "draft"
-                      ? "text-[#6b7280] hover:text-[#9ca3af]"
+                        ? "text-[#6b7280] hover:text-[#9ca3af]"
                         : "text-[#6b7280] hover:text-[#9ca3af]"
               } cursor-pointer inline-flex items-center justify-center p-1 -m-1 rounded hover:bg-white/[0.06] transition-colors duration-150`}
               onClick={(e) => {

@@ -13,12 +13,18 @@ import { LogsViewer } from "./LogsViewer";
 import { TerminalView } from "./TerminalView";
 import { HooksTab } from "./HooksTab";
 
-type WorktreeTab = "logs" | "terminal" | "claude" | "hooks";
+type WorktreeTab = "logs" | "terminal" | "claude" | "codex" | "gemini" | "opencode" | "hooks";
 
 // Persists across unmount/remount (view switches)
 const tabCache: Record<string, WorktreeTab> = {};
 const openClaudeTabCache = new Set<string>();
+const openCodexTabCache = new Set<string>();
+const openGeminiTabCache = new Set<string>();
+const openOpenCodeTabCache = new Set<string>();
 const claudeTabLabelCache: Record<string, string> = {};
+const codexTabLabelCache: Record<string, string> = {};
+const geminiTabLabelCache: Record<string, string> = {};
+const opencodeTabLabelCache: Record<string, string> = {};
 let lastProcessedNotificationTabRequestId: number | null = null;
 const OPEN_TARGET_SELECTION_PRIORITY: OpenProjectTarget[] = [
   "cursor",
@@ -45,7 +51,7 @@ function pickDefaultOpenTarget(
   return null;
 }
 
-interface ClaudeLaunchRequest {
+interface AgentLaunchRequest {
   worktreeId: string;
   mode: "resume" | "start";
   prompt?: string;
@@ -72,7 +78,10 @@ interface DetailPanelProps {
   onCreateTask?: (worktreeId: string) => void;
   onLinkIssue?: (worktreeId: string) => void;
   hookUpdateKey?: number;
-  claudeLaunchRequest?: ClaudeLaunchRequest | null;
+  claudeLaunchRequest?: AgentLaunchRequest | null;
+  codexLaunchRequest?: AgentLaunchRequest | null;
+  geminiLaunchRequest?: AgentLaunchRequest | null;
+  opencodeLaunchRequest?: AgentLaunchRequest | null;
   notificationTabRequest?: NotificationTabRequest | null;
 }
 
@@ -91,6 +100,9 @@ export function DetailPanel({
   onLinkIssue,
   hookUpdateKey,
   claudeLaunchRequest,
+  codexLaunchRequest,
+  geminiLaunchRequest,
+  opencodeLaunchRequest,
   notificationTabRequest,
 }: DetailPanelProps) {
   const api = useApi();
@@ -105,28 +117,71 @@ export function DetailPanel({
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [openTargetOptions, setOpenTargetOptions] = useState<OpenProjectTargetOption[]>([]);
   const [selectedOpenTarget, setSelectedOpenTarget] = useState<OpenProjectTarget | null>(null);
-  const [tabPerWorktree, setTabPerWorktree] = useState<Record<string, WorktreeTab>>(
-    () => ({ ...tabCache }),
-  );
+  const [tabPerWorktree, setTabPerWorktree] = useState<Record<string, WorktreeTab>>(() => ({
+    ...tabCache,
+  }));
   const [openTerminals, setOpenTerminals] = useState<Set<string>>(new Set());
   const [openClaudeTabs, setOpenClaudeTabs] = useState<Set<string>>(
     () => new Set(openClaudeTabCache),
   );
+  const [openCodexTabs, setOpenCodexTabs] = useState<Set<string>>(() => new Set(openCodexTabCache));
+  const [openGeminiTabs, setOpenGeminiTabs] = useState<Set<string>>(
+    () => new Set(openGeminiTabCache),
+  );
+  const [openOpenCodeTabs, setOpenOpenCodeTabs] = useState<Set<string>>(
+    () => new Set(openOpenCodeTabCache),
+  );
   const [claudeTabLabelsByWorktree, setClaudeTabLabelsByWorktree] = useState<
     Record<string, string>
   >(() => ({ ...claudeTabLabelCache }));
+  const [codexTabLabelsByWorktree, setCodexTabLabelsByWorktree] = useState<Record<string, string>>(
+    () => ({ ...codexTabLabelCache }),
+  );
+  const [geminiTabLabelsByWorktree, setGeminiTabLabelsByWorktree] = useState<
+    Record<string, string>
+  >(() => ({ ...geminiTabLabelCache }));
+  const [opencodeTabLabelsByWorktree, setOpenCodeTabLabelsByWorktree] = useState<
+    Record<string, string>
+  >(() => ({ ...opencodeTabLabelCache }));
   const [currentClaudeLaunchRequest, setCurrentClaudeLaunchRequest] =
-    useState<ClaudeLaunchRequest | null>(null);
+    useState<AgentLaunchRequest | null>(null);
+  const [currentCodexLaunchRequest, setCurrentCodexLaunchRequest] =
+    useState<AgentLaunchRequest | null>(null);
+  const [currentGeminiLaunchRequest, setCurrentGeminiLaunchRequest] =
+    useState<AgentLaunchRequest | null>(null);
+  const [currentOpenCodeLaunchRequest, setCurrentOpenCodeLaunchRequest] =
+    useState<AgentLaunchRequest | null>(null);
   const [launchClaudeRequestId, setLaunchClaudeRequestId] = useState<number | null>(null);
+  const [launchCodexRequestId, setLaunchCodexRequestId] = useState<number | null>(null);
+  const [launchGeminiRequestId, setLaunchGeminiRequestId] = useState<number | null>(null);
+  const [launchOpenCodeRequestId, setLaunchOpenCodeRequestId] = useState<number | null>(null);
   const [closeClaudeRequestIdByWorktree, setCloseClaudeRequestIdByWorktree] = useState<
     Record<string, number>
   >({});
+  const [closeCodexRequestIdByWorktree, setCloseCodexRequestIdByWorktree] = useState<
+    Record<string, number>
+  >({});
+  const [closeGeminiRequestIdByWorktree, setCloseGeminiRequestIdByWorktree] = useState<
+    Record<string, number>
+  >({});
+  const [closeOpenCodeRequestIdByWorktree, setCloseOpenCodeRequestIdByWorktree] = useState<
+    Record<string, number>
+  >({});
   const processedClaudeRequestIdRef = useRef<number | null>(null);
+  const processedCodexRequestIdRef = useRef<number | null>(null);
+  const processedGeminiRequestIdRef = useRef<number | null>(null);
+  const processedOpenCodeRequestIdRef = useRef<number | null>(null);
   const processedNotificationTabRequestIdRef = useRef<number | null>(
     lastProcessedNotificationTabRequestId,
   );
   const localClaudeRequestIdRef = useRef(1_000_000);
+  const localCodexRequestIdRef = useRef(2_000_000);
+  const localGeminiRequestIdRef = useRef(3_000_000);
+  const localOpenCodeRequestIdRef = useRef(4_000_000);
   const closeClaudeRequestIdRef = useRef(0);
+  const closeCodexRequestIdRef = useRef(0);
+  const closeGeminiRequestIdRef = useRef(0);
+  const closeOpenCodeRequestIdRef = useRef(0);
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
     if (extra) {
       console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
@@ -159,55 +214,205 @@ export function DetailPanel({
     });
   }, []);
 
-  const ensureClaudeTabMounted = useCallback((worktreeId: string) => {
-    openClaudeTabCache.add(worktreeId);
-    const label = "Claude";
-    logAutoClaude("Ensuring Claude tab is mounted", { worktreeId, label });
-    claudeTabLabelCache[worktreeId] = label;
-    setOpenClaudeTabs((prev) => {
-      if (prev.has(worktreeId)) return prev;
-      const next = new Set(prev);
-      next.add(worktreeId);
-      return next;
-    });
-    setClaudeTabLabelsByWorktree((prev) => {
-      if (prev[worktreeId] === label) return prev;
-      return { ...prev, [worktreeId]: label };
-    });
-  }, [logAutoClaude]);
-
-  const closeClaudeTab = useCallback(
+  const ensureClaudeTabMounted = useCallback(
     (worktreeId: string) => {
-      openClaudeTabCache.delete(worktreeId);
-      delete claudeTabLabelCache[worktreeId];
+      openClaudeTabCache.add(worktreeId);
+      const label = "Claude";
+      logAutoClaude("Ensuring Claude tab is mounted", { worktreeId, label });
+      claudeTabLabelCache[worktreeId] = label;
       setOpenClaudeTabs((prev) => {
-        if (!prev.has(worktreeId)) return prev;
+        if (prev.has(worktreeId)) return prev;
         const next = new Set(prev);
-        next.delete(worktreeId);
+        next.add(worktreeId);
         return next;
       });
       setClaudeTabLabelsByWorktree((prev) => {
-        if (!(worktreeId in prev)) return prev;
-        const next = { ...prev };
-        delete next[worktreeId];
-        return next;
-      });
-      setLaunchClaudeRequestId(null);
-      setCurrentClaudeLaunchRequest((prev) => (prev?.worktreeId === worktreeId ? null : prev));
-      setCloseClaudeRequestIdByWorktree((prev) => {
-        if (!(worktreeId in prev)) return prev;
-        const next = { ...prev };
-        delete next[worktreeId];
-        return next;
-      });
-      setTabPerWorktree((prev) => {
-        if (prev[worktreeId] !== "claude") return prev;
-        tabCache[worktreeId] = "logs";
-        return { ...prev, [worktreeId]: "logs" };
+        if (prev[worktreeId] === label) return prev;
+        return { ...prev, [worktreeId]: label };
       });
     },
-    [],
+    [logAutoClaude],
   );
+
+  const ensureCodexTabMounted = useCallback(
+    (worktreeId: string) => {
+      openCodexTabCache.add(worktreeId);
+      const label = "Codex";
+      logAutoClaude("Ensuring Codex tab is mounted", { worktreeId, label });
+      codexTabLabelCache[worktreeId] = label;
+      setOpenCodexTabs((prev) => {
+        if (prev.has(worktreeId)) return prev;
+        const next = new Set(prev);
+        next.add(worktreeId);
+        return next;
+      });
+      setCodexTabLabelsByWorktree((prev) => {
+        if (prev[worktreeId] === label) return prev;
+        return { ...prev, [worktreeId]: label };
+      });
+    },
+    [logAutoClaude],
+  );
+
+  const ensureGeminiTabMounted = useCallback(
+    (worktreeId: string) => {
+      openGeminiTabCache.add(worktreeId);
+      const label = "Gemini";
+      logAutoClaude("Ensuring Gemini tab is mounted", { worktreeId, label });
+      geminiTabLabelCache[worktreeId] = label;
+      setOpenGeminiTabs((prev) => {
+        if (prev.has(worktreeId)) return prev;
+        const next = new Set(prev);
+        next.add(worktreeId);
+        return next;
+      });
+      setGeminiTabLabelsByWorktree((prev) => {
+        if (prev[worktreeId] === label) return prev;
+        return { ...prev, [worktreeId]: label };
+      });
+    },
+    [logAutoClaude],
+  );
+
+  const ensureOpenCodeTabMounted = useCallback(
+    (worktreeId: string) => {
+      openOpenCodeTabCache.add(worktreeId);
+      const label = "OpenCode";
+      logAutoClaude("Ensuring OpenCode tab is mounted", { worktreeId, label });
+      opencodeTabLabelCache[worktreeId] = label;
+      setOpenOpenCodeTabs((prev) => {
+        if (prev.has(worktreeId)) return prev;
+        const next = new Set(prev);
+        next.add(worktreeId);
+        return next;
+      });
+      setOpenCodeTabLabelsByWorktree((prev) => {
+        if (prev[worktreeId] === label) return prev;
+        return { ...prev, [worktreeId]: label };
+      });
+    },
+    [logAutoClaude],
+  );
+
+  const closeClaudeTab = useCallback((worktreeId: string) => {
+    openClaudeTabCache.delete(worktreeId);
+    delete claudeTabLabelCache[worktreeId];
+    setOpenClaudeTabs((prev) => {
+      if (!prev.has(worktreeId)) return prev;
+      const next = new Set(prev);
+      next.delete(worktreeId);
+      return next;
+    });
+    setClaudeTabLabelsByWorktree((prev) => {
+      if (!(worktreeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[worktreeId];
+      return next;
+    });
+    setLaunchClaudeRequestId(null);
+    setCurrentClaudeLaunchRequest((prev) => (prev?.worktreeId === worktreeId ? null : prev));
+    setCloseClaudeRequestIdByWorktree((prev) => {
+      if (!(worktreeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[worktreeId];
+      return next;
+    });
+    setTabPerWorktree((prev) => {
+      if (prev[worktreeId] !== "claude") return prev;
+      tabCache[worktreeId] = "logs";
+      return { ...prev, [worktreeId]: "logs" };
+    });
+  }, []);
+
+  const closeCodexTab = useCallback((worktreeId: string) => {
+    openCodexTabCache.delete(worktreeId);
+    delete codexTabLabelCache[worktreeId];
+    setOpenCodexTabs((prev) => {
+      if (!prev.has(worktreeId)) return prev;
+      const next = new Set(prev);
+      next.delete(worktreeId);
+      return next;
+    });
+    setCodexTabLabelsByWorktree((prev) => {
+      if (!(worktreeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[worktreeId];
+      return next;
+    });
+    setLaunchCodexRequestId(null);
+    setCurrentCodexLaunchRequest((prev) => (prev?.worktreeId === worktreeId ? null : prev));
+    setCloseCodexRequestIdByWorktree((prev) => {
+      if (!(worktreeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[worktreeId];
+      return next;
+    });
+    setTabPerWorktree((prev) => {
+      if (prev[worktreeId] !== "codex") return prev;
+      tabCache[worktreeId] = "logs";
+      return { ...prev, [worktreeId]: "logs" };
+    });
+  }, []);
+
+  const closeGeminiTab = useCallback((worktreeId: string) => {
+    openGeminiTabCache.delete(worktreeId);
+    delete geminiTabLabelCache[worktreeId];
+    setOpenGeminiTabs((prev) => {
+      if (!prev.has(worktreeId)) return prev;
+      const next = new Set(prev);
+      next.delete(worktreeId);
+      return next;
+    });
+    setGeminiTabLabelsByWorktree((prev) => {
+      if (!(worktreeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[worktreeId];
+      return next;
+    });
+    setLaunchGeminiRequestId(null);
+    setCurrentGeminiLaunchRequest((prev) => (prev?.worktreeId === worktreeId ? null : prev));
+    setCloseGeminiRequestIdByWorktree((prev) => {
+      if (!(worktreeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[worktreeId];
+      return next;
+    });
+    setTabPerWorktree((prev) => {
+      if (prev[worktreeId] !== "gemini") return prev;
+      tabCache[worktreeId] = "logs";
+      return { ...prev, [worktreeId]: "logs" };
+    });
+  }, []);
+
+  const closeOpenCodeTab = useCallback((worktreeId: string) => {
+    openOpenCodeTabCache.delete(worktreeId);
+    delete opencodeTabLabelCache[worktreeId];
+    setOpenOpenCodeTabs((prev) => {
+      if (!prev.has(worktreeId)) return prev;
+      const next = new Set(prev);
+      next.delete(worktreeId);
+      return next;
+    });
+    setOpenCodeTabLabelsByWorktree((prev) => {
+      if (!(worktreeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[worktreeId];
+      return next;
+    });
+    setLaunchOpenCodeRequestId(null);
+    setCurrentOpenCodeLaunchRequest((prev) => (prev?.worktreeId === worktreeId ? null : prev));
+    setCloseOpenCodeRequestIdByWorktree((prev) => {
+      if (!(worktreeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[worktreeId];
+      return next;
+    });
+    setTabPerWorktree((prev) => {
+      if (prev[worktreeId] !== "opencode") return prev;
+      tabCache[worktreeId] = "logs";
+      return { ...prev, [worktreeId]: "logs" };
+    });
+  }, []);
 
   const handleClaudeExit = useCallback(
     (worktreeId: string, exitCode?: number) => {
@@ -231,8 +436,74 @@ export function DetailPanel({
     [api, closeClaudeTab, logAutoClaude],
   );
 
+  const handleCodexExit = useCallback(
+    (worktreeId: string, exitCode?: number) => {
+      closeCodexTab(worktreeId);
+      if (exitCode !== 0) return;
+      void (async () => {
+        logAutoClaude("Running post-implementation hooks after Codex exit", {
+          worktreeId,
+          exitCode,
+        });
+        const run = await api.runHooks(worktreeId, "post-implementation");
+        const failedCount = run.steps.filter((step) => step.status === "failed").length;
+        logAutoClaude("Post-implementation hooks finished", {
+          worktreeId,
+          status: run.status,
+          stepCount: run.steps.length,
+          failedCount,
+        });
+      })();
+    },
+    [api, closeCodexTab, logAutoClaude],
+  );
+
+  const handleGeminiExit = useCallback(
+    (worktreeId: string, exitCode?: number) => {
+      closeGeminiTab(worktreeId);
+      if (exitCode !== 0) return;
+      void (async () => {
+        logAutoClaude("Running post-implementation hooks after Gemini exit", {
+          worktreeId,
+          exitCode,
+        });
+        const run = await api.runHooks(worktreeId, "post-implementation");
+        const failedCount = run.steps.filter((step) => step.status === "failed").length;
+        logAutoClaude("Post-implementation hooks finished", {
+          worktreeId,
+          status: run.status,
+          stepCount: run.steps.length,
+          failedCount,
+        });
+      })();
+    },
+    [api, closeGeminiTab, logAutoClaude],
+  );
+
+  const handleOpenCodeExit = useCallback(
+    (worktreeId: string, exitCode?: number) => {
+      closeOpenCodeTab(worktreeId);
+      if (exitCode !== 0) return;
+      void (async () => {
+        logAutoClaude("Running post-implementation hooks after OpenCode exit", {
+          worktreeId,
+          exitCode,
+        });
+        const run = await api.runHooks(worktreeId, "post-implementation");
+        const failedCount = run.steps.filter((step) => step.status === "failed").length;
+        logAutoClaude("Post-implementation hooks finished", {
+          worktreeId,
+          status: run.status,
+          stepCount: run.steps.length,
+          failedCount,
+        });
+      })();
+    },
+    [api, closeOpenCodeTab, logAutoClaude],
+  );
+
   const openClaudeWithRequest = useCallback(
-    (request: ClaudeLaunchRequest) => {
+    (request: AgentLaunchRequest) => {
       logAutoClaude("Opening Claude tab with launch request", {
         worktreeId: request.worktreeId,
         requestId: request.requestId,
@@ -254,6 +525,75 @@ export function DetailPanel({
     [ensureClaudeTabMounted, logAutoClaude, setTabForWorktree],
   );
 
+  const openCodexWithRequest = useCallback(
+    (request: AgentLaunchRequest) => {
+      logAutoClaude("Opening Codex tab with launch request", {
+        worktreeId: request.worktreeId,
+        requestId: request.requestId,
+        mode: request.mode,
+        tabLabel: request.tabLabel,
+      });
+      setCurrentCodexLaunchRequest(request);
+      setCloseCodexRequestIdByWorktree((prev) => {
+        if (!(request.worktreeId in prev)) return prev;
+        const next = { ...prev };
+        delete next[request.worktreeId];
+        return next;
+      });
+      const codexTabAlreadyOpen = openCodexTabCache.has(request.worktreeId);
+      setTabForWorktree(request.worktreeId, "codex");
+      ensureCodexTabMounted(request.worktreeId);
+      setLaunchCodexRequestId(codexTabAlreadyOpen ? null : request.requestId);
+    },
+    [ensureCodexTabMounted, logAutoClaude, setTabForWorktree],
+  );
+
+  const openGeminiWithRequest = useCallback(
+    (request: AgentLaunchRequest) => {
+      logAutoClaude("Opening Gemini tab with launch request", {
+        worktreeId: request.worktreeId,
+        requestId: request.requestId,
+        mode: request.mode,
+        tabLabel: request.tabLabel,
+      });
+      setCurrentGeminiLaunchRequest(request);
+      setCloseGeminiRequestIdByWorktree((prev) => {
+        if (!(request.worktreeId in prev)) return prev;
+        const next = { ...prev };
+        delete next[request.worktreeId];
+        return next;
+      });
+      const geminiTabAlreadyOpen = openGeminiTabCache.has(request.worktreeId);
+      setTabForWorktree(request.worktreeId, "gemini");
+      ensureGeminiTabMounted(request.worktreeId);
+      setLaunchGeminiRequestId(geminiTabAlreadyOpen ? null : request.requestId);
+    },
+    [ensureGeminiTabMounted, logAutoClaude, setTabForWorktree],
+  );
+
+  const openOpenCodeWithRequest = useCallback(
+    (request: AgentLaunchRequest) => {
+      logAutoClaude("Opening OpenCode tab with launch request", {
+        worktreeId: request.worktreeId,
+        requestId: request.requestId,
+        mode: request.mode,
+        tabLabel: request.tabLabel,
+      });
+      setCurrentOpenCodeLaunchRequest(request);
+      setCloseOpenCodeRequestIdByWorktree((prev) => {
+        if (!(request.worktreeId in prev)) return prev;
+        const next = { ...prev };
+        delete next[request.worktreeId];
+        return next;
+      });
+      const openCodeTabAlreadyOpen = openOpenCodeTabCache.has(request.worktreeId);
+      setTabForWorktree(request.worktreeId, "opencode");
+      ensureOpenCodeTabMounted(request.worktreeId);
+      setLaunchOpenCodeRequestId(openCodeTabAlreadyOpen ? null : request.requestId);
+    },
+    [ensureOpenCodeTabMounted, logAutoClaude, setTabForWorktree],
+  );
+
   const handleOpenClaudeTab = useCallback(() => {
     if (!worktree) return;
     localClaudeRequestIdRef.current += 1;
@@ -268,6 +608,54 @@ export function DetailPanel({
     closeClaudeRequestIdRef.current += 1;
     const requestId = closeClaudeRequestIdRef.current;
     setCloseClaudeRequestIdByWorktree((prev) => ({ ...prev, [worktreeId]: requestId }));
+  }, []);
+
+  const handleOpenCodexTab = useCallback(() => {
+    if (!worktree) return;
+    localCodexRequestIdRef.current += 1;
+    openCodexWithRequest({
+      worktreeId: worktree.id,
+      mode: "resume",
+      requestId: localCodexRequestIdRef.current,
+    });
+  }, [openCodexWithRequest, worktree]);
+
+  const requestCloseCodexTab = useCallback((worktreeId: string) => {
+    closeCodexRequestIdRef.current += 1;
+    const requestId = closeCodexRequestIdRef.current;
+    setCloseCodexRequestIdByWorktree((prev) => ({ ...prev, [worktreeId]: requestId }));
+  }, []);
+
+  const handleOpenGeminiTab = useCallback(() => {
+    if (!worktree) return;
+    localGeminiRequestIdRef.current += 1;
+    openGeminiWithRequest({
+      worktreeId: worktree.id,
+      mode: "resume",
+      requestId: localGeminiRequestIdRef.current,
+    });
+  }, [openGeminiWithRequest, worktree]);
+
+  const requestCloseGeminiTab = useCallback((worktreeId: string) => {
+    closeGeminiRequestIdRef.current += 1;
+    const requestId = closeGeminiRequestIdRef.current;
+    setCloseGeminiRequestIdByWorktree((prev) => ({ ...prev, [worktreeId]: requestId }));
+  }, []);
+
+  const handleOpenOpenCodeTab = useCallback(() => {
+    if (!worktree) return;
+    localOpenCodeRequestIdRef.current += 1;
+    openOpenCodeWithRequest({
+      worktreeId: worktree.id,
+      mode: "resume",
+      requestId: localOpenCodeRequestIdRef.current,
+    });
+  }, [openOpenCodeWithRequest, worktree]);
+
+  const requestCloseOpenCodeTab = useCallback((worktreeId: string) => {
+    closeOpenCodeRequestIdRef.current += 1;
+    const requestId = closeOpenCodeRequestIdRef.current;
+    setCloseOpenCodeRequestIdByWorktree((prev) => ({ ...prev, [worktreeId]: requestId }));
   }, []);
 
   // Reset form state when worktree changes (but NOT tab or terminal state)
@@ -312,17 +700,42 @@ export function DetailPanel({
     let cancelled = false;
 
     void (async () => {
-      const result = await api.fetchActiveTerminalSession(worktree.id, "claude");
+      const claudeResult = await api.fetchActiveTerminalSession(worktree.id, "claude");
       if (cancelled) return;
-      if (result.success && result.sessionId) {
+      if (claudeResult.success && claudeResult.sessionId) {
         ensureClaudeTabMounted(worktree.id);
+      }
+
+      const codexResult = await api.fetchActiveTerminalSession(worktree.id, "codex");
+      if (cancelled) return;
+      if (codexResult.success && codexResult.sessionId) {
+        ensureCodexTabMounted(worktree.id);
+      }
+
+      const geminiResult = await api.fetchActiveTerminalSession(worktree.id, "gemini");
+      if (cancelled) return;
+      if (geminiResult.success && geminiResult.sessionId) {
+        ensureGeminiTabMounted(worktree.id);
+      }
+
+      const opencodeResult = await api.fetchActiveTerminalSession(worktree.id, "opencode");
+      if (cancelled) return;
+      if (opencodeResult.success && opencodeResult.sessionId) {
+        ensureOpenCodeTabMounted(worktree.id);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [api, ensureClaudeTabMounted, worktree?.id]);
+  }, [
+    api,
+    ensureClaudeTabMounted,
+    ensureCodexTabMounted,
+    ensureGeminiTabMounted,
+    ensureOpenCodeTabMounted,
+    worktree?.id,
+  ]);
 
   useEffect(() => {
     if (!claudeLaunchRequest) return;
@@ -330,6 +743,27 @@ export function DetailPanel({
     processedClaudeRequestIdRef.current = claudeLaunchRequest.requestId;
     openClaudeWithRequest(claudeLaunchRequest);
   }, [claudeLaunchRequest, openClaudeWithRequest]);
+
+  useEffect(() => {
+    if (!codexLaunchRequest) return;
+    if (processedCodexRequestIdRef.current === codexLaunchRequest.requestId) return;
+    processedCodexRequestIdRef.current = codexLaunchRequest.requestId;
+    openCodexWithRequest(codexLaunchRequest);
+  }, [codexLaunchRequest, openCodexWithRequest]);
+
+  useEffect(() => {
+    if (!geminiLaunchRequest) return;
+    if (processedGeminiRequestIdRef.current === geminiLaunchRequest.requestId) return;
+    processedGeminiRequestIdRef.current = geminiLaunchRequest.requestId;
+    openGeminiWithRequest(geminiLaunchRequest);
+  }, [geminiLaunchRequest, openGeminiWithRequest]);
+
+  useEffect(() => {
+    if (!opencodeLaunchRequest) return;
+    if (processedOpenCodeRequestIdRef.current === opencodeLaunchRequest.requestId) return;
+    processedOpenCodeRequestIdRef.current = opencodeLaunchRequest.requestId;
+    openOpenCodeWithRequest(opencodeLaunchRequest);
+  }, [opencodeLaunchRequest, openOpenCodeWithRequest]);
 
   useEffect(() => {
     if (!notificationTabRequest) return;
@@ -341,7 +775,7 @@ export function DetailPanel({
     }
   }, [notificationTabRequest, setTabForWorktree]);
 
-  // If terminal/claude tab is restored from cache on remount, ensure that view is mounted.
+  // If terminal/agent tab is restored from cache on remount, ensure that view is mounted.
   useEffect(() => {
     if (!worktree) return;
     if (activeTab === "terminal") {
@@ -354,8 +788,41 @@ export function DetailPanel({
         return;
       }
       setTabForWorktree(worktree.id, "logs");
+      return;
     }
-  }, [activeTab, ensureClaudeTabMounted, ensureTerminalTabMounted, setTabForWorktree, worktree]);
+    if (activeTab === "codex") {
+      if (openCodexTabCache.has(worktree.id)) {
+        ensureCodexTabMounted(worktree.id);
+        return;
+      }
+      setTabForWorktree(worktree.id, "logs");
+      return;
+    }
+    if (activeTab === "gemini") {
+      if (openGeminiTabCache.has(worktree.id)) {
+        ensureGeminiTabMounted(worktree.id);
+        return;
+      }
+      setTabForWorktree(worktree.id, "logs");
+      return;
+    }
+    if (activeTab === "opencode") {
+      if (openOpenCodeTabCache.has(worktree.id)) {
+        ensureOpenCodeTabMounted(worktree.id);
+        return;
+      }
+      setTabForWorktree(worktree.id, "logs");
+    }
+  }, [
+    activeTab,
+    ensureClaudeTabMounted,
+    ensureCodexTabMounted,
+    ensureGeminiTabMounted,
+    ensureOpenCodeTabMounted,
+    ensureTerminalTabMounted,
+    setTabForWorktree,
+    worktree,
+  ]);
 
   if (!worktree) {
     return (
@@ -400,13 +867,52 @@ export function DetailPanel({
       return next;
     });
     openClaudeTabCache.delete(deletedId);
+    openCodexTabCache.delete(deletedId);
+    openGeminiTabCache.delete(deletedId);
+    openOpenCodeTabCache.delete(deletedId);
     delete claudeTabLabelCache[deletedId];
+    delete codexTabLabelCache[deletedId];
+    delete geminiTabLabelCache[deletedId];
+    delete opencodeTabLabelCache[deletedId];
     setOpenClaudeTabs((prev) => {
       const next = new Set(prev);
       next.delete(deletedId);
       return next;
     });
+    setOpenCodexTabs((prev) => {
+      const next = new Set(prev);
+      next.delete(deletedId);
+      return next;
+    });
+    setOpenGeminiTabs((prev) => {
+      const next = new Set(prev);
+      next.delete(deletedId);
+      return next;
+    });
+    setOpenOpenCodeTabs((prev) => {
+      const next = new Set(prev);
+      next.delete(deletedId);
+      return next;
+    });
     setClaudeTabLabelsByWorktree((prev) => {
+      if (!(deletedId in prev)) return prev;
+      const next = { ...prev };
+      delete next[deletedId];
+      return next;
+    });
+    setCodexTabLabelsByWorktree((prev) => {
+      if (!(deletedId in prev)) return prev;
+      const next = { ...prev };
+      delete next[deletedId];
+      return next;
+    });
+    setGeminiTabLabelsByWorktree((prev) => {
+      if (!(deletedId in prev)) return prev;
+      const next = { ...prev };
+      delete next[deletedId];
+      return next;
+    });
+    setOpenCodeTabLabelsByWorktree((prev) => {
       if (!(deletedId in prev)) return prev;
       const next = { ...prev };
       delete next[deletedId];
@@ -420,8 +926,38 @@ export function DetailPanel({
     setLaunchClaudeRequestId((prev) =>
       currentClaudeLaunchRequest?.worktreeId === deletedId ? null : prev,
     );
+    setLaunchCodexRequestId((prev) =>
+      currentCodexLaunchRequest?.worktreeId === deletedId ? null : prev,
+    );
+    setLaunchGeminiRequestId((prev) =>
+      currentGeminiLaunchRequest?.worktreeId === deletedId ? null : prev,
+    );
+    setLaunchOpenCodeRequestId((prev) =>
+      currentOpenCodeLaunchRequest?.worktreeId === deletedId ? null : prev,
+    );
     setCurrentClaudeLaunchRequest((prev) => (prev?.worktreeId === deletedId ? null : prev));
+    setCurrentCodexLaunchRequest((prev) => (prev?.worktreeId === deletedId ? null : prev));
+    setCurrentGeminiLaunchRequest((prev) => (prev?.worktreeId === deletedId ? null : prev));
+    setCurrentOpenCodeLaunchRequest((prev) => (prev?.worktreeId === deletedId ? null : prev));
     setCloseClaudeRequestIdByWorktree((prev) => {
+      if (!(deletedId in prev)) return prev;
+      const next = { ...prev };
+      delete next[deletedId];
+      return next;
+    });
+    setCloseCodexRequestIdByWorktree((prev) => {
+      if (!(deletedId in prev)) return prev;
+      const next = { ...prev };
+      delete next[deletedId];
+      return next;
+    });
+    setCloseGeminiRequestIdByWorktree((prev) => {
+      if (!(deletedId in prev)) return prev;
+      const next = { ...prev };
+      delete next[deletedId];
+      return next;
+    });
+    setCloseOpenCodeRequestIdByWorktree((prev) => {
       if (!(deletedId in prev)) return prev;
       const next = { ...prev };
       delete next[deletedId];
@@ -547,9 +1083,7 @@ export function DetailPanel({
       )}
 
       {!isCreating && (
-        <div
-          className="flex-shrink-0 h-11 flex items-center justify-between px-4 -mt-1 mb-1"
-        >
+        <div className="flex-shrink-0 h-11 flex items-center justify-between px-4 -mt-1 mb-1">
           <div className="flex gap-1">
             <button
               type="button"
@@ -612,6 +1146,99 @@ export function DetailPanel({
                 </button>
               </div>
             )}
+            {openCodexTabs.has(worktree.id) && (
+              <div
+                className={`inline-flex items-center rounded-md transition-colors duration-150 ${
+                  activeTab === "codex" ? detailTab.active : detailTab.inactive
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("codex")}
+                  className="pl-3 pr-1.5 py-1 text-xs font-medium"
+                >
+                  {codexTabLabelsByWorktree[worktree.id] ?? "Codex"}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    requestCloseCodexTab(worktree.id);
+                  }}
+                  className={`mr-1.5 p-0.5 rounded-sm transition-colors duration-150 ${
+                    activeTab === "codex"
+                      ? "text-white/70 hover:text-white hover:bg-white/10"
+                      : "text-[#6b7280] hover:text-[#9ca3af] hover:bg-white/[0.06]"
+                  }`}
+                  aria-label="Close Codex tab"
+                  title="Close Codex tab"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            {openGeminiTabs.has(worktree.id) && (
+              <div
+                className={`inline-flex items-center rounded-md transition-colors duration-150 ${
+                  activeTab === "gemini" ? detailTab.active : detailTab.inactive
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("gemini")}
+                  className="pl-3 pr-1.5 py-1 text-xs font-medium"
+                >
+                  {geminiTabLabelsByWorktree[worktree.id] ?? "Gemini"}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    requestCloseGeminiTab(worktree.id);
+                  }}
+                  className={`mr-1.5 p-0.5 rounded-sm transition-colors duration-150 ${
+                    activeTab === "gemini"
+                      ? "text-white/70 hover:text-white hover:bg-white/10"
+                      : "text-[#6b7280] hover:text-[#9ca3af] hover:bg-white/[0.06]"
+                  }`}
+                  aria-label="Close Gemini tab"
+                  title="Close Gemini tab"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            {openOpenCodeTabs.has(worktree.id) && (
+              <div
+                className={`inline-flex items-center rounded-md transition-colors duration-150 ${
+                  activeTab === "opencode" ? detailTab.active : detailTab.inactive
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("opencode")}
+                  className="pl-3 pr-1.5 py-1 text-xs font-medium"
+                >
+                  {opencodeTabLabelsByWorktree[worktree.id] ?? "OpenCode"}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    requestCloseOpenCodeTab(worktree.id);
+                  }}
+                  className={`mr-1.5 p-0.5 rounded-sm transition-colors duration-150 ${
+                    activeTab === "opencode"
+                      ? "text-white/70 hover:text-white hover:bg-white/10"
+                      : "text-[#6b7280] hover:text-[#9ca3af] hover:bg-white/[0.06]"
+                  }`}
+                  aria-label="Close OpenCode tab"
+                  title="Close OpenCode tab"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
             {!openClaudeTabs.has(worktree.id) && (
               <button
                 type="button"
@@ -620,6 +1247,36 @@ export function DetailPanel({
               >
                 <Plus className="w-3 h-3" />
                 Claude
+              </button>
+            )}
+            {!openCodexTabs.has(worktree.id) && (
+              <button
+                type="button"
+                onClick={handleOpenCodexTab}
+                className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 text-xs font-medium rounded-md text-[#3f4651] hover:text-[#9ca3af] hover:bg-white/[0.06] transition-colors duration-150"
+              >
+                <Plus className="w-3 h-3" />
+                Codex
+              </button>
+            )}
+            {!openGeminiTabs.has(worktree.id) && (
+              <button
+                type="button"
+                onClick={handleOpenGeminiTab}
+                className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 text-xs font-medium rounded-md text-[#3f4651] hover:text-[#9ca3af] hover:bg-white/[0.06] transition-colors duration-150"
+              >
+                <Plus className="w-3 h-3" />
+                Gemini
+              </button>
+            )}
+            {!openOpenCodeTabs.has(worktree.id) && (
+              <button
+                type="button"
+                onClick={handleOpenOpenCodeTab}
+                className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 text-xs font-medium rounded-md text-[#3f4651] hover:text-[#9ca3af] hover:bg-white/[0.06] transition-colors duration-150"
+              >
+                <Plus className="w-3 h-3" />
+                OpenCode
               </button>
             )}
           </div>
@@ -888,7 +1545,7 @@ export function DetailPanel({
           worktreeId={wtId}
           variant="claude"
           visible={wtId === worktree.id && activeTab === "claude" && !isCreating}
-          claudeLaunchRequest={
+          launchRequest={
             currentClaudeLaunchRequest &&
             launchClaudeRequestId === currentClaudeLaunchRequest.requestId &&
             currentClaudeLaunchRequest.worktreeId === wtId
@@ -896,7 +1553,58 @@ export function DetailPanel({
               : null
           }
           closeRequestId={closeClaudeRequestIdByWorktree[wtId] ?? null}
-          onClaudeExit={(exitCode) => handleClaudeExit(wtId, exitCode)}
+          onAgentExit={(exitCode) => handleClaudeExit(wtId, exitCode)}
+        />
+      ))}
+      {[...openCodexTabs].map((wtId) => (
+        <TerminalView
+          key={`codex-${wtId}`}
+          worktreeId={wtId}
+          variant="codex"
+          visible={wtId === worktree.id && activeTab === "codex" && !isCreating}
+          launchRequest={
+            currentCodexLaunchRequest &&
+            launchCodexRequestId === currentCodexLaunchRequest.requestId &&
+            currentCodexLaunchRequest.worktreeId === wtId
+              ? currentCodexLaunchRequest
+              : null
+          }
+          closeRequestId={closeCodexRequestIdByWorktree[wtId] ?? null}
+          onAgentExit={(exitCode) => handleCodexExit(wtId, exitCode)}
+        />
+      ))}
+      {[...openGeminiTabs].map((wtId) => (
+        <TerminalView
+          key={`gemini-${wtId}`}
+          worktreeId={wtId}
+          variant="gemini"
+          visible={wtId === worktree.id && activeTab === "gemini" && !isCreating}
+          launchRequest={
+            currentGeminiLaunchRequest &&
+            launchGeminiRequestId === currentGeminiLaunchRequest.requestId &&
+            currentGeminiLaunchRequest.worktreeId === wtId
+              ? currentGeminiLaunchRequest
+              : null
+          }
+          closeRequestId={closeGeminiRequestIdByWorktree[wtId] ?? null}
+          onAgentExit={(exitCode) => handleGeminiExit(wtId, exitCode)}
+        />
+      ))}
+      {[...openOpenCodeTabs].map((wtId) => (
+        <TerminalView
+          key={`opencode-${wtId}`}
+          worktreeId={wtId}
+          variant="opencode"
+          visible={wtId === worktree.id && activeTab === "opencode" && !isCreating}
+          launchRequest={
+            currentOpenCodeLaunchRequest &&
+            launchOpenCodeRequestId === currentOpenCodeLaunchRequest.requestId &&
+            currentOpenCodeLaunchRequest.worktreeId === wtId
+              ? currentOpenCodeLaunchRequest
+              : null
+          }
+          closeRequestId={closeOpenCodeRequestIdByWorktree[wtId] ?? null}
+          onAgentExit={(exitCode) => handleOpenCodeExit(wtId, exitCode)}
         />
       ))}
       <HooksTab

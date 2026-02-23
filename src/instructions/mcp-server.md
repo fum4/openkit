@@ -80,8 +80,8 @@ Hooks run at different points in the workflow. Call `get_hooks_config` EARLY (ri
 | **post-implementation** | AFTER you finish implementing — validates changes (type checks, linting, tests, code review)                        |
 | **custom**              | When a natural-language condition is met (e.g. "when changes touch database models") — check conditions as you work |
 | **on-demand**           | Only when explicitly requested by the user — do NOT run these automatically                                         |
-| **worktree-created**    | Runs automatically after worktree creation (command-only trigger)                                                    |
-| **worktree-removed**    | Runs automatically after worktree removal (command-only trigger)                                                     |
+| **worktree-created**    | Runs automatically after worktree creation (command-only trigger)                                                   |
+| **worktree-removed**    | Runs automatically after worktree removal (command-only trigger)                                                    |
 
 ### Hooks Workflow
 
@@ -125,7 +125,7 @@ For skills that produce detailed output (code review, changes summary, test inst
 | **Code review**                      | Thorough investigation — read actual code files, trace logic, check for bugs, edge cases, security issues, correctness. Don't just summarize the diff.      |
 | **Changes summary**                  | Technical, well-structured, bullet points grouped by area (backend, frontend, types). Not overly verbose, but cover all meaningful changes.                 |
 | **Test instructions / test writing** | Check if the project has a testing framework configured. If not, ask the user whether to integrate one and which framework. Ask about scope and priorities. |
-| **Explain like I'm 5**               | Domain onboarding explanation for engineers new to the stack/domain. Define domain terms, relationships, and implications; avoid childlike tone.           |
+| **Explain like I'm 5**               | Domain onboarding explanation for engineers new to the stack/domain. Define domain terms, relationships, and implications; avoid childlike tone.            |
 
 ---
 

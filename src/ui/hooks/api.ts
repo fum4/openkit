@@ -44,6 +44,8 @@ export type OpenProjectTarget =
   | "ghostty"
   | "neovim";
 
+export type CodingAgent = "claude" | "codex" | "gemini" | "opencode";
+
 export interface OpenProjectTargetOption {
   target: OpenProjectTarget;
   label: string;
@@ -462,7 +464,7 @@ export async function createTerminalSession(
   cols?: number,
   rows?: number,
   startupCommand?: string,
-  scope?: "terminal" | "claude",
+  scope?: "terminal" | "claude" | "codex" | "gemini" | "opencode",
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; sessionId?: string; error?: string }> {
   try {
@@ -491,9 +493,81 @@ export async function createTerminalSession(
   }
 }
 
+export async function fetchAgentCliStatus(
+  agent: CodingAgent,
+  serverUrl: string | null = null,
+): Promise<{
+  success: boolean;
+  agent?: CodingAgent;
+  label?: string;
+  command?: string;
+  installed?: boolean;
+  brewPackage?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/agents/${encodeURIComponent(agent)}/cli/status`,
+    );
+    const raw = await res.text();
+    try {
+      return JSON.parse(raw);
+    } catch {
+      const htmlResponse = raw.trim().startsWith("<");
+      return {
+        success: false,
+        error: htmlResponse
+          ? "CLI check endpoint unavailable. Restart OpenKit and try again."
+          : raw || `HTTP ${res.status}`,
+      };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to check agent CLI status",
+    };
+  }
+}
+
+export async function installAgentCli(
+  agent: CodingAgent,
+  serverUrl: string | null = null,
+): Promise<{
+  success: boolean;
+  agent?: CodingAgent;
+  label?: string;
+  command?: string;
+  brewPackage?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/agents/${encodeURIComponent(agent)}/cli/install`,
+      { method: "POST" },
+    );
+    const raw = await res.text();
+    try {
+      return JSON.parse(raw);
+    } catch {
+      const htmlResponse = raw.trim().startsWith("<");
+      return {
+        success: false,
+        error: htmlResponse
+          ? "CLI install endpoint unavailable. Restart OpenKit and try again."
+          : raw || `HTTP ${res.status}`,
+      };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to install agent CLI",
+    };
+  }
+}
+
 export async function fetchActiveTerminalSession(
   worktreeId: string,
-  scope: "terminal" | "claude",
+  scope: "terminal" | "claude" | "codex" | "gemini" | "opencode",
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; sessionId: string | null; error?: string }> {
   try {
@@ -630,6 +704,7 @@ export async function updateJiraConfig(
   defaultProjectKey: string,
   refreshIntervalMinutes?: number,
   dataLifecycle?: DataLifecycleConfig,
+  autoStartAgent?: CodingAgent,
   autoStartClaudeOnNewIssue?: boolean,
   autoStartClaudeSkipPermissions?: boolean,
   autoStartClaudeFocusTerminal?: boolean,
@@ -640,12 +715,14 @@ export async function updateJiraConfig(
       defaultProjectKey: string;
       refreshIntervalMinutes?: number;
       dataLifecycle?: DataLifecycleConfig;
+      autoStartAgent?: CodingAgent;
       autoStartClaudeOnNewIssue?: boolean;
       autoStartClaudeSkipPermissions?: boolean;
       autoStartClaudeFocusTerminal?: boolean;
     } = { defaultProjectKey };
     if (refreshIntervalMinutes !== undefined) body.refreshIntervalMinutes = refreshIntervalMinutes;
     if (dataLifecycle !== undefined) body.dataLifecycle = dataLifecycle;
+    if (autoStartAgent !== undefined) body.autoStartAgent = autoStartAgent;
     if (autoStartClaudeOnNewIssue !== undefined) {
       body.autoStartClaudeOnNewIssue = autoStartClaudeOnNewIssue;
     }
@@ -783,6 +860,7 @@ export async function updateLinearConfig(
   defaultTeamKey: string,
   refreshIntervalMinutes?: number,
   dataLifecycle?: DataLifecycleConfig,
+  autoStartAgent?: CodingAgent,
   autoStartClaudeOnNewIssue?: boolean,
   autoStartClaudeSkipPermissions?: boolean,
   autoStartClaudeFocusTerminal?: boolean,
@@ -793,12 +871,14 @@ export async function updateLinearConfig(
       defaultTeamKey: string;
       refreshIntervalMinutes?: number;
       dataLifecycle?: DataLifecycleConfig;
+      autoStartAgent?: CodingAgent;
       autoStartClaudeOnNewIssue?: boolean;
       autoStartClaudeSkipPermissions?: boolean;
       autoStartClaudeFocusTerminal?: boolean;
     } = { defaultTeamKey };
     if (refreshIntervalMinutes !== undefined) body.refreshIntervalMinutes = refreshIntervalMinutes;
     if (dataLifecycle !== undefined) body.dataLifecycle = dataLifecycle;
+    if (autoStartAgent !== undefined) body.autoStartAgent = autoStartAgent;
     if (autoStartClaudeOnNewIssue !== undefined) {
       body.autoStartClaudeOnNewIssue = autoStartClaudeOnNewIssue;
     }

@@ -53,7 +53,10 @@ export function PluginInstallModal({ onInstalled, onClose }: PluginInstallModalP
   const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    localStorage.setItem("OpenKit:hiddenPluginMarketplaces", JSON.stringify([...hiddenMarketplaces]));
+    localStorage.setItem(
+      "OpenKit:hiddenPluginMarketplaces",
+      JSON.stringify([...hiddenMarketplaces]),
+    );
   }, [hiddenMarketplaces]);
   useEffect(() => {
     if (!filterOpen) return;

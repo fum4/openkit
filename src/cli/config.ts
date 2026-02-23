@@ -17,6 +17,7 @@ export interface ConfigFile {
   envMapping?: Record<string, string>;
   autoInstall?: boolean;
   localIssuePrefix?: string;
+  localAutoStartAgent?: "claude" | "codex" | "gemini" | "opencode";
   localAutoStartClaudeOnNewIssue?: boolean;
   localAutoStartClaudeSkipPermissions?: boolean;
   localAutoStartClaudeFocusTerminal?: boolean;
@@ -66,6 +67,7 @@ export function loadConfig(): { config: WorktreeConfig; configPath: string | nul
     },
     autoInstall: true,
     localIssuePrefix: "LOCAL",
+    localAutoStartAgent: "claude",
     localAutoStartClaudeOnNewIssue: false,
     localAutoStartClaudeSkipPermissions: true,
     localAutoStartClaudeFocusTerminal: true,
@@ -100,14 +102,14 @@ export function loadConfig(): { config: WorktreeConfig; configPath: string | nul
       envMapping: fileConfig.envMapping,
       autoInstall: fileConfig.autoInstall ?? defaults.autoInstall,
       localIssuePrefix: fileConfig.localIssuePrefix ?? defaults.localIssuePrefix,
+      localAutoStartAgent: fileConfig.localAutoStartAgent ?? defaults.localAutoStartAgent,
       localAutoStartClaudeOnNewIssue:
         fileConfig.localAutoStartClaudeOnNewIssue ?? defaults.localAutoStartClaudeOnNewIssue,
       localAutoStartClaudeSkipPermissions:
         fileConfig.localAutoStartClaudeSkipPermissions ??
         defaults.localAutoStartClaudeSkipPermissions,
       localAutoStartClaudeFocusTerminal:
-        fileConfig.localAutoStartClaudeFocusTerminal ??
-        defaults.localAutoStartClaudeFocusTerminal,
+        fileConfig.localAutoStartClaudeFocusTerminal ?? defaults.localAutoStartClaudeFocusTerminal,
       openProjectTarget: fileConfig.openProjectTarget,
     };
 

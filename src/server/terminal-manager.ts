@@ -9,7 +9,7 @@ const pty: { spawn: typeof nodePty.spawn } = (nodePty as any).default ?? nodePty
 interface TerminalSession {
   id: string;
   worktreeId: string;
-  scope: "terminal" | "claude" | null;
+  scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null;
   startupCommand: string | null;
   pty: IPty | null;
   ws: WebSocket | null;
@@ -26,7 +26,10 @@ export class TerminalManager {
   private sessionsByScope = new Map<string, string>();
   private idCounter = 0;
 
-  private scopeKey(worktreeId: string, scope: "terminal" | "claude"): string {
+  private scopeKey(
+    worktreeId: string,
+    scope: "terminal" | "claude" | "codex" | "gemini" | "opencode",
+  ): string {
     return `${worktreeId}::${scope}`;
   }
 
@@ -108,7 +111,7 @@ export class TerminalManager {
     cols = 80,
     rows = 24,
     startupCommand: string | null = null,
-    scope: "terminal" | "claude" | null = null,
+    scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null = null,
   ): string {
     if (!existsSync(worktreePath)) {
       throw new Error(`Worktree path does not exist: ${worktreePath}`);
@@ -274,7 +277,10 @@ export class TerminalManager {
     return this.sessions.has(sessionId);
   }
 
-  getSessionIdForScope(worktreeId: string, scope: "terminal" | "claude"): string | null {
+  getSessionIdForScope(
+    worktreeId: string,
+    scope: "terminal" | "claude" | "codex" | "gemini" | "opencode",
+  ): string | null {
     const key = this.scopeKey(worktreeId, scope);
     const sessionId = this.sessionsByScope.get(key);
     if (!sessionId) return null;

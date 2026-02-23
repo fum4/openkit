@@ -83,6 +83,28 @@ export function Header({
   const api = useApi();
   const [feedOpen, setFeedOpen] = useState(false);
   const [showAllProjects, setShowAllProjects] = useState(true);
+  const [selectedFilterGroups, setSelectedFilterGroups] = useState<
+    Array<"worktree" | "hooks" | "agents" | "system">
+  >(() => {
+    try {
+      const stored = localStorage.getItem("OpenKit:activityFeedFilters");
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      const next = new Set<"worktree" | "hooks" | "agents" | "system">();
+      for (const value of parsed) {
+        if (value === "worktree" || value === "hooks" || value === "agents" || value === "system") {
+          next.add(value);
+        } else if (value === "agents-system") {
+          next.add("agents");
+          next.add("system");
+        }
+      }
+      return [...next];
+    } catch {
+      return [];
+    }
+  });
   const [seenEventIds, setSeenEventIds] = useState<Set<string>>(() => new Set());
   const { events, unreadCount, markAllRead, clearAll } = useActivityFeed(
     undefined,
@@ -155,6 +177,18 @@ export function Header({
   }, [events.length]);
 
   useEffect(() => {
+    try {
+      if (selectedFilterGroups.length === 0) {
+        localStorage.removeItem("OpenKit:activityFeedFilters");
+      } else {
+        localStorage.setItem("OpenKit:activityFeedFilters", JSON.stringify(selectedFilterGroups));
+      }
+    } catch {
+      // Ignore storage issues
+    }
+  }, [selectedFilterGroups]);
+
+  useEffect(() => {
     if (!inputHintPopover) return;
     const timer = setTimeout(() => setInputHintPopover(null), 4200);
     return () => clearTimeout(timer);
@@ -181,7 +215,9 @@ export function Header({
       typeof event.metadata?.sourceServerUrl === "string"
         ? (event.metadata.sourceServerUrl as string)
         : undefined;
-    const fallbackGroupKey = event.worktreeId ? `agent-awaiting-input:${event.worktreeId}` : undefined;
+    const fallbackGroupKey = event.worktreeId
+      ? `agent-awaiting-input:${event.worktreeId}`
+      : undefined;
     void api.createActivityEvent({
       category: "agent",
       type: ACTIVITY_TYPES.AGENT_AWAITING_INPUT,
@@ -260,6 +296,15 @@ export function Header({
       return !prev;
     });
   };
+  const toggleFilterGroup = (group: "worktree" | "hooks" | "agents" | "system") => {
+    setSelectedFilterGroups((prev) => {
+      if (prev.includes(group)) return prev.filter((item) => item !== group);
+      return [...prev, group];
+    });
+  };
+  const clearFilterGroups = () => {
+    setSelectedFilterGroups([]);
+  };
 
   return (
     <header
@@ -335,7 +380,9 @@ export function Header({
                         <div className="text-[10px] text-accent truncate">
                           {event.projectName ?? "Unknown project"} · {eventIssueId(event)}
                         </div>
-                        <div className="text-[10px] text-[#9ca3af] truncate mt-0.5">{event.title}</div>
+                        <div className="text-[10px] text-[#9ca3af] truncate mt-0.5">
+                          {event.title}
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -361,6 +408,9 @@ export function Header({
                   onClearAll={clearAll}
                   showAllProjects={showAllProjects}
                   onToggleShowAllProjects={() => setShowAllProjects((prev) => !prev)}
+                  selectedFilterGroups={selectedFilterGroups}
+                  onToggleFilterGroup={toggleFilterGroup}
+                  onClearFilterGroups={clearFilterGroups}
                   onClose={() => setFeedOpen(false)}
                   onNavigateToWorktree={onNavigateToWorktree}
                   onNavigateToIssue={onNavigateToIssue}

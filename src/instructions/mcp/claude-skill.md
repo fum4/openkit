@@ -7,7 +7,7 @@ allowed-tools: Bash, Read, Write, Edit, Grep, Glob, LS
 
 The user wants to work on issue `$ARGUMENTS`.
 
-Use a CLI-first workflow through `openkit task`. Keep MCP as fallback only.
+Use a CLI-first workflow through `openkit task`.
 
 ---
 
@@ -17,4 +17,4 @@ Use a CLI-first workflow through `openkit task`. Keep MCP as fallback only.
 
 - Prefer `node dist/cli/index.js ...` when working inside the OpenKit repo itself to avoid stale global wrappers.
 - If `openkit task ... --init` fails due git/worktree permissions, explain the failure and retry with the required permission level.
-- If CLI is unavailable but `mcp__OpenKit__*` tools are available, MCP may be used as a fallback path.
+- If CLI commands fail, report the failure clearly and ask the user for guidance before proceeding.

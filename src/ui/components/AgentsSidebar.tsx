@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { McpServerSummary, SkillSummary, PluginSummary } from "../types";
 import { useApi } from "../hooks/useApi";
 import { useAgentRule } from "../hooks/useAgentRules";
-import { agentRule, border, mcpServer, surface, text } from "../theme";
+import { agentRule, border, surface, text } from "../theme";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DeployDialog } from "./DeployDialog";
 import { McpServerItem } from "./McpServerItem";
@@ -13,19 +13,6 @@ import { SkillItem } from "./SkillItem";
 import { PluginItem } from "./PluginItem";
 import { Spinner } from "./Spinner";
 import { ToggleSwitch } from "./ToggleSwitch";
-
-export const OPENKIT_SERVER: McpServerSummary = {
-  id: "OpenKit",
-  name: "OpenKit",
-  description: "Worktree management, issue tracking, and more",
-  tags: ["built-in"],
-  command: "openkit",
-  args: ["mcp"],
-  env: {},
-  source: "built-in",
-  createdAt: "",
-  updatedAt: "",
-};
 
 type AgentSelection =
   | { type: "agent-rule"; fileId: string }
@@ -187,17 +174,7 @@ export function AgentsSidebar({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [filterOpen]);
 
-  // Filter servers (exclude OpenKit duplicates — handled as built-in item)
-  const filteredServers = servers.filter(
-    (s) =>
-      s.id !== OPENKIT_SERVER.id &&
-      !(
-        s.name === "OpenKit" &&
-        (s.command === "openkit" || s.command === "OpenKit") &&
-        Array.isArray(s.args) &&
-        s.args[0] === "mcp"
-      ),
-  );
+  const filteredServers = servers;
 
   const filteredSkills = search
     ? skills.filter(
@@ -215,15 +192,6 @@ export function AgentsSidebar({
           p.description.toLowerCase().includes(search.toLowerCase()),
       )
     : plugins;
-
-  const OpenKitSeen =
-    typeof localStorage !== "undefined" && localStorage.getItem("OpenKit:mcpWork3Seen") === "1";
-  const isWork3New = !OpenKitSeen;
-
-  const handleSelectWork3 = () => {
-    if (isWork3New) localStorage.setItem("OpenKit:mcpWork3Seen", "1");
-    onSelect({ type: "mcp-server", id: OPENKIT_SERVER.id });
-  };
 
   // Filter helpers
   const isServerVisible = (serverId: string) => {
@@ -345,7 +313,7 @@ export function AgentsSidebar({
                   <span
                     className={`text-[10px] ${text.muted} bg-white/[0.06] px-1.5 py-0.5 rounded-full`}
                   >
-                    {filteredServers.length + 1}
+                    {filteredServers.filter((server) => isServerVisible(server.id)).length}
                   </span>
                 )}
               </span>
@@ -361,105 +329,68 @@ export function AgentsSidebar({
 
           {!mcpCollapsed && (
             <div className="space-y-px">
-              {serversLoading ? (
-                <Work3Item
-                  isSelected={selection?.type === "mcp-server" && selection.id === OPENKIT_SERVER.id}
-                  onSelect={handleSelectWork3}
-                  isNew={isWork3New}
-                  isActive={Object.values(deploymentStatus[OPENKIT_SERVER.id] ?? {}).some(
-                    (v) => v.global || v.project,
-                  )}
-                  onDeploy={() =>
-                    setDeployDialog({ type: "mcp", id: OPENKIT_SERVER.id, name: "OpenKit" })
-                  }
-                />
-              ) : (
-                (() => {
-                  const OpenKitStatus = deploymentStatus[OPENKIT_SERVER.id] ?? {};
-                  const OpenKitActive = Object.values(OpenKitStatus).some((v) => v.global || v.project);
-
-                  type SortEntry = { type: "server"; server: McpServerSummary } | { type: "OpenKit" };
-                  const entries: SortEntry[] = [
-                    ...(isServerVisible(OPENKIT_SERVER.id) ? [{ type: "OpenKit" as const }] : []),
-                    ...filteredServers
-                      .filter((s) => isServerVisible(s.id))
-                      .map((s) => ({ type: "server" as const, server: s })),
-                  ];
-
-                  const isActive = (e: SortEntry) => {
-                    if (e.type === "OpenKit") return OpenKitActive;
-                    const st = deploymentStatus[e.server.id] ?? {};
-                    return Object.values(st).some((v) => v.global || v.project);
-                  };
-                  const getName = (e: SortEntry) => (e.type === "OpenKit" ? "OpenKit" : e.server.name);
-
-                  entries.sort((a, b) => {
-                    const aAct = isActive(a);
-                    const bAct = isActive(b);
-                    if (aAct !== bAct) return aAct ? -1 : 1;
-                    return getName(a).localeCompare(getName(b));
-                  });
-
-                  return entries.map((entry) => {
-                    if (entry.type === "OpenKit") {
+              {serversLoading
+                ? null
+                : [...filteredServers]
+                    .filter((server) => isServerVisible(server.id))
+                    .sort((a, b) => {
+                      const statusA = deploymentStatus[a.id] ?? {};
+                      const statusB = deploymentStatus[b.id] ?? {};
+                      const activeA = Object.values(statusA).some(
+                        (value) => value.global || value.project,
+                      );
+                      const activeB = Object.values(statusB).some(
+                        (value) => value.global || value.project,
+                      );
+                      if (activeA !== activeB) return activeA ? -1 : 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map((server) => {
+                      const status = deploymentStatus[server.id] ?? {};
+                      const agents = Object.entries(status)
+                        .filter(([, value]) => value.global || value.project)
+                        .map(([name]) => name);
                       return (
-                        <Work3Item
-                          key={OPENKIT_SERVER.id}
+                        <McpServerItem
+                          key={server.id}
+                          server={server}
                           isSelected={
-                            selection?.type === "mcp-server" && selection.id === OPENKIT_SERVER.id
+                            selection?.type === "mcp-server" && selection.id === server.id
                           }
-                          onSelect={handleSelectWork3}
-                          isNew={isWork3New}
-                          isActive={OpenKitActive}
+                          onSelect={() => onSelect({ type: "mcp-server", id: server.id })}
+                          isActive={agents.length > 0}
                           onDeploy={() =>
-                            setDeployDialog({ type: "mcp", id: OPENKIT_SERVER.id, name: "OpenKit" })
+                            setDeployDialog({ type: "mcp", id: server.id, name: server.name })
                           }
+                          onRemove={() => {
+                            setPendingRemove({
+                              title: "Delete MCP server?",
+                              message: `This will remove "${server.name}" from the registry.`,
+                              confirmLabel: "Delete",
+                              action: async () => {
+                                for (const [tool, scopes] of Object.entries(status)) {
+                                  if (scopes.global)
+                                    await api.undeployMcpServer(server.id, tool, "global");
+                                  if (scopes.project)
+                                    await api.undeployMcpServer(server.id, tool, "project");
+                                }
+                                await api.deleteMcpServer(server.id);
+                                await queryClient.invalidateQueries({ queryKey: ["mcpServers"] });
+                                await queryClient.invalidateQueries({
+                                  queryKey: ["mcpDeploymentStatus"],
+                                });
+                                if (
+                                  selection?.type === "mcp-server" &&
+                                  selection.id === server.id
+                                ) {
+                                  onSelect(null as unknown as AgentSelection);
+                                }
+                              },
+                            });
+                          }}
                         />
                       );
-                    }
-                    const server = entry.server;
-                    const status = deploymentStatus[server.id] ?? {};
-                    const agents = Object.entries(status)
-                      .filter(([, v]) => v.global || v.project)
-                      .map(([name]) => name);
-                    return (
-                      <McpServerItem
-                        key={server.id}
-                        server={server}
-                        isSelected={selection?.type === "mcp-server" && selection.id === server.id}
-                        onSelect={() => onSelect({ type: "mcp-server", id: server.id })}
-                        isActive={agents.length > 0}
-                        onDeploy={() =>
-                          setDeployDialog({ type: "mcp", id: server.id, name: server.name })
-                        }
-                        onRemove={() => {
-                          setPendingRemove({
-                            title: "Delete MCP server?",
-                            message: `This will remove "${server.name}" from the registry.`,
-                            confirmLabel: "Delete",
-                            action: async () => {
-                              for (const [tool, scopes] of Object.entries(status)) {
-                                if (scopes.global)
-                                  await api.undeployMcpServer(server.id, tool, "global");
-                                if (scopes.project)
-                                  await api.undeployMcpServer(server.id, tool, "project");
-                              }
-                              await api.deleteMcpServer(server.id);
-                              await queryClient.invalidateQueries({ queryKey: ["mcpServers"] });
-                              await queryClient.invalidateQueries({
-                                queryKey: ["mcpDeploymentStatus"],
-                              });
-                              if (selection?.type === "mcp-server" && selection.id === server.id) {
-                                onSelect(null as unknown as AgentSelection);
-                              }
-                            },
-                          });
-                        }}
-                      />
-                    );
-                  });
-                })()
-              )}
+                    })}
             </div>
           )}
         </div>
@@ -567,7 +498,7 @@ export function AgentsSidebar({
               className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
             >
               <ChevronIcon collapsed={pluginsCollapsed} />
-              <span className={`text-[11px] font-medium ${text.secondary}`}>Plugins</span>
+              <span className={`text-[11px] font-medium ${text.secondary}`}>Claude Plugins</span>
               <span className="inline-flex items-center h-[18px]">
                 {pluginsLoading ? (
                   <Spinner size="xs" className={`${text.muted} ml-0.5`} />
@@ -938,74 +869,6 @@ function RuleItem({
           </div>
           <div className="absolute inset-0 hidden group-hover:flex items-center justify-end mr-[4px]">
             <ToggleSwitch checked={exists} onToggle={handleToggle} size="sm" />
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-// ─── Work3 built-in item ─────────────────────────────────────────
-
-function Work3Item({
-  isSelected,
-  onSelect,
-  isNew,
-  isActive,
-  onDeploy,
-}: {
-  isSelected: boolean;
-  onSelect: () => void;
-  isNew: boolean;
-  isActive?: boolean;
-  onDeploy: () => void;
-}) {
-  const handleDeploy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDeploy();
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`group w-full text-left px-3 py-3.5 transition-colors duration-150 border-l-2 ${
-        isSelected
-          ? `${surface.panelSelected} ${mcpServer.accentBorder}`
-          : `border-transparent hover:${surface.panelHover}`
-      }`}
-    >
-      <div className="flex items-center gap-2.5 min-w-0">
-        <Server
-          className={`w-3.5 h-3.5 flex-shrink-0 transition-colors duration-150 ${isSelected ? "text-purple-400" : `${text.muted} group-hover:text-purple-400`}`}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-xs font-medium truncate ${isSelected ? text.primary : text.secondary}`}
-            >
-              OpenKit
-            </span>
-            {isNew && (
-              <span className="relative flex-shrink-0">
-                <span className="absolute inset-0 rounded-full bg-purple-400/40 animate-ping" />
-                <span className="relative block w-2 h-2 rounded-full bg-purple-400" />
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Status dot / Actions — fixed-height wrapper prevents reflow on hover */}
-        <div className="flex-shrink-0 relative" style={{ width: 52, height: 16 }}>
-          <div className="absolute inset-0 flex items-center justify-end group-hover:hidden">
-            {isActive && (
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${mcpServer.deployed} flex-shrink-0 mr-2`}
-              />
-            )}
-          </div>
-          <div className="absolute inset-0 hidden group-hover:flex items-center justify-end mr-[4px]">
-            <ToggleSwitch checked={!!isActive} onToggle={handleDeploy} size="sm" />
           </div>
         </div>
       </div>

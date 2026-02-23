@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { APP_NAME } from "../../constants";
 import { useApi } from "../hooks/useApi";
 import {
+  type CodingAgent,
   fetchSetupFeatures,
   fetchGitHubStatus,
   fetchJiraStatus,
@@ -26,6 +27,7 @@ import type { DataLifecycleConfig, GitHubStatus, JiraStatus, LinearStatus } from
 import { button, infoBanner, input, settings, surface, text } from "../theme";
 import { GitHubSetupModal } from "./GitHubSetupModal";
 import { GitHubIcon, JiraIcon, LinearIcon } from "../icons";
+import { AgentModelDropdown } from "./AgentModelDropdown";
 import { Spinner } from "./Spinner";
 import { ToggleSwitch } from "./ToggleSwitch";
 
@@ -88,10 +90,10 @@ function DataLifecycleSection({
   ];
 
   return (
-    <div className="border-t border-white/[0.06] pt-3 mt-2">
+    <div className="border-t border-white/[0.06] pt-2 mt-1">
       <button
         onClick={() => setExpanded(!expanded)}
-        className={`flex items-center gap-1.5 text-[11px] font-medium ${text.secondary} hover:text-white transition-colors duration-150 w-full`}
+        className={`flex items-center gap-1.5 py-1 text-[11px] font-medium ${text.secondary} hover:text-white transition-colors duration-150 w-full`}
       >
         <ChevronDown
           className={`w-3 h-3 transition-transform duration-150 ${expanded ? "" : "-rotate-90"}`}
@@ -237,17 +239,21 @@ function DataLifecycleSection({
   );
 }
 
-function AutoStartClaudeSection({
+function AutoStartAgentSection({
+  autoStartAgent,
   autoStartEnabled,
   skipPermissions,
   focusTerminal,
+  onSelectAutoStartAgent,
   onToggleAutoStart,
   onToggleSkipPermissions,
   onToggleFocusTerminal,
 }: {
+  autoStartAgent: CodingAgent;
   autoStartEnabled: boolean;
   skipPermissions: boolean;
   focusTerminal: boolean;
+  onSelectAutoStartAgent: (agent: CodingAgent) => void;
   onToggleAutoStart: () => void;
   onToggleSkipPermissions: () => void;
   onToggleFocusTerminal: () => void;
@@ -261,26 +267,43 @@ function AutoStartClaudeSection({
   ) => <ToggleSwitch checked={checked} onToggle={onToggle} disabled={options?.disabled} />;
 
   return (
-    <div className="border-t border-white/[0.06] pt-3 mt-2">
+    <div className="border-t border-white/[0.06] pt-2 mt-1">
       <button
         onClick={() => setExpanded(!expanded)}
-        className={`flex items-center gap-1.5 text-[11px] font-medium ${text.secondary} hover:text-white transition-colors duration-150 w-full`}
+        className={`flex items-center gap-1.5 py-1 text-[11px] font-medium ${text.secondary} hover:text-white transition-colors duration-150 w-full`}
       >
         <ChevronDown
           className={`w-3 h-3 transition-transform duration-150 ${expanded ? "" : "-rotate-90"}`}
         />
-        Claude Auto-Start
+        Auto-start agent
       </button>
 
       {expanded && (
-        <div className="flex flex-col gap-3 mt-4 pl-0.5">
+        <div className="flex flex-col gap-2.5 mt-2.5 pl-0.5">
           <div className="flex items-center gap-3">
             {renderToggle(autoStartEnabled, onToggleAutoStart)}
             <div className="flex flex-col gap-0.5">
-              <label className={`text-[10px] ${settings.label}`}>Auto-start Claude on new issue</label>
+              <label className={`text-[10px] ${settings.label}`}>Auto-start on new issue</label>
               <span className={`text-[10px] ${text.dimmed}`}>
-                When a newly fetched issue appears, create/open its worktree and start Claude.
+                Create a new worktree and launch the selected agent automatically.
               </span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2.5">
+            <AgentModelDropdown
+              value={autoStartAgent}
+              onChange={onSelectAutoStartAgent}
+              className="mt-0.5"
+              triggerVariant="icon"
+              iconSize="sm"
+              disabled={!autoStartEnabled}
+            />
+            <div className="flex flex-col gap-0.5">
+              <label className={`text-[10px] ${autoStartEnabled ? settings.label : text.dimmed}`}>
+                Agent
+              </label>
+              <span className={`text-[10px] ${text.dimmed}`}>Agent used when auto-start runs.</span>
             </div>
           </div>
 
@@ -289,13 +312,11 @@ function AutoStartClaudeSection({
               disabled: !autoStartEnabled,
             })}
             <div className="flex flex-col gap-0.5">
-              <label
-                className={`text-[10px] ${!autoStartEnabled ? text.dimmed : settings.label}`}
-              >
-                Skip Claude permission prompts
+              <label className={`text-[10px] ${!autoStartEnabled ? text.dimmed : settings.label}`}>
+                Skip permission prompts
               </label>
               <span className={`text-[10px] ${text.dimmed}`}>
-                Runs Claude with `--dangerously-skip-permissions`. Enabled by default.
+                Runs with the selected agent's skip-permissions mode. Enabled by default.
               </span>
             </div>
           </div>
@@ -305,13 +326,11 @@ function AutoStartClaudeSection({
               disabled: !autoStartEnabled,
             })}
             <div className="flex flex-col gap-0.5">
-              <label
-                className={`text-[10px] ${!autoStartEnabled ? text.dimmed : settings.label}`}
-              >
-                Focus Claude terminal on auto-start
+              <label className={`text-[10px] ${!autoStartEnabled ? text.dimmed : settings.label}`}>
+                Focus terminal on auto-start
               </label>
               <span className={`text-[10px] ${text.dimmed}`}>
-                Redirects you to the worktree Claude terminal when auto-start begins.
+                Redirects you to the worktree agent terminal when auto-start begins.
               </span>
             </div>
           </div>
@@ -641,6 +660,7 @@ function JiraCard({
   const [projectKey, setProjectKey] = useState("");
   const [refreshInterval, setRefreshInterval] = useState(5);
   const [lifecycle, setLifecycle] = useState<DataLifecycleConfig>(DEFAULT_LIFECYCLE);
+  const [autoStartAgent, setAutoStartAgent] = useState<CodingAgent>("claude");
   const [autoStartClaudeOnNewIssue, setAutoStartClaudeOnNewIssue] = useState(false);
   const [autoStartClaudeSkipPermissions, setAutoStartClaudeSkipPermissions] = useState(true);
   const [autoStartClaudeFocusTerminal, setAutoStartClaudeFocusTerminal] = useState(true);
@@ -661,6 +681,9 @@ function JiraCard({
     if (status?.dataLifecycle) {
       setLifecycle(status.dataLifecycle);
     }
+    if (status?.autoStartAgent) {
+      setAutoStartAgent(status.autoStartAgent);
+    }
     if (status?.autoStartClaudeOnNewIssue !== undefined) {
       setAutoStartClaudeOnNewIssue(status.autoStartClaudeOnNewIssue);
     }
@@ -680,6 +703,7 @@ function JiraCard({
     status?.defaultProjectKey,
     status?.refreshIntervalMinutes,
     status?.dataLifecycle,
+    status?.autoStartAgent,
     status?.autoStartClaudeOnNewIssue,
     status?.autoStartClaudeSkipPermissions,
     status?.autoStartClaudeFocusTerminal,
@@ -698,6 +722,7 @@ function JiraCard({
         autoStartClaudeOnNewIssue,
         autoStartClaudeSkipPermissions,
         autoStartClaudeFocusTerminal,
+        autoStartAgent,
       );
       if (result.success) onStatusChange();
     }, 300);
@@ -706,6 +731,7 @@ function JiraCard({
     projectKey,
     refreshInterval,
     lifecycle,
+    autoStartAgent,
     autoStartClaudeOnNewIssue,
     autoStartClaudeSkipPermissions,
     autoStartClaudeFocusTerminal,
@@ -794,16 +820,20 @@ function JiraCard({
             </div>
           </div>
 
-          <AutoStartClaudeSection
-            autoStartEnabled={autoStartClaudeOnNewIssue}
-            skipPermissions={autoStartClaudeSkipPermissions}
-            focusTerminal={autoStartClaudeFocusTerminal}
-            onToggleAutoStart={() => setAutoStartClaudeOnNewIssue((prev) => !prev)}
-            onToggleSkipPermissions={() => setAutoStartClaudeSkipPermissions((prev) => !prev)}
-            onToggleFocusTerminal={() => setAutoStartClaudeFocusTerminal((prev) => !prev)}
-          />
+          <div className="flex flex-col gap-1">
+            <AutoStartAgentSection
+              autoStartAgent={autoStartAgent}
+              autoStartEnabled={autoStartClaudeOnNewIssue}
+              skipPermissions={autoStartClaudeSkipPermissions}
+              focusTerminal={autoStartClaudeFocusTerminal}
+              onSelectAutoStartAgent={setAutoStartAgent}
+              onToggleAutoStart={() => setAutoStartClaudeOnNewIssue((prev) => !prev)}
+              onToggleSkipPermissions={() => setAutoStartClaudeSkipPermissions((prev) => !prev)}
+              onToggleFocusTerminal={() => setAutoStartClaudeFocusTerminal((prev) => !prev)}
+            />
 
-          <DataLifecycleSection dataLifecycle={lifecycle} onChange={setLifecycle} />
+            <DataLifecycleSection dataLifecycle={lifecycle} onChange={setLifecycle} />
+          </div>
 
           <button
             onClick={handleDisconnect}
@@ -913,6 +943,7 @@ function LinearCard({
   const [teamKey, setTeamKey] = useState("");
   const [refreshInterval, setRefreshInterval] = useState(5);
   const [lifecycle, setLifecycle] = useState<DataLifecycleConfig>(DEFAULT_LIFECYCLE);
+  const [autoStartAgent, setAutoStartAgent] = useState<CodingAgent>("claude");
   const [autoStartClaudeOnNewIssue, setAutoStartClaudeOnNewIssue] = useState(false);
   const [autoStartClaudeSkipPermissions, setAutoStartClaudeSkipPermissions] = useState(true);
   const [autoStartClaudeFocusTerminal, setAutoStartClaudeFocusTerminal] = useState(true);
@@ -933,6 +964,9 @@ function LinearCard({
     if (status?.dataLifecycle) {
       setLifecycle(status.dataLifecycle);
     }
+    if (status?.autoStartAgent) {
+      setAutoStartAgent(status.autoStartAgent);
+    }
     if (status?.autoStartClaudeOnNewIssue !== undefined) {
       setAutoStartClaudeOnNewIssue(status.autoStartClaudeOnNewIssue);
     }
@@ -952,6 +986,7 @@ function LinearCard({
     status?.defaultTeamKey,
     status?.refreshIntervalMinutes,
     status?.dataLifecycle,
+    status?.autoStartAgent,
     status?.autoStartClaudeOnNewIssue,
     status?.autoStartClaudeSkipPermissions,
     status?.autoStartClaudeFocusTerminal,
@@ -970,6 +1005,7 @@ function LinearCard({
         autoStartClaudeOnNewIssue,
         autoStartClaudeSkipPermissions,
         autoStartClaudeFocusTerminal,
+        autoStartAgent,
       );
       if (result.success) onStatusChange();
     }, 300);
@@ -978,6 +1014,7 @@ function LinearCard({
     teamKey,
     refreshInterval,
     lifecycle,
+    autoStartAgent,
     autoStartClaudeOnNewIssue,
     autoStartClaudeSkipPermissions,
     autoStartClaudeFocusTerminal,
@@ -1062,16 +1099,20 @@ function LinearCard({
             </div>
           </div>
 
-          <AutoStartClaudeSection
-            autoStartEnabled={autoStartClaudeOnNewIssue}
-            skipPermissions={autoStartClaudeSkipPermissions}
-            focusTerminal={autoStartClaudeFocusTerminal}
-            onToggleAutoStart={() => setAutoStartClaudeOnNewIssue((prev) => !prev)}
-            onToggleSkipPermissions={() => setAutoStartClaudeSkipPermissions((prev) => !prev)}
-            onToggleFocusTerminal={() => setAutoStartClaudeFocusTerminal((prev) => !prev)}
-          />
+          <div className="flex flex-col gap-1">
+            <AutoStartAgentSection
+              autoStartAgent={autoStartAgent}
+              autoStartEnabled={autoStartClaudeOnNewIssue}
+              skipPermissions={autoStartClaudeSkipPermissions}
+              focusTerminal={autoStartClaudeFocusTerminal}
+              onSelectAutoStartAgent={setAutoStartAgent}
+              onToggleAutoStart={() => setAutoStartClaudeOnNewIssue((prev) => !prev)}
+              onToggleSkipPermissions={() => setAutoStartClaudeSkipPermissions((prev) => !prev)}
+              onToggleFocusTerminal={() => setAutoStartClaudeFocusTerminal((prev) => !prev)}
+            />
 
-          <DataLifecycleSection dataLifecycle={lifecycle} onChange={setLifecycle} />
+            <DataLifecycleSection dataLifecycle={lifecycle} onChange={setLifecycle} />
+          </div>
 
           <button
             onClick={handleDisconnect}

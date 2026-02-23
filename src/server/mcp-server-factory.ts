@@ -5,6 +5,7 @@ import { actions } from "../actions";
 import type { ActionContext, ActionParam } from "../actions";
 import { APP_NAME } from "../constants";
 import { MCP_INSTRUCTIONS, MCP_WORK_ON_TASK_PROMPT } from "../instructions";
+import { APP_VERSION } from "../version";
 import type { ActivityCategory, ActivitySeverity } from "./activity-event";
 
 function toZodType(param: ActionParam) {
@@ -82,7 +83,7 @@ export function createMcpServer(ctx: ActionContext): McpServer {
   const projectName = ctx.manager.getProjectName() ?? undefined;
 
   const server = new McpServer(
-    { name: APP_NAME, version: "0.1.0" },
+    { name: APP_NAME, version: APP_VERSION },
     { instructions: MCP_INSTRUCTIONS },
   );
 

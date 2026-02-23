@@ -157,6 +157,7 @@ function OpenProjectSplitButton({
   const openMenuRef = useRef<HTMLDivElement>(null);
   const selectedTargetOption =
     openTargetOptions.find((option) => option.target === selectedOpenTarget) ?? null;
+  const openButtonLabel = selectedTargetOption ? `Open in ${selectedTargetOption.label}` : "Open";
   const hasOpenTargets = openTargetOptions.length > 0;
 
   useEffect(() => {
@@ -186,14 +187,18 @@ function OpenProjectSplitButton({
           if (selectedTargetOption) onOpenProjectIn(selectedTargetOption.target);
         }}
         disabled={isLoading || !selectedTargetOption}
-        title={selectedTargetOption ? `Open in ${selectedTargetOption.label}` : "No supported apps detected"}
+        title={
+          selectedTargetOption
+            ? `Open in ${selectedTargetOption.label}`
+            : "No supported apps detected"
+        }
         className={`group h-7 pl-2.5 pr-3 text-[11px] font-medium ${button.secondary} rounded-l-md border-r border-white/[0.06] disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-[10px]`}
       >
         <OpenTargetAppIcon
           target={selectedTargetOption?.target ?? "file-manager"}
           className="w-4 h-4 grayscale transition-[filter] duration-150 group-hover:grayscale-0"
         />
-        Open
+        {openButtonLabel}
       </button>
       <button
         type="button"

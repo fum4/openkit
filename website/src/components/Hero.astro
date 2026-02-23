@@ -1,4 +1,5 @@
 ---
+import DownloadSplitButton from "./DownloadSplitButton.astro";
 ---
 
 <section class="hero">
@@ -21,23 +22,7 @@
         and ship pull requests. Like engineers, not interns.
       </p>
       <div class="hero-ctas fade-in" data-delay="240">
-        <a id="hero-download-btn" href="#download" class="btn-primary glow-pulse">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Download for macOS
-        </a>
+        <DownloadSplitButton buttonId="hero-download-btn" className="hero-download glow-pulse" />
         <div class="cli-install">
           <span class="cli-dollar">$</span>
           <code id="cli-command">npm install -g openkit</code>
@@ -77,7 +62,7 @@
         </div>
       </div>
       <p class="hero-alt fade-in" data-delay="320">
-        Also available for <a href="#download" id="hero-alt-arch">Intel Macs</a>
+        Need a different build? Click the selector on the right side of the download button.
       </p>
     </div>
     <div class="hero-visual fade-in" data-delay="200">
@@ -155,16 +140,6 @@
     }, 1800);
   }
 
-  // Copy with checkmark feedback
-  document.querySelectorAll(".copy-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const text = (btn as HTMLElement).dataset.copy || "";
-      await navigator.clipboard.writeText(text);
-      btn.classList.add("copied");
-      setTimeout(() => btn.classList.remove("copied"), 2000);
-    });
-  });
-
   const heroObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
@@ -185,7 +160,8 @@
   .hero {
     position: relative;
     padding: calc(var(--nav-height) + 96px) 0 112px;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
   /* ─── Background layers ──────────────────────────────────── */
@@ -236,6 +212,8 @@
   }
 
   .hero-text {
+    position: relative;
+    z-index: 4;
     max-width: 540px;
   }
 
@@ -279,36 +257,17 @@
   }
 
   .hero-ctas {
+    position: relative;
+    z-index: 5;
     display: flex;
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
+    overflow: visible;
   }
 
-  .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 24px;
-    background: rgba(45, 212, 191, 0.12);
-    color: var(--accent);
+  .hero-download {
     border-radius: 10px;
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-size: 14px;
-    border: 1px solid rgba(45, 212, 191, 0.2);
-    transition:
-      background 0.25s var(--ease-out-quart),
-      border-color 0.25s var(--ease-out-quart),
-      transform 0.25s var(--ease-out-quart);
-    cursor: pointer;
-  }
-
-  .btn-primary:hover {
-    background: rgba(45, 212, 191, 0.2);
-    border-color: rgba(45, 212, 191, 0.35);
-    color: var(--accent) !important;
-    transform: translateY(-1px);
   }
 
   .cli-install {
@@ -377,6 +336,8 @@
 
   /* ─── Terminal ───────────────────────────────────────────── */
   .hero-visual {
+    position: relative;
+    z-index: 1;
     display: flex;
     justify-content: center;
     perspective: 1200px;
@@ -558,7 +519,11 @@
       align-items: stretch;
     }
 
-    .btn-primary {
+    .hero-download {
+      width: 100%;
+    }
+
+    .hero-download .download-main-btn {
       justify-content: center;
     }
 

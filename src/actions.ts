@@ -10,7 +10,7 @@ import type { WorktreeManager } from "./server/manager";
 import type { NotesManager } from "./server/notes-manager";
 import { generateTaskMd, writeTaskMd } from "./server/task-context";
 import type { TaskContextData } from "./server/task-context";
-import type { HookStep, HookTrigger } from "./server/types";
+import type { HookSkillRef, HookStep, HookTrigger } from "./server/types";
 import type { HooksManager } from "./server/verification-manager";
 import type { ActivityLog } from "./server/activity-log";
 import { ACTIVITY_TYPES } from "./server/activity-event";
@@ -61,6 +61,13 @@ function matchesTrigger(step: HookStep, trigger: HookTrigger): boolean {
     return step.trigger === "post-implementation" || !step.trigger;
   }
   return step.trigger === trigger;
+}
+
+function matchesSkillTrigger(trigger: HookTrigger, skillTrigger?: HookTrigger): boolean {
+  if (trigger === "post-implementation") {
+    return skillTrigger === "post-implementation" || !skillTrigger;
+  }
+  return skillTrigger === trigger;
 }
 
 function isRunnableStep(step: HookStep): boolean {
@@ -687,7 +694,9 @@ export const actions: Action[] = [
         requiresUserActionRaw === true ||
         requiresUserActionRaw === "true" ||
         USER_ACTION_HINT.test(message);
-      const eventType = requiresUserAction ? ACTIVITY_TYPES.AGENT_AWAITING_INPUT : ACTIVITY_TYPES.NOTIFY;
+      const eventType = requiresUserAction
+        ? ACTIVITY_TYPES.AGENT_AWAITING_INPUT
+        : ACTIVITY_TYPES.NOTIFY;
       const projectName = ctx.manager.getProjectName() ?? undefined;
 
       if (!["info", "success", "warning", "error"].includes(severity)) {
@@ -761,12 +770,29 @@ export const actions: Action[] = [
       if (!ctx.hooksManager) return { error: "Hooks manager not available" };
       const worktreeId = params.worktreeId as string;
       const trigger = normalizeHookTrigger(params.trigger);
+      const hooksConfig = ctx.hooksManager.getConfig();
+      const hasAnyEnabledHookEntries =
+        hooksConfig.steps.some((step) => step.enabled !== false && matchesTrigger(step, trigger)) ||
+        hooksConfig.skills.some(
+          (skill: HookSkillRef) => skill.enabled && matchesSkillTrigger(trigger, skill.trigger),
+        );
+      if (!hasAnyEnabledHookEntries) {
+        const now = new Date().toISOString();
+        return {
+          id: `run-${Date.now()}`,
+          worktreeId,
+          status: "completed",
+          startedAt: now,
+          completedAt: now,
+          steps: [],
+        };
+      }
+
       const projectName = ctx.manager.getProjectName() ?? undefined;
       const groupKey = `hooks:${worktreeId}:${trigger}`;
 
-      const runnableSteps = ctx.hooksManager
-        .getConfig()
-        .steps.filter(
+      const runnableSteps = hooksConfig.steps
+        .filter(
           (step) => step.enabled !== false && matchesTrigger(step, trigger) && isRunnableStep(step),
         )
         .map((step) => ({ stepId: step.id, stepName: step.name, command: step.command }));

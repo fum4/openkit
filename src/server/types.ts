@@ -36,11 +36,13 @@ export interface WorktreeConfig {
   autoInstall?: boolean;
   /** Prefix for local issue identifiers (default: "LOCAL") */
   localIssuePrefix?: string;
-  /** Auto-start Claude for newly discovered local tasks (default: false) */
+  /** Agent used for local auto-start (default: "claude") */
+  localAutoStartAgent?: "claude" | "codex" | "gemini" | "opencode";
+  /** Auto-start agent for newly discovered local tasks (default: false) */
   localAutoStartClaudeOnNewIssue?: boolean;
-  /** Skip Claude permission prompts for local auto-start (default: true) */
+  /** Skip permission prompts for local auto-start (default: true) */
   localAutoStartClaudeSkipPermissions?: boolean;
-  /** Focus Claude terminal when local auto-start begins (default: true) */
+  /** Focus agent terminal when local auto-start begins (default: true) */
   localAutoStartClaudeFocusTerminal?: boolean;
   /** Preferred app target for "Open project in" */
   openProjectTarget?: OpenProjectTarget;

@@ -24,17 +24,33 @@ pnpm start
 
 ## Build Commands
 
-| Command            | Description                                                                                  |
-| ------------------ | -------------------------------------------------------------------------------------------- |
-| `pnpm build`       | Full production build (tsup backend + Electron compile + copy port-hook.cjs + Vite frontend) |
-| `pnpm dev`         | Dev mode with concurrent watchers for UI, backend, and Electron                              |
-| `pnpm start`       | Run the built CLI (`node dist/cli/index.js`)                                                 |
-| `pnpm check-types` | TypeScript type checking (`tsc --noEmit`)                                                    |
-| `pnpm check-lint`  | Run ESLint                                                                                   |
-| `pnpm format-lint` | Run ESLint with `--fix` for auto-formatting                                                  |
-| `pnpm build:app`   | Full build + package as macOS Electron app via `electron-builder`                            |
+| Command               | Description                                                                                  |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `pnpm build`          | Full production build (tsup backend + Electron compile + copy port-hook.cjs + Vite frontend) |
+| `pnpm dev`            | Dev mode with concurrent watchers for UI, backend, and Electron                              |
+| `pnpm start`          | Run the built CLI (`node dist/cli/index.js`)                                                 |
+| `pnpm check:types`    | TypeScript type checking (`tsc --noEmit`)                                                    |
+| `pnpm check:format`   | Run oxfmt in check mode                                                                      |
+| `pnpm check:lint`     | Run oxlint                                                                                   |
+| `pnpm check:all`      | Run typecheck + format check + lint                                                          |
+| `pnpm fix:format`     | Run oxfmt to apply formatting                                                                |
+| `pnpm fix:lint`       | Run oxlint with `--fix`                                                                      |
+| `pnpm fix:all`        | Run format + lint auto-fixes                                                                 |
+| `pnpm verify:package` | Verify npm package metadata and required build artifacts                                     |
+| `pnpm smoke:tarball`  | Pack and unpack the local tarball, then smoke-test the packaged CLI entrypoint               |
+| `pnpm release:verify` | Full release gate: typecheck, lint, build, package verification, tarball smoke test          |
+| `pnpm build:app`      | Full build + package as macOS Electron app via `electron-builder`                            |
 
 There is no test runner configured.
+
+## npm Publishing
+
+OpenKit is published on npm as `openkit`.
+
+- `prepack` runs `pnpm build && pnpm verify:package`, so local and CI publishes fail fast if required artifacts are missing.
+- GitHub Actions release workflow runs `pnpm release:verify` before creating a release.
+- After `release-it` bumps/tags, the workflow publishes to npm via `npm publish --access public --provenance` using `NPM_TOKEN`.
+- Installed command aliases are `openkit`, `ok`, and `OpenKit`.
 
 ### What `pnpm build` Does
 
@@ -325,13 +341,13 @@ This follows an established pattern. You will need:
 
 For reference, these are the CLI entry points (all in `src/cli/`):
 
-| Command                      | Description                                            |
-| ---------------------------- | ------------------------------------------------------ |
-| `OpenKit`                       | Start the server and open UI (Electron or browser)     |
-| `openkit init`                  | Interactive setup wizard to create `.openkit/config.json` |
-| `openkit connect`               | Connect to an existing running OpenKit server             |
-| `openkit mcp`                   | Start as an MCP server (for Claude Code integration)   |
-| `openkit task [source|resolve] [ID...]` | Resolve issues and create worktrees (jira, linear, local) |
+| Command               | Description                                               |
+| --------------------- | --------------------------------------------------------- | --------------------------------------------------------- |
+| `OpenKit`             | Start the server and open UI (Electron or browser)        |
+| `openkit init`        | Interactive setup wizard to create `.openkit/config.json` |
+| `openkit connect`     | Connect to an existing running OpenKit server             |
+| `openkit mcp`         | Start as an MCP server (for Claude Code integration)      |
+| `openkit task [source | resolve] [ID...]`                                         | Resolve issues and create worktrees (jira, linear, local) |
 
 ## Configuration
 

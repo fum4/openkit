@@ -40,6 +40,7 @@ export function loadJiraProjectConfig(configDir: string): JiraProjectConfig {
     defaultProjectKey: jira.defaultProjectKey as string | undefined,
     refreshIntervalMinutes: jira.refreshIntervalMinutes as number | undefined,
     dataLifecycle: jira.dataLifecycle as DataLifecycleConfig | undefined,
+    autoStartAgent: jira.autoStartAgent as JiraProjectConfig["autoStartAgent"] | undefined,
     autoStartClaudeOnNewIssue: jira.autoStartClaudeOnNewIssue as boolean | undefined,
     autoStartClaudeSkipPermissions: jira.autoStartClaudeSkipPermissions as boolean | undefined,
     autoStartClaudeFocusTerminal: jira.autoStartClaudeFocusTerminal as boolean | undefined,

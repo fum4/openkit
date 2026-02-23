@@ -49,6 +49,7 @@ export interface JiraStatus {
   email: string | null;
   domain: string | null;
   dataLifecycle: DataLifecycleConfig | null;
+  autoStartAgent: "claude" | "codex" | "gemini" | "opencode";
   autoStartClaudeOnNewIssue: boolean;
   autoStartClaudeSkipPermissions: boolean;
   autoStartClaudeFocusTerminal: boolean;
@@ -81,6 +82,7 @@ export interface LinearStatus {
   refreshIntervalMinutes: number;
   displayName: string | null;
   dataLifecycle: DataLifecycleConfig | null;
+  autoStartAgent: "claude" | "codex" | "gemini" | "opencode";
   autoStartClaudeOnNewIssue: boolean;
   autoStartClaudeSkipPermissions: boolean;
   autoStartClaudeFocusTerminal: boolean;

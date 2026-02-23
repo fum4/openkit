@@ -70,9 +70,9 @@ OpenKit's UI can deploy this configuration automatically to any supported agent 
 Set `OPENKIT_ENABLE_MCP_SETUP=1` to enable MCP setup routes (`/api/mcp/status`,
 `/api/mcp/setup`, `/api/mcp/remove`).
 
-### Auto-Approval of MCP Tools
+### Claude Settings
 
-When deploying agent instructions for Claude, OpenKit also merges `mcp__OpenKit__*` into `.claude/settings.json` → `permissions.allow`. This auto-approves all OpenKit MCP tools so agents can call them (e.g., `report_hook_status`) without prompting the user for permission each time. On removal, the permission entries are cleaned up from the settings file.
+Deploying/removing Claude instruction files does not mutate `.claude/settings.json` permissions.
 
 ### Exposed Tools
 
@@ -434,10 +434,10 @@ OpenKit includes a hooks system that agents can use to run automated checks at d
 
 ### Item Types
 
-| Type             | Execution                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------------- |
+| Type             | Execution                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
 | Command steps    | OpenKit runs shell commands in the worktree directory and returns stdout/stderr with pass/fail |
-| Skill references | Agent is told which skills to invoke; results are reported back                             |
+| Skill references | Agent is told which skills to invoke; results are reported back                                |
 
 `worktree-created` and `worktree-removed` are command-only triggers (no skills).
 
@@ -453,7 +453,7 @@ Hooks config is stored in `.openkit/hooks.json`:
     {
       "id": "step-1234567890-1",
       "name": "Type check",
-      "command": "pnpm check-types",
+      "command": "pnpm check:types",
       "enabled": true,
       "trigger": "post-implementation"
     }
@@ -493,14 +493,14 @@ The Agents view in the web UI provides a unified interface for managing all agen
 
 The view uses a sidebar + detail panel layout:
 
-- **Sidebar** (resizable, 200-500px): Lists all MCP servers, skills, and Claude plugins in collapsible sections. The built-in OpenKit server always appears first and is auto-selected by default.
+- **Sidebar** (resizable, 200-500px): Lists MCP servers, skills, and Claude plugins in collapsible sections.
 - **Detail panel**: Shows configuration and management options for the selected item.
 
 ### Sidebar Sections
 
 **Rules**: Static items for editing project-level agent instruction files (CLAUDE.md, AGENTS.md). Each item shows an active status dot when the file exists on disk, with a toggle on hover to create or delete the file (deletion requires confirmation). Selecting one opens a detail panel with full-height markdown preview and click-to-edit editing with debounced auto-save.
 
-**MCP Servers**: Lists servers from the registry. Each item shows deployment status indicators for each agent. The built-in OpenKit server is always present.
+**MCP Servers**: Lists servers from the registry. Each item shows deployment status indicators for each agent.
 
 **Skills**: Lists skills from the registry with deployment status per agent.
 

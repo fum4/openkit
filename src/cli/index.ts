@@ -10,6 +10,7 @@ import { APP_NAME, CLI_COMMAND, CLI_COMMAND_ALIAS, CONFIG_DIR_NAME } from "../co
 import { log } from "../logger";
 import { loadGlobalPreferences } from "../shared/global-preferences";
 import { startWorktreeServer } from "../server/index";
+import { APP_VERSION } from "../version";
 import { findConfigFile, loadConfig } from "./config";
 
 const cliDir = path.dirname(fileURLToPath(import.meta.url));
@@ -170,7 +171,7 @@ async function main() {
   }
 
   if (subcommand === "--version" || subcommand === "-v") {
-    log.plain("0.1.0");
+    log.plain(APP_VERSION);
     return;
   }
 

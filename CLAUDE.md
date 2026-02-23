@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 OpenKit is a CLI tool + web UI (with optional Electron app) for managing multiple git worktrees with automatic port offsetting and Jira/Linear/GitHub integrations.
 
+## MCP Status (Legacy)
+
+MCP is legacy in this repository.
+
+- Do not use MCP for new work.
+- Do not develop new MCP features.
+- Do not refactor MCP code unless explicitly requested for a targeted legacy fix.
+- Prefer CLI and core app flows for all new capabilities.
+
 ## Naming and File Hygiene
 
 - Choose clear, specific names for files and folders.
@@ -34,8 +43,8 @@ OpenKit is a CLI tool + web UI (with optional Electron app) for managing multipl
 ```bash
 pnpm build         # Full build (tsup backend + vite frontend)
 pnpm dev           # Dev mode (concurrent watchers)
-pnpm check-types   # TypeScript type check
-pnpm check-lint    # Lint
+pnpm check:types   # TypeScript type check
+pnpm check:lint    # Lint
 ```
 
 There is no test runner configured.

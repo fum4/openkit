@@ -6,6 +6,7 @@ import { APP_NAME, CONFIG_DIR_NAME } from "../constants";
 import { log } from "../logger";
 
 type ActivitySeverity = "info" | "success" | "warning" | "error";
+type IssueSource = "jira" | "linear" | "local";
 const WORKFLOW_PHASES = [
   "task-started",
   "pre-hooks-started",
@@ -39,6 +40,14 @@ interface ParsedCheckFlowArgs {
   json: boolean;
 }
 
+interface ParsedTodoArgs {
+  source: IssueSource;
+  issueId: string;
+  todoId?: string;
+  all: boolean;
+  checked: boolean;
+}
+
 interface FlowComplianceReport {
   worktreeId: string;
   compliant: boolean;
@@ -59,6 +68,7 @@ Usage:
   ${APP_NAME} activity phase --phase <${WORKFLOW_PHASES.join("|")}> [--worktree <id>] [--detail "<extra context>"] [--message "<custom title>"] [--severity info|success|warning|error]
   ${APP_NAME} activity phase <${WORKFLOW_PHASES.join("|")}> [--worktree <id>]
   ${APP_NAME} activity check-flow --worktree <id> [--json]
+  ${APP_NAME} activity todo --source <jira|linear|local> --issue <id> (--id <todo-id>|--all) [--check|--uncheck]
 
 Notes:
   - This command requires a running OpenKit server in the current project.
@@ -123,12 +133,7 @@ function parseAwaitInputArgs(rawArgs: string[]): ParsedAwaitInputArgs {
         detail = next;
       } else if (arg === "--worktree") {
         worktreeId = next;
-      } else if (
-        next === "info" ||
-        next === "success" ||
-        next === "warning" ||
-        next === "error"
-      ) {
+      } else if (next === "info" || next === "success" || next === "warning" || next === "error") {
         severity = next;
       } else {
         throw new Error(`Invalid severity "${next}"`);
@@ -227,12 +232,7 @@ function parsePhaseArgs(rawArgs: string[]): ParsedPhaseArgs {
         detail = next;
       } else if (arg === "--worktree") {
         worktreeId = next;
-      } else if (
-        next === "info" ||
-        next === "success" ||
-        next === "warning" ||
-        next === "error"
-      ) {
+      } else if (next === "info" || next === "success" || next === "warning" || next === "error") {
         severity = next;
       } else {
         throw new Error(`Invalid severity "${next}"`);
@@ -318,6 +318,94 @@ function parseCheckFlowArgs(rawArgs: string[]): ParsedCheckFlowArgs {
   };
 }
 
+function parseTodoArgs(rawArgs: string[]): ParsedTodoArgs {
+  let source: IssueSource | null = null;
+  let issueId: string | null = null;
+  let todoId: string | undefined;
+  let all = false;
+  let checked = true;
+
+  for (let i = 0; i < rawArgs.length; i++) {
+    const arg = rawArgs[i];
+
+    const sourceValue = parseValueArg(arg, "source");
+    if (sourceValue !== null) {
+      if (sourceValue === "jira" || sourceValue === "linear" || sourceValue === "local") {
+        source = sourceValue;
+        continue;
+      }
+      throw new Error(`Invalid source "${sourceValue}"`);
+    }
+    const issueValue = parseValueArg(arg, "issue");
+    if (issueValue !== null) {
+      issueId = issueValue;
+      continue;
+    }
+    const todoValue = parseValueArg(arg, "id");
+    if (todoValue !== null) {
+      todoId = todoValue;
+      continue;
+    }
+
+    if (arg === "--all") {
+      all = true;
+      continue;
+    }
+    if (arg === "--check") {
+      checked = true;
+      continue;
+    }
+    if (arg === "--uncheck") {
+      checked = false;
+      continue;
+    }
+
+    if (arg === "--source" || arg === "--issue" || arg === "--id") {
+      const next = rawArgs[i + 1];
+      if (!next) throw new Error(`Missing value for ${arg}`);
+      i++;
+      if (arg === "--source") {
+        if (next === "jira" || next === "linear" || next === "local") {
+          source = next;
+        } else {
+          throw new Error(`Invalid source "${next}"`);
+        }
+      } else if (arg === "--issue") {
+        issueId = next;
+      } else {
+        todoId = next;
+      }
+      continue;
+    }
+
+    if (arg.startsWith("--")) {
+      throw new Error(`Unknown option "${arg}"`);
+    }
+    throw new Error(`Unexpected argument "${arg}"`);
+  }
+
+  if (!source) {
+    throw new Error("source is required (--source jira|linear|local)");
+  }
+  if (!issueId?.trim()) {
+    throw new Error("issue is required (--issue <id>)");
+  }
+  if (!all && !todoId?.trim()) {
+    throw new Error("todo id is required (--id <todo-id>) unless --all is used");
+  }
+  if (all && todoId?.trim()) {
+    throw new Error("Use either --id or --all, not both");
+  }
+
+  return {
+    source,
+    issueId: issueId.trim(),
+    todoId: todoId?.trim(),
+    all,
+    checked,
+  };
+}
+
 function inferWorktreeIdFromCwd(): string | null {
   const normalized = process.cwd().replace(/\\/g, "/");
   const marker = `/${CONFIG_DIR_NAME}/worktrees/`;
@@ -380,7 +468,10 @@ async function emitAwaitingInputEvent(args: ParsedAwaitInputArgs): Promise<void>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const payload = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string };
+  const payload = (await response.json().catch(() => ({}))) as {
+    success?: boolean;
+    error?: string;
+  };
   if (!response.ok || payload.success !== true) {
     throw new Error(payload.error || `HTTP ${response.status}`);
   }
@@ -413,16 +504,17 @@ async function emitWorkflowPhaseEvent(args: ParsedPhaseArgs): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const payload = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string };
+  const payload = (await response.json().catch(() => ({}))) as {
+    success?: boolean;
+    error?: string;
+  };
   if (!response.ok || payload.success !== true) {
     throw new Error(payload.error || `HTTP ${response.status}`);
   }
 }
 
 function printFlowComplianceReport(report: FlowComplianceReport): void {
-  log.plain(
-    `Workflow compliance for ${report.worktreeId}: ${report.compliant ? "PASS" : "FAIL"}`,
-  );
+  log.plain(`Workflow compliance for ${report.worktreeId}: ${report.compliant ? "PASS" : "FAIL"}`);
   const missingPhases = report.phases?.missing ?? [];
   if (missingPhases.length > 0) {
     log.plain(`Missing phases: ${missingPhases.join(", ")}`);
@@ -481,6 +573,58 @@ async function runCheckFlow(args: ParsedCheckFlowArgs): Promise<void> {
   }
 }
 
+async function updateTodoCheckboxes(args: ParsedTodoArgs): Promise<number> {
+  const serverUrl = findRunningServerUrl(process.cwd());
+  if (!serverUrl) {
+    throw new Error("No running OpenKit server found for this project");
+  }
+
+  const notesRes = await fetch(
+    `${serverUrl}/api/notes/${encodeURIComponent(args.source)}/${encodeURIComponent(args.issueId)}`,
+  );
+  const notesPayload = (await notesRes.json().catch(() => ({}))) as {
+    todos?: Array<{ id: string; text: string; checked: boolean }>;
+    error?: string;
+  };
+  if (!notesRes.ok) {
+    throw new Error(notesPayload.error || `Failed to fetch notes (HTTP ${notesRes.status})`);
+  }
+
+  const todos = Array.isArray(notesPayload.todos) ? notesPayload.todos : [];
+  const targets = args.all
+    ? todos.filter((todo) => todo.checked !== args.checked)
+    : (() => {
+        const requestedId = args.todoId!;
+        const exact = todos.find((todo) => todo.id === requestedId);
+        if (exact) return [exact];
+        const prefixMatches = todos.filter((todo) => todo.id.startsWith(requestedId));
+        if (prefixMatches.length === 1) return prefixMatches;
+        if (prefixMatches.length > 1) {
+          throw new Error(`Todo id "${requestedId}" is ambiguous; provide a longer id`);
+        }
+        throw new Error(`Todo "${requestedId}" not found`);
+      })();
+
+  let updated = 0;
+  for (const todo of targets) {
+    const res = await fetch(
+      `${serverUrl}/api/notes/${encodeURIComponent(args.source)}/${encodeURIComponent(args.issueId)}/todos/${encodeURIComponent(todo.id)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checked: args.checked }),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) {
+      throw new Error(payload.error || `Failed to update todo "${todo.id}" (HTTP ${res.status})`);
+    }
+    updated++;
+  }
+
+  return updated;
+}
+
 export async function runActivity(rawArgs: string[]) {
   if (rawArgs.length === 0 || rawArgs.includes("--help") || rawArgs.includes("-h")) {
     printActivityHelp();
@@ -504,6 +648,18 @@ export async function runActivity(rawArgs: string[]) {
     const parsed = parseCheckFlowArgs(rawArgs.slice(1));
     await runCheckFlow(parsed);
     log.success("Workflow compliance check passed");
+    return;
+  }
+  if (subcommand === "todo") {
+    const parsed = parseTodoArgs(rawArgs.slice(1));
+    const count = await updateTodoCheckboxes(parsed);
+    if (count === 0) {
+      log.info("No todo checkboxes needed updates");
+    } else {
+      log.success(
+        `${parsed.checked ? "Checked" : "Unchecked"} ${count} todo item${count === 1 ? "" : "s"}`,
+      );
+    }
     return;
   }
   throw new Error(`Unknown activity subcommand "${rawArgs[0]}"`);

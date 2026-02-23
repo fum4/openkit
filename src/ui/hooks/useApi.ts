@@ -70,14 +70,16 @@ export function useApi() {
         defaultProjectKey: string,
         refreshIntervalMinutes?: number,
         dataLifecycle?: Parameters<typeof api.updateJiraConfig>[2],
-        autoStartClaudeOnNewIssue?: Parameters<typeof api.updateJiraConfig>[3],
-        autoStartClaudeSkipPermissions?: Parameters<typeof api.updateJiraConfig>[4],
-        autoStartClaudeFocusTerminal?: Parameters<typeof api.updateJiraConfig>[5],
+        autoStartClaudeOnNewIssue?: Parameters<typeof api.updateJiraConfig>[4],
+        autoStartClaudeSkipPermissions?: Parameters<typeof api.updateJiraConfig>[5],
+        autoStartClaudeFocusTerminal?: Parameters<typeof api.updateJiraConfig>[6],
+        autoStartAgent?: Parameters<typeof api.updateJiraConfig>[3],
       ) =>
         api.updateJiraConfig(
           defaultProjectKey,
           refreshIntervalMinutes,
           dataLifecycle,
+          autoStartAgent,
           autoStartClaudeOnNewIssue,
           autoStartClaudeSkipPermissions,
           autoStartClaudeFocusTerminal,
@@ -95,14 +97,16 @@ export function useApi() {
         defaultTeamKey: string,
         refreshIntervalMinutes?: number,
         dataLifecycle?: Parameters<typeof api.updateLinearConfig>[2],
-        autoStartClaudeOnNewIssue?: Parameters<typeof api.updateLinearConfig>[3],
-        autoStartClaudeSkipPermissions?: Parameters<typeof api.updateLinearConfig>[4],
-        autoStartClaudeFocusTerminal?: Parameters<typeof api.updateLinearConfig>[5],
+        autoStartClaudeOnNewIssue?: Parameters<typeof api.updateLinearConfig>[4],
+        autoStartClaudeSkipPermissions?: Parameters<typeof api.updateLinearConfig>[5],
+        autoStartClaudeFocusTerminal?: Parameters<typeof api.updateLinearConfig>[6],
+        autoStartAgent?: Parameters<typeof api.updateLinearConfig>[3],
       ) =>
         api.updateLinearConfig(
           defaultTeamKey,
           refreshIntervalMinutes,
           dataLifecycle,
+          autoStartAgent,
           autoStartClaudeOnNewIssue,
           autoStartClaudeSkipPermissions,
           autoStartClaudeFocusTerminal,
@@ -151,7 +155,7 @@ export function useApi() {
       createTerminalSession: (
         worktreeId: string,
         startupCommand?: string,
-        scope: "terminal" | "claude" = "terminal",
+        scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" = "terminal",
       ) =>
         api.createTerminalSession(
           worktreeId,
@@ -161,6 +165,10 @@ export function useApi() {
           scope,
           serverUrl,
         ),
+
+      fetchAgentCliStatus: (agent: api.CodingAgent) => api.fetchAgentCliStatus(agent, serverUrl),
+
+      installAgentCli: (agent: api.CodingAgent) => api.installAgentCli(agent, serverUrl),
 
       // Custom task attachments
       uploadTaskAttachment: (taskId: string, file: File) =>
@@ -386,8 +394,10 @@ export function useApi() {
 
       fetchFileContent: (filePath: string) => api.fetchFileContent(filePath, serverUrl),
 
-      fetchActiveTerminalSession: (worktreeId: string, scope: "terminal" | "claude") =>
-        api.fetchActiveTerminalSession(worktreeId, scope, serverUrl),
+      fetchActiveTerminalSession: (
+        worktreeId: string,
+        scope: "terminal" | "claude" | "codex" | "gemini" | "opencode",
+      ) => api.fetchActiveTerminalSession(worktreeId, scope, serverUrl),
 
       createActivityEvent: (event: Parameters<typeof api.createActivityEvent>[0]) =>
         api.createActivityEvent(event, serverUrl),

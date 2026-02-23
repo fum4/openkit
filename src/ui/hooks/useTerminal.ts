@@ -5,7 +5,7 @@ import { useServerUrlOptional } from "../contexts/ServerContext";
 
 interface UseTerminalOptions {
   worktreeId: string;
-  sessionScope?: "terminal" | "claude";
+  sessionScope?: "terminal" | "claude" | "codex" | "gemini" | "opencode";
   createSessionStartupCommand?: string | null;
   onData?: (data: string) => void;
   onExit?: (exitCode: number) => void;
@@ -30,7 +30,7 @@ const WEBSOCKET_STABLE_OPEN_MS = 180;
 function cacheKey(
   worktreeId: string,
   serverUrl: string | null,
-  sessionScope: "terminal" | "claude",
+  sessionScope: "terminal" | "claude" | "codex" | "gemini" | "opencode",
 ): string {
   return `${serverUrl ?? "__relative__"}::${worktreeId}::${sessionScope}`;
 }

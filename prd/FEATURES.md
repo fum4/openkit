@@ -1,6 +1,6 @@
 # This document outlines new features
 
-## Worktree Hooks
+## ✅ Worktree Hooks
 
 Add hooks to worktree creation/removal, configurable from settings page
 
@@ -8,7 +8,7 @@ Add hooks to worktree creation/removal, configurable from settings page
 
 Users should be able to work on tasks in batches. Add capability to group, serve and track tasks together.
 
-## Linux support
+## 🚧 Linux support
 
 Implement Linux release pipeline & confirm everything works
 

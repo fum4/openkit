@@ -2,39 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
-
-const mcpJson = `{
-  "mcpServers": {
-    "OpenKit": {
-      "command": "openkit",
-      "args": ["mcp"]
-    }
-  }
-}`;
-
-const mcpToml = `[mcp_servers.openkit]
-command = "openkit"
-args = ["mcp"]`;
-
-const mcpVscode = `{
-  "mcp": {
-    "servers": {
-      "OpenKit": {
-        "command": "openkit",
-        "args": ["mcp"]
-      }
-    }
-  }
-}`;
-
-const agents = [
-  { id: "claude-code", name: "Claude Code", configPath: ".mcp.json", config: mcpJson },
-  { id: "codex", name: "OpenAI Codex", configPath: ".codex/config.toml", config: mcpToml },
-  { id: "cursor", name: "Cursor", configPath: ".cursor/mcp.json", config: mcpJson },
-  { id: "kimi", name: "Kimi K2", configPath: "~/.kimi/mcp.json", config: mcpJson },
-  { id: "gemini", name: "Gemini CLI", configPath: ".gemini/settings.json", config: mcpJson },
-  { id: "vscode", name: "VS Code", configPath: ".vscode/settings.json", config: mcpVscode },
-];
+import DownloadSplitButton from "../components/DownloadSplitButton.astro";
 
 const copySvg = `<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
 const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
@@ -61,11 +29,11 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
             <a href="#cli-setup" class="toc-link" data-section="cli-setup">CLI Setup</a>
             <a href="#agents" class="toc-link" data-section="agents">Agent Setup</a>
             <a href="#cli" class="toc-link" data-section="cli">CLI Reference</a>
-            <a href="#cli-default" class="toc-link toc-sub" data-section="cli-default">OpenKit</a>
+            <a href="#cli-default" class="toc-link toc-sub" data-section="cli-default">openkit</a>
             <a href="#cli-init" class="toc-link toc-sub" data-section="cli-init">openkit init</a>
             <a href="#cli-add" class="toc-link toc-sub" data-section="cli-add">openkit add</a>
-            <a href="#cli-mcp" class="toc-link toc-sub" data-section="cli-mcp">openkit mcp</a>
             <a href="#cli-task" class="toc-link toc-sub" data-section="cli-task">openkit task</a>
+            <a href="#cli-activity" class="toc-link toc-sub" data-section="cli-activity">openkit activity</a>
           </nav>
         </aside>
 
@@ -75,19 +43,7 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
             <h2>Install</h2>
             <p>Download the desktop app. It includes a guided setup wizard that walks you through everything — no prerequisites needed.</p>
             <div class="install-primary">
-              <a
-                href="https://github.com/fum4/OpenKit/releases/latest"
-                target="_blank"
-                rel="noopener"
-                class="install-btn"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7 10 12 15 17 10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                Download for macOS
-              </a>
+              <DownloadSplitButton buttonId="docs-download-btn" className="docs-download glow-pulse" />
             </div>
             <p>Open the app, point it at your project, and the wizard handles config, port discovery, and integrations. That's it — you're ready to go.</p>
           </section>
@@ -137,41 +93,16 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
           <!-- ─── Agent Setup ──────────────────────────────────── -->
           <section id="agents" class="docs-section fade-in">
             <h2>Agent Setup</h2>
-            <p>OpenKit exposes 20+ tools via <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">MCP</a> that let AI agents manage your full development workflow. Add OpenKit as an MCP server in your agent's config:</p>
-
-            <div class="agent-tabs">
-              <div class="agent-tab-bar">
-                {agents.map((agent, i) => (
-                  <button class={`agent-tab${i === 0 ? " active" : ""}`} data-agent={agent.id}>
-                    {agent.name}
-                  </button>
-                ))}
-              </div>
-              <div class="agent-tab-panels">
-                {agents.map((agent, i) => (
-                  <div class={`agent-tab-panel${i === 0 ? " active" : ""}`} data-agent={agent.id}>
-                    <span class="agent-config-path">
-                      <code>{agent.configPath}</code>
-                    </span>
-                    <pre><code set:text={agent.config} /></pre>
-                    <button class="copy-btn agent-copy-btn" data-copy={agent.config} aria-label="Copy config">
-                      <Fragment set:html={copySvg} />
-                      <Fragment set:html={checkSvg} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <p>Once connected, agents can:</p>
+            <p>OpenKit’s agent workflow is driven by Skills. During <code>openkit init</code> (or setup flow), OpenKit enables the bundled <code>work-on-task</code> skill in project skill directories so agents know the expected flow automatically.</p>
+            <p>Recommended flow:</p>
             <ul>
-              <li>Pick up tasks from Jira, Linear, or local issues</li>
-              <li>Create isolated worktrees with full issue context</li>
-              <li>Run hooks — type checks, tests, code review</li>
-              <li>Commit, push, and create pull requests</li>
+              <li>Initialize the project with <code>openkit init</code></li>
+              <li>Create a task/worktree from OpenKit (<code>openkit task ...</code> or UI)</li>
+              <li>Let agents run with OpenKit-provided task context and skills</li>
+              <li>Use hooks for checks and review steps before shipping</li>
             </ul>
 
-            <p>If the OpenKit UI is running, agents share live state with it — you see every action in the activity feed in real time. If no UI is running, agents work standalone.</p>
+            <p>If the OpenKit UI is running, agent actions appear in the activity feed in real time.</p>
           </section>
 
           <!-- ─── CLI Reference ────────────────────────────────── -->
@@ -183,27 +114,29 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
               </div>
             </div>
 
-            <!-- OpenKit (default) -->
+            <!-- openkit (default) -->
             <article id="cli-default" class="cli-entry">
-              <h3><code>OpenKit</code></h3>
+              <h3><code>openkit</code></h3>
               <p>Start the server.</p>
               <div class="cli-block">
                 <div class="cli-lines">
-                  <div class="cli-line"><span class="cli-prompt">$ </span>OpenKit</div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>OpenKit --no-open</div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>OpenKit --auto-init</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit --no-open</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit --auto-init</div>
                 </div>
-                <button class="copy-btn" data-copy="OpenKit" aria-label="Copy">
+                <button class="copy-btn" data-copy="openkit" aria-label="Copy">
                   <Fragment set:html={copySvg} />
                   <Fragment set:html={checkSvg} />
                 </button>
               </div>
-              <p>Loads config from <code>.openkit/config.json</code>, starts the HTTP server, and opens the UI. On first run, installs the <code>OpenKit</code> command to <code>~/.local/bin/</code>.</p>
+              <p>Loads config from <code>.openkit/config.json</code>, starts the HTTP server, and opens the UI.</p>
               <table>
                 <thead><tr><th>Option</th><th>Description</th></tr></thead>
                 <tbody>
                   <tr><td><code>--no-open</code></td><td>Start the server without opening the UI</td></tr>
                   <tr><td><code>--auto-init</code></td><td>Auto-initialize config if none is found (skips prompts)</td></tr>
+                  <tr><td><code>--help</code>, <code>-h</code></td><td>Show help</td></tr>
+                  <tr><td><code>--version</code>, <code>-v</code></td><td>Show version</td></tr>
                 </tbody>
               </table>
             </article>
@@ -260,26 +193,6 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
               </table>
             </article>
 
-            <!-- openkit mcp -->
-            <article id="cli-mcp" class="cli-entry">
-              <h3><code>openkit mcp</code></h3>
-              <p>Start as an MCP server for AI coding agents. Uses stdio for JSON-RPC communication.</p>
-              <div class="cli-block">
-                <div class="cli-lines">
-                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit mcp</div>
-                </div>
-                <button class="copy-btn" data-copy="openkit mcp" aria-label="Copy">
-                  <Fragment set:html={copySvg} />
-                  <Fragment set:html={checkSvg} />
-                </button>
-              </div>
-              <p>Operates in two modes:</p>
-              <ul>
-                <li><strong>Proxy mode</strong> — if the UI is running, relays to the HTTP server. Agent and UI share live state.</li>
-                <li><strong>Standalone mode</strong> — no UI needed. Agent gets full functionality independently.</li>
-              </ul>
-            </article>
-
             <!-- openkit task -->
             <article id="cli-task" class="cli-entry">
               <h3><code>openkit task [source] [ID...]</code></h3>
@@ -291,8 +204,31 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
                   <div class="cli-line"><span class="cli-prompt">$ </span>openkit task linear ENG-42<span class="cli-comment"> # Linear</span></div>
                   <div class="cli-line"><span class="cli-prompt">$ </span>openkit task local 7<span class="cli-comment"> # Local</span></div>
                   <div class="cli-line"><span class="cli-prompt">$ </span>openkit task jira 101 102 103<span class="cli-comment"> # Batch</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task resolve PROJ-123 --json<span class="cli-comment"> # Resolver only</span></div>
                 </div>
                 <button class="copy-btn" data-copy="openkit task jira PROJ-123" aria-label="Copy">
+                  <Fragment set:html={copySvg} />
+                  <Fragment set:html={checkSvg} />
+                </button>
+              </div>
+            </article>
+
+            <!-- openkit activity -->
+            <article id="cli-activity" class="cli-entry">
+              <h3><code>openkit activity</code></h3>
+              <p>Emit workflow activity events for agent/user coordination.</p>
+              <ul>
+                <li><code>await-input</code> — mark that agent work is waiting for user action</li>
+                <li><code>phase</code> — record workflow phase checkpoints</li>
+                <li><code>check-flow</code> — validate required workflow checkpoints/hooks</li>
+                <li><code>todo</code> — update issue todo checkboxes from terminal flows</li>
+              </ul>
+              <div class="cli-block">
+                <div class="cli-lines">
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit activity --help</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit activity await-input --message "Need approval for deploy"</div>
+                </div>
+                <button class="copy-btn" data-copy="openkit activity await-input --message \"Need approval for deploy\"" aria-label="Copy">
                   <Fragment set:html={copySvg} />
                   <Fragment set:html={checkSvg} />
                 </button>
@@ -304,6 +240,7 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
     </div>
   </main>
   <Footer />
+  <script src="../scripts/download.ts"></script>
 </Layout>
 
 <script>
@@ -326,17 +263,6 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
   );
 
   sections.forEach((section) => tocObserver.observe(section));
-
-  // Agent tabs
-  document.querySelectorAll<HTMLButtonElement>(".agent-tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const agent = tab.dataset.agent;
-      document.querySelectorAll(".agent-tab").forEach((t) => t.classList.remove("active"));
-      document.querySelectorAll(".agent-tab-panel").forEach((p) => p.classList.remove("active"));
-      tab.classList.add("active");
-      document.querySelector(`.agent-tab-panel[data-agent="${agent}"]`)?.classList.add("active");
-    });
-  });
 
   // Copy buttons
   document.querySelectorAll(".copy-btn").forEach((btn) => {
@@ -618,6 +544,7 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
 
   /* ─── Install ─────────────────────────────────────────────── */
   .install-primary {
+    display: flex;
     margin-bottom: 20px;
   }
 
@@ -627,27 +554,14 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
     margin-bottom: 10px !important;
   }
 
-  .install-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    background: rgba(45, 212, 191, 0.1);
-    color: var(--accent) !important;
-    border-radius: 8px;
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-size: 13px;
-    border: 1px solid rgba(45, 212, 191, 0.2);
-    transition:
-      background 0.2s var(--ease-out-quart),
-      border-color 0.2s var(--ease-out-quart);
+  .docs-download {
+    width: 100%;
+    max-width: 420px;
   }
 
-  .install-btn:hover {
-    background: rgba(45, 212, 191, 0.18);
-    border-color: rgba(45, 212, 191, 0.35);
-    color: var(--accent) !important;
+  .docs-download .download-main-btn {
+    width: calc(100% - 44px);
+    justify-content: center;
   }
 
   /* ─── Copy button ──────────────────────────────────────────── */
@@ -678,86 +592,6 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
 
   .copy-btn.copied :global(.check-icon) {
     display: block;
-  }
-
-  /* ─── Agent tabs ───────────────────────────────────────────── */
-  .agent-tabs {
-    margin-top: 24px;
-    margin-bottom: 24px;
-  }
-
-  .agent-tab-bar {
-    display: flex;
-    gap: 2px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    border-bottom: none;
-    border-radius: 10px 10px 0 0;
-    padding: 4px 4px 0;
-    overflow-x: auto;
-  }
-
-  .agent-tab {
-    padding: 9px 16px;
-    background: none;
-    border: none;
-    border-radius: 8px 8px 0 0;
-    font-family: var(--font-display);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition:
-      color 0.2s var(--ease-out-quart),
-      background 0.2s var(--ease-out-quart);
-    white-space: nowrap;
-  }
-
-  .agent-tab:hover {
-    color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.02);
-  }
-
-  .agent-tab.active {
-    color: var(--accent);
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  .agent-tab-panels {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    border-radius: 0 0 10px 10px;
-    overflow: hidden;
-  }
-
-  .agent-tab-panel {
-    display: none;
-    padding: 16px 20px;
-    position: relative;
-  }
-
-  .agent-tab-panel.active {
-    display: block;
-  }
-
-  .agent-tab-panel pre {
-    margin-bottom: 0;
-    border: 1px solid var(--border-subtle);
-  }
-
-  .agent-config-path {
-    display: block;
-    margin-bottom: 10px;
-  }
-
-  .agent-config-path code {
-    font-size: 12px;
-  }
-
-  .agent-copy-btn {
-    position: absolute;
-    top: 16px;
-    right: 20px;
   }
 
   /* ─── Callout ──────────────────────────────────────────────── */
@@ -899,11 +733,6 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
 
     .docs-page {
       padding-top: calc(var(--nav-height) + 32px);
-    }
-
-    .agent-tab {
-      padding: 8px 12px;
-      font-size: 11px;
     }
   }
 </style>

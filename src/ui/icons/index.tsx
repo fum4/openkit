@@ -1,12 +1,15 @@
 import claudeSvg from "./claude.svg?raw";
+import codexSvg from "./codex.svg?raw";
 import cursorSvg from "./cursor.svg?raw";
 import finderAsset from "./finder.png";
+import geminiSvg from "./gemini.svg?raw";
 import ghosttySvg from "./ghostty.svg?raw";
 import githubSvg from "./github.svg?raw";
 import intellijSvg from "./intellij.svg?raw";
 import jiraSvg from "./jira.svg?raw";
 import linearSvg from "./linear.svg?raw";
 import neovimSvg from "./neovim.svg?raw";
+import opencodeSvg from "./opencode.svg?raw";
 import terminalSvg from "./terminal.svg?raw";
 import vscodeSvg from "./vscode.svg?raw";
 import warpSvg from "./warp.svg?raw";
@@ -61,6 +64,18 @@ function SvgIcon({ markup, className = "w-4 h-4" }: SvgIconProps) {
 
 export function ClaudeIcon({ className = "w-4 h-4" }: IconProps) {
   return <SvgIcon markup={claudeSvg} className={className} />;
+}
+
+export function CodexIcon({ className = "w-4 h-4" }: IconProps) {
+  return <SvgIcon markup={codexSvg} className={className} />;
+}
+
+export function GeminiIcon({ className = "w-4 h-4" }: IconProps) {
+  return <SvgIcon markup={geminiSvg} className={className} />;
+}
+
+export function OpenCodeIcon({ className = "w-4 h-4" }: IconProps) {
+  return <SvgIcon markup={opencodeSvg} className={className} />;
 }
 
 export function GitHubIcon({ className = "w-4 h-4" }: IconProps) {

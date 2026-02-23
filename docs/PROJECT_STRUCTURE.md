@@ -52,6 +52,7 @@ src/
 │       ├── verification.ts
 │       ├── mcp.ts / mcp-transport.ts / mcp-servers.ts
 │       ├── github.ts / jira.ts / linear.ts
+│       ├── agent-cli.ts
 │       └── claude-plugins.ts
 │
 ├── ui/                  React SPA
@@ -63,6 +64,7 @@ src/
 │   │   ├── ...          Shared UI building blocks
 │   │   └── detail/      Right panel views (worktree/issue/task details)
 │   │       ├── DetailPanel.tsx
+│   │       ├── CodeAgentSplitButton.tsx
 │   │       ├── LogsViewer.tsx
 │   │       ├── TerminalView.tsx
 │   │       ├── HooksTab.tsx

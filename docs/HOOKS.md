@@ -76,14 +76,14 @@ Hooks configuration is stored in `.openkit/hooks.json`:
     {
       "id": "step-1234567890-1",
       "name": "Type check",
-      "command": "pnpm check-types",
+      "command": "pnpm check:types",
       "enabled": true,
       "trigger": "post-implementation"
     },
     {
       "id": "step-1234567890-2",
       "name": "Lint on DB changes",
-      "command": "pnpm check-lint",
+      "command": "pnpm check:lint",
       "enabled": true,
       "trigger": "custom",
       "condition": "When changes touch database models or migrations"
@@ -127,7 +127,7 @@ Hooks configuration is stored in `.openkit/hooks.json`:
 
 | Field       | Type        | Description                                           |
 | ----------- | ----------- | ----------------------------------------------------- |
-| `skillName` | string      | Name of the skill in `~/.openkit/skills/`                |
+| `skillName` | string      | Name of the skill in `~/.openkit/skills/`             |
 | `enabled`   | boolean     | Whether this skill is active                          |
 | `trigger`   | HookTrigger | When this skill runs (default: `post-implementation`) |
 | `condition` | string      | Natural-language condition for `custom` trigger type  |
@@ -145,10 +145,10 @@ The Hooks view (top navigation) is the configuration interface. Users can:
 
 The worktree detail panel's **Hooks** tab triggers hook runs for a specific worktree. Multiple items can be expanded simultaneously to view their output. When the entire pipeline completes (all enabled steps and skills have results), all items with content are auto-expanded.
 
-When Claude is launched from issue flows (`Code with Claude` or integration auto-start), OpenKit also triggers command hooks automatically:
+When an agent is launched from issue flows (`Code with ...` or integration/local auto-start), OpenKit also triggers command hooks automatically:
 
-- `pre-implementation` runs before Claude launch starts.
-- `post-implementation` runs after Claude exits with code `0`.
+- `pre-implementation` runs before launch starts.
+- `post-implementation` runs after the selected agent exits with code `0`.
 
 Each hook item shows its state visually:
 
@@ -176,11 +176,12 @@ Agents interact with hooks through the following workflow:
 When hooks are triggered for a worktree:
 
 1. The `HooksManager` filters steps by the target trigger type and enabled state.
-2. All matching enabled command steps run in parallel via `execFile` in the worktree directory.
-3. Prompt steps are skipped by runtime execution and interpreted by the agent from `TASK.md`.
-4. Results are collected and persisted to `.openkit/worktrees/{worktreeId}/hooks/latest-run.json`.
-5. Skill results are reported separately by agents and stored at `.openkit/worktrees/{worktreeId}/hooks/skill-results.json` using key `skillName + trigger`.
-6. `worktree-created` and `worktree-removed` command hooks are triggered automatically by CLI-backed create/remove flows (server mode, MCP standalone mode, and `openkit task --init` worktree creation).
+2. If a trigger has no enabled hook entries at all (no command steps, prompt steps, or skills), the run is treated as a no-op and returns immediately.
+3. All matching enabled command steps run in parallel via `execFile` in the worktree directory.
+4. Prompt steps are skipped by runtime execution and interpreted by the agent from `TASK.md`.
+5. Results are collected and persisted to `.openkit/worktrees/{worktreeId}/hooks/latest-run.json`.
+6. Skill results are reported separately by agents and stored at `.openkit/worktrees/{worktreeId}/hooks/skill-results.json` using key `skillName + trigger`.
+7. `worktree-created` and `worktree-removed` command hooks are triggered automatically by CLI-backed create/remove flows (server mode, MCP standalone mode, and `openkit task --init` worktree creation).
 
 ## Data Storage
 

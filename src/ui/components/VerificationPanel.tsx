@@ -672,7 +672,7 @@ function HooksSection({
                 if (e.key === "Enter") onAddStep();
                 if (e.key === "Escape") onCancelAdding();
               }}
-              placeholder="Command (e.g. pnpm check-types)"
+              placeholder="Command (e.g. pnpm check:types)"
               className={`w-full px-3 py-2 rounded-lg text-xs bg-white/[0.04] border border-white/[0.06] text-white placeholder-[#4b5563] focus:outline-none focus:border-white/[0.15] font-mono`}
             />
             <div className="flex items-center gap-2 justify-end">

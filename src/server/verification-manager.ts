@@ -289,7 +289,9 @@ export class HooksManager {
     const config = this.getConfig();
     const enabledSteps = config.steps.filter(
       (step) =>
-        step.enabled !== false && this.matchesTrigger(step, trigger) && this.isRunnableCommandStep(step),
+        step.enabled !== false &&
+        this.matchesTrigger(step, trigger) &&
+        this.isRunnableCommandStep(step),
     );
     if (enabledSteps.length === 0) return [];
 

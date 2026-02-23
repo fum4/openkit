@@ -36,6 +36,10 @@ The primary configuration file. Created by `openkit init` (interactive CLI) or v
   "baseBranch": "origin/main",
   "autoInstall": true,
   "localIssuePrefix": "LOCAL",
+  "localAutoStartAgent": "claude",
+  "localAutoStartClaudeOnNewIssue": false,
+  "localAutoStartClaudeSkipPermissions": true,
+  "localAutoStartClaudeFocusTerminal": true,
   "openProjectTarget": "cursor",
   "allowAgentCommits": false,
   "allowAgentPushes": false,
@@ -118,13 +122,53 @@ Whether to automatically run the `installCommand` when creating a new worktree. 
 
 Prefix used for local issue identifiers. Local issues are auto-numbered with this prefix, producing identifiers like `LOCAL-1`, `LOCAL-2`, etc. Change this to match your project's naming convention (e.g., `"TASK"`, `"TODO"`).
 
+#### `localAutoStartAgent`
+
+| Property     | Value                                           |
+| ------------ | ----------------------------------------------- |
+| **Type**     | `"claude" \| "codex" \| "gemini" \| "opencode"` |
+| **Default**  | `"claude"`                                      |
+| **Required** | No                                              |
+
+Selected coding agent for local-task auto-start.
+
+#### `localAutoStartClaudeOnNewIssue`
+
+| Property     | Value     |
+| ------------ | --------- |
+| **Type**     | `boolean` |
+| **Default**  | `false`   |
+| **Required** | No        |
+
+Whether newly created local issues should auto-create/open a worktree and auto-start the selected agent.
+
+#### `localAutoStartClaudeSkipPermissions`
+
+| Property     | Value     |
+| ------------ | --------- |
+| **Type**     | `boolean` |
+| **Default**  | `true`    |
+| **Required** | No        |
+
+Whether local auto-start runs with the selected agent's skip-permissions mode.
+
+#### `localAutoStartClaudeFocusTerminal`
+
+| Property     | Value     |
+| ------------ | --------- |
+| **Type**     | `boolean` |
+| **Default**  | `true`    |
+| **Required** | No        |
+
+Whether the UI should switch focus to the auto-started local-task agent terminal.
+
 #### `openProjectTarget`
 
-| Property     | Value                |
-| ------------ | -------------------- |
-| **Type**     | `string`             |
-| **Default**  | `"file-manager"`     |
-| **Required** | No                   |
+| Property     | Value            |
+| ------------ | ---------------- |
+| **Type**     | `string`         |
+| **Default**  | `"file-manager"` |
+| **Required** | No               |
 
 Preferred app target for the worktree detail panel's split `Open` button. This value is updated when a user opens a worktree via a selected target in the UI.
 
@@ -233,20 +277,18 @@ Activity feed configuration. Controls event retention plus per-category/per-even
       "system": true
     },
     "disabledEvents": [],
-    "osNotificationEvents": [
-      "agent_awaiting_input"
-    ]
+    "osNotificationEvents": ["agent_awaiting_input"]
   }
 }
 ```
 
-| Sub-field              | Type                      | Default    | Description                                                 |
-| ---------------------- | ------------------------- | ---------- | ----------------------------------------------------------- |
-| `retentionDays`        | `number`                  | `7`        | How many days to keep activity events before pruning        |
-| `categories`           | `Record<string, boolean>` | All `true` | Per-category toggles for which events appear in the feed    |
+| Sub-field              | Type                      | Default    | Description                                                                            |
+| ---------------------- | ------------------------- | ---------- | -------------------------------------------------------------------------------------- |
+| `retentionDays`        | `number`                  | `7`        | How many days to keep activity events before pruning                                   |
+| `categories`           | `Record<string, boolean>` | All `true` | Per-category toggles for which events appear in the feed                               |
 | `disabledEvents`       | `string[]`                | `[]`       | Event-type toggles. Any listed event type is disabled for the Activity feed/SSE stream |
-| `toastEvents`          | `string[]`                | See above  | Legacy compatibility field; do not use it for workflow/agent/live updates |
-| `osNotificationEvents` | `string[]`                | See above  | Default notification event list (`agent_awaiting_input`) kept in activity config |
+| `toastEvents`          | `string[]`                | See above  | Legacy compatibility field; do not use it for workflow/agent/live updates              |
+| `osNotificationEvents` | `string[]`                | See above  | Default notification event list (`agent_awaiting_input`) kept in activity config       |
 
 Activity events are persisted to `.openkit/activity.jsonl` in JSONL format. The file is pruned on server startup and periodically (every hour).
 
@@ -291,6 +333,7 @@ Stores credentials and per-project settings for issue tracker integrations. This
     "defaultProjectKey": "PROJ",
     "refreshIntervalMinutes": 5,
     "dataLifecycle": { ... },
+    "autoStartAgent": "claude",
     "autoStartClaudeOnNewIssue": false,
     "autoStartClaudeSkipPermissions": true,
     "autoStartClaudeFocusTerminal": true
@@ -301,6 +344,7 @@ Stores credentials and per-project settings for issue tracker integrations. This
     "defaultTeamKey": "ENG",
     "refreshIntervalMinutes": 5,
     "dataLifecycle": { ... },
+    "autoStartAgent": "claude",
     "autoStartClaudeOnNewIssue": false,
     "autoStartClaudeSkipPermissions": true,
     "autoStartClaudeFocusTerminal": true
@@ -336,14 +380,15 @@ Jira supports two authentication methods:
 
 ### Jira Project Config
 
-| Field                    | Type     | Default     | Description                                                  |
-| ------------------------ | -------- | ----------- | ------------------------------------------------------------ |
-| `defaultProjectKey`      | `string` | `undefined` | Default Jira project key for issue fetching (e.g., `"PROJ"`) |
-| `refreshIntervalMinutes` | `number` | `undefined` | How often to re-fetch issue lists (in minutes)               |
-| `dataLifecycle`          | `object` | `undefined` | Controls when and how issue data is cached/cleaned           |
-| `autoStartClaudeOnNewIssue` | `boolean` | `undefined` | Whether newly fetched Jira issues should auto-start a Claude session |
-| `autoStartClaudeSkipPermissions` | `boolean` | `undefined` | Whether auto-started Jira Claude sessions run with `--dangerously-skip-permissions` |
-| `autoStartClaudeFocusTerminal` | `boolean` | `true` | Whether UI should auto-focus the Jira Claude terminal when auto-start begins |
+| Field                            | Type                                            | Default     | Description                                                                 |
+| -------------------------------- | ----------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| `defaultProjectKey`              | `string`                                        | `undefined` | Default Jira project key for issue fetching (e.g., `"PROJ"`)                |
+| `refreshIntervalMinutes`         | `number`                                        | `undefined` | How often to re-fetch issue lists (in minutes)                              |
+| `dataLifecycle`                  | `object`                                        | `undefined` | Controls when and how issue data is cached/cleaned                          |
+| `autoStartAgent`                 | `"claude" \| "codex" \| "gemini" \| "opencode"` | `"claude"`  | Which agent is launched for Jira auto-start                                 |
+| `autoStartClaudeOnNewIssue`      | `boolean`                                       | `undefined` | Whether newly fetched Jira issues should auto-start the selected agent      |
+| `autoStartClaudeSkipPermissions` | `boolean`                                       | `undefined` | Whether auto-started Jira sessions run with skip-permissions enabled        |
+| `autoStartClaudeFocusTerminal`   | `boolean`                                       | `true`      | Whether UI should auto-focus the Jira agent terminal when auto-start begins |
 
 ### Linear Credentials
 
@@ -354,14 +399,15 @@ Jira supports two authentication methods:
 
 ### Linear Project Config
 
-| Field                    | Type     | Default     | Description                                                |
-| ------------------------ | -------- | ----------- | ---------------------------------------------------------- |
-| `defaultTeamKey`         | `string` | `undefined` | Default Linear team key for issue fetching (e.g., `"ENG"`) |
-| `refreshIntervalMinutes` | `number` | `undefined` | How often to re-fetch issue lists (in minutes)             |
-| `dataLifecycle`          | `object` | `undefined` | Controls when and how issue data is cached/cleaned         |
-| `autoStartClaudeOnNewIssue` | `boolean` | `undefined` | Whether newly fetched Linear issues should auto-start a Claude session |
-| `autoStartClaudeSkipPermissions` | `boolean` | `undefined` | Whether auto-started Linear Claude sessions run with `--dangerously-skip-permissions` |
-| `autoStartClaudeFocusTerminal` | `boolean` | `true` | Whether UI should auto-focus the Linear Claude terminal when auto-start begins |
+| Field                            | Type                                            | Default     | Description                                                                   |
+| -------------------------------- | ----------------------------------------------- | ----------- | ----------------------------------------------------------------------------- |
+| `defaultTeamKey`                 | `string`                                        | `undefined` | Default Linear team key for issue fetching (e.g., `"ENG"`)                    |
+| `refreshIntervalMinutes`         | `number`                                        | `undefined` | How often to re-fetch issue lists (in minutes)                                |
+| `dataLifecycle`                  | `object`                                        | `undefined` | Controls when and how issue data is cached/cleaned                            |
+| `autoStartAgent`                 | `"claude" \| "codex" \| "gemini" \| "opencode"` | `"claude"`  | Which agent is launched for Linear auto-start                                 |
+| `autoStartClaudeOnNewIssue`      | `boolean`                                       | `undefined` | Whether newly fetched Linear issues should auto-start the selected agent      |
+| `autoStartClaudeSkipPermissions` | `boolean`                                       | `undefined` | Whether auto-started Linear sessions run with skip-permissions enabled        |
+| `autoStartClaudeFocusTerminal`   | `boolean`                                       | `true`      | Whether UI should auto-focus the Linear agent terminal when auto-start begins |
 
 ### Data Lifecycle Config
 
@@ -420,8 +466,8 @@ Branch names are generated from issue metadata when creating worktrees from issu
 
 ### File Locations
 
-| File                                   | Scope                        |
-| -------------------------------------- | ---------------------------- |
+| File                                      | Scope                        |
+| ----------------------------------------- | ---------------------------- |
 | `.openkit/scripts/branch-name.mjs`        | Default rule for all sources |
 | `.openkit/scripts/branch-name.jira.mjs`   | Override for Jira issues     |
 | `.openkit/scripts/branch-name.linear.mjs` | Override for Linear issues   |
@@ -490,8 +536,8 @@ Similar to branch naming, commit messages can be formatted via JavaScript functi
 
 ### File Locations
 
-| File                                      | Scope                                     |
-| ----------------------------------------- | ----------------------------------------- |
+| File                                         | Scope                                     |
+| -------------------------------------------- | ----------------------------------------- |
 | `.openkit/scripts/commit-message.mjs`        | Default rule for all sources              |
 | `.openkit/scripts/commit-message.jira.mjs`   | Override for Jira-linked worktrees        |
 | `.openkit/scripts/commit-message.linear.mjs` | Override for Linear-linked worktrees      |
@@ -550,7 +596,7 @@ A runtime file written when the OpenKit server starts and deleted on shutdown. I
 
 | Field | Type     | Description                                   |
 | ----- | -------- | --------------------------------------------- |
-| `url` | `string` | The URL where the OpenKit server is listening    |
+| `url` | `string` | The URL where the OpenKit server is listening |
 | `pid` | `number` | The operating system process ID of the server |
 
 ### Purpose
@@ -783,7 +829,7 @@ User-level preferences stored in the home directory. Not project-specific.
 
 | Field                 | Type             | Default | Description                                                                                                             |
 | --------------------- | ---------------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `basePort`            | `number`         | `6969`  | The port the OpenKit server listens on                                                                                     |
+| `basePort`            | `number`         | `6969`  | The port the OpenKit server listens on                                                                                  |
 | `setupPreference`     | `string`         | `"ask"` | How to handle missing config: `"auto"` (auto-detect and create), `"manual"` (prompt), or `"ask"` (show UI setup screen) |
 | `sidebarWidth`        | `number`         | `300`   | Sidebar width in pixels (persisted across sessions)                                                                     |
 | `windowBounds`        | `object \| null` | `null`  | Electron window position and size                                                                                       |
@@ -845,8 +891,8 @@ Servers in this registry can be deployed (written to agent config files) or unde
 
 For reference, the following constants are defined in the codebase:
 
-| Constant          | Value     | Description                                      |
-| ----------------- | --------- | ------------------------------------------------ |
+| Constant          | Value        | Description                                      |
+| ----------------- | ------------ | ------------------------------------------------ |
 | `APP_NAME`        | `"OpenKit"`  | Application name used in CLI output and branding |
 | `CONFIG_DIR_NAME` | `".openkit"` | Name of the config directory at the project root |
-| `DEFAULT_PORT`    | `6969`    | Default server port                              |
+| `DEFAULT_PORT`    | `6969`       | Default server port                              |

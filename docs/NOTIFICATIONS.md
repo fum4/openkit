@@ -31,24 +31,24 @@ ActivityLog (backend)
 
 ### Key Files
 
-| File                                       | Purpose                                                              |
-| ------------------------------------------ | -------------------------------------------------------------------- |
-| `src/server/activity-event.ts`             | Event types, category/severity enums, config interface, defaults     |
-| `src/server/activity-log.ts`               | `ActivityLog` class — persistence, pub/sub, pruning                  |
-| `src/server/routes/activity.ts`            | REST endpoint `GET /api/activity`                                    |
-| `src/server/routes/events.ts`              | SSE endpoint — streams `activity` and `activity-history` messages    |
-| `src/server/manager.ts`                    | Creates `ActivityLog` instance, emits events from worktree lifecycle |
-| `src/actions.ts`                           | `notify` MCP action — lets agents send custom activity events        |
-| `src/cli/activity.ts`                      | CLI command for terminal agents to emit awaiting-input activity      |
-| `src/ui/components/ActivityFeed.tsx`       | `ActivityFeed` panel + `ActivityBell` button components              |
-| `src/ui/components/detail/TerminalView.tsx`| Claude terminal rendering/session lifecycle (no heuristic awaiting-input detection) |
-| `src/ui/hooks/useActivityFeed.ts`          | Hook — listens for `OpenKit:activity` CustomEvents, manages state       |
-| `src/ui/hooks/useWorktrees.ts`             | SSE client — bridges SSE messages to window CustomEvents             |
-| `src/ui/components/Header.tsx`             | Wires bell + feed panel into the app header                          |
-| `src/ui/App.tsx`                           | Emits task-detected + Claude-started activity events for Jira/Linear auto-start |
-| `src/ui/components/ConfigurationPanel.tsx` | Notifications settings card (grouped expand/collapse + per-event delivery modes) |
-| `electron/notification-manager.ts`         | `NotificationManager` — OS-level notifications in Electron           |
-| `src/ui/theme.ts`                          | `activity` theme tokens (category colors + optional severity tokens) |
+| File                                        | Purpose                                                                                                          |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `src/server/activity-event.ts`              | Event types, category/severity enums, config interface, defaults                                                 |
+| `src/server/activity-log.ts`                | `ActivityLog` class — persistence, pub/sub, pruning                                                              |
+| `src/server/routes/activity.ts`             | REST endpoint `GET /api/activity`                                                                                |
+| `src/server/routes/events.ts`               | SSE endpoint — streams `activity` and `activity-history` messages                                                |
+| `src/server/manager.ts`                     | Creates `ActivityLog` instance, emits events from worktree lifecycle                                             |
+| `src/actions.ts`                            | `notify` MCP action — lets agents send custom activity events                                                    |
+| `src/cli/activity.ts`                       | CLI command for terminal agents to emit awaiting-input activity                                                  |
+| `src/ui/components/ActivityFeed.tsx`        | `ActivityFeed` panel + `ActivityBell` button components                                                          |
+| `src/ui/components/detail/TerminalView.tsx` | Agent terminal rendering/session lifecycle (Claude/Codex/Gemini/OpenCode; no heuristic awaiting-input detection) |
+| `src/ui/hooks/useActivityFeed.ts`           | Hook — listens for `OpenKit:activity` CustomEvents, manages state                                                |
+| `src/ui/hooks/useWorktrees.ts`              | SSE client — bridges SSE messages to window CustomEvents                                                         |
+| `src/ui/components/Header.tsx`              | Wires bell + feed panel into the app header                                                                      |
+| `src/ui/App.tsx`                            | Emits task-detected + selected-agent-started activity events for Jira/Linear/local auto-start                    |
+| `src/ui/components/ConfigurationPanel.tsx`  | Notifications settings card (grouped expand/collapse + per-event delivery modes)                                 |
+| `electron/notification-manager.ts`          | `NotificationManager` — OS-level notifications in Electron                                                       |
+| `src/ui/theme.ts`                           | `activity` theme tokens (category colors + optional severity tokens)                                             |
 
 ## Activity Events
 
@@ -82,32 +82,32 @@ interface ActivityEvent {
 
 Primary event types surfaced in the feed are defined in `ACTIVITY_TYPES` (`src/server/activity-event.ts`):
 
-| Constant              | Type string           | Category | Description                        |
-| --------------------- | --------------------- | -------- | ---------------------------------- |
-| `NOTIFY`              | `notify`              | agent    | Agent sends a status update        |
-| `COMMIT_COMPLETED`    | `commit_completed`    | agent    | Agent committed successfully       |
-| `COMMIT_FAILED`       | `commit_failed`       | agent    | Agent commit failed                |
-| `PUSH_COMPLETED`      | `push_completed`      | agent    | Agent pushed successfully          |
-| `PUSH_FAILED`         | `push_failed`         | agent    | Agent push failed                  |
-| `PR_CREATED`          | `pr_created`          | agent    | Agent created a PR                 |
-| `SKILL_STARTED`       | `skill_started`       | agent    | Hook skill started                 |
-| `SKILL_COMPLETED`     | `skill_completed`     | agent    | Hook skill completed               |
-| `SKILL_FAILED`        | `skill_failed`        | agent    | Hook skill failed                  |
-| `HOOKS_STARTED`       | `hooks_started`       | agent    | Hook command run started           |
-| `HOOKS_RAN`           | `hooks_ran`           | agent    | Hook pipeline completed            |
-| `AGENT_AWAITING_INPUT`| `agent_awaiting_input`| agent    | Agent is blocked waiting on user input |
-| `TASK_DETECTED`       | `task_detected`       | agent    | Newly fetched Jira/Linear task detected |
-| `AUTO_TASK_CLAIMED`   | `auto_task_claimed`   | agent    | Claude auto-started for the task   |
-| `WORKFLOW_PHASE`      | `workflow_phase`      | agent    | Agent workflow phase transition    |
-| `CREATION_STARTED`    | `creation_started`    | worktree | Worktree creation started          |
-| `CREATION_COMPLETED`  | `creation_completed`  | worktree | Worktree created successfully      |
-| `CREATION_FAILED`     | `creation_failed`     | worktree | Worktree creation failed           |
-| `WORKTREE_STARTED`    | `started`             | worktree | Dev server started                 |
-| `WORKTREE_STOPPED`    | `stopped`             | worktree | Dev server stopped                 |
-| `WORKTREE_CRASHED`    | `crashed`             | worktree | Dev server crashed (non-zero exit) |
-| `CONNECTION_LOST`     | `connection_lost`     | system   | Lost connection                    |
-| `CONNECTION_RESTORED` | `connection_restored` | system   | Connection restored                |
-| `CONFIG_NEEDS_PUSH`   | `config_needs_push`   | system   | Config changes need push           |
+| Constant               | Type string            | Category | Description                              |
+| ---------------------- | ---------------------- | -------- | ---------------------------------------- |
+| `NOTIFY`               | `notify`               | agent    | Agent sends a status update              |
+| `COMMIT_COMPLETED`     | `commit_completed`     | agent    | Agent committed successfully             |
+| `COMMIT_FAILED`        | `commit_failed`        | agent    | Agent commit failed                      |
+| `PUSH_COMPLETED`       | `push_completed`       | agent    | Agent pushed successfully                |
+| `PUSH_FAILED`          | `push_failed`          | agent    | Agent push failed                        |
+| `PR_CREATED`           | `pr_created`           | agent    | Agent created a PR                       |
+| `SKILL_STARTED`        | `skill_started`        | agent    | Hook skill started                       |
+| `SKILL_COMPLETED`      | `skill_completed`      | agent    | Hook skill completed                     |
+| `SKILL_FAILED`         | `skill_failed`         | agent    | Hook skill failed                        |
+| `HOOKS_STARTED`        | `hooks_started`        | agent    | Hook command run started                 |
+| `HOOKS_RAN`            | `hooks_ran`            | agent    | Hook pipeline completed                  |
+| `AGENT_AWAITING_INPUT` | `agent_awaiting_input` | agent    | Agent is blocked waiting on user input   |
+| `TASK_DETECTED`        | `task_detected`        | agent    | Newly fetched Jira/Linear task detected  |
+| `AUTO_TASK_CLAIMED`    | `auto_task_claimed`    | agent    | Selected agent auto-started for the task |
+| `WORKFLOW_PHASE`       | `workflow_phase`       | agent    | Agent workflow phase transition          |
+| `CREATION_STARTED`     | `creation_started`     | worktree | Worktree creation started                |
+| `CREATION_COMPLETED`   | `creation_completed`   | worktree | Worktree created successfully            |
+| `CREATION_FAILED`      | `creation_failed`      | worktree | Worktree creation failed                 |
+| `WORKTREE_STARTED`     | `started`              | worktree | Dev server started                       |
+| `WORKTREE_STOPPED`     | `stopped`              | worktree | Dev server stopped                       |
+| `WORKTREE_CRASHED`     | `crashed`              | worktree | Dev server crashed (non-zero exit)       |
+| `CONNECTION_LOST`      | `connection_lost`      | system   | Lost connection                          |
+| `CONNECTION_RESTORED`  | `connection_restored`  | system   | Connection restored                      |
+| `CONFIG_NEEDS_PUSH`    | `config_needs_push`    | system   | Config changes need push                 |
 
 `agent_connected` and `agent_disconnected` remain in the constants map but are not currently emitted.
 
@@ -176,11 +176,11 @@ Configuration is stored in the project config under the `activity` key and can b
 
 Query parameters:
 
-| Param      | Type            | Description                                                              |
-| ---------- | --------------- | ------------------------------------------------------------------------ |
-| `since`    | ISO 8601 string | Only return events after this timestamp                                  |
+| Param      | Type            | Description                                        |
+| ---------- | --------------- | -------------------------------------------------- |
+| `since`    | ISO 8601 string | Only return events after this timestamp            |
 | `category` | string          | Filter by category (`agent`, `worktree`, `system`) |
-| `limit`    | number          | Max events to return (default: 100)                                      |
+| `limit`    | number          | Max events to return (default: 100)                |
 
 Response: `{ events: ActivityEvent[] }` — sorted newest first.
 
@@ -226,6 +226,7 @@ Returns: `{ events, unreadCount, markAllRead, clearAll }`
 `ActivityFeed` (`src/ui/components/ActivityFeed.tsx`) renders the dropdown panel:
 
 - **Header** titled "Recent activity", with "Mark read" (only when unread > 0), "Clear", and a `Show all projects` toggle
+- **Filter chips** — multi-select chips directly below the header: `Worktree`, `Hooks`, `Agents`, and `System`. Multiple chips can be enabled simultaneously; when none are selected, all events are shown.
 - **Action-required section** — top section for active agent contexts whose latest event requires user action (`agent_awaiting_input` or `metadata.requiresUserAction === true`)
   - Uses explicit flags only (`agent_awaiting_input` with `requiresUserAction/awaitingUserInput`, or `metadata.requiresUserAction === true`), not keyword heuristics.
 - **Event list** — each item shows icon, title, optional detail, relative timestamp, project name (if present), clickable issue ID/worktree ID, and an unseen teal dot when applicable
@@ -259,8 +260,9 @@ Returns: `{ events, unreadCount, markAllRead, clearAll }`
 8. Conditionally renders `ActivityFeed` in an `AnimatePresence` wrapper
 9. Passes `onNavigateToWorktree` and `onNavigateToIssue` through to `ActivityFeed`
 10. Passes disabled event types from config into `useActivityFeed`
-11. Auto-marks events as read 500ms after opening the feed
-12. Tracks `seenEventIds` per visible event set and only renders row dots for unseen events
+11. Tracks selected activity feed filter groups and passes them to `ActivityFeed` (multi-select with clear-all behavior)
+12. Auto-marks events as read 500ms after opening the feed
+13. Tracks `seenEventIds` per visible event set and only renders row dots for unseen events
 
 ### Toast System
 
@@ -354,7 +356,7 @@ openkit activity await-input --message "Need approval to run migration"
 
 This posts `agent_awaiting_input` to `/api/activity` using the running project's `.openkit/server.json` discovery.
 
-Claude terminal tabs do not infer awaiting-input state from terminal text. Awaiting-input events should be emitted explicitly by the agent (`notify` with `requiresUserAction: true` in MCP flow, or `openkit activity await-input` in terminal flow).
+Agent terminal tabs do not infer awaiting-input state from terminal text. Awaiting-input events should be emitted explicitly by the agent (`notify` with `requiresUserAction: true` in MCP flow, or `openkit activity await-input` in terminal flow).
 
 When a worktree is removed, OpenKit also emits a clearing `notify` event for that worktree's `agent-awaiting-input:{worktreeId}` group, so stale "agent needs input" indicators are dismissed automatically.
 

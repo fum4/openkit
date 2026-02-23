@@ -597,7 +597,12 @@ async function processJiraTask(
       if (resp.ok) {
         const issue = (await resp.json()) as {
           fields: {
-            attachment: Array<{ filename: string; content: string; mimeType: string; size: number }>;
+            attachment: Array<{
+              filename: string;
+              content: string;
+              mimeType: string;
+              size: number;
+            }>;
           };
         };
         const tasksDir = path.join(configDir, CONFIG_DIR_NAME, "tasks");

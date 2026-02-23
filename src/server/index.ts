@@ -26,6 +26,7 @@ import { registerConfigRoutes } from "./routes/config";
 import { registerGitHubRoutes } from "./routes/github";
 import { registerJiraRoutes } from "./routes/jira";
 import { registerLinearRoutes } from "./routes/linear";
+import { registerAgentCliRoutes } from "./routes/agent-cli";
 import { registerActivityRoutes } from "./routes/activity";
 import { registerEventRoutes } from "./routes/events";
 import { registerMcpRoutes } from "./routes/mcp";
@@ -107,7 +108,11 @@ export function createWorktreeServer(manager: WorktreeManager) {
       },
     });
 
-    const results = await hooksManager.runWorktreeLifecycleCommands(trigger, worktreeId, worktreePath);
+    const results = await hooksManager.runWorktreeLifecycleCommands(
+      trigger,
+      worktreeId,
+      worktreePath,
+    );
     const failedCount = results.filter((step) => step.status === "failed").length;
     const detail =
       results.length === 0
@@ -158,6 +163,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
   registerGitHubRoutes(app, manager);
   registerJiraRoutes(app, manager);
   registerLinearRoutes(app, manager);
+  registerAgentCliRoutes(app);
   registerEventRoutes(app, manager);
   registerActivityRoutes(app, manager.getActivityLog(), () => manager.getProjectName());
   if (mcpSetupEnabled) {
@@ -286,7 +292,9 @@ function ensureCliInPath() {
       );
     }
   } catch (err) {
-    log.warn(`Could not install ${APP_NAME} CLI wrappers: ${err instanceof Error ? err.message : err}`);
+    log.warn(
+      `Could not install ${APP_NAME} CLI wrappers: ${err instanceof Error ? err.message : err}`,
+    );
   }
 }
 

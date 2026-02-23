@@ -18,6 +18,7 @@ import { ACTIVITY_TYPES } from "../../server/activity-event";
 import { type WorktreeConfig } from "../hooks/useConfig";
 import { useApi } from "../hooks/useApi";
 import { button, infoBanner, input, settings, surface, tab, text } from "../theme";
+import { AgentModelDropdown } from "./AgentModelDropdown";
 import { Spinner } from "./Spinner";
 import { ToggleSwitch } from "./ToggleSwitch";
 import { Tooltip } from "./Tooltip";
@@ -74,7 +75,7 @@ const ACTIVITY_NOTIFICATION_GROUPS = [
       { key: ACTIVITY_TYPES.SKILL_FAILED, label: "Skill failed" },
       { key: ACTIVITY_TYPES.AGENT_AWAITING_INPUT, label: "Awaiting input" },
       { key: ACTIVITY_TYPES.TASK_DETECTED, label: "Task detected" },
-      { key: ACTIVITY_TYPES.AUTO_TASK_CLAIMED, label: "Claude started task" },
+      { key: ACTIVITY_TYPES.AUTO_TASK_CLAIMED, label: "Agent started task" },
     ],
   },
   {
@@ -343,9 +344,7 @@ export function ConfigurationPanel({
   });
   const [expandedNotificationGroups, setExpandedNotificationGroups] = useState<
     Record<string, boolean>
-  >(() =>
-    Object.fromEntries(ACTIVITY_NOTIFICATION_GROUPS.map((group) => [group.category, false])),
-  );
+  >(() => Object.fromEntries(ACTIVITY_NOTIFICATION_GROUPS.map((group) => [group.category, false])));
 
   const dismissBanner = () => {
     setShowBanner(false);
@@ -579,14 +578,14 @@ export function ConfigurationPanel({
               />
             </Field>
 
-            <div className="border-t border-white/[0.06] pt-4 flex flex-col gap-3">
+            <div className="border-t border-white/[0.06] pt-3 flex flex-col gap-2.5">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-col gap-0.5">
                   <span className={`text-xs font-medium ${settings.label}`}>
-                    Auto-start Claude on new local issue
+                    Auto-start on new issue
                   </span>
                   <span className={`text-[11px] ${settings.description}`}>
-                    Create/open the local issue worktree and launch Claude automatically.
+                    Create a new worktree and launch the selected agent automatically.
                   </span>
                 </div>
                 <ToggleSwitch
@@ -600,6 +599,32 @@ export function ConfigurationPanel({
                 />
               </div>
 
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-0.5">
+                  <span
+                    className={`text-xs font-medium ${
+                      form.localAutoStartClaudeOnNewIssue ? settings.label : text.dimmed
+                    }`}
+                  >
+                    Agent
+                  </span>
+                  <span className={`text-[11px] ${settings.description}`}>
+                    Agent used when auto-start runs.
+                  </span>
+                </div>
+                <AgentModelDropdown
+                  value={form.localAutoStartAgent ?? "claude"}
+                  onChange={(agent) =>
+                    setForm({
+                      ...form,
+                      localAutoStartAgent: agent,
+                    })
+                  }
+                  className="mt-0.5"
+                  disabled={!form.localAutoStartClaudeOnNewIssue}
+                />
+              </div>
+
               <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-col gap-0.5">
                   <span
@@ -607,10 +632,10 @@ export function ConfigurationPanel({
                       form.localAutoStartClaudeOnNewIssue ? settings.label : text.dimmed
                     }`}
                   >
-                    Skip Claude permission prompts
+                    Skip permission prompts
                   </span>
                   <span className={`text-[11px] ${settings.description}`}>
-                    Runs Claude with `--dangerously-skip-permissions`.
+                    Runs with the selected agent's skip-permissions mode.
                   </span>
                 </div>
                 <ToggleSwitch
@@ -619,8 +644,9 @@ export function ConfigurationPanel({
                   onToggle={() =>
                     setForm({
                       ...form,
-                      localAutoStartClaudeSkipPermissions:
-                        !(form.localAutoStartClaudeSkipPermissions !== false),
+                      localAutoStartClaudeSkipPermissions: !(
+                        form.localAutoStartClaudeSkipPermissions !== false
+                      ),
                     })
                   }
                 />
@@ -633,10 +659,10 @@ export function ConfigurationPanel({
                       form.localAutoStartClaudeOnNewIssue ? settings.label : text.dimmed
                     }`}
                   >
-                    Focus Claude terminal on auto-start
+                    Focus terminal on auto-start
                   </span>
                   <span className={`text-[11px] ${settings.description}`}>
-                    Redirect to the worktree Claude terminal when auto-start begins.
+                    Redirect to the worktree agent terminal when auto-start begins.
                   </span>
                 </div>
                 <ToggleSwitch
@@ -645,8 +671,9 @@ export function ConfigurationPanel({
                   onToggle={() =>
                     setForm({
                       ...form,
-                      localAutoStartClaudeFocusTerminal:
-                        !(form.localAutoStartClaudeFocusTerminal !== false),
+                      localAutoStartClaudeFocusTerminal: !(
+                        form.localAutoStartClaudeFocusTerminal !== false
+                      ),
                     })
                   }
                 />

@@ -32,7 +32,8 @@ export class ActivityLog {
       },
       disabledEvents: config?.disabledEvents ?? DEFAULT_ACTIVITY_CONFIG.disabledEvents,
       toastEvents: config?.toastEvents ?? DEFAULT_ACTIVITY_CONFIG.toastEvents,
-      osNotificationEvents: config?.osNotificationEvents ?? DEFAULT_ACTIVITY_CONFIG.osNotificationEvents,
+      osNotificationEvents:
+        config?.osNotificationEvents ?? DEFAULT_ACTIVITY_CONFIG.osNotificationEvents,
     };
 
     // Prune on startup

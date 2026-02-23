@@ -6,24 +6,26 @@ import "@xterm/xterm/css/xterm.css";
 
 import { useTerminal } from "../../hooks/useTerminal";
 import { text } from "../../theme";
-import { ClaudeIcon } from "../../icons";
+import { ClaudeIcon, CodexIcon, GeminiIcon, OpenCodeIcon } from "../../icons";
 import { Spinner } from "../Spinner";
+
+interface TerminalLaunchRequest {
+  mode: "resume" | "start";
+  prompt?: string;
+  skipPermissions?: boolean;
+  requestId: number;
+}
 
 interface TerminalViewProps {
   worktreeId: string;
   visible: boolean;
-  variant?: "terminal" | "claude";
-  claudeLaunchRequest?: {
-    mode: "resume" | "start";
-    prompt?: string;
-    skipPermissions?: boolean;
-    requestId: number;
-  } | null;
+  variant?: "terminal" | "claude" | "codex" | "gemini" | "opencode";
+  launchRequest?: TerminalLaunchRequest | null;
   closeRequestId?: number | null;
-  onClaudeExit?: (exitCode?: number) => void;
+  onAgentExit?: (exitCode?: number) => void;
 }
 
-const DEFAULT_CLAUDE_START_PROMPT =
+const DEFAULT_AGENT_START_PROMPT =
   "You are already in the correct worktree. Read TASK.md first, then implement the task. Treat AI context and todo checklist as highest-priority instructions.";
 const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
 
@@ -43,29 +45,71 @@ function buildClaudeCommand(
   if (prompt) {
     args.push(shellQuoteSingle(prompt));
   }
-  const claudeInvocation = args.length > 0 ? `claude ${args.join(" ")}` : "claude";
-  // Run Claude as the PTY's main process; when it exits, the session exits too.
-  return `exec ${claudeInvocation}`;
+  const invocation = args.length > 0 ? `claude ${args.join(" ")}` : "claude";
+  return `exec ${invocation}`;
+}
+
+function buildCodexCommandWithOptions(
+  prompt: string | undefined,
+  options?: { skipPermissions?: boolean },
+): string {
+  const args: string[] = [];
+  if (options?.skipPermissions) {
+    args.push("--dangerously-bypass-approvals-and-sandbox");
+  }
+  if (prompt) {
+    args.push(shellQuoteSingle(prompt));
+  }
+  const invocation = args.length > 0 ? `codex ${args.join(" ")}` : "codex";
+  return `exec ${invocation}`;
+}
+
+function buildGeminiCommand(
+  prompt: string | undefined,
+  options?: { skipPermissions?: boolean },
+): string {
+  const args: string[] = [];
+  if (options?.skipPermissions) {
+    args.push("--yolo");
+  }
+  if (prompt) {
+    args.push("-i", shellQuoteSingle(prompt));
+  }
+  const invocation = args.length > 0 ? `gemini ${args.join(" ")}` : "gemini";
+  return `exec ${invocation}`;
+}
+
+function buildOpenCodeCommand(
+  prompt: string | undefined,
+  options?: { skipPermissions?: boolean },
+): string {
+  const args: string[] = [];
+  if (prompt) {
+    args.push("--prompt", shellQuoteSingle(prompt));
+  }
+  const prefix = options?.skipPermissions ? `OPENCODE_PERMISSION='{"*":"allow"}' ` : "";
+  const invocation = args.length > 0 ? `${prefix}opencode ${args.join(" ")}` : `${prefix}opencode`;
+  return `exec ${invocation}`;
 }
 
 export function TerminalView({
   worktreeId,
   visible,
   variant = "terminal",
-  claudeLaunchRequest,
+  launchRequest,
   closeRequestId,
-  onClaudeExit,
+  onAgentExit,
 }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const mountedRef = useRef(false);
-  const claudeExitNotifiedRef = useRef(false);
+  const agentExitNotifiedRef = useRef(false);
   const lastCloseRequestIdRef = useRef<number | null>(null);
-  const activeClaudeRequestIdRef = useRef<number | null>(null);
-  const hasOutputForClaudeRequestRef = useRef(false);
-  const awaitingClaudeOutputRef = useRef(false);
-  const [isClaudeBooting, setIsClaudeBooting] = useState(false);
+  const activeRequestIdRef = useRef<number | null>(null);
+  const hasOutputForRequestRef = useRef(false);
+  const awaitingOutputRef = useRef(false);
+  const [isAgentBooting, setIsAgentBooting] = useState(false);
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
     if (extra) {
       console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
@@ -73,55 +117,97 @@ export function TerminalView({
     }
     console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
   }, []);
+  const isAgentVariant = variant !== "terminal";
+  const agentLabel =
+    variant === "claude"
+      ? "Claude"
+      : variant === "codex"
+        ? "Codex"
+        : variant === "gemini"
+          ? "Gemini CLI"
+          : variant === "opencode"
+            ? "OpenCode"
+            : "Terminal";
 
   const createSessionStartupCommand = useMemo(() => {
-    if (variant !== "claude" || !claudeLaunchRequest) return null;
-    const commandOptions = { skipPermissions: claudeLaunchRequest.skipPermissions };
-    if (claudeLaunchRequest.mode === "start") {
-      const prompt = claudeLaunchRequest.prompt?.trim() || DEFAULT_CLAUDE_START_PROMPT;
-      return buildClaudeCommand(prompt, commandOptions);
+    if (!isAgentVariant || !launchRequest) return null;
+
+    if (variant === "claude") {
+      const commandOptions = { skipPermissions: launchRequest.skipPermissions };
+      if (launchRequest.mode === "start") {
+        const prompt = launchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
+        return buildClaudeCommand(prompt, commandOptions);
+      }
+      return buildClaudeCommand(undefined, commandOptions);
     }
-    return buildClaudeCommand(undefined, commandOptions);
-  }, [claudeLaunchRequest, variant]);
+
+    if (variant === "codex") {
+      const commandOptions = { skipPermissions: launchRequest.skipPermissions };
+      if (launchRequest.mode === "start") {
+        const prompt = launchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
+        return buildCodexCommandWithOptions(prompt, commandOptions);
+      }
+      return buildCodexCommandWithOptions(undefined, commandOptions);
+    }
+
+    if (variant === "gemini") {
+      const commandOptions = { skipPermissions: launchRequest.skipPermissions };
+      if (launchRequest.mode === "start") {
+        const prompt = launchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
+        return buildGeminiCommand(prompt, commandOptions);
+      }
+      return buildGeminiCommand(undefined, commandOptions);
+    }
+
+    const commandOptions = { skipPermissions: launchRequest.skipPermissions };
+    if (launchRequest.mode === "start") {
+      const prompt = launchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
+      return buildOpenCodeCommand(prompt, commandOptions);
+    }
+    return buildOpenCodeCommand(undefined, commandOptions);
+  }, [isAgentVariant, launchRequest, variant]);
 
   useEffect(() => {
-    if (variant !== "claude" || !claudeLaunchRequest) return;
-    logAutoClaude("Claude terminal launch request received", {
+    if (!isAgentVariant || !launchRequest) return;
+    logAutoClaude(`${agentLabel} terminal launch request received`, {
       worktreeId,
-      requestId: claudeLaunchRequest.requestId,
-      mode: claudeLaunchRequest.mode,
-      hasPrompt: Boolean(claudeLaunchRequest.prompt?.trim()),
-      skipPermissions: claudeLaunchRequest.skipPermissions ?? false,
+      requestId: launchRequest.requestId,
+      mode: launchRequest.mode,
+      hasPrompt: Boolean(launchRequest.prompt?.trim()),
+      skipPermissions: launchRequest.skipPermissions ?? false,
     });
-  }, [claudeLaunchRequest, logAutoClaude, variant, worktreeId]);
+  }, [agentLabel, isAgentVariant, launchRequest, logAutoClaude, worktreeId]);
 
   const handleData = useCallback(
     (data: string) => {
-      if (variant === "claude" && claudeLaunchRequest) {
-        if (activeClaudeRequestIdRef.current !== claudeLaunchRequest.requestId) {
-          activeClaudeRequestIdRef.current = claudeLaunchRequest.requestId;
+      if (isAgentVariant && launchRequest) {
+        if (activeRequestIdRef.current !== launchRequest.requestId) {
+          activeRequestIdRef.current = launchRequest.requestId;
         }
-        hasOutputForClaudeRequestRef.current = true;
-        if (awaitingClaudeOutputRef.current || isClaudeBooting) {
-          awaitingClaudeOutputRef.current = false;
-          setIsClaudeBooting(false);
+        hasOutputForRequestRef.current = true;
+        if (awaitingOutputRef.current || isAgentBooting) {
+          awaitingOutputRef.current = false;
+          setIsAgentBooting(false);
         }
       }
 
       terminalRef.current?.write(data);
     },
-    [claudeLaunchRequest, isClaudeBooting, variant],
+    [isAgentBooting, isAgentVariant, launchRequest],
   );
 
-  const handleExit = useCallback((exitCode: number) => {
-    awaitingClaudeOutputRef.current = false;
-    setIsClaudeBooting(false);
-    if (variant === "claude" && !claudeExitNotifiedRef.current) {
-      claudeExitNotifiedRef.current = true;
-      onClaudeExit?.(exitCode);
-    }
-    terminalRef.current?.write(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`);
-  }, [onClaudeExit, variant]);
+  const handleExit = useCallback(
+    (exitCode: number) => {
+      awaitingOutputRef.current = false;
+      setIsAgentBooting(false);
+      if (isAgentVariant && !agentExitNotifiedRef.current) {
+        agentExitNotifiedRef.current = true;
+        onAgentExit?.(exitCode);
+      }
+      terminalRef.current?.write(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`);
+    },
+    [isAgentVariant, onAgentExit],
+  );
 
   const getSize = useCallback(() => {
     const terminal = terminalRef.current;
@@ -129,15 +215,14 @@ export function TerminalView({
     return { cols: terminal.cols, rows: terminal.rows };
   }, []);
 
-  const { error, isConnected, sendData, sendResize, connect, disconnect, destroy } =
-    useTerminal({
-      worktreeId,
-      sessionScope: variant,
-      createSessionStartupCommand,
-      onData: handleData,
-      onExit: handleExit,
-      getSize,
-    });
+  const { error, isConnected, sendData, sendResize, connect, disconnect, destroy } = useTerminal({
+    worktreeId,
+    sessionScope: variant,
+    createSessionStartupCommand,
+    onData: handleData,
+    onExit: handleExit,
+    getSize,
+  });
 
   // Initialize xterm and connect on first mount
   useEffect(() => {
@@ -234,51 +319,51 @@ export function TerminalView({
   }, [visible, sendResize]);
 
   useEffect(() => {
-    if (variant !== "claude") {
-      activeClaudeRequestIdRef.current = null;
-      hasOutputForClaudeRequestRef.current = false;
-      awaitingClaudeOutputRef.current = false;
-      setIsClaudeBooting(false);
+    if (!isAgentVariant) {
+      activeRequestIdRef.current = null;
+      hasOutputForRequestRef.current = false;
+      awaitingOutputRef.current = false;
+      setIsAgentBooting(false);
       return;
     }
-    if (!claudeLaunchRequest) {
-      activeClaudeRequestIdRef.current = null;
-      hasOutputForClaudeRequestRef.current = false;
-      awaitingClaudeOutputRef.current = false;
-      setIsClaudeBooting(false);
-      return;
-    }
-
-    if (activeClaudeRequestIdRef.current !== claudeLaunchRequest.requestId) {
-      activeClaudeRequestIdRef.current = claudeLaunchRequest.requestId;
-      hasOutputForClaudeRequestRef.current = false;
-    }
-
-    claudeExitNotifiedRef.current = false;
-    if (!hasOutputForClaudeRequestRef.current) {
-      awaitingClaudeOutputRef.current = true;
-      setIsClaudeBooting(true);
+    if (!launchRequest) {
+      activeRequestIdRef.current = null;
+      hasOutputForRequestRef.current = false;
+      awaitingOutputRef.current = false;
+      setIsAgentBooting(false);
       return;
     }
 
-    awaitingClaudeOutputRef.current = false;
-    setIsClaudeBooting(false);
-  }, [claudeLaunchRequest, variant]);
+    if (activeRequestIdRef.current !== launchRequest.requestId) {
+      activeRequestIdRef.current = launchRequest.requestId;
+      hasOutputForRequestRef.current = false;
+    }
+
+    agentExitNotifiedRef.current = false;
+    if (!hasOutputForRequestRef.current) {
+      awaitingOutputRef.current = true;
+      setIsAgentBooting(true);
+      return;
+    }
+
+    awaitingOutputRef.current = false;
+    setIsAgentBooting(false);
+  }, [isAgentVariant, launchRequest]);
 
   useEffect(() => {
-    if (variant !== "claude") return;
+    if (!isAgentVariant) return;
     if (!closeRequestId) return;
     if (lastCloseRequestIdRef.current === closeRequestId) return;
     lastCloseRequestIdRef.current = closeRequestId;
 
     let cancelled = false;
     const closeSession = async () => {
-      awaitingClaudeOutputRef.current = false;
-      setIsClaudeBooting(false);
-      claudeExitNotifiedRef.current = true;
+      awaitingOutputRef.current = false;
+      setIsAgentBooting(false);
+      agentExitNotifiedRef.current = true;
       await destroy();
       if (!cancelled) {
-        onClaudeExit?.();
+        onAgentExit?.();
       }
     };
     void closeSession();
@@ -286,7 +371,7 @@ export function TerminalView({
     return () => {
       cancelled = true;
     };
-  }, [closeRequestId, destroy, onClaudeExit, variant]);
+  }, [closeRequestId, destroy, isAgentVariant, onAgentExit]);
 
   if (error) {
     return (
@@ -300,22 +385,30 @@ export function TerminalView({
   }
 
   const reconnecting = visible && !isConnected;
-  const startingClaude = visible && variant === "claude" && isConnected && isClaudeBooting;
+  const startingAgent = visible && isAgentVariant && isConnected && isAgentBooting;
 
   return (
     <div
-      className={`flex-1 min-h-0 relative mx-1 mb-[4px] p-1 rounded-t-xl rounded-b-lg bg-[#07090d] ${reconnecting ? "terminal-reconnecting" : ""} ${startingClaude ? "terminal-booting" : ""}`}
+      className={`flex-1 min-h-0 relative mx-1 mb-[4px] p-1 rounded-t-xl rounded-b-lg bg-[#07090d] ${reconnecting ? "terminal-reconnecting" : ""} ${startingAgent ? "terminal-booting" : ""}`}
       style={{ display: visible ? undefined : "none" }}
     >
       <div className="h-full w-full min-h-0 rounded-t-lg rounded-b-md bg-black overflow-hidden px-2">
         <div ref={containerRef} className="h-full w-full min-h-0" />
       </div>
-      {startingClaude && (
+      {startingAgent && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.18),rgba(0,0,0,0.06)_52%,transparent_78%)]" />
           <div className="relative flex items-center justify-center">
             <div className="claude-rotating">
-              <ClaudeIcon className="w-7 h-7 text-[#d97757]/90 claude-breathing" />
+              {variant === "claude" ? (
+                <ClaudeIcon className="w-7 h-7 text-[#d97757]/90 claude-breathing" />
+              ) : variant === "codex" ? (
+                <CodexIcon className="w-7 h-7 text-white/90 claude-breathing" />
+              ) : variant === "gemini" ? (
+                <GeminiIcon className="w-7 h-7 text-[#8AB4FF]/95 claude-breathing" />
+              ) : (
+                <OpenCodeIcon className="w-7 h-7 text-[#78D0A9]/95 claude-breathing" />
+              )}
             </div>
           </div>
         </div>

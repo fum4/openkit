@@ -614,8 +614,12 @@ export function HooksTab({
   );
   const customSteps = (config?.steps ?? []).filter((s) => s.trigger === "custom");
   const onDemandSteps = (config?.steps ?? []).filter((s) => s.trigger === "on-demand");
-  const worktreeCreatedSteps = (config?.steps ?? []).filter((s) => s.trigger === "worktree-created");
-  const worktreeRemovedSteps = (config?.steps ?? []).filter((s) => s.trigger === "worktree-removed");
+  const worktreeCreatedSteps = (config?.steps ?? []).filter(
+    (s) => s.trigger === "worktree-created",
+  );
+  const worktreeRemovedSteps = (config?.steps ?? []).filter(
+    (s) => s.trigger === "worktree-removed",
+  );
   const preSkills = (config?.skills ?? []).filter((s) => s.trigger === "pre-implementation");
   const postSkills = (config?.skills ?? []).filter(
     (s) => s.trigger === "post-implementation" || !s.trigger,
@@ -649,7 +653,14 @@ export function HooksTab({
   }
 
   // Nothing configured at all
-  if (!hasPre && !hasPost && !hasCustom && !hasOnDemand && !hasWorktreeCreated && !hasWorktreeRemoved) {
+  if (
+    !hasPre &&
+    !hasPost &&
+    !hasCustom &&
+    !hasOnDemand &&
+    !hasWorktreeCreated &&
+    !hasWorktreeRemoved
+  ) {
     return (
       <div className="relative flex-1 flex flex-col min-h-0 mx-1 mb-[3px] rounded-t-xl rounded-b-lg bg-black/25 border border-black/40 overflow-hidden">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent" />

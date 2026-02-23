@@ -15,6 +15,7 @@ export interface WorktreeConfig {
   envMapping?: Record<string, string>;
   autoInstall?: boolean;
   localIssuePrefix?: string;
+  localAutoStartAgent?: "claude" | "codex" | "gemini" | "opencode";
   localAutoStartClaudeOnNewIssue?: boolean;
   localAutoStartClaudeSkipPermissions?: boolean;
   localAutoStartClaudeFocusTerminal?: boolean;

@@ -14,7 +14,7 @@ The Electron app is structured across several modules in the `electron/` directo
 | `electron/project-manager.ts`      | Manages multiple project connections and server lifecycles           |
 | `electron/notification-manager.ts` | Native OS notifications from project SSE activity streams            |
 | `electron/preferences-manager.ts`  | Persists window state, sidebar width, and app preferences            |
-| `electron/server-spawner.ts`       | Spawns and stops OpenKit backend server processes                       |
+| `electron/server-spawner.ts`       | Spawns and stops OpenKit backend server processes                    |
 | `electron/tsconfig.json`           | TypeScript config for compiling electron sources to `dist/electron/` |
 
 The renderer loads the same React SPA that the browser mode uses (`dist/ui/index.html`), but with additional capabilities exposed through `window.electronAPI` via the preload script.
@@ -136,12 +136,12 @@ On launch, if no projects are open (no `--project` flag, no protocol URL), the a
 
 ### Stored Preferences
 
-| Key               | Type                                | Default | Description                                        |
-| ----------------- | ----------------------------------- | ------- | -------------------------------------------------- |
-| `basePort`        | `number`                            | `6969`  | Starting port for allocating project server ports  |
+| Key               | Type                                | Default | Description                                           |
+| ----------------- | ----------------------------------- | ------- | ----------------------------------------------------- |
+| `basePort`        | `number`                            | `6969`  | Starting port for allocating project server ports     |
 | `setupPreference` | `'auto' \| 'manual' \| 'ask'`       | `'ask'` | How to handle projects without `.openkit/config.json` |
-| `sidebarWidth`    | `number`                            | `300`   | Persisted sidebar width in pixels                  |
-| `windowBounds`    | `{ x?, y?, width, height } \| null` | `null`  | Last window position and size                      |
+| `sidebarWidth`    | `number`                            | `300`   | Persisted sidebar width in pixels                     |
+| `windowBounds`    | `{ x?, y?, width, height } \| null` | `null`  | Last window position and size                         |
 
 Window bounds are saved on every resize/move (unless the window is maximized or minimized) and restored on the next launch.
 

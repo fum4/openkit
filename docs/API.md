@@ -391,6 +391,49 @@ Create a GitHub pull request for a worktree's branch.
 
 ---
 
+## Agent CLI
+
+Agent CLI availability and installation endpoints for manual "Code with ..." launches.
+
+`agent` path param must be one of: `"claude"`, `"codex"`, `"gemini"`, or `"opencode"`.
+
+#### `GET /api/agents/:agent/cli/status`
+
+Check whether the selected CLI command is available in PATH.
+
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "agent": "codex",
+    "label": "Codex",
+    "command": "codex",
+    "installed": false,
+    "brewPackage": "codex"
+  }
+  ```
+- **Error** (404): `{ success: false, error: "Unknown agent" }`
+
+#### `POST /api/agents/:agent/cli/install`
+
+Install the selected CLI via Homebrew.
+
+- Attempts `brew install <package>` (some agents include fallback formulas).
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "agent": "claude",
+    "label": "Claude",
+    "command": "claude",
+    "brewPackage": "claude"
+  }
+  ```
+- **Error** (400): `{ success: false, error: "..." }` (for example Homebrew missing or install failure)
+- **Error** (404): `{ success: false, error: "Unknown agent" }`
+
+---
+
 ## Jira Integration
 
 Jira Cloud API integration with API token or OAuth authentication.
@@ -408,6 +451,7 @@ Get Jira integration status and configuration.
     "email": "user@example.com",
     "domain": "yoursite.atlassian.net",
     "dataLifecycle": { ... },
+    "autoStartAgent": "claude",
     "autoStartClaudeOnNewIssue": false,
     "autoStartClaudeSkipPermissions": true,
     "autoStartClaudeFocusTerminal": true
@@ -431,7 +475,7 @@ Configure Jira with API token credentials. Validates the connection before savin
 
 #### `PATCH /api/jira/config`
 
-Update Jira project configuration, including optional auto-start Claude behavior for newly fetched issues.
+Update Jira project configuration, including optional auto-start agent behavior for newly fetched issues.
 
 - **Request**:
   ```json
@@ -439,6 +483,7 @@ Update Jira project configuration, including optional auto-start Claude behavior
     "defaultProjectKey": "PROJ",
     "refreshIntervalMinutes": 10,
     "dataLifecycle": { ... },
+    "autoStartAgent": "codex",
     "autoStartClaudeOnNewIssue": true,
     "autoStartClaudeSkipPermissions": true,
     "autoStartClaudeFocusTerminal": true
@@ -511,6 +556,7 @@ Get Linear integration status and configuration.
     "refreshIntervalMinutes": 5,
     "displayName": "User Name",
     "dataLifecycle": { ... },
+    "autoStartAgent": "claude",
     "autoStartClaudeOnNewIssue": false,
     "autoStartClaudeSkipPermissions": true,
     "autoStartClaudeFocusTerminal": true
@@ -530,7 +576,7 @@ Configure Linear with an API key. Validates the connection before saving.
 
 #### `PATCH /api/linear/config`
 
-Update Linear project configuration, including optional auto-start Claude behavior for newly fetched issues.
+Update Linear project configuration, including optional auto-start agent behavior for newly fetched issues.
 
 - **Request**:
   ```json
@@ -538,6 +584,7 @@ Update Linear project configuration, including optional auto-start Claude behavi
     "defaultTeamKey": "TEAM",
     "refreshIntervalMinutes": 10,
     "dataLifecycle": { ... },
+    "autoStartAgent": "gemini",
     "autoStartClaudeOnNewIssue": true,
     "autoStartClaudeSkipPermissions": true,
     "autoStartClaudeFocusTerminal": true
@@ -610,7 +657,7 @@ Events are persisted to `.openkit/activity.jsonl` (JSONL format) and pruned base
 
 #### `POST /api/activity`
 
-Create a new activity event (used by the UI for app-level notifications such as Jira/Linear task detection and Claude auto-start updates).
+Create a new activity event (used by the UI for app-level notifications such as Jira/Linear task detection and agent auto-start updates).
 
 - **Request**:
   ```json
@@ -618,11 +665,17 @@ Create a new activity event (used by the UI for app-level notifications such as 
     "category": "agent",
     "type": "auto_task_claimed",
     "severity": "info",
-    "title": "Claude started working on PROJ-123",
+    "title": "Codex started working on PROJ-123",
     "detail": "Issue summary text",
     "worktreeId": "PROJ-123",
     "groupKey": "auto-task-claimed:PROJ-123",
-    "metadata": { "source": "jira", "issueId": "PROJ-123", "issueTitle": "Issue summary text", "autoClaimed": true }
+    "metadata": {
+      "source": "jira",
+      "issueId": "PROJ-123",
+      "issueTitle": "Issue summary text",
+      "autoClaimed": true,
+      "agent": "codex"
+    }
   }
   ```
 - `severity`, `detail`, `worktreeId`, `groupKey`, and `metadata` are optional.
@@ -1411,7 +1464,7 @@ Create a new terminal session for a worktree.
     "scope": "claude"
   }
   ```
-  Defaults to 80 columns and 24 rows. `startupCommand` (optional) runs via shell startup (`$SHELL -lc <command>`). `scope` (optional: `"terminal"` or `"claude"`) reuses a single session per worktree+scope when present.
+  Defaults to 80 columns and 24 rows. `startupCommand` (optional) runs via shell startup (`$SHELL -lc <command>`). `scope` (optional: `"terminal"`, `"claude"`, `"codex"`, `"gemini"`, or `"opencode"`) reuses a single session per worktree+scope when present.
 - **Response**: `{ success: true, sessionId: "string" }`
 - **Error** (404): `{ success: false, error: "Worktree not found" }`
 
@@ -1422,12 +1475,12 @@ Destroy a terminal session.
 - **Response**: `{ success: true }`
 - **Error** (404): `{ success: false, error: "Session not found" }`
 
-#### `GET /api/worktrees/:id/terminals/active?scope=terminal|claude`
+#### `GET /api/worktrees/:id/terminals/active?scope=terminal|claude|codex|gemini|opencode`
 
 Look up the currently active scoped terminal session for a worktree (used to reattach after refresh).
 
 - **Response**: `{ success: true, sessionId: "string" | null }`
-- **Error** (400): `{ success: false, error: "scope is required (\"terminal\" or \"claude\")" }`
+- **Error** (400): `{ success: false, error: "scope is required (\"terminal\", \"claude\", \"codex\", \"gemini\", or \"opencode\")" }`
 
 #### `GET /api/terminals/:sessionId/ws` (WebSocket)
 
@@ -1464,7 +1517,7 @@ Add a hook step (command or prompt).
 
 - **Request**:
   ```json
-  { "name": "Type check", "command": "pnpm check-types", "kind": "command" }
+  { "name": "Type check", "command": "pnpm check:types", "kind": "command" }
   ```
   Prompt steps use: `{ "name": "Architecture review", "kind": "prompt", "prompt": "Review the implementation and list architectural risks." }`
 - **Response**: `{ success: true, config: HooksConfig }`

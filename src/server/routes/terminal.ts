@@ -5,6 +5,18 @@ import type { WebSocket } from "ws";
 import type { TerminalManager } from "../terminal-manager";
 import type { WorktreeManager } from "../manager";
 
+function isTerminalScope(
+  value: unknown,
+): value is "terminal" | "claude" | "codex" | "gemini" | "opencode" {
+  return (
+    value === "terminal" ||
+    value === "claude" ||
+    value === "codex" ||
+    value === "gemini" ||
+    value === "opencode"
+  );
+}
+
 export function registerTerminalRoutes(
   app: Hono,
   worktreeManager: WorktreeManager,
@@ -23,8 +35,7 @@ export function registerTerminalRoutes(
       const body = await c.req.json().catch(() => ({}));
       const cols = body.cols ?? 80;
       const rows = body.rows ?? 24;
-      const scope =
-        body.scope === "terminal" || body.scope === "claude" ? (body.scope as "terminal" | "claude") : null;
+      const scope = isTerminalScope(body.scope) ? body.scope : null;
       const startupCommand =
         typeof body.startupCommand === "string" && body.startupCommand.trim()
           ? body.startupCommand
@@ -55,9 +66,15 @@ export function registerTerminalRoutes(
   app.get("/api/worktrees/:id/terminals/active", (c) => {
     const worktreeId = c.req.param("id");
     const scopeQuery = c.req.query("scope");
-    const scope = scopeQuery === "terminal" || scopeQuery === "claude" ? scopeQuery : null;
+    const scope = isTerminalScope(scopeQuery) ? scopeQuery : null;
     if (!scope) {
-      return c.json({ success: false, error: 'scope is required ("terminal" or "claude")' }, 400);
+      return c.json(
+        {
+          success: false,
+          error: 'scope is required ("terminal", "claude", "codex", "gemini", or "opencode")',
+        },
+        400,
+      );
     }
 
     const sessionId = terminalManager.getSessionIdForScope(worktreeId, scope);
@@ -85,10 +102,13 @@ export function registerTerminalRoutes(
           const attached = terminalManager.attachWebSocket(sessionId, rawWs);
           if (!attached) {
             const reason = hadSession ? "terminal-spawn-failed" : "session-not-found";
-            console.info("[terminal][TEMP] websocket attach failed: session not found or spawn failed", {
-              sessionId,
-              reason,
-            });
+            console.info(
+              "[terminal][TEMP] websocket attach failed: session not found or spawn failed",
+              {
+                sessionId,
+                reason,
+              },
+            );
             ws.close(1008, reason);
             return;
           }

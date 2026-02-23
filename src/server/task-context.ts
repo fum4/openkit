@@ -52,8 +52,7 @@ export function generateTaskMd(
     '> If you are blocked waiting for user approval or instructions, notify the UI immediately so the user sees "Input needed" in the header:',
   );
   lines.push("");
-  lines.push('- Terminal flow: run `openkit activity await-input --message "<what you need>"`');
-  lines.push('- MCP flow: call `notify` with `requiresUserAction: true`');
+  lines.push('- Run `openkit activity await-input --message "<what you need>"`');
 
   lines.push("");
   lines.push("## Workflow Contract (Mandatory)");
@@ -104,11 +103,11 @@ export function generateTaskMd(
     lines.push("## Todos");
     lines.push("");
     lines.push(
-      '> Work through these items in order. Use the `update_todo` MCP tool with action="toggle" to check off each item as you complete it. The user tracks your progress in real-time.',
+      `> Work through these items in order. As each item is completed, immediately check it with \`openkit activity todo --source ${data.source} --issue ${data.issueId} --id <todo-id> --check\`.`,
     );
     lines.push("");
     for (const todo of todos) {
-      lines.push(`- [${todo.checked ? "x" : " "}] ${todo.text}`);
+      lines.push(`- [${todo.checked ? "x" : " "}] ${todo.text} \`(todo-id: ${todo.id})\``);
     }
   }
 
@@ -157,9 +156,11 @@ export function generateTaskMd(
 
     if (preCommandChecks.length > 0) {
       lines.push("### Pipeline Checks");
-      lines.push(
-        'Run the `run_hooks` MCP tool with `trigger: "pre-implementation"` to execute all configured command checks in parallel.',
-      );
+      lines.push("Run these commands from the worktree directory before coding:");
+      lines.push("");
+      for (const check of preCommandChecks) {
+        lines.push(`- **${check.name}:** \`${check.command}\``);
+      }
       lines.push("");
     }
 
@@ -178,7 +179,7 @@ export function generateTaskMd(
     for (const skill of preSkills) {
       lines.push(`### ${skill.skillName}`);
       lines.push(
-        `Call \`report_hook_status\` with \`trigger: "pre-implementation"\` (without success/summary) to mark it running, invoke the \`/${skill.skillName}\` skill, then call \`report_hook_status\` again with the result.`,
+        `Run the \`/${skill.skillName}\` skill if available in this agent. If the skill is unavailable, note that clearly in your summary.`,
       );
       lines.push("");
     }
@@ -203,9 +204,11 @@ export function generateTaskMd(
     if (postCommandChecks.length > 0) {
       lines.push("");
       lines.push("### Pipeline Checks");
-      lines.push(
-        'Run the `run_hooks` MCP tool with `trigger: "post-implementation"` to execute all configured command checks in parallel.',
-      );
+      lines.push("Run these commands from the worktree directory after implementation:");
+      lines.push("");
+      for (const check of postCommandChecks) {
+        lines.push(`- **${check.name}:** \`${check.command}\``);
+      }
     }
 
     if (postPromptChecks.length > 0) {
@@ -224,7 +227,7 @@ export function generateTaskMd(
       lines.push("");
       lines.push(`### ${skill.skillName}`);
       lines.push(
-        `Call \`report_hook_status\` with \`trigger: "post-implementation"\` (without success/summary) to mark it running, invoke the \`/${skill.skillName}\` skill, then call \`report_hook_status\` again with the result.`,
+        `Run the \`/${skill.skillName}\` skill if available in this agent. If the skill is unavailable, note that clearly in your summary.`,
       );
     }
   }
@@ -272,7 +275,7 @@ export function generateTaskMd(
         lines.push(`**When:** ${skill.condition}`);
       }
       lines.push(
-        `Call \`report_hook_status\` with \`trigger: "custom"\` (without success/summary) to mark it running, invoke the \`/${skill.skillName}\` skill, then call \`report_hook_status\` again with the result.`,
+        `Run the \`/${skill.skillName}\` skill when the condition matches and the skill is available in this agent.`,
       );
       lines.push("");
     }

@@ -10,11 +10,12 @@ import { PersonalNotesSection, AgentSection } from "./NotesSection";
 import { Spinner } from "../Spinner";
 import { ImageModal } from "../ImageModal";
 import { AttachmentThumbnail } from "../AttachmentThumbnail";
-import { ClaudeIcon } from "../../icons";
 import type { CustomTaskAttachment } from "../../types";
+import { CodeAgentSplitButton, type CodingAgent } from "./CodeAgentSplitButton";
 
 interface CustomTaskDetailPanelProps {
   taskId: string;
+  activeWorktreeIds: Set<string>;
   onDeleted: () => void;
   onCreateWorktree: () => void;
   onViewWorktree: (id: string) => void;
@@ -23,7 +24,28 @@ interface CustomTaskDetailPanelProps {
     mode: "resume" | "start";
     prompt?: string;
     tabLabel?: string;
+    skipPermissions?: boolean;
   }) => void;
+  onCodeWithCodex: (intent: {
+    worktreeId: string;
+    mode: "resume" | "start";
+    prompt?: string;
+    tabLabel?: string;
+  }) => void;
+  onCodeWithGemini: (intent: {
+    worktreeId: string;
+    mode: "resume" | "start";
+    prompt?: string;
+    tabLabel?: string;
+  }) => void;
+  onCodeWithOpenCode: (intent: {
+    worktreeId: string;
+    mode: "resume" | "start";
+    prompt?: string;
+    tabLabel?: string;
+  }) => void;
+  selectedCodingAgent: CodingAgent;
+  onSelectCodingAgent: (agent: CodingAgent) => void;
 }
 
 function formatDate(iso: string) {
@@ -48,10 +70,16 @@ const priorityOptions = [
 
 export function CustomTaskDetailPanel({
   taskId,
+  activeWorktreeIds,
   onDeleted,
   onCreateWorktree,
   onViewWorktree,
   onCodeWithClaude,
+  onCodeWithCodex,
+  onCodeWithGemini,
+  onCodeWithOpenCode,
+  selectedCodingAgent,
+  onSelectCodingAgent,
 }: CustomTaskDetailPanelProps) {
   const api = useApi();
   const queryClient = useQueryClient();
@@ -64,7 +92,7 @@ export function CustomTaskDetailPanel({
   const [labelInput, setLabelInput] = useState("");
   const [labelInputFocused, setLabelInputFocused] = useState(false);
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
-  const [isCodingWithClaude, setIsCodingWithClaude] = useState(false);
+  const [isCodingWithAgent, setIsCodingWithAgent] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -75,6 +103,10 @@ export function CustomTaskDetailPanel({
     filename: string;
     type: "image" | "pdf";
   } | null>(null);
+  const activeLinkedWorktreeId =
+    task?.linkedWorktreeId && activeWorktreeIds.has(task.linkedWorktreeId)
+      ? task.linkedWorktreeId
+      : null;
 
   const update = async (updates: Record<string, unknown>) => {
     await api.updateCustomTask(taskId, updates);
@@ -102,24 +134,46 @@ export function CustomTaskDetailPanel({
     }
   };
 
-  const handleCodeWithClaude = async () => {
-    if (task?.linkedWorktreeId) {
-      onCodeWithClaude({ worktreeId: task.linkedWorktreeId, mode: "resume" });
+  const launchCodingAgent = (
+    agent: CodingAgent,
+    intent: {
+      worktreeId: string;
+      mode: "resume" | "start";
+      prompt?: string;
+      tabLabel?: string;
+    },
+  ) => {
+    if (agent === "claude") {
+      onCodeWithClaude(intent);
       return;
     }
+    if (agent === "codex") {
+      onCodeWithCodex(intent);
+      return;
+    }
+    if (agent === "gemini") {
+      onCodeWithGemini(intent);
+      return;
+    }
+    onCodeWithOpenCode(intent);
+  };
 
-    setIsCodingWithClaude(true);
+  const handleCodeWithAgent = async (agent: CodingAgent) => {
+    onSelectCodingAgent(agent);
+    setIsCodingWithAgent(true);
     setCreateError(null);
     const result = await api.createWorktreeFromCustomTask(taskId);
-    setIsCodingWithClaude(false);
+    setIsCodingWithAgent(false);
     if (result.success) {
       refetch();
       queryClient.invalidateQueries({ queryKey: ["customTasks"] });
-      onCodeWithClaude({
+      launchCodingAgent(agent, {
         worktreeId: result.worktreeId ?? taskId,
         mode: "start",
-        prompt: `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify OpenKit before asking by calling notify with requiresUserAction=true (or run openkit activity await-input in terminal flow).`,
+        prompt: `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`,
       });
+    } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
+      launchCodingAgent(agent, { worktreeId: result.worktreeId, mode: "resume" });
     } else {
       setCreateError(result.error ?? "Failed to create worktree");
     }
@@ -314,49 +368,43 @@ export function CustomTaskDetailPanel({
             >
               <Trash2 className="w-4 h-4" />
             </button>
-            {task.linkedWorktreeId ? (
+            {activeLinkedWorktreeId ? (
               <>
                 <button
                   type="button"
-                  onClick={() => onViewWorktree(task.linkedWorktreeId!)}
+                  onClick={() => onViewWorktree(activeLinkedWorktreeId)}
                   className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
                 >
                   <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
                   View Worktree
                 </button>
-                <button
-                  type="button"
-                  onClick={handleCodeWithClaude}
-                  disabled={isCodingWithClaude}
-                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 disabled:opacity-50`}
-                >
-                  <ClaudeIcon
-                    className={`w-3.5 h-3.5 transition-colors ${isCodingWithClaude ? "text-[#D97757]" : "text-[#6b7280] group-hover:text-[#D97757]"}`}
-                  />
-                  {isCodingWithClaude ? "Opening..." : "Code with Claude"}
-                </button>
+                <CodeAgentSplitButton
+                  selectedAgent={selectedCodingAgent}
+                  onSelectAgent={onSelectCodingAgent}
+                  onLaunch={(agent) => void handleCodeWithAgent(agent)}
+                  disabled={isCodingWithAgent}
+                  isLoading={isCodingWithAgent}
+                  loadingLabel="Opening..."
+                />
               </>
             ) : (
               <>
                 <button
                   type="button"
                   onClick={handleCreateWorktree}
-                  disabled={isCreatingWorktree || isCodingWithClaude}
+                  disabled={isCreatingWorktree || isCodingWithAgent}
                   className={`px-3 py-1.5 text-xs font-medium ${button.primary} rounded-lg disabled:opacity-50 transition-colors duration-150 active:scale-[0.98]`}
                 >
                   {isCreatingWorktree ? "Creating..." : "Create Worktree"}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleCodeWithClaude}
-                  disabled={isCreatingWorktree || isCodingWithClaude}
-                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150 active:scale-[0.98] disabled:opacity-50`}
-                >
-                  <ClaudeIcon
-                    className={`w-3.5 h-3.5 transition-colors ${isCodingWithClaude ? "text-[#D97757]" : "text-[#6b7280] group-hover:text-[#D97757]"}`}
-                  />
-                  {isCodingWithClaude ? "Preparing..." : "Code with Claude"}
-                </button>
+                <CodeAgentSplitButton
+                  selectedAgent={selectedCodingAgent}
+                  onSelectAgent={onSelectCodingAgent}
+                  onLaunch={(agent) => void handleCodeWithAgent(agent)}
+                  disabled={isCreatingWorktree || isCodingWithAgent}
+                  isLoading={isCodingWithAgent}
+                  loadingLabel="Preparing..."
+                />
               </>
             )}
           </div>

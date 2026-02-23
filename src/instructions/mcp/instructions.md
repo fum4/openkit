@@ -1,4 +1,4 @@
-When the user mentions an issue key (like PROJ-123, ENG-42, LOCAL-1), a ticket number, or says "work on <something>", use the OpenKit CLI (not MCP) from the project root.
+When the user mentions an issue key (like PROJ-123, ENG-42, LOCAL-1), a ticket number, or says "work on <something>", use the OpenKit CLI from the project root.
 
 ## Source Resolution (CLI-first)
 

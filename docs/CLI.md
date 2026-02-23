@@ -2,24 +2,34 @@
 
 OpenKit is primarily a CLI tool. Running `openkit` with no arguments starts the server and opens the web UI. All other functionality is accessed through subcommands.
 The short alias `ok` is also available and accepts the same subcommands/options.
+The npm package is `openkit`, and it installs `openkit` and `ok` command aliases.
 
 ```
 openkit [command] [options]
 ok [command] [options]
 ```
 
+## Install
+
+```bash
+npm install -g openkit
+openkit --help
+ok --help
+```
+
 ## Command Inventory
 
-| Command                                                 | Description                                                              |
-| ------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `openkit [--no-open] [--auto-init]`                        | Start OpenKit server/UI for the current project.                            |
-| `ok [--no-open] [--auto-init]`                             | Alias for `openkit [--no-open] [--auto-init]`.                              |
-| `openkit init`                                             | Run setup wizard and create `.openkit/config.json`.                         |
+| Command                                                    | Description                                                              |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `openkit [--no-open] [--auto-init]`                        | Start OpenKit server/UI for the current project.                         |
+| `ok [--no-open] [--auto-init]`                             | Alias for `openkit [--no-open] [--auto-init]`.                           |
+| `openkit init`                                             | Run setup wizard and create `.openkit/config.json`.                      |
 | `openkit add [github\|linear\|jira]`                       | Connect or configure an integration.                                     |
-| `openkit mcp`                                              | Run OpenKit as an MCP server for agents.                                    |
+| `openkit mcp`                                              | Run OpenKit as an MCP server for agents.                                 |
 | `openkit activity await-input ...`                         | Emit an "agent awaiting user input" activity event for the UI.           |
 | `openkit activity phase ...`                               | Emit a canonical workflow phase checkpoint event for a worktree.         |
-| `openkit activity check-flow ...`                          | Validate whether required workflow phases/hooks were completed.           |
+| `openkit activity check-flow ...`                          | Validate whether required workflow phases/hooks were completed.          |
+| `openkit activity todo ...`                                | Check or uncheck issue todo checkboxes from terminal/agent flows.        |
 | `openkit task`                                             | Open interactive task flow (choose source, then pick or enter issue ID). |
 | `openkit task [ID...] [--init] [--save] [--link]`          | Auto-resolve source from ID(s), then continue with selected action.      |
 | `openkit task [source] [--init] [--save] [--link]`         | Open source-specific issue picker, then continue with selected action.   |
@@ -59,12 +69,12 @@ When run without a subcommand, OpenKit does the following:
 
 **Options:**
 
-| Option        | Environment Variable | Description                                                         |
-| ------------- | -------------------- | ------------------------------------------------------------------- |
-| `--no-open`   | `OPENKIT_NO_OPEN=1`     | Start the server without opening the UI                             |
-| `--auto-init` | `OPENKIT_AUTO_INIT=1`   | Auto-initialize config if none is found (skips interactive prompts) |
+| Option        | Environment Variable  | Description                                                         |
+| ------------- | --------------------- | ------------------------------------------------------------------- |
+| `--no-open`   | `OPENKIT_NO_OPEN=1`   | Start the server without opening the UI                             |
+| `--auto-init` | `OPENKIT_AUTO_INIT=1` | Auto-initialize config if none is found (skips interactive prompts) |
 
-On first run, OpenKit also installs itself into `~/.local/bin/` (as shell wrappers) so both `openkit` and `ok` are available system-wide. If `~/.local/bin` is not in your `PATH`, it will print a warning with instructions.
+On first run, OpenKit also installs itself into `~/.local/bin/` (as shell wrappers) so `openkit` and `ok` are available system-wide. If `~/.local/bin` is not in your `PATH`, it will print a warning with instructions.
 
 ---
 
@@ -274,6 +284,33 @@ Options:
 
 ---
 
+### `openkit activity todo`
+
+Update issue todo checkboxes from terminal-driven agent flows.
+
+```bash
+openkit activity todo --source jira --issue NOM-18 --id 7f90f8f4 --check
+openkit activity todo --source linear --issue ENG-42 --id 6d8d31a2 --uncheck
+openkit activity todo --source local --issue LOCAL-7 --all --check
+```
+
+Behavior:
+
+1. Finds the running project server via `.openkit/server.json`
+2. Loads issue notes from `GET /api/notes/:source/:id`
+3. Updates one or more todos through `PATCH /api/notes/:source/:id/todos/:todoId`
+
+Options:
+
+- `--source <jira|linear|local>` (required)
+- `--issue <id>` (required)
+- `--id <todo-id>` (required unless `--all`; prefix matching is supported if unique)
+- `--all` (optional; targets every todo that needs the requested state)
+- `--check` (optional; default)
+- `--uncheck` (optional)
+
+---
+
 ### `openkit task [source|resolve] [ID...]`
 
 Create worktrees from issue IDs. Supports Jira, Linear, and local issues.
@@ -357,9 +394,10 @@ openkit -h
 Output:
 
 ```
-OpenKit -- git worktree manager with automatic port offsetting
+OpenKit — git worktree manager with automatic port offsetting
 
 Usage: openkit [command] [options]
+Alias: ok [command] [options]
 
 Commands:
   (default)     Start the server and open the UI
@@ -418,7 +456,7 @@ If no config is found, OpenKit uses defaults:
 
 The server port is determined by the following priority (highest first):
 
-1. **`OPENKIT_PORT` environment variable** -- e.g., `OPENKIT_PORT=7070 OpenKit`
+1. **`OPENKIT_PORT` environment variable** -- e.g., `OPENKIT_PORT=7070 openkit`
 2. **Global preferences** -- `basePort` in `~/.openkit/app-preferences.json` (configurable through the Electron app or API)
 3. **Default** -- `6969`
 
@@ -428,12 +466,12 @@ If the chosen port is already in use, OpenKit automatically increments and tries
 
 ## Environment Variables
 
-| Variable         | Description                                                                       |
-| ---------------- | --------------------------------------------------------------------------------- |
-| `OPENKIT_PORT`      | Override the server port (highest priority)                                       |
-| `OPENKIT_NO_OPEN`   | Set to `1` to start the server without opening the UI (equivalent to `--no-open`) |
-| `OPENKIT_AUTO_INIT` | Set to `1` to auto-initialize config if none found (equivalent to `--auto-init`)  |
-| `OPENKIT_ENABLE_MCP_SETUP` | Set to `1` to enable MCP setup routes |
+| Variable                   | Description                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `OPENKIT_PORT`             | Override the server port (highest priority)                                       |
+| `OPENKIT_NO_OPEN`          | Set to `1` to start the server without opening the UI (equivalent to `--no-open`) |
+| `OPENKIT_AUTO_INIT`        | Set to `1` to auto-initialize config if none found (equivalent to `--auto-init`)  |
+| `OPENKIT_ENABLE_MCP_SETUP` | Set to `1` to enable MCP setup routes                                             |
 
 ---
 

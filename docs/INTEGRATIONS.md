@@ -172,14 +172,15 @@ Auto-cleanup runs as a fire-and-forget operation whenever the issue list is fetc
 
 ### Configuration
 
-| Setting                  | Description                                             | Default                            |
-| ------------------------ | ------------------------------------------------------- | ---------------------------------- |
-| `defaultProjectKey`      | Project key prefix for short issue IDs (e.g., `"PROJ"`) | none                               |
-| `refreshIntervalMinutes` | How often to poll for issue list updates                | `5`                                |
-| `dataLifecycle`          | Data persistence and cleanup settings                   | `saveOn: "view"`, cleanup disabled |
-| `autoStartClaudeOnNewIssue` | Automatically create/open a worktree and start Claude when newly fetched issues appear | `false` |
-| `autoStartClaudeSkipPermissions` | Run auto-started Claude with `--dangerously-skip-permissions` | `true` |
-| `autoStartClaudeFocusTerminal` | Redirect UI to Claude terminal when auto-start begins | `true` |
+| Setting                          | Description                                                                                        | Default                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `defaultProjectKey`              | Project key prefix for short issue IDs (e.g., `"PROJ"`)                                            | none                               |
+| `refreshIntervalMinutes`         | How often to poll for issue list updates                                                           | `5`                                |
+| `dataLifecycle`                  | Data persistence and cleanup settings                                                              | `saveOn: "view"`, cleanup disabled |
+| `autoStartAgent`                 | Which coding agent to auto-start (`claude`, `codex`, `gemini`, `opencode`)                         | `claude`                           |
+| `autoStartClaudeOnNewIssue`      | Automatically create/open a worktree and start the selected agent when newly fetched issues appear | `false`                            |
+| `autoStartClaudeSkipPermissions` | Run auto-started agent with skip-permissions enabled                                               | `true`                             |
+| `autoStartClaudeFocusTerminal`   | Redirect UI to the selected agent terminal when auto-start begins                                  | `true`                             |
 
 ---
 
@@ -255,14 +256,15 @@ OpenKit uses the `type` field for auto-cleanup triggers. Issues with `completedA
 
 ### Configuration
 
-| Setting                  | Description                                                    | Default                            |
-| ------------------------ | -------------------------------------------------------------- | ---------------------------------- |
-| `defaultTeamKey`         | Team key prefix for short identifiers (e.g., `"ENG"`)          | none                               |
-| `refreshIntervalMinutes` | How often to poll for issue list updates                       | `5`                                |
-| `dataLifecycle`          | Data persistence and cleanup settings (same structure as Jira) | `saveOn: "view"`, cleanup disabled |
-| `autoStartClaudeOnNewIssue` | Automatically create/open a worktree and start Claude when newly fetched issues appear | `false` |
-| `autoStartClaudeSkipPermissions` | Run auto-started Claude with `--dangerously-skip-permissions` | `true` |
-| `autoStartClaudeFocusTerminal` | Redirect UI to Claude terminal when auto-start begins | `true` |
+| Setting                          | Description                                                                                        | Default                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `defaultTeamKey`                 | Team key prefix for short identifiers (e.g., `"ENG"`)                                              | none                               |
+| `refreshIntervalMinutes`         | How often to poll for issue list updates                                                           | `5`                                |
+| `dataLifecycle`                  | Data persistence and cleanup settings (same structure as Jira)                                     | `saveOn: "view"`, cleanup disabled |
+| `autoStartAgent`                 | Which coding agent to auto-start (`claude`, `codex`, `gemini`, `opencode`)                         | `claude`                           |
+| `autoStartClaudeOnNewIssue`      | Automatically create/open a worktree and start the selected agent when newly fetched issues appear | `false`                            |
+| `autoStartClaudeSkipPermissions` | Run auto-started agent with skip-permissions enabled                                               | `true`                             |
+| `autoStartClaudeFocusTerminal`   | Redirect UI to the selected agent terminal when auto-start begins                                  | `true`                             |
 
 ---
 
@@ -367,7 +369,7 @@ Navigate to the **Integrations** view in the OpenKit UI. Each integration has a 
 - **Jira**: API token setup form (base URL, email, token). After connecting: project key, refresh interval, and data lifecycle settings with auto-save.
 - **Linear**: API key setup form. After connecting: team key, refresh interval, and data lifecycle settings with auto-save.
 
-Both Jira and Linear cards include a `Claude Auto-Start` section. When auto-start is enabled, OpenKit watches freshly fetched issue lists and, for newly discovered issues, creates (or reuses) the issue worktree, starts a Claude terminal session using the standard TASK.md-first workflow, and records activity feed events for both task detection and Claude auto-start. Additional toggles control whether Claude runs with `--dangerously-skip-permissions` and whether the UI auto-focuses the Claude terminal as soon as work begins.
+Both Jira and Linear cards include an `Auto-start agent` section. You first choose one agent (`Claude`, `Codex`, `Gemini`, or `OpenCode`), then configure the existing toggles. When auto-start is enabled, OpenKit watches freshly fetched issue lists and, for newly discovered issues, creates (or reuses) the issue worktree, starts the selected agent terminal session using the standard TASK.md-first workflow, and records activity feed events for both task detection and auto-start. Additional toggles control whether the selected agent runs with skip-permissions mode and whether the UI auto-focuses the selected agent terminal as soon as work begins.
 
 Configuration changes in the UI are auto-saved with a 300ms debounce.
 
@@ -407,6 +409,7 @@ Stored in `.openkit/integrations.json`:
     "defaultProjectKey": "PROJ",
     "refreshIntervalMinutes": 5,
     "dataLifecycle": { "...": "..." },
+    "autoStartAgent": "claude",
     "autoStartClaudeOnNewIssue": false,
     "autoStartClaudeSkipPermissions": true,
     "autoStartClaudeFocusTerminal": true
@@ -417,6 +420,7 @@ Stored in `.openkit/integrations.json`:
     "defaultTeamKey": "ENG",
     "refreshIntervalMinutes": 5,
     "dataLifecycle": { "...": "..." },
+    "autoStartAgent": "claude",
     "autoStartClaudeOnNewIssue": false,
     "autoStartClaudeSkipPermissions": true,
     "autoStartClaudeFocusTerminal": true
@@ -469,28 +473,28 @@ When creating a worktree from an issue (`POST /api/jira/task` or `POST /api/line
 
 ### Jira Endpoints
 
-| Method   | Path                    | Description                                                     |
-| -------- | ----------------------- | --------------------------------------------------------------- |
-| `GET`    | `/api/jira/status`      | Connection status, config, and data lifecycle settings          |
-| `POST`   | `/api/jira/setup`       | Connect with API token (`{ baseUrl, email, token }`)            |
-| `PATCH`  | `/api/jira/config`      | Update project key, refresh interval, lifecycle config, and auto-start Claude options |
-| `DELETE` | `/api/jira/credentials` | Disconnect (removes jira key from integrations.json)            |
-| `GET`    | `/api/jira/issues`      | List assigned unresolved issues (optional `?query=` for search) |
-| `GET`    | `/api/jira/issues/:key` | Fetch full issue detail                                         |
-| `GET`    | `/api/jira/attachment`  | Proxy an attachment URL with auth (`?url=`)                     |
-| `POST`   | `/api/jira/task`        | Create worktree from issue (`{ issueKey, branch? }`)            |
+| Method   | Path                    | Description                                                                          |
+| -------- | ----------------------- | ------------------------------------------------------------------------------------ |
+| `GET`    | `/api/jira/status`      | Connection status, config, and data lifecycle settings                               |
+| `POST`   | `/api/jira/setup`       | Connect with API token (`{ baseUrl, email, token }`)                                 |
+| `PATCH`  | `/api/jira/config`      | Update project key, refresh interval, lifecycle config, and auto-start agent options |
+| `DELETE` | `/api/jira/credentials` | Disconnect (removes jira key from integrations.json)                                 |
+| `GET`    | `/api/jira/issues`      | List assigned unresolved issues (optional `?query=` for search)                      |
+| `GET`    | `/api/jira/issues/:key` | Fetch full issue detail                                                              |
+| `GET`    | `/api/jira/attachment`  | Proxy an attachment URL with auth (`?url=`)                                          |
+| `POST`   | `/api/jira/task`        | Create worktree from issue (`{ issueKey, branch? }`)                                 |
 
 ### Linear Endpoints
 
-| Method   | Path                             | Description                                                 |
-| -------- | -------------------------------- | ----------------------------------------------------------- |
-| `GET`    | `/api/linear/status`             | Connection status, config, and data lifecycle settings      |
-| `POST`   | `/api/linear/setup`              | Connect with API key (`{ apiKey }`)                         |
-| `PATCH`  | `/api/linear/config`             | Update team key, refresh interval, lifecycle config, and auto-start Claude options |
-| `DELETE` | `/api/linear/credentials`        | Disconnect (removes linear key from integrations.json)      |
-| `GET`    | `/api/linear/issues`             | List assigned active issues (optional `?query=` for search) |
-| `GET`    | `/api/linear/issues/:identifier` | Fetch full issue detail                                     |
-| `POST`   | `/api/linear/task`               | Create worktree from issue (`{ identifier, branch? }`)      |
+| Method   | Path                             | Description                                                                       |
+| -------- | -------------------------------- | --------------------------------------------------------------------------------- |
+| `GET`    | `/api/linear/status`             | Connection status, config, and data lifecycle settings                            |
+| `POST`   | `/api/linear/setup`              | Connect with API key (`{ apiKey }`)                                               |
+| `PATCH`  | `/api/linear/config`             | Update team key, refresh interval, lifecycle config, and auto-start agent options |
+| `DELETE` | `/api/linear/credentials`        | Disconnect (removes linear key from integrations.json)                            |
+| `GET`    | `/api/linear/issues`             | List assigned active issues (optional `?query=` for search)                       |
+| `GET`    | `/api/linear/issues/:identifier` | Fetch full issue detail                                                           |
+| `POST`   | `/api/linear/task`               | Create worktree from issue (`{ identifier, branch? }`)                            |
 
 ### GitHub Endpoints
 

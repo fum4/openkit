@@ -199,6 +199,132 @@ h3 {
   animation: glow-pulse 3s ease-in-out infinite;
 }
 
+/* ─── Split download button ───────────────────────────────── */
+.download-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  z-index: 1;
+  border-radius: 12px;
+  border: 1px solid rgba(45, 212, 191, 0.2);
+  background: rgba(45, 212, 191, 0.12);
+  transition:
+    border-color 0.25s var(--ease-out-quart),
+    transform 0.25s var(--ease-out-quart),
+    background 0.25s var(--ease-out-quart);
+}
+
+.download-split:hover {
+  border-color: rgba(45, 212, 191, 0.35);
+  background: rgba(45, 212, 191, 0.2);
+  transform: translateY(-1px);
+}
+
+.download-main-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.download-main-btn:hover {
+  color: var(--accent) !important;
+}
+
+.download-toggle-btn {
+  width: 44px;
+  border: none;
+  border-left: 1px solid rgba(45, 212, 191, 0.22);
+  background: transparent;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    color 0.2s var(--ease-out-quart),
+    background 0.2s var(--ease-out-quart);
+}
+
+.download-toggle-btn:hover {
+  background: rgba(45, 212, 191, 0.08);
+  color: #5eead4;
+}
+
+.download-split.open .download-toggle-btn {
+  background: rgba(45, 212, 191, 0.14);
+}
+
+.download-split.open {
+  z-index: 1301;
+}
+
+.download-split.open .download-toggle-btn svg {
+  transform: rotate(180deg);
+}
+
+.download-toggle-btn svg {
+  transition: transform 0.2s var(--ease-out-quart);
+}
+
+.download-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 100%;
+  min-width: 100%;
+  background: #12151a;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow:
+    0 16px 28px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.2);
+  padding: 8px;
+  z-index: 1302;
+  overflow: hidden;
+  display: none;
+}
+
+.download-split.open .download-menu {
+  display: block;
+}
+
+.download-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  padding: 9px 10px;
+  transition:
+    background 0.2s var(--ease-out-quart),
+    color 0.2s var(--ease-out-quart);
+}
+
+.download-option:hover {
+  background: rgba(45, 212, 191, 0.08);
+  color: var(--text-primary);
+}
+
+.download-option-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ─── Gradient text ────────────────────────────────────────── */
 .text-gradient {
   background: linear-gradient(135deg, #2dd4bf 0%, #5eead4 40%, #99f6e4 100%);
@@ -219,5 +345,9 @@ h3 {
 
   :root {
     --nav-height: 56px;
+  }
+
+  .download-menu {
+    min-width: 100%;
   }
 }

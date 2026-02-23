@@ -864,7 +864,7 @@ export function ProjectSetupScreen({
             })}
           </div>
 
-            <div className="space-y-3">
+          <div className="space-y-3">
             <button
               onClick={() => setMode("getting-started")}
               className={`group w-full px-4 py-2.5 text-sm font-medium ${button.primary} rounded-xl transition-colors flex items-center justify-center`}
@@ -878,13 +878,10 @@ export function ProjectSetupScreen({
                 You can always connect integrations later from the Integrations panel.
               </p>
             )}
-              <button
-                onClick={() => handleBackTo("commit-prompt")}
-                className="w-full"
-              >
-                <AnimatedBackLabel />
-              </button>
-            </div>
+            <button onClick={() => handleBackTo("commit-prompt")} className="w-full">
+              <AnimatedBackLabel />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -935,10 +932,7 @@ export function ProjectSetupScreen({
           >
             <AnimatedContinuePrimaryLabel label="Go to workspace" />
           </button>
-          <button
-            onClick={() => handleBackTo("integrations")}
-            className="w-full mt-3"
-          >
+          <button onClick={() => handleBackTo("integrations")} className="w-full mt-3">
             <AnimatedBackLabel />
           </button>
         </div>
@@ -972,7 +966,8 @@ export function ProjectSetupScreen({
             </div>
             <h1 className={`text-xl font-semibold ${text.primary} mb-2`}>Connect Coding Agents</h1>
             <p className={`text-sm ${text.secondary} leading-relaxed`}>
-              Enable the <span className="font-mono">{ONBOARDING_SKILL_NAME}</span> skill so your agents can
+              Enable the <span className="font-mono">{ONBOARDING_SKILL_NAME}</span> skill so your
+              agents can
               <br />
               run the openkit task workflow automatically.
             </p>
@@ -1000,9 +995,7 @@ export function ProjectSetupScreen({
                       }))
                     }
                     disabled={
-                      agentsApplying ||
-                      !agent.global ||
-                      !SKILL_SETUP_SUPPORTED_AGENTS.has(agent.id)
+                      agentsApplying || !agent.global || !SKILL_SETUP_SUPPORTED_AGENTS.has(agent.id)
                     }
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                       globalOn
@@ -1244,11 +1237,7 @@ export function ProjectSetupScreen({
               </button>
             )}
             <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={handleSkipCommit}
-                disabled={isLoading}
-                className="px-4 py-2"
-              >
+              <button onClick={handleSkipCommit} disabled={isLoading} className="px-4 py-2">
                 <AnimatedSkipLabel />
               </button>
               <button
@@ -1577,10 +1566,14 @@ export function ProjectSetupScreen({
 
 function AnimatedBackLabel() {
   return (
-    <span className={`group inline-flex items-center text-xs ${text.muted} hover:${text.secondary}`}>
+    <span
+      className={`group inline-flex items-center text-xs ${text.muted} hover:${text.secondary}`}
+    >
       <span className="relative inline-flex items-center">
         <ChevronLeft className="w-3.5 h-3.5 absolute -left-3 opacity-0 -translate-x-0.5 transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-x-0" />
-        <span className="transition-transform duration-300 ease-out group-hover:translate-x-1.5">Back</span>
+        <span className="transition-transform duration-300 ease-out group-hover:translate-x-1.5">
+          Back
+        </span>
       </span>
     </span>
   );
@@ -1588,7 +1581,9 @@ function AnimatedBackLabel() {
 
 function AnimatedSkipLabel() {
   return (
-    <span className={`group inline-flex items-center text-xs ${text.muted} hover:${text.secondary}`}>
+    <span
+      className={`group inline-flex items-center text-xs ${text.muted} hover:${text.secondary}`}
+    >
       <span className="relative inline-flex items-center">
         <span className="transition-transform duration-300 ease-out group-hover:-translate-x-1.5">
           Skip for now

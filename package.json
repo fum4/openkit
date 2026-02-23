@@ -1,12 +1,39 @@
 {
-  "name": "OpenKit",
+  "name": "openkit",
   "version": "0.0.9",
-  "bin": {
-    "ok": "./dist/cli/index.js",
-    "openkit": "./dist/cli/index.js"
+  "description": "Your local kit for agentic development",
+  "keywords": [
+    "agent",
+    "ai",
+    "cli",
+    "developer-tools",
+    "git",
+    "kit",
+    "worktree"
+  ],
+  "homepage": "https://github.com/fum4/openkit#readme",
+  "bugs": {
+    "url": "https://github.com/fum4/openkit/issues"
   },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fum4/openkit.git"
+  },
+  "bin": {
+    "ok": "dist/cli/index.js",
+    "openkit": "dist/cli/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
   "main": "dist/electron/main.js",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "start": "node dist/cli/index.js",
     "dev": "pnpm dev:all",
@@ -19,11 +46,17 @@
     "build:app": "pnpm build:app:mac && pnpm build:app:linux",
     "build:app:mac": "pnpm build && electron-builder --mac --publish never",
     "build:app:linux": "pnpm build && electron-builder --linux AppImage --publish never",
-    "check-types": "tsc --noEmit",
-    "check-format": "oxfmt --check .",
-    "check-lint": "oxlint",
-    "format": "oxfmt .",
-    "format-lint": "oxlint --fix"
+    "check:types": "tsc --noEmit",
+    "check:format": "oxfmt --check .",
+    "check:lint": "oxlint",
+    "check:all": "pnpm check:types && pnpm check:format && pnpm check:lint",
+    "fix:format": "oxfmt .",
+    "fix:lint": "oxlint --fix",
+    "fix:all": "pnpm fix:format && pnpm fix:lint",
+    "verify:package": "node scripts/verify-package.mjs",
+    "smoke:tarball": "node scripts/smoke-tarball.mjs",
+    "release:verify": "pnpm check:types && pnpm check:lint && pnpm build && pnpm verify:package && pnpm smoke:tarball",
+    "prepack": "pnpm build && pnpm verify:package"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",
@@ -70,6 +103,9 @@
     "typescript": "^5.5.4",
     "vite": "^7.3.1",
     "wait-on": "^9.0.4"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "packageManager": "pnpm@9.15.0",
   "pnpm": {

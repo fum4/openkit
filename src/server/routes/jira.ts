@@ -15,6 +15,10 @@ import type { DataLifecycleConfig, JiraCredentials } from "../../integrations/ji
 import { log } from "../../logger";
 import type { WorktreeManager } from "../manager";
 
+function resolveAutoStartAgent(value: unknown): "claude" | "codex" | "gemini" | "opencode" {
+  return value === "codex" || value === "gemini" || value === "opencode" ? value : "claude";
+}
+
 export function registerJiraRoutes(app: Hono, manager: WorktreeManager) {
   app.get("/api/jira/status", (c) => {
     const configDir = manager.getConfigDir();
@@ -48,6 +52,7 @@ export function registerJiraRoutes(app: Hono, manager: WorktreeManager) {
       email,
       domain,
       dataLifecycle: projectConfig.dataLifecycle ?? null,
+      autoStartAgent: resolveAutoStartAgent(projectConfig.autoStartAgent),
       autoStartClaudeOnNewIssue: projectConfig.autoStartClaudeOnNewIssue ?? false,
       autoStartClaudeSkipPermissions: projectConfig.autoStartClaudeSkipPermissions ?? true,
       autoStartClaudeFocusTerminal: projectConfig.autoStartClaudeFocusTerminal ?? true,
@@ -107,6 +112,7 @@ export function registerJiraRoutes(app: Hono, manager: WorktreeManager) {
         defaultProjectKey?: string;
         refreshIntervalMinutes?: number;
         dataLifecycle?: DataLifecycleConfig;
+        autoStartAgent?: "claude" | "codex" | "gemini" | "opencode";
         autoStartClaudeOnNewIssue?: boolean;
         autoStartClaudeSkipPermissions?: boolean;
         autoStartClaudeFocusTerminal?: boolean;
@@ -121,6 +127,9 @@ export function registerJiraRoutes(app: Hono, manager: WorktreeManager) {
       }
       if (body.dataLifecycle !== undefined) {
         current.dataLifecycle = body.dataLifecycle;
+      }
+      if (body.autoStartAgent !== undefined) {
+        current.autoStartAgent = resolveAutoStartAgent(body.autoStartAgent);
       }
       if (body.autoStartClaudeOnNewIssue !== undefined) {
         current.autoStartClaudeOnNewIssue = body.autoStartClaudeOnNewIssue;

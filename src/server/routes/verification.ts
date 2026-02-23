@@ -100,9 +100,7 @@ function skillResultKey(skillName: string, trigger?: HookTrigger): string {
 
 function inferWorkflowPhase(event: ActivityEvent): WorkflowPhase | null {
   const phase =
-    typeof event.metadata?.phase === "string"
-      ? (event.metadata.phase as WorkflowPhase)
-      : undefined;
+    typeof event.metadata?.phase === "string" ? (event.metadata.phase as WorkflowPhase) : undefined;
   if (event.type === ACTIVITY_TYPES.WORKFLOW_PHASE && phase && WORKFLOW_PHASE_SET.has(phase)) {
     return phase;
   }
@@ -151,7 +149,9 @@ function evaluateTriggerCompliance(
   stepResultById: Map<string, StepResult>,
   skillResultByKey: Map<string, SkillHookResult>,
 ): TriggerCompliance {
-  const triggerSteps = steps.filter((step) => step.enabled !== false && matchesTrigger(step, trigger));
+  const triggerSteps = steps.filter(
+    (step) => step.enabled !== false && matchesTrigger(step, trigger),
+  );
   const triggerCommandSteps = triggerSteps.filter((step) => isRunnableCommandStep(step));
   const triggerPromptSteps = triggerSteps.filter((step) => isPromptStep(step));
   const triggerSkills = skills.filter(
@@ -424,12 +424,29 @@ export function registerHooksRoutes(
     try {
       const body = await c.req.json().catch(() => ({}));
       const trigger = normalizeHookTrigger(body?.trigger);
+      const hooksConfig = hooksManager.getConfig();
+      const hasAnyEnabledHookEntries =
+        hooksConfig.steps.some((step) => step.enabled !== false && matchesTrigger(step, trigger)) ||
+        hooksConfig.skills.some(
+          (skill) => skill.enabled && matchesSkillTrigger(trigger, skill.trigger),
+        );
+      if (!hasAnyEnabledHookEntries) {
+        const now = new Date().toISOString();
+        return c.json({
+          id: `run-${Date.now()}`,
+          worktreeId,
+          status: "completed",
+          startedAt: now,
+          completedAt: now,
+          steps: [],
+        });
+      }
+
       log.info(`[hooks] API run requested (worktree=${worktreeId}, trigger=${trigger})`);
       const projectName = manager.getProjectName() ?? undefined;
       const groupKey = `hooks:${worktreeId}:${trigger}`;
-      const runnableSteps = hooksManager
-        .getConfig()
-        .steps.filter(
+      const runnableSteps = hooksConfig.steps
+        .filter(
           (step) =>
             step.enabled !== false && matchesTrigger(step, trigger) && isRunnableCommandStep(step),
         )

@@ -48,8 +48,10 @@ If the source is ambiguous, ask before running commands.
 18. Before finalizing, run `openkit activity check-flow --json`.
 19. If `compliant` is `false`, do not finalize. Execute all listed `missingActions`, rerun `openkit activity check-flow --json`, and only proceed when `compliant` is `true`.
 20. If you need user approval/instructions at any point, notify OpenKit before asking:
-   - MCP flow: call `notify` with `requiresUserAction: true`.
-   - Terminal flow: run `openkit activity await-input --message "<what you need>"`.
+
+- MCP flow: call `notify` with `requiresUserAction: true`.
+- Terminal flow: run `openkit activity await-input --message "<what you need>"`.
+
 21. Summarize changes, risks, verification results, and include the final `openkit activity check-flow --json` result.
 
 ## Guardrails

@@ -1,36 +1,19 @@
 ---
+import DownloadSplitButton from "./DownloadSplitButton.astro";
 ---
 
 <div class="section-divider"></div>
 <section id="download">
   <div class="container">
-    <h2 class="section-title fade-in"><svg class="title-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download OpenKit</h2>
-    <p class="section-sub fade-in" data-delay="80">macOS only. Linux and Windows support coming soon.</p>
+    <h2 class="section-title fade-in"><svg class="title-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Download OpenKit</h2>
+    <p class="section-sub fade-in" data-delay="80">
+      Default selection follows your device. Use the right-side selector for all released builds.
+    </p>
     <div class="download-card fade-in" data-delay="160">
-      <div class="arch-tabs">
-        <button class="arch-tab active" data-arch="arm64">Apple Silicon</button>
-        <button class="arch-tab" data-arch="x64">Intel</button>
-      </div>
       <div class="download-main">
-        <a id="download-btn" href="#" class="btn-download glow-pulse">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span id="download-label">Download .dmg</span>
-          <span id="download-version" class="version-badge"></span>
-        </a>
+        <DownloadSplitButton buttonId="download-btn" className="section-download glow-pulse" />
       </div>
+      <p class="download-hint">Click the right side of the button to choose another package.</p>
       <div class="cli-section">
         <span class="cli-label">Or install via CLI</span>
         <div class="cli-row">
@@ -115,79 +98,26 @@
     text-align: center;
   }
 
-  .arch-tabs {
-    display: flex;
-    gap: 4px;
-    background: var(--bg-raised);
-    border-radius: 10px;
-    padding: 4px;
-    margin-bottom: 28px;
-  }
-
-  .arch-tab {
-    flex: 1;
-    padding: 8px 16px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font-family: var(--font-body);
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 7px;
-    cursor: pointer;
-    transition:
-      background 0.2s var(--ease-out-quart),
-      color 0.2s var(--ease-out-quart),
-      box-shadow 0.2s var(--ease-out-quart);
-  }
-
-  .arch-tab:hover {
-    color: var(--text-secondary);
-  }
-
-  .arch-tab.active {
-    background: var(--bg-input);
-    color: var(--text-primary);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  }
-
   .download-main {
     margin-bottom: 24px;
+    display: flex;
+    justify-content: center;
   }
 
-  .btn-download {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 32px;
-    background: rgba(45, 212, 191, 0.12);
-    color: var(--accent);
-    border-radius: 12px;
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-size: 15px;
-    border: 1px solid rgba(45, 212, 191, 0.2);
-    transition:
-      background 0.25s var(--ease-out-quart),
-      border-color 0.25s var(--ease-out-quart),
-      transform 0.25s var(--ease-out-quart);
-    cursor: pointer;
+  .section-download {
+    width: 100%;
+    max-width: 420px;
   }
 
-  .btn-download:hover {
-    background: rgba(45, 212, 191, 0.2);
-    border-color: rgba(45, 212, 191, 0.35);
-    color: var(--accent) !important;
-    transform: translateY(-1px);
+  .section-download .download-main-btn {
+    justify-content: center;
+    width: calc(100% - 44px);
   }
 
-  .version-badge {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    padding: 2px 8px;
-    background: rgba(45, 212, 191, 0.08);
-    border-radius: 4px;
-    font-weight: 500;
+  .download-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: -8px 0 20px;
   }
 
   .cli-section {
@@ -280,6 +210,10 @@
 
     .section-title {
       font-size: 28px;
+    }
+
+    .section-download .download-main-btn {
+      justify-content: flex-start;
     }
   }
 </style>

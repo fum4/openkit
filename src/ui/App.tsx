@@ -1,5 +1,14 @@
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, GitBranch, Link2, RefreshCw, Search, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Download,
+  GitBranch,
+  Link2,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { APP_NAME } from "../constants";
@@ -10,6 +19,7 @@ import { CreateForm } from "./components/CreateForm";
 import { LinkIssueModal } from "./components/LinkIssueModal";
 import { CreateWorktreeModal } from "./components/CreateWorktreeModal";
 import { CustomTaskDetailPanel } from "./components/detail/CustomTaskDetailPanel";
+import type { CodingAgent } from "./components/detail/CodeAgentSplitButton";
 import { DetailPanel } from "./components/detail/DetailPanel";
 import { GitHubSetupModal } from "./components/GitHubSetupModal";
 import { JiraDetailPanel } from "./components/detail/JiraDetailPanel";
@@ -27,6 +37,7 @@ import type { WorktreeInfo } from "./types";
 import { TabBar } from "./components/TabBar";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { WorktreeList } from "./components/WorktreeList";
+import { Modal } from "./components/Modal";
 import { useServer } from "./contexts/ServerContext";
 import { useApi } from "./hooks/useApi";
 import { useConfig } from "./hooks/useConfig";
@@ -63,29 +74,165 @@ interface ClaudeLaunchRequest extends ClaudeLaunchIntent {
   requestId: number;
 }
 
+type AgentLaunchMode = "resume" | "start";
+
+interface AgentLaunchIntentBase {
+  worktreeId: string;
+  mode: AgentLaunchMode;
+  prompt?: string;
+  tabLabel?: string;
+  skipPermissions?: boolean;
+}
+
+type CodexLaunchIntent = AgentLaunchIntentBase;
+type GeminiLaunchIntent = AgentLaunchIntentBase;
+type OpenCodeLaunchIntent = AgentLaunchIntentBase;
+
+interface AgentLaunchRequestBase extends AgentLaunchIntentBase {
+  requestId: number;
+}
+
+type CodexLaunchRequest = AgentLaunchRequestBase;
+type GeminiLaunchRequest = AgentLaunchRequestBase;
+type OpenCodeLaunchRequest = AgentLaunchRequestBase;
+
 interface NotificationTabRequest {
   worktreeId: string;
   tab: "hooks";
   requestId: number;
 }
 
+interface AgentLaunchOptions {
+  focusOnLaunch?: boolean;
+  skipCliCheck?: boolean;
+}
+
+interface AgentPermissionPromptState {
+  agent: CodingAgent;
+  intent: ClaudeLaunchIntent | CodexLaunchIntent | GeminiLaunchIntent | OpenCodeLaunchIntent;
+  options?: AgentLaunchOptions;
+}
+
+type PendingAgentLaunch =
+  | { agent: "claude"; intent: ClaudeLaunchIntent; options?: AgentLaunchOptions }
+  | { agent: "codex"; intent: CodexLaunchIntent; options?: AgentLaunchOptions }
+  | { agent: "gemini"; intent: GeminiLaunchIntent; options?: AgentLaunchOptions }
+  | { agent: "opencode"; intent: OpenCodeLaunchIntent; options?: AgentLaunchOptions };
+
+interface AgentCliPromptState {
+  pendingLaunch: PendingAgentLaunch;
+  command: string;
+  brewPackage: string;
+  error: string | null;
+  isInstalling: boolean;
+}
+
 const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
+const CODING_AGENT_PREF_KEY = `${APP_NAME}:defaultCodingAgent`;
+const AGENT_DISPLAY_NAMES: Record<CodingAgent, string> = {
+  claude: "Claude Code",
+  codex: "Codex",
+  gemini: "Gemini CLI",
+  opencode: "OpenCode",
+};
+const AUTO_START_AGENT_NAMES: Record<CodingAgent, string> = {
+  claude: "Claude",
+  codex: "Codex",
+  gemini: "Gemini",
+  opencode: "OpenCode",
+};
+const AGENT_SKIP_PERMISSION_FLAGS: Record<CodingAgent, string> = {
+  claude: "--dangerously-skip-permissions",
+  codex: "--dangerously-bypass-approvals-and-sandbox",
+  gemini: "--yolo",
+  opencode: 'OPENCODE_PERMISSION=\'{"*":"allow"}\'',
+};
+
+function getAgentCliLabel(agent: CodingAgent): string {
+  const base = AGENT_DISPLAY_NAMES[agent];
+  return base.endsWith("CLI") ? base : `${base} CLI`;
+}
 
 function shellQuoteSingle(value: string): string {
   if (!value) return "''";
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-function buildClaudeStartupCommand(prompt: string, options?: { skipPermissions?: boolean }): string {
+function buildAgentStartupCommand(
+  agent: CodingAgent,
+  prompt: string,
+  options?: { skipPermissions?: boolean },
+): string {
+  const trimmedPrompt = prompt.trim();
   const args: string[] = [];
-  if (options?.skipPermissions) {
-    args.push("--dangerously-skip-permissions");
+  if (options?.skipPermissions && agent !== "opencode") {
+    args.push(AGENT_SKIP_PERMISSION_FLAGS[agent]);
   }
-  if (prompt.trim()) {
-    args.push(shellQuoteSingle(prompt.trim()));
+  if (trimmedPrompt) {
+    if (agent === "gemini") {
+      args.push("-i", shellQuoteSingle(trimmedPrompt));
+    } else if (agent === "opencode") {
+      args.push("--prompt", shellQuoteSingle(trimmedPrompt));
+    } else {
+      args.push(shellQuoteSingle(trimmedPrompt));
+    }
   }
-  const invocation = args.length > 0 ? `claude ${args.join(" ")}` : "claude";
+  if (agent === "opencode") {
+    const prefix = options?.skipPermissions ? `${AGENT_SKIP_PERMISSION_FLAGS[agent]} ` : "";
+    const invocation =
+      args.length > 0 ? `${prefix}opencode ${args.join(" ")}` : `${prefix}opencode`;
+    return `exec ${invocation}`;
+  }
+  const invocation = args.length > 0 ? `${agent} ${args.join(" ")}` : agent;
   return `exec ${invocation}`;
+}
+
+function buildClaudeStartupCommand(
+  prompt: string,
+  options?: { skipPermissions?: boolean },
+): string {
+  return buildAgentStartupCommand("claude", prompt, options);
+}
+
+function buildCodexStartupCommand(prompt: string, options?: { skipPermissions?: boolean }): string {
+  return buildAgentStartupCommand("codex", prompt, options);
+}
+
+function buildGeminiStartupCommand(
+  prompt: string,
+  options?: { skipPermissions?: boolean },
+): string {
+  return buildAgentStartupCommand("gemini", prompt, options);
+}
+
+function buildOpenCodeStartupCommand(
+  prompt: string,
+  options?: { skipPermissions?: boolean },
+): string {
+  return buildAgentStartupCommand("opencode", prompt, options);
+}
+
+function buildStartupCommandForAgent(
+  agent: CodingAgent,
+  prompt: string,
+  options?: { skipPermissions?: boolean },
+): string {
+  if (agent === "claude") return buildClaudeStartupCommand(prompt, options);
+  if (agent === "codex") return buildCodexStartupCommand(prompt, options);
+  if (agent === "gemini") return buildGeminiStartupCommand(prompt, options);
+  return buildOpenCodeStartupCommand(prompt, options);
+}
+
+function buildAgentLabel(agent: CodingAgent): string {
+  return AUTO_START_AGENT_NAMES[agent];
+}
+
+function hasAutoStartAgent(value: unknown): value is "claude" | "codex" | "gemini" | "opencode" {
+  return value === "claude" || value === "codex" || value === "gemini" || value === "opencode";
+}
+
+function resolveAutoStartAgent(value: unknown): CodingAgent {
+  return hasAutoStartAgent(value) ? value : "claude";
 }
 
 function formatTaskNotificationDetail(issueId: string, title: string): string {
@@ -293,6 +440,9 @@ export default function App() {
     targetProjectId: string | null;
   } | null>(null);
   const claudeLaunchRequestIdRef = useRef(0);
+  const codexLaunchRequestIdRef = useRef(0);
+  const geminiLaunchRequestIdRef = useRef(0);
+  const openCodeLaunchRequestIdRef = useRef(0);
   const notificationTabRequestIdRef = useRef(0);
   const jiraSeenIssueIdsRef = useRef<Set<string>>(new Set());
   const linearSeenIssueIdsRef = useRef<Set<string>>(new Set());
@@ -302,10 +452,22 @@ export default function App() {
   const localAutoLaunchArmedRef = useRef(false);
   const autoLaunchQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [pendingClaudeLaunches, setPendingClaudeLaunches] = useState<ClaudeLaunchIntent[]>([]);
+  const [pendingCodexLaunches, setPendingCodexLaunches] = useState<CodexLaunchIntent[]>([]);
+  const [pendingGeminiLaunches, setPendingGeminiLaunches] = useState<GeminiLaunchIntent[]>([]);
+  const [pendingOpenCodeLaunches, setPendingOpenCodeLaunches] = useState<OpenCodeLaunchIntent[]>(
+    [],
+  );
   const [claudeLaunchRequest, setClaudeLaunchRequest] = useState<ClaudeLaunchRequest | null>(null);
-  const [notificationTabRequest, setNotificationTabRequest] = useState<NotificationTabRequest | null>(
+  const [codexLaunchRequest, setCodexLaunchRequest] = useState<CodexLaunchRequest | null>(null);
+  const [geminiLaunchRequest, setGeminiLaunchRequest] = useState<GeminiLaunchRequest | null>(null);
+  const [opencodeLaunchRequest, setOpenCodeLaunchRequest] = useState<OpenCodeLaunchRequest | null>(
     null,
   );
+  const [agentPermissionPrompt, setAgentPermissionPrompt] =
+    useState<AgentPermissionPromptState | null>(null);
+  const [agentCliPrompt, setAgentCliPrompt] = useState<AgentCliPromptState | null>(null);
+  const [notificationTabRequest, setNotificationTabRequest] =
+    useState<NotificationTabRequest | null>(null);
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
     if (extra) {
       console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
@@ -426,6 +588,15 @@ export default function App() {
       setActiveCreateTabState("branch");
     }
   }, [serverUrl]);
+  const [defaultCodingAgent, setDefaultCodingAgent] = useState<CodingAgent>(() => {
+    const saved = localStorage.getItem(CODING_AGENT_PREF_KEY);
+    return saved === "claude" || saved === "codex" || saved === "gemini" || saved === "opencode"
+      ? saved
+      : "claude";
+  });
+  useEffect(() => {
+    localStorage.setItem(CODING_AGENT_PREF_KEY, defaultCodingAgent);
+  }, [defaultCodingAgent]);
   const [worktreeFilter, setWorktreeFilter] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalMode, setCreateModalMode] = useState<"branch" | "jira" | "linear" | "custom">(
@@ -577,12 +748,22 @@ export default function App() {
 
   const selectedWorktree =
     selection?.type === "worktree" ? worktrees.find((w) => w.id === selection.id) || null : null;
+  const activeWorktreeIds = useMemo(
+    () => new Set(worktrees.map((worktree) => worktree.id)),
+    [worktrees],
+  );
 
-  const startClaudeSessionInBackground = useCallback(
-    async (worktreeId: string, prompt: string, skipPermissions: boolean) => {
-      const startupCommand = buildClaudeStartupCommand(prompt, { skipPermissions });
-      const sessionResult = await api.createTerminalSession(worktreeId, startupCommand, "claude");
-      logAutoClaude("Background Claude session bootstrap result", {
+  const startAgentSessionInBackground = useCallback(
+    async (
+      agent: CodingAgent,
+      worktreeId: string,
+      prompt: string,
+      skipPermissions: boolean,
+    ): Promise<boolean> => {
+      const startupCommand = buildStartupCommandForAgent(agent, prompt, { skipPermissions });
+      const sessionResult = await api.createTerminalSession(worktreeId, startupCommand, agent);
+      logAutoClaude(`Background ${buildAgentLabel(agent)} session bootstrap result`, {
+        agent,
         worktreeId,
         success: sessionResult.success,
         sessionId: sessionResult.sessionId,
@@ -631,7 +812,8 @@ export default function App() {
 
       let mode: ClaudeLaunchMode = intent.mode;
       if (intent.startInBackground && intent.prompt) {
-        const started = await startClaudeSessionInBackground(
+        const started = await startAgentSessionInBackground(
+          "claude",
           intent.worktreeId,
           intent.prompt,
           intent.skipPermissions ?? false,
@@ -655,7 +837,154 @@ export default function App() {
         startInBackground: intent.startInBackground ?? false,
       });
     })();
-  }, [api, logAutoClaude, pendingClaudeLaunches, startClaudeSessionInBackground, worktrees]);
+  }, [api, logAutoClaude, pendingClaudeLaunches, startAgentSessionInBackground, worktrees]);
+
+  useEffect(() => {
+    const pendingCodexLaunch = pendingCodexLaunches[0];
+    if (!pendingCodexLaunch) return;
+    const target = worktrees.find((wt) => wt.id === pendingCodexLaunch.worktreeId);
+    if (!target) {
+      logAutoClaude("Waiting for target worktree to appear before launching Codex", {
+        worktreeId: pendingCodexLaunch.worktreeId,
+      });
+      return;
+    }
+    if (target.status === "creating") {
+      logAutoClaude("Target worktree exists but is still creating; waiting to launch Codex", {
+        worktreeId: pendingCodexLaunch.worktreeId,
+        status: target.status,
+      });
+      return;
+    }
+    const intent = pendingCodexLaunch;
+    setPendingCodexLaunches((prev) => prev.slice(1));
+
+    void (async () => {
+      if (intent.mode === "start") {
+        logAutoClaude("Running pre-implementation hooks before Codex launch", {
+          worktreeId: intent.worktreeId,
+        });
+        const preRun = await api.runHooks(intent.worktreeId, "pre-implementation");
+        const failedCount = preRun.steps.filter((step) => step.status === "failed").length;
+        logAutoClaude("Pre-implementation hooks finished", {
+          worktreeId: intent.worktreeId,
+          status: preRun.status,
+          stepCount: preRun.steps.length,
+          failedCount,
+        });
+      }
+
+      codexLaunchRequestIdRef.current += 1;
+      setCodexLaunchRequest({
+        ...intent,
+        requestId: codexLaunchRequestIdRef.current,
+      });
+      logAutoClaude("Promoted pending Codex launch to active request", {
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+        requestId: codexLaunchRequestIdRef.current,
+        tabLabel: intent.tabLabel,
+      });
+    })();
+  }, [api, logAutoClaude, pendingCodexLaunches, worktrees]);
+
+  useEffect(() => {
+    const pendingGeminiLaunch = pendingGeminiLaunches[0];
+    if (!pendingGeminiLaunch) return;
+    const target = worktrees.find((wt) => wt.id === pendingGeminiLaunch.worktreeId);
+    if (!target) {
+      logAutoClaude("Waiting for target worktree to appear before launching Gemini", {
+        worktreeId: pendingGeminiLaunch.worktreeId,
+      });
+      return;
+    }
+    if (target.status === "creating") {
+      logAutoClaude("Target worktree exists but is still creating; waiting to launch Gemini", {
+        worktreeId: pendingGeminiLaunch.worktreeId,
+        status: target.status,
+      });
+      return;
+    }
+    const intent = pendingGeminiLaunch;
+    setPendingGeminiLaunches((prev) => prev.slice(1));
+
+    void (async () => {
+      if (intent.mode === "start") {
+        logAutoClaude("Running pre-implementation hooks before Gemini launch", {
+          worktreeId: intent.worktreeId,
+        });
+        const preRun = await api.runHooks(intent.worktreeId, "pre-implementation");
+        const failedCount = preRun.steps.filter((step) => step.status === "failed").length;
+        logAutoClaude("Pre-implementation hooks finished", {
+          worktreeId: intent.worktreeId,
+          status: preRun.status,
+          stepCount: preRun.steps.length,
+          failedCount,
+        });
+      }
+
+      geminiLaunchRequestIdRef.current += 1;
+      setGeminiLaunchRequest({
+        ...intent,
+        requestId: geminiLaunchRequestIdRef.current,
+      });
+      logAutoClaude("Promoted pending Gemini launch to active request", {
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+        requestId: geminiLaunchRequestIdRef.current,
+        tabLabel: intent.tabLabel,
+      });
+    })();
+  }, [api, logAutoClaude, pendingGeminiLaunches, worktrees]);
+
+  useEffect(() => {
+    const pendingOpenCodeLaunch = pendingOpenCodeLaunches[0];
+    if (!pendingOpenCodeLaunch) return;
+    const target = worktrees.find((wt) => wt.id === pendingOpenCodeLaunch.worktreeId);
+    if (!target) {
+      logAutoClaude("Waiting for target worktree to appear before launching OpenCode", {
+        worktreeId: pendingOpenCodeLaunch.worktreeId,
+      });
+      return;
+    }
+    if (target.status === "creating") {
+      logAutoClaude("Target worktree exists but is still creating; waiting to launch OpenCode", {
+        worktreeId: pendingOpenCodeLaunch.worktreeId,
+        status: target.status,
+      });
+      return;
+    }
+    const intent = pendingOpenCodeLaunch;
+    setPendingOpenCodeLaunches((prev) => prev.slice(1));
+
+    void (async () => {
+      if (intent.mode === "start") {
+        logAutoClaude("Running pre-implementation hooks before OpenCode launch", {
+          worktreeId: intent.worktreeId,
+        });
+        const preRun = await api.runHooks(intent.worktreeId, "pre-implementation");
+        const failedCount = preRun.steps.filter((step) => step.status === "failed").length;
+        logAutoClaude("Pre-implementation hooks finished", {
+          worktreeId: intent.worktreeId,
+          status: preRun.status,
+          stepCount: preRun.steps.length,
+          failedCount,
+        });
+      }
+
+      openCodeLaunchRequestIdRef.current += 1;
+      setOpenCodeLaunchRequest({
+        ...intent,
+        requestId: openCodeLaunchRequestIdRef.current,
+      });
+      logAutoClaude("Promoted pending OpenCode launch to active request", {
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+        requestId: openCodeLaunchRequestIdRef.current,
+        tabLabel: intent.tabLabel,
+      });
+    })();
+  }, [api, logAutoClaude, pendingOpenCodeLaunches, worktrees]);
 
   const handleDeleted = () => {
     setSelection(null);
@@ -713,8 +1042,8 @@ export default function App() {
     setSelection({ type: "worktree", id: worktreeId });
   };
 
-  const handleCodeWithClaude = useCallback(
-    (intent: ClaudeLaunchIntent, options?: { focusOnLaunch?: boolean }) => {
+  const enqueueClaudeLaunch = useCallback(
+    (intent: ClaudeLaunchIntent, options?: AgentLaunchOptions) => {
       logAutoClaude("Scheduling Claude launch intent", {
         worktreeId: intent.worktreeId,
         mode: intent.mode,
@@ -730,6 +1059,345 @@ export default function App() {
       refetch();
     },
     [logAutoClaude, refetch],
+  );
+
+  const enqueueCodexLaunch = useCallback(
+    (intent: CodexLaunchIntent, options?: AgentLaunchOptions) => {
+      logAutoClaude("Scheduling Codex launch intent", {
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+        tabLabel: intent.tabLabel,
+        focusOnLaunch: options?.focusOnLaunch ?? true,
+      });
+      if (options?.focusOnLaunch ?? true) {
+        setActiveCreateTab("branch");
+        setSelection({ type: "worktree", id: intent.worktreeId });
+      }
+      setPendingCodexLaunches((prev) => [...prev, intent]);
+      refetch();
+    },
+    [logAutoClaude, refetch],
+  );
+
+  const enqueueGeminiLaunch = useCallback(
+    (intent: GeminiLaunchIntent, options?: AgentLaunchOptions) => {
+      logAutoClaude("Scheduling Gemini launch intent", {
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+        tabLabel: intent.tabLabel,
+        focusOnLaunch: options?.focusOnLaunch ?? true,
+      });
+      if (options?.focusOnLaunch ?? true) {
+        setActiveCreateTab("branch");
+        setSelection({ type: "worktree", id: intent.worktreeId });
+      }
+      setPendingGeminiLaunches((prev) => [...prev, intent]);
+      refetch();
+    },
+    [logAutoClaude, refetch],
+  );
+
+  const enqueueOpenCodeLaunch = useCallback(
+    (intent: OpenCodeLaunchIntent, options?: AgentLaunchOptions) => {
+      logAutoClaude("Scheduling OpenCode launch intent", {
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+        tabLabel: intent.tabLabel,
+        focusOnLaunch: options?.focusOnLaunch ?? true,
+      });
+      if (options?.focusOnLaunch ?? true) {
+        setActiveCreateTab("branch");
+        setSelection({ type: "worktree", id: intent.worktreeId });
+      }
+      setPendingOpenCodeLaunches((prev) => [...prev, intent]);
+      refetch();
+    },
+    [logAutoClaude, refetch],
+  );
+
+  const continueAgentLaunch = useCallback(
+    (launch: PendingAgentLaunch) => {
+      if (launch.intent.skipPermissions === undefined) {
+        setAgentPermissionPrompt({
+          agent: launch.agent,
+          intent: launch.intent,
+          options: launch.options,
+        });
+        return;
+      }
+      if (launch.agent === "claude") {
+        enqueueClaudeLaunch(launch.intent, launch.options);
+        return;
+      }
+      if (launch.agent === "codex") {
+        enqueueCodexLaunch(launch.intent, launch.options);
+        return;
+      }
+      if (launch.agent === "gemini") {
+        enqueueGeminiLaunch(launch.intent, launch.options);
+        return;
+      }
+      enqueueOpenCodeLaunch(launch.intent, launch.options);
+    },
+    [enqueueClaudeLaunch, enqueueCodexLaunch, enqueueGeminiLaunch, enqueueOpenCodeLaunch],
+  );
+
+  const openMissingCliPrompt = useCallback(
+    (
+      pendingLaunch: PendingAgentLaunch,
+      statusResult?: {
+        command?: string;
+        brewPackage?: string;
+        error?: string;
+      },
+    ) => {
+      const command = statusResult?.command ?? pendingLaunch.agent;
+      const brewPackage = statusResult?.brewPackage ?? pendingLaunch.agent;
+      setAgentCliPrompt({
+        pendingLaunch,
+        command,
+        brewPackage,
+        error: statusResult?.error ?? null,
+        isInstalling: false,
+      });
+    },
+    [],
+  );
+
+  const ensureAgentCliInstalled = useCallback(
+    async (launch: PendingAgentLaunch, options?: AgentLaunchOptions): Promise<boolean> => {
+      if (options?.skipCliCheck) return true;
+
+      const status = await api.fetchAgentCliStatus(launch.agent);
+      if (!status.success || !status.installed) {
+        openMissingCliPrompt(launch, {
+          command: status.command,
+          brewPackage: status.brewPackage,
+          error: status.success ? undefined : status.error,
+        });
+        return false;
+      }
+      return true;
+    },
+    [api, openMissingCliPrompt],
+  );
+
+  const handleCodeWithClaude = useCallback(
+    async (intent: ClaudeLaunchIntent, options?: AgentLaunchOptions) => {
+      const launch: PendingAgentLaunch = { agent: "claude", intent, options };
+      const canLaunch = await ensureAgentCliInstalled(launch, options);
+      if (!canLaunch) {
+        return;
+      }
+      continueAgentLaunch(launch);
+    },
+    [continueAgentLaunch, ensureAgentCliInstalled],
+  );
+
+  const handleCodeWithCodex = useCallback(
+    async (intent: CodexLaunchIntent, options?: AgentLaunchOptions) => {
+      const launch: PendingAgentLaunch = { agent: "codex", intent, options };
+      const canLaunch = await ensureAgentCliInstalled(launch, options);
+      if (!canLaunch) {
+        return;
+      }
+      continueAgentLaunch(launch);
+    },
+    [continueAgentLaunch, ensureAgentCliInstalled],
+  );
+
+  const handleCodeWithGemini = useCallback(
+    async (intent: GeminiLaunchIntent, options?: AgentLaunchOptions) => {
+      const launch: PendingAgentLaunch = { agent: "gemini", intent, options };
+      const canLaunch = await ensureAgentCliInstalled(launch, options);
+      if (!canLaunch) {
+        return;
+      }
+      continueAgentLaunch(launch);
+    },
+    [continueAgentLaunch, ensureAgentCliInstalled],
+  );
+
+  const handleCodeWithOpenCode = useCallback(
+    async (intent: OpenCodeLaunchIntent, options?: AgentLaunchOptions) => {
+      const launch: PendingAgentLaunch = { agent: "opencode", intent, options };
+      const canLaunch = await ensureAgentCliInstalled(launch, options);
+      if (!canLaunch) {
+        return;
+      }
+      continueAgentLaunch(launch);
+    },
+    [continueAgentLaunch, ensureAgentCliInstalled],
+  );
+
+  const launchAgentFromAutoStart = useCallback(
+    async (
+      agent: CodingAgent,
+      intent: {
+        worktreeId: string;
+        mode: AgentLaunchMode;
+        prompt?: string;
+        tabLabel?: string;
+        skipPermissions?: boolean;
+      },
+      options?: AgentLaunchOptions,
+    ) => {
+      if (agent === "claude") {
+        await handleCodeWithClaude(intent, options);
+        return;
+      }
+      if (agent === "codex") {
+        await handleCodeWithCodex(intent, options);
+        return;
+      }
+      if (agent === "gemini") {
+        await handleCodeWithGemini(intent, options);
+        return;
+      }
+      await handleCodeWithOpenCode(intent, options);
+    },
+    [handleCodeWithClaude, handleCodeWithCodex, handleCodeWithGemini, handleCodeWithOpenCode],
+  );
+
+  const launchAutoStartAgent = useCallback(
+    async (
+      agent: CodingAgent,
+      launch: {
+        worktreeId: string;
+        prompt: string;
+        skipPermissions: boolean;
+        focusTerminal: boolean;
+      },
+    ) => {
+      let mode: AgentLaunchMode = "start";
+      let focusOnLaunch = launch.focusTerminal;
+
+      if (!launch.focusTerminal) {
+        const startedInBackground = await startAgentSessionInBackground(
+          agent,
+          launch.worktreeId,
+          launch.prompt,
+          launch.skipPermissions,
+        );
+        if (startedInBackground) {
+          mode = "resume";
+        } else {
+          // Fallback so launch request is consumed even without a background session.
+          focusOnLaunch = true;
+        }
+      }
+
+      await launchAgentFromAutoStart(
+        agent,
+        {
+          worktreeId: launch.worktreeId,
+          mode,
+          prompt: launch.prompt,
+          skipPermissions: launch.skipPermissions,
+        },
+        { focusOnLaunch, skipCliCheck: true },
+      );
+    },
+    [launchAgentFromAutoStart, startAgentSessionInBackground],
+  );
+
+  const handleInstallAgentCli = useCallback(async () => {
+    const prompt = agentCliPrompt;
+    if (!prompt || prompt.isInstalling) return;
+
+    setAgentCliPrompt((prev) =>
+      prev
+        ? {
+            ...prev,
+            isInstalling: true,
+            error: null,
+          }
+        : prev,
+    );
+
+    const installResult = await api.installAgentCli(prompt.pendingLaunch.agent);
+    if (!installResult.success) {
+      setAgentCliPrompt((prev) =>
+        prev
+          ? {
+              ...prev,
+              isInstalling: false,
+              error: installResult.error ?? "Failed to install CLI via Homebrew.",
+            }
+          : prev,
+      );
+      return;
+    }
+
+    const status = await api.fetchAgentCliStatus(prompt.pendingLaunch.agent);
+    if (!status.success || !status.installed) {
+      setAgentCliPrompt((prev) =>
+        prev
+          ? {
+              ...prev,
+              isInstalling: false,
+              error:
+                status.error ??
+                `Install finished, but "${prompt.command}" is still unavailable in PATH.`,
+            }
+          : prev,
+      );
+      return;
+    }
+
+    setAgentCliPrompt(null);
+    continueAgentLaunch(prompt.pendingLaunch);
+  }, [agentCliPrompt, api, continueAgentLaunch]);
+
+  const continueAgentLaunchWithPermission = useCallback(
+    (prompt: AgentPermissionPromptState, skipPermissions: boolean) => {
+      if (prompt.agent === "claude") {
+        const nextIntent: ClaudeLaunchIntent = {
+          ...(prompt.intent as ClaudeLaunchIntent),
+          skipPermissions,
+        };
+        continueAgentLaunch({
+          agent: "claude",
+          intent: nextIntent,
+          options: prompt.options,
+        });
+        return;
+      }
+      if (prompt.agent === "codex") {
+        const nextIntent: CodexLaunchIntent = {
+          ...(prompt.intent as CodexLaunchIntent),
+          skipPermissions,
+        };
+        continueAgentLaunch({
+          agent: "codex",
+          intent: nextIntent,
+          options: prompt.options,
+        });
+        return;
+      }
+      if (prompt.agent === "gemini") {
+        const nextIntent: GeminiLaunchIntent = {
+          ...(prompt.intent as GeminiLaunchIntent),
+          skipPermissions,
+        };
+        continueAgentLaunch({
+          agent: "gemini",
+          intent: nextIntent,
+          options: prompt.options,
+        });
+        return;
+      }
+      const nextIntent: OpenCodeLaunchIntent = {
+        ...(prompt.intent as OpenCodeLaunchIntent),
+        skipPermissions,
+      };
+      continueAgentLaunch({
+        agent: "opencode",
+        intent: nextIntent,
+        options: prompt.options,
+      });
+    },
+    [continueAgentLaunch],
   );
 
   const persistSeenIssueIds = useCallback(
@@ -806,22 +1474,26 @@ export default function App() {
     [api, logAutoClaude],
   );
 
-  const launchJiraIssueWithClaude = useCallback(
+  const launchJiraIssueWithAutoStartAgent = useCallback(
     async (issue: { key: string; summary: string }) => {
+      const agent = resolveAutoStartAgent(jiraStatus?.autoStartAgent);
       const skipPermissions = jiraStatus?.autoStartClaudeSkipPermissions ?? true;
       const focusTerminal = jiraStatus?.autoStartClaudeFocusTerminal ?? true;
-      const prompt = `Implement Jira issue ${issue.key}${issue.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify OpenKit before asking by calling notify with requiresUserAction=true (or run openkit activity await-input in terminal flow).`;
-      logAutoClaude("Starting Jira auto-launch", { issueKey: issue.key });
+      const prompt = `Implement Jira issue ${issue.key}${issue.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+      logAutoClaude("Starting Jira auto-launch", { issueKey: issue.key, agent });
       const result = await api.createFromJira(issue.key);
       logAutoClaude("Jira create-from-issue response received", {
         issueKey: issue.key,
+        agent,
         success: result.success,
         code: result.code,
         worktreeId: result.worktreeId,
         error: result.error,
       });
       if (!result.success && !(result.code === "WORKTREE_EXISTS" && result.worktreeId)) {
-        console.error(`Failed to auto-launch Jira issue ${issue.key}: ${result.error ?? "unknown"}`);
+        console.error(
+          `Failed to auto-launch Jira issue ${issue.key}: ${result.error ?? "unknown"}`,
+        );
         return;
       }
       const worktreeId = result.worktreeId ?? issue.key;
@@ -829,44 +1501,53 @@ export default function App() {
         category: "agent",
         type: "auto_task_claimed",
         severity: "info",
-        title: `Claude started working on ${issue.key}`,
+        title: `${buildAgentLabel(agent)} started working on ${issue.key}`,
         detail: formatTaskNotificationDetail(issue.key, issue.summary),
         worktreeId,
         groupKey: `auto-task-claimed:${issue.key}`,
-        metadata: { source: "jira", issueId: issue.key, issueTitle: issue.summary, autoClaimed: true },
+        metadata: {
+          source: "jira",
+          issueId: issue.key,
+          issueTitle: issue.summary,
+          autoClaimed: true,
+          agent,
+        },
       });
       logAutoClaude("Published Jira auto-claim activity event", {
         issueKey: issue.key,
+        agent,
         worktreeId,
         success: activityResult.success,
         error: activityResult.error,
       });
-      handleCodeWithClaude({
+      await launchAutoStartAgent(agent, {
         worktreeId,
-        mode: "start",
         prompt,
         skipPermissions,
-        startInBackground: !focusTerminal,
-      }, { focusOnLaunch: focusTerminal });
+        focusTerminal,
+      });
     },
     [
       api,
-      handleCodeWithClaude,
+      jiraStatus?.autoStartAgent,
       jiraStatus?.autoStartClaudeFocusTerminal,
       jiraStatus?.autoStartClaudeSkipPermissions,
+      launchAutoStartAgent,
       logAutoClaude,
     ],
   );
 
-  const launchLinearIssueWithClaude = useCallback(
+  const launchLinearIssueWithAutoStartAgent = useCallback(
     async (issue: { identifier: string; title: string }) => {
+      const agent = resolveAutoStartAgent(linearStatus?.autoStartAgent);
       const skipPermissions = linearStatus?.autoStartClaudeSkipPermissions ?? true;
       const focusTerminal = linearStatus?.autoStartClaudeFocusTerminal ?? true;
-      const prompt = `Implement Linear issue ${issue.identifier}${issue.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify OpenKit before asking by calling notify with requiresUserAction=true (or run openkit activity await-input in terminal flow).`;
-      logAutoClaude("Starting Linear auto-launch", { identifier: issue.identifier });
+      const prompt = `Implement Linear issue ${issue.identifier}${issue.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+      logAutoClaude("Starting Linear auto-launch", { identifier: issue.identifier, agent });
       const result = await api.createFromLinear(issue.identifier);
       logAutoClaude("Linear create-from-issue response received", {
         identifier: issue.identifier,
+        agent,
         success: result.success,
         code: result.code,
         worktreeId: result.worktreeId,
@@ -883,7 +1564,7 @@ export default function App() {
         category: "agent",
         type: "auto_task_claimed",
         severity: "info",
-        title: `Claude started working on ${issue.identifier}`,
+        title: `${buildAgentLabel(agent)} started working on ${issue.identifier}`,
         detail: formatTaskNotificationDetail(issue.identifier, issue.title),
         worktreeId,
         groupKey: `auto-task-claimed:${issue.identifier}`,
@@ -892,40 +1573,44 @@ export default function App() {
           issueId: issue.identifier,
           issueTitle: issue.title,
           autoClaimed: true,
+          agent,
         },
       });
       logAutoClaude("Published Linear auto-claim activity event", {
         identifier: issue.identifier,
+        agent,
         worktreeId,
         success: activityResult.success,
         error: activityResult.error,
       });
-      handleCodeWithClaude({
+      await launchAutoStartAgent(agent, {
         worktreeId,
-        mode: "start",
         prompt,
         skipPermissions,
-        startInBackground: !focusTerminal,
-      }, { focusOnLaunch: focusTerminal });
+        focusTerminal,
+      });
     },
     [
       api,
-      handleCodeWithClaude,
+      launchAutoStartAgent,
+      linearStatus?.autoStartAgent,
       linearStatus?.autoStartClaudeFocusTerminal,
       linearStatus?.autoStartClaudeSkipPermissions,
       logAutoClaude,
     ],
   );
 
-  const launchLocalTaskWithClaude = useCallback(
+  const launchLocalTaskWithAutoStartAgent = useCallback(
     async (task: { id: string; title: string }) => {
+      const agent = resolveAutoStartAgent(config?.localAutoStartAgent);
       const skipPermissions = config?.localAutoStartClaudeSkipPermissions ?? true;
       const focusTerminal = config?.localAutoStartClaudeFocusTerminal ?? true;
-      const prompt = `Implement local task ${task.id}${task.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval/instructions, notify OpenKit before asking by calling notify with requiresUserAction=true (or run openkit activity await-input in terminal flow).`;
-      logAutoClaude("Starting local task auto-launch", { taskId: task.id });
+      const prompt = `Implement local task ${task.id}${task.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+      logAutoClaude("Starting local task auto-launch", { taskId: task.id, agent });
       const result = await api.createWorktreeFromCustomTask(task.id);
       logAutoClaude("Local task create-worktree response received", {
         taskId: task.id,
+        agent,
         success: result.success,
         code: result.code,
         worktreeId: result.worktreeId,
@@ -941,34 +1626,38 @@ export default function App() {
         category: "agent",
         type: "auto_task_claimed",
         severity: "info",
-        title: `Claude started working on ${task.id}`,
+        title: `${buildAgentLabel(agent)} started working on ${task.id}`,
         detail: formatTaskNotificationDetail(task.id, task.title),
         worktreeId,
         groupKey: `auto-task-claimed:${task.id}`,
-        metadata: { source: "local", issueId: task.id, issueTitle: task.title, autoClaimed: true },
+        metadata: {
+          source: "local",
+          issueId: task.id,
+          issueTitle: task.title,
+          autoClaimed: true,
+          agent,
+        },
       });
       logAutoClaude("Published local task auto-claim activity event", {
         taskId: task.id,
+        agent,
         worktreeId,
         success: activityResult.success,
         error: activityResult.error,
       });
-      handleCodeWithClaude(
-        {
-          worktreeId,
-          mode: "start",
-          prompt,
-          skipPermissions,
-          startInBackground: !focusTerminal,
-        },
-        { focusOnLaunch: focusTerminal },
-      );
+      await launchAutoStartAgent(agent, {
+        worktreeId,
+        prompt,
+        skipPermissions,
+        focusTerminal,
+      });
     },
     [
       api,
+      config?.localAutoStartAgent,
       config?.localAutoStartClaudeFocusTerminal,
       config?.localAutoStartClaudeSkipPermissions,
-      handleCodeWithClaude,
+      launchAutoStartAgent,
       logAutoClaude,
     ],
   );
@@ -1015,7 +1704,7 @@ export default function App() {
     }
     for (const issue of newlyFetched) {
       logAutoClaude("Queueing Jira issue for auto-launch", { issueKey: issue.key });
-      enqueueAutoLaunch(() => launchJiraIssueWithClaude(issue));
+      enqueueAutoLaunch(() => launchJiraIssueWithAutoStartAgent(issue));
     }
   }, [
     enqueueAutoLaunch,
@@ -1023,7 +1712,7 @@ export default function App() {
     jiraIssues,
     jiraIssuesUpdatedAt,
     jiraStatus?.autoStartClaudeOnNewIssue,
-    launchJiraIssueWithClaude,
+    launchJiraIssueWithAutoStartAgent,
     logAutoClaude,
     persistSeenIssueIds,
     publishTaskDetectedActivity,
@@ -1071,7 +1760,7 @@ export default function App() {
     }
     for (const issue of newlyFetched) {
       logAutoClaude("Queueing Linear issue for auto-launch", { identifier: issue.identifier });
-      enqueueAutoLaunch(() => launchLinearIssueWithClaude(issue));
+      enqueueAutoLaunch(() => launchLinearIssueWithAutoStartAgent(issue));
     }
   }, [
     enqueueAutoLaunch,
@@ -1079,7 +1768,7 @@ export default function App() {
     linearIssues,
     linearIssuesUpdatedAt,
     linearStatus?.autoStartClaudeOnNewIssue,
-    launchLinearIssueWithClaude,
+    launchLinearIssueWithAutoStartAgent,
     logAutoClaude,
     persistSeenIssueIds,
     publishTaskDetectedActivity,
@@ -1127,14 +1816,14 @@ export default function App() {
     }
     for (const task of newlyFetched) {
       logAutoClaude("Queueing local task for auto-launch", { taskId: task.id });
-      enqueueAutoLaunch(() => launchLocalTaskWithClaude(task));
+      enqueueAutoLaunch(() => launchLocalTaskWithAutoStartAgent(task));
     }
   }, [
     config?.localAutoStartClaudeOnNewIssue,
     customTasks,
     customTasksLoading,
     enqueueAutoLaunch,
-    launchLocalTaskWithClaude,
+    launchLocalTaskWithAutoStartAgent,
     logAutoClaude,
     persistSeenIssueIds,
     publishTaskDetectedActivity,
@@ -1387,7 +2076,12 @@ export default function App() {
               });
             }
           }}
-          onNavigateToIssue={({ source, issueId, projectName: navProjectName, sourceServerUrl }) => {
+          onNavigateToIssue={({
+            source,
+            issueId,
+            projectName: navProjectName,
+            sourceServerUrl,
+          }) => {
             setActiveView("workspace");
             setActiveCreateTab("issues");
             const targetProjectId = resolveProjectIdFromNotification(
@@ -1593,9 +2287,15 @@ export default function App() {
                     issueKey={selection.key}
                     linkedWorktreeId={selectedJiraWorktree?.id ?? null}
                     linkedWorktreePrUrl={selectedJiraWorktree?.githubPrUrl ?? null}
+                    activeWorktreeIds={activeWorktreeIds}
                     onCreateWorktree={handleCreateWorktreeFromJira}
                     onViewWorktree={handleViewWorktreeFromJira}
                     onCodeWithClaude={handleCodeWithClaude}
+                    onCodeWithCodex={handleCodeWithCodex}
+                    onCodeWithGemini={handleCodeWithGemini}
+                    onCodeWithOpenCode={handleCodeWithOpenCode}
+                    selectedCodingAgent={defaultCodingAgent}
+                    onSelectCodingAgent={setDefaultCodingAgent}
                     refreshIntervalMinutes={refreshIntervalMinutes}
                     onSetupNeeded={handleSetupNeeded}
                   />
@@ -1604,19 +2304,31 @@ export default function App() {
                     identifier={selection.identifier}
                     linkedWorktreeId={selectedLinearWorktree?.id ?? null}
                     linkedWorktreePrUrl={selectedLinearWorktree?.githubPrUrl ?? null}
+                    activeWorktreeIds={activeWorktreeIds}
                     onCreateWorktree={handleCreateWorktreeFromLinear}
                     onViewWorktree={handleViewWorktreeFromLinear}
                     onCodeWithClaude={handleCodeWithClaude}
+                    onCodeWithCodex={handleCodeWithCodex}
+                    onCodeWithGemini={handleCodeWithGemini}
+                    onCodeWithOpenCode={handleCodeWithOpenCode}
+                    selectedCodingAgent={defaultCodingAgent}
+                    onSelectCodingAgent={setDefaultCodingAgent}
                     refreshIntervalMinutes={linearRefreshIntervalMinutes}
                     onSetupNeeded={handleSetupNeeded}
                   />
                 ) : selection?.type === "custom-task" ? (
                   <CustomTaskDetailPanel
                     taskId={selection.id}
+                    activeWorktreeIds={activeWorktreeIds}
                     onDeleted={() => setSelection(null)}
                     onCreateWorktree={handleCreateWorktreeFromCustomTask}
                     onViewWorktree={handleViewWorktreeFromCustomTask}
                     onCodeWithClaude={handleCodeWithClaude}
+                    onCodeWithCodex={handleCodeWithCodex}
+                    onCodeWithGemini={handleCodeWithGemini}
+                    onCodeWithOpenCode={handleCodeWithOpenCode}
+                    selectedCodingAgent={defaultCodingAgent}
+                    onSelectCodingAgent={setDefaultCodingAgent}
                   />
                 ) : (
                   <DetailPanel
@@ -1648,6 +2360,9 @@ export default function App() {
                     }}
                     onLinkIssue={(worktreeId) => setLinkIssueForWorktreeId(worktreeId)}
                     claudeLaunchRequest={claudeLaunchRequest}
+                    codexLaunchRequest={codexLaunchRequest}
+                    geminiLaunchRequest={geminiLaunchRequest}
+                    opencodeLaunchRequest={opencodeLaunchRequest}
                     notificationTabRequest={notificationTabRequest}
                   />
                 )}
@@ -1759,6 +2474,103 @@ export default function App() {
         />
       )}
 
+      {agentCliPrompt && (
+        <Modal
+          title={`${getAgentCliLabel(agentCliPrompt.pendingLaunch.agent)} Required`}
+          icon={<Download className="w-4 h-4" />}
+          width="sm"
+          onClose={() => setAgentCliPrompt(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setAgentCliPrompt(null)}
+                disabled={agentCliPrompt.isInstalling}
+                className={`px-3 py-1.5 text-xs rounded-lg ${text.muted} hover:${text.secondary} transition-colors disabled:opacity-50`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleInstallAgentCli()}
+                disabled={agentCliPrompt.isInstalling}
+                className={`px-3 py-1.5 text-xs font-medium ${button.primary} rounded-lg transition-colors disabled:opacity-50`}
+              >
+                {agentCliPrompt.isInstalling ? "Installing..." : "Install"}
+              </button>
+            </>
+          }
+        >
+          <p className={`text-xs ${text.secondary} leading-relaxed`}>
+            {getAgentCliLabel(agentCliPrompt.pendingLaunch.agent)} is required in order to use this
+            functionality.
+          </p>
+          {agentCliPrompt.error && (
+            <p className={`text-[11px] ${text.error} mt-2 leading-relaxed`}>
+              {agentCliPrompt.error}
+            </p>
+          )}
+          <p className={`text-[11px] ${text.muted} mt-2 leading-relaxed`}>
+            OpenKit will run{" "}
+            <code className="inline-flex items-center rounded-sm border border-white/[0.12] bg-black/40 px-1.5 py-0.5 text-[11px] font-mono text-white">
+              {`brew install ${agentCliPrompt.brewPackage}`}
+            </code>{" "}
+            automatically.
+          </p>
+        </Modal>
+      )}
+
+      {agentPermissionPrompt && (
+        <Modal
+          title={`${AGENT_DISPLAY_NAMES[agentPermissionPrompt.agent]} Permissions`}
+          icon={<ShieldAlert className="w-4 h-4 text-amber-400" />}
+          width="sm"
+          onClose={() => setAgentPermissionPrompt(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setAgentPermissionPrompt(null)}
+                className={`px-3 py-1.5 text-xs rounded-lg ${text.muted} hover:${text.secondary} transition-colors`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!agentPermissionPrompt) return;
+                  setAgentPermissionPrompt(null);
+                  continueAgentLaunchWithPermission(agentPermissionPrompt, false);
+                }}
+                className={`px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors`}
+              >
+                Run Safely
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!agentPermissionPrompt) return;
+                  setAgentPermissionPrompt(null);
+                  continueAgentLaunchWithPermission(agentPermissionPrompt, true);
+                }}
+                className={`px-3 py-1.5 text-xs font-medium ${button.warning} rounded-lg transition-colors`}
+              >
+                Skip Permissions
+              </button>
+            </>
+          }
+        >
+          <p className={`text-xs ${text.secondary} leading-relaxed`}>
+            Run {AGENT_DISPLAY_NAMES[agentPermissionPrompt.agent]} with{" "}
+            <code>{AGENT_SKIP_PERMISSION_FLAGS[agentPermissionPrompt.agent]}</code> for this launch?
+          </p>
+          <p className={`text-[11px] ${text.muted} mt-2 leading-relaxed`}>
+            Use this only when you trust the task context and want{" "}
+            {AGENT_DISPLAY_NAMES[agentPermissionPrompt.agent]} to run without approval prompts.
+          </p>
+        </Modal>
+      )}
+
       {/* App settings modal (Electron only) */}
       {showSettingsModal && <AppSettingsModal onClose={() => setShowSettingsModal(false)} />}
 
@@ -1766,7 +2578,6 @@ export default function App() {
       <div className="absolute bottom-0 left-0 right-0 z-40">
         <TabBar onOpenSettings={() => setShowSettingsModal(true)} />
       </div>
-
     </div>
   );
 }
