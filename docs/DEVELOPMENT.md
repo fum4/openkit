@@ -32,6 +32,7 @@ pnpm start
 | `pnpm check:types`    | TypeScript type checking (`tsc --noEmit`)                                                    |
 | `pnpm check:format`   | Run oxfmt in check mode                                                                      |
 | `pnpm check:lint`     | Run oxlint                                                                                   |
+| `pnpm lint-staged`    | Run formatter/linter checks only for currently staged files                                  |
 | `pnpm check:all`      | Run typecheck + format check + lint                                                          |
 | `pnpm fix:format`     | Run oxfmt to apply formatting                                                                |
 | `pnpm fix:lint`       | Run oxlint with `--fix`                                                                      |
@@ -43,6 +44,13 @@ pnpm start
 
 There is no test runner configured.
 
+## Git Hooks
+
+OpenKit uses Husky. Hooks are installed by `pnpm install` through the root `prepare` script.
+
+The configured `.husky/pre-commit` hook runs `pnpm lint-staged` (staged files only for speed).
+Run `pnpm check:all` manually or in CI for full-repository validation.
+
 ## npm Publishing
 
 OpenKit is published on npm as `openkit`.
@@ -51,6 +59,14 @@ OpenKit is published on npm as `openkit`.
 - GitHub Actions release workflow runs `pnpm release:verify` before creating a release.
 - After `release-it` bumps/tags, the workflow publishes to npm via `npm publish --access public --provenance` using `NPM_TOKEN`.
 - Installed command aliases are `openkit`, `ok`, and `OpenKit`.
+
+## Dependency Updates
+
+Dependabot is configured in `.github/dependabot.yml` to open weekly dependency update PRs for:
+
+- Root npm workspace (`/`)
+- Website npm workspace (`/website`)
+- GitHub Actions workflows (`github-actions`)
 
 ### What `pnpm build` Does
 

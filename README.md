@@ -24,6 +24,13 @@ ok --help
 
 The package name is `openkit`. Command aliases shipped by the package are `openkit` and `ok`.
 
+## Developer Git Hooks
+
+This repository uses Husky for git hooks. Hooks are installed automatically by `pnpm install` via the `prepare` script.
+
+The configured `.husky/pre-commit` hook runs `pnpm lint-staged` for fast staged-file checks.
+Use `pnpm check:all` when you want full-repo validation.
+
 In the UI:
 
 1. Click **Discover Ports** to auto-detect all ports your dev command binds

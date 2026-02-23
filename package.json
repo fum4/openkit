@@ -46,9 +46,10 @@
     "build:app": "pnpm build:app:mac && pnpm build:app:linux",
     "build:app:mac": "pnpm build && electron-builder --mac --publish never",
     "build:app:linux": "pnpm build && electron-builder --linux AppImage --publish never",
+    "lint-staged": "lint-staged",
+    "check:lint": "oxlint",
     "check:types": "tsc --noEmit",
     "check:format": "oxfmt --check .",
-    "check:lint": "oxlint",
     "check:all": "pnpm check:types && pnpm check:format && pnpm check:lint",
     "fix:format": "oxfmt .",
     "fix:lint": "oxlint --fix",
@@ -56,12 +57,13 @@
     "verify:package": "node scripts/verify-package.mjs",
     "smoke:tarball": "node scripts/smoke-tarball.mjs",
     "release:verify": "pnpm check:types && pnpm check:lint && pnpm build && pnpm verify:package && pnpm smoke:tarball",
-    "prepack": "pnpm build && pnpm verify:package"
+    "prepack": "pnpm build && pnpm verify:package",
+    "prepare": "husky"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",
     "@hono/node-ws": "^1.3.0",
-    "@inquirer/prompts": "^8.2.1",
+    "@inquirer/prompts": "^8.3.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.90.21",
@@ -69,9 +71,9 @@
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^6.0.0",
     "ansi-to-html": "^0.7.2",
-    "hono": "^4.11.9",
-    "lucide-react": "^0.574.0",
-    "motion": "^12.34.1",
+    "hono": "^4.12.2",
+    "lucide-react": "^0.575.0",
+    "motion": "^12.34.2",
     "nanoid": "^5.1.6",
     "node-pty": "1.2.0-beta.10",
     "picocolors": "^1.1.1",
@@ -83,26 +85,35 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.18",
-    "@types/node": "^25.2.3",
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "^25.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.4",
     "concurrently": "^9.2.1",
-    "electron": "^40.4.1",
-    "electron-builder": "^26.7.0",
+    "electron": "^40.6.0",
+    "electron-builder": "^26.8.1",
     "electronmon": "^2.0.4",
-    "oxfmt": "^0.33.0",
-    "oxlint": "^1.48.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "oxfmt": "^0.35.0",
+    "oxlint": "^1.50.0",
     "postcss": "^8.4.38",
     "release-it": "^19.2.4",
-    "tailwindcss": "^4.1.18",
+    "tailwindcss": "^4.2.1",
     "tsup": "^8.3.5",
     "tsx": "^4.21.0",
     "typescript": "^5.5.4",
     "vite": "^7.3.1",
     "wait-on": "^9.0.4"
+  },
+  "lint-staged": {
+    "*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}": [
+      "oxfmt --check",
+      "oxlint"
+    ],
+    "*.{css,html,json,md,mdx,scss,yaml,yml}": "oxfmt --check"
   },
   "engines": {
     "node": ">=18"
