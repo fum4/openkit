@@ -326,6 +326,8 @@ These use TanStack React Query for caching, background refetching, and stale-whi
 
 Issue hooks support configurable refresh intervals (from integration settings) and search query debouncing (300ms).
 
+`App.tsx` also installs a global keydown guard that prevents hard reload shortcuts (`Cmd/Ctrl+R` and `F5`) so accidental refreshes do not reset active UI state.
+
 ### WebSocket Terminal
 
 **`useTerminal`** (`useTerminal.ts`) manages interactive PTY sessions:

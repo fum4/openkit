@@ -61,9 +61,6 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
           </button>
         </div>
       </div>
-      <p class="hero-alt fade-in" data-delay="320">
-        Need a different build? Click the selector on the right side of the download button.
-      </p>
     </div>
     <div class="hero-visual fade-in" data-delay="200">
       <div class="terminal-wrapper">
@@ -90,7 +87,7 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
             </div>
             <div class="term-line term-output term-phase-break" style="opacity: 0">
               <span class="term-accent">&#9654;</span>
-              <span>Fetching issue details...</span>
+              <span>Analyzing task...</span>
             </div>
             <div class="term-line term-output term-phase-break" style="opacity: 0">
               <span class="term-accent">&#9654;</span>
@@ -98,15 +95,15 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
             </div>
             <div class="term-line term-output term-phase-break" style="opacity: 0">
               <span class="term-accent">&#9654;</span>
-              <span>Analyzing...</span>
-            </div>
-            <div class="term-line term-output term-phase-break" style="opacity: 0">
-              <span class="term-accent">&#9654;</span>
               <span>Implementing...</span>
             </div>
             <div class="term-line term-output term-phase-break" style="opacity: 0">
+              <span class="term-accent">&#9654;</span>
+              <span>Verifying...</span>
+            </div>
+            <div class="term-line term-output term-phase-break" style="opacity: 0">
               <span class="term-success">&#10003;</span>
-              <span>Pull request shipped</span>
+              <span>Feature shipped!</span>
             </div>
           </div>
         </div>
@@ -501,6 +498,16 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
   }
 
   @media (max-width: 768px) {
+    .hero-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .hero-text {
+      display: contents;
+    }
+
     .hero {
       padding-top: calc(var(--nav-height) + 56px);
       padding-bottom: 72px;
@@ -508,19 +515,48 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
 
     h1 {
       font-size: 32px;
+      order: 2;
+      text-align: center;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .hero-sub {
       font-size: 15px;
+      order: 3;
+      text-align: center;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .hero-badge {
+      order: 1;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .hero-visual {
+      order: 4;
+      width: 100%;
+      margin-top: -6px;
+      margin-bottom: 18px;
+    }
+
+    .hero-visual .terminal-wrapper {
+      width: 100%;
+      max-width: none;
     }
 
     .hero-ctas {
+      order: 5;
       flex-direction: column;
       align-items: stretch;
     }
 
     .hero-download {
-      width: 100%;
+      width: fit-content;
+      max-width: 100%;
+      align-self: center;
     }
 
     .hero-download .download-main-btn {

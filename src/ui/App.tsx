@@ -663,6 +663,20 @@ export default function App() {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [showSetupCommitModal, setShowSetupCommitModal] = useState(false);
+
+  useEffect(() => {
+    const handlePreventRefreshShortcut = (event: KeyboardEvent) => {
+      const isReloadChord = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "r";
+      const isF5 = event.key === "F5";
+      if (isReloadChord || isF5) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener("keydown", handlePreventRefreshShortcut);
+    return () => window.removeEventListener("keydown", handlePreventRefreshShortcut);
+  }, []);
+
   const handleSetupCommit = async (message: string) => {
     await api.commitSetup(message);
     setShowSetupCommitModal(false);

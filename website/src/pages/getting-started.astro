@@ -173,10 +173,10 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
               <p>Connect an integration. Run without arguments for an interactive picker.</p>
               <div class="cli-block">
                 <div class="cli-lines">
-                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add<span class="cli-comment">            # Interactive picker</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add github<span class="cli-comment">     # Requires gh CLI</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add linear<span class="cli-comment">     # Requires API key</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add jira<span class="cli-comment">       # OAuth or API token</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add<span class="cli-comment"> # Interactive picker</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add github</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add linear</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add jira</div>
                 </div>
                 <button class="copy-btn" data-copy="openkit add" aria-label="Copy">
                   <Fragment set:html={copySvg} />
@@ -200,11 +200,8 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
               <div class="cli-block">
                 <div class="cli-lines">
                   <div class="cli-line"><span class="cli-prompt">$ </span>openkit task<span class="cli-comment"> # Interactive</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task jira PROJ-123<span class="cli-comment"> # Jira</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task linear ENG-42<span class="cli-comment"> # Linear</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task local 7<span class="cli-comment"> # Local</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task jira TASK-123<span class="cli-comment"> # Jira</span></div>
                   <div class="cli-line"><span class="cli-prompt">$ </span>openkit task jira 101 102 103<span class="cli-comment"> # Batch</span></div>
-                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task resolve PROJ-123 --json<span class="cli-comment"> # Resolver only</span></div>
                 </div>
                 <button class="copy-btn" data-copy="openkit task jira PROJ-123" aria-label="Copy">
                   <Fragment set:html={copySvg} />

@@ -617,9 +617,7 @@ function HooksSection({
       <div className="space-y-2">
         {!hasItems && !addingStep && (
           <div className="text-center py-6">
-            <p className={`text-xs ${text.muted}`}>
-              No {title.toLowerCase()} hooks configured yet.
-            </p>
+            <p className={`text-xs ${text.muted}`}>No hooks configured yet.</p>
           </div>
         )}
 
@@ -1686,7 +1684,7 @@ function CustomHooksSection({
       <div className="space-y-2">
         {!hasItems && !isEditing && (
           <div className="text-center py-6">
-            <p className={`text-xs ${text.muted}`}>No custom hooks configured yet.</p>
+            <p className={`text-xs ${text.muted}`}>No hooks configured yet.</p>
           </div>
         )}
 

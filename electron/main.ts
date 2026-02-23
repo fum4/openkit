@@ -94,6 +94,16 @@ function createMainWindow(): BrowserWindow {
     return { action: "deny" };
   });
 
+  // Prevent accidental hard reload shortcuts (Cmd/Ctrl+R, F5) because they
+  // can disrupt long-running terminal sessions and in-flight UI state.
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    const isReloadChord = (input.meta || input.control) && input.key.toLowerCase() === "r";
+    const isF5 = input.key === "F5";
+    if (isReloadChord || isF5) {
+      event.preventDefault();
+    }
+  });
+
   return mainWindow;
 }
 

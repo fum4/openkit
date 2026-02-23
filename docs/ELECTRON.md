@@ -162,6 +162,8 @@ The Electron app uses strict context isolation. The preload script (`electron/pr
 }
 ```
 
+The main process also intercepts `Cmd+R` / `Ctrl+R` and `F5` via `before-input-event` and prevents those reload shortcuts to avoid accidental full-page reloads.
+
 ### Exposed API (`window.electronAPI`)
 
 The preload script exposes the following methods:
