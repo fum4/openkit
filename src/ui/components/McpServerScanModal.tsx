@@ -283,10 +283,10 @@ export function McpServerScanModal({
                 {pluginsLoading ? (
                   <>
                     <Spinner size="xs" className={text.muted} />
-                    Plugins
+                    Claude Plugins
                   </>
                 ) : (
-                  <>Plugins ({plugins.length})</>
+                  <>Claude Plugins ({plugins.length})</>
                 )}
               </button>
             )}
@@ -309,7 +309,7 @@ export function McpServerScanModal({
                         type="checkbox"
                         checked={selectedMcps.has(r.key)}
                         onChange={() => toggleMcp(r.key)}
-                        className="mt-[5px] accent-teal-400"
+                        className="mt-[7px] accent-teal-400"
                       />
                       <div className="flex-1 min-w-0">
                         <span className={`text-xs font-medium ${text.primary}`}>{r.key}</span>
@@ -344,7 +344,7 @@ export function McpServerScanModal({
                         type="checkbox"
                         checked={selectedSkills.has(r.name)}
                         onChange={() => toggleSkill(r.name)}
-                        className="mt-[5px] accent-teal-400"
+                        className="mt-[7px] accent-teal-400"
                       />
                       <div className="flex-1 min-w-0">
                         <span className={`text-xs font-medium ${text.primary}`}>
@@ -365,7 +365,8 @@ export function McpServerScanModal({
           ) : (
             <div key="plugins-tab">
               <p className={`${text.dimmed} text-[11px] mb-3`}>
-                Plugins are managed by Claude CLI and appear automatically in the sidebar. No import
+                Claude Plugins are managed by Claude CLI and appear automatically in the sidebar. No
+                import
                 needed.
               </p>
               <div className="space-y-1 max-h-72 overflow-y-auto">

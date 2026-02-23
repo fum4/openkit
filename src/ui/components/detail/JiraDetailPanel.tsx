@@ -420,7 +420,7 @@ export function JiraDetailPanel({
               rel="noopener noreferrer"
               className={`group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${button.secondary} rounded-lg transition-colors duration-150`}
             >
-              <JiraIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-blue-400" />
+              <JiraIcon className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-blue-400 [&>svg]:text-inherit" />
               Open in Jira
             </a>
             {activeLinkedWorktreeId ? (

@@ -407,7 +407,7 @@ export function DetailHeader({
                   <button
                     type="button"
                     onClick={() => jiraKey && onSelectJiraIssue?.(jiraKey)}
-                    className={`flex items-center gap-1.5 text-[11px] ${badge.jira} ${badge.jiraHover} transition-colors duration-150`}
+                    className={`group flex items-center gap-1.5 text-[11px] ${badge.jira} ${badge.jiraHover} transition-colors duration-150`}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -437,9 +437,9 @@ export function DetailHeader({
                   <button
                     type="button"
                     onClick={() => linearId && onSelectLinearIssue?.(linearId)}
-                    className={`flex items-center gap-1.5 text-[11px] ${badge.linear} ${badge.linearHover} transition-colors duration-150`}
+                    className={`group flex items-center gap-1.5 text-[11px] ${badge.linear} ${badge.linearHover} transition-colors duration-150`}
                   >
-                    <LinearIcon className="w-3 h-3" />
+                    <LinearIcon className="w-3 h-3 [&>svg]:text-inherit" />
                     Linear{worktree.linearStatus ? ` \u00b7 ${worktree.linearStatus}` : ""}
                   </button>
                 </Tooltip>
@@ -450,7 +450,7 @@ export function DetailHeader({
               <button
                 type="button"
                 onClick={() => onSelectLocalIssue?.(worktree.localIssueId!)}
-                className={`flex items-center gap-1.5 text-[11px] ${badge.localIssue} ${badge.localIssueHover} transition-colors duration-150`}
+                className={`group flex items-center gap-1.5 text-[11px] ${badge.localIssue} ${badge.localIssueHover} transition-colors duration-150`}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

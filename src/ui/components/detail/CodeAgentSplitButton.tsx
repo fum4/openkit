@@ -47,15 +47,15 @@ function AgentIcon({
 
 function getMainIconClassName(agent: CodingAgent): string {
   if (agent === "claude") {
-    return "text-[#6b7280] group-hover:text-[#D97757]";
+    return "text-[#6b7280] group-hover:text-[#D97757] [&>svg]:text-inherit";
   }
   if (agent === "gemini") {
-    return "text-[#6b7280] group-hover:text-[#8AB4FF]";
+    return "text-[#6b7280] group-hover:text-[#8AB4FF] [&>svg]:text-inherit";
   }
   if (agent === "opencode") {
-    return "text-[#6b7280] group-hover:text-[#78D0A9]";
+    return "text-[#6b7280] group-hover:text-[#78D0A9] [&>svg]:text-inherit";
   }
-  return "text-white/80 group-hover:text-white";
+  return "text-[#6b7280] group-hover:text-white [&>svg]:text-inherit";
 }
 
 function getMenuIconClassName(agent: CodingAgent): string {

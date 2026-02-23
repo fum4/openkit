@@ -76,7 +76,7 @@ export function WorktreeItem({
                     if (key) onSelectJiraIssue?.(key);
                   }}
                 >
-                  <JiraIcon className="w-3.5 h-3.5" />
+                  <JiraIcon className="w-3.5 h-3.5 [&>svg]:text-inherit" />
                 </span>
               </Tooltip>
             );
@@ -93,7 +93,7 @@ export function WorktreeItem({
                     if (id) onSelectLinearIssue?.(id);
                   }}
                 >
-                  <LinearIcon className="w-3.5 h-3.5" />
+                  <LinearIcon className="w-3.5 h-3.5 [&>svg]:text-inherit" />
                 </span>
               </Tooltip>
             );

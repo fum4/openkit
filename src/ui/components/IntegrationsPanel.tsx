@@ -775,7 +775,9 @@ function JiraCard({
         <div
           className={`w-8 h-8 rounded-lg flex items-center justify-center ${isConfigured ? "bg-blue-500/10" : "bg-white/[0.04]"}`}
         >
-          <JiraIcon className={`w-4 h-4 ${isConfigured ? "text-blue-400" : text.muted}`} />
+          <JiraIcon
+            className={`w-4 h-4 [&>svg]:text-inherit ${isConfigured ? "text-blue-400" : text.muted}`}
+          />
         </div>
         <div>
           <h3 className={`text-xs font-semibold ${text.primary}`}>Jira</h3>
@@ -1055,7 +1057,9 @@ function LinearCard({
         <div
           className={`w-8 h-8 rounded-lg flex items-center justify-center ${isConfigured ? "bg-[#5E6AD2]/10" : "bg-white/[0.04]"}`}
         >
-          <LinearIcon className={`w-4 h-4 ${isConfigured ? "text-[#5E6AD2]" : text.muted}`} />
+          <LinearIcon
+            className={`w-4 h-4 [&>svg]:text-inherit ${isConfigured ? "text-[#5E6AD2]" : text.muted}`}
+          />
         </div>
         <div>
           <h3 className={`text-xs font-semibold ${text.primary}`}>Linear</h3>

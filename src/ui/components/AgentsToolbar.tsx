@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Puzzle, ScanSearch, Search, Server, Sparkles } from "lucide-react";
+import { Plus, ScanSearch, Search, Server, Sparkles } from "lucide-react";
 
+import { ClaudeIcon } from "../icons";
 import { skill, input, integration, surface, text } from "../theme";
 
 interface AgentsToolbarProps {
@@ -102,8 +103,8 @@ export function AgentsToolbar({
             }}
             className={menuItemClass}
           >
-            <Puzzle className="w-4 h-4 text-[#D4A574]" />
-            Plugin
+            <ClaudeIcon className="w-4 h-4 text-[#D97757] [&>svg]:text-inherit" />
+            Claude Plugin
           </button>
           <div className="border-t border-white/[0.06]" />
           <button

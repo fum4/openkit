@@ -665,6 +665,10 @@ export default function App() {
   const [showSetupCommitModal, setShowSetupCommitModal] = useState(false);
 
   useEffect(() => {
+    if (import.meta.env.DEV) {
+      return;
+    }
+
     const handlePreventRefreshShortcut = (event: KeyboardEvent) => {
       const isReloadChord = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "r";
       const isF5 = event.key === "F5";

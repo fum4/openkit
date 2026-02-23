@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 // Global type declarations
 
 interface ElectronProject {

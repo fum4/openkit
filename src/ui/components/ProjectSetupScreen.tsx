@@ -513,7 +513,7 @@ export function ProjectSetupScreen({
         borderColor: "border-blue-400/30",
         connected: jiraConfigured,
         connectedLabel: intJiraStatus?.domain ?? undefined,
-        icon: <JiraIcon className="w-[18px] h-[18px]" />,
+        icon: <JiraIcon className="w-[18px] h-[18px] [&>svg]:text-inherit" />,
       },
       {
         id: "linear",
@@ -524,7 +524,7 @@ export function ProjectSetupScreen({
         borderColor: "border-[#5E6AD2]/30",
         connected: linearConfigured,
         connectedLabel: intLinearStatus?.displayName ?? undefined,
-        icon: <LinearIcon className="w-[18px] h-[18px]" />,
+        icon: <LinearIcon className="w-[18px] h-[18px] [&>svg]:text-inherit" />,
       },
     ];
 
