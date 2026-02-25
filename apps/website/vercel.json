@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "corepack enable && corepack prepare pnpm@10.30.1 --activate && pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm build",
+  "installCommand": "corepack enable && corepack prepare pnpm@10.30.1 --activate && corepack pnpm --version && corepack pnpm install --frozen-lockfile",
+  "buildCommand": "corepack pnpm build",
   "outputDirectory": "dist"
 }
