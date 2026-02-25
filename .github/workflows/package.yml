@@ -13,46 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.release_tag.outputs.tag }}
-
-    steps:
-      - name: Checkout release commit
-        uses: actions/checkout@v6
-
-      - name: Resolve release tag from package version
-        id: release_tag
-        run: |
-          set -euo pipefail
-          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-
-      - name: Wait for GitHub release to exist
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          tag="${{ steps.release_tag.outputs.tag }}"
-          for attempt in $(seq 1 30); do
-            status="$(
-              curl -sS -o /tmp/release.json -w "%{http_code}" \
-                -H "Authorization: Bearer ${GH_TOKEN}" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${tag}"
-            )"
-            if [ "$status" = "200" ]; then
-              echo "Release ${tag} is available."
-              exit 0
-            fi
-            echo "Release ${tag} not available yet (HTTP ${status}), retry ${attempt}/30."
-            sleep 10
-          done
-          echo "Timed out waiting for release ${tag} to be created." >&2
-          exit 1
-
   macos:
-    needs: prepare
     runs-on: macos-latest
     timeout-minutes: 30
 
@@ -60,27 +21,26 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v6
         with:
-          ref: ${{ needs.prepare.outputs.tag }}
+          ref: ${{ github.ref_name }}
 
-      - name: Setup workspace
+      - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
 
-      - name: Build macOS app artifacts
+      - name: Build desktop artifacts
         run: pnpm package:desktop:mac
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - name: Upload macOS assets to release
+      - name: Upload assets to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.prepare.outputs.tag }}
+          tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: true
           files: |
             apps/desktop-app/release/*.dmg
             apps/desktop-app/release/*.dmg.blockmap
 
   linux:
-    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -88,18 +48,18 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v6
         with:
-          ref: ${{ needs.prepare.outputs.tag }}
+          ref: ${{ github.ref_name }}
 
-      - name: Setup workspace
+      - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
 
-      - name: Build Linux app artifacts
+      - name: Build desktop artifacts
         run: pnpm package:desktop:linux
 
-      - name: Upload Linux assets to release
+      - name: Upload assets to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.prepare.outputs.tag }}
+          tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: true
           files: |
             apps/desktop-app/release/*.AppImage
