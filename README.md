@@ -111,8 +111,8 @@ Environment variables:
 Everything is released from `master`. On merge/push to master:
 
 - CI runs code quality, type checks, smoke tests, and full builds.
-- The release workflow creates a GitHub release automatically.
-- Desktop release artifacts are attached automatically to that release.
+- The release workflow creates the release commit/tag and GitHub release automatically.
+- A dedicated desktop-assets workflow (triggered on release publish) attaches macOS/Linux artifacts to that tag.
 
 <br /><br />
 

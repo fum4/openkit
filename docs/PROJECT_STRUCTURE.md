@@ -18,6 +18,7 @@ OpenKit/
 ├── dist/                Core runtime build output (generated)
 ├── nx.json              Nx workspace/task graph config
 ├── pnpm-workspace.yaml  pnpm workspace package map
+├── vercel.json          Root Vercel build/install/output config
 ├── package.json
 ├── tsconfig.json
 └── ...
@@ -80,6 +81,7 @@ apps/
 ├── website/             Astro marketing site (`website`)
 │   ├── project.json
 │   ├── package.json
+│   ├── vercel.json      Website-scoped Vercel build/install/output config
 │   ├── dist/            Static website output (generated)
 │   └── src/
 │

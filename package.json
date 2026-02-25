@@ -65,9 +65,10 @@
     "*.{css,html,json,md,mdx,scss,yaml,yml}": "oxfmt --check"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18",
+    "pnpm": ">=10"
   },
-  "packageManager": "pnpm@10.17.1",
+  "packageManager": "pnpm@10.30.1",
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",

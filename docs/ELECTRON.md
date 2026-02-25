@@ -263,6 +263,7 @@ productName: OpenKit
 ### Packaging Details
 
 - **asar**: Enabled. The app is bundled into an asar archive for faster loading.
+- **Main entry override**: `extraMetadata.main` is set to `apps/desktop-app/dist/main.js` so the packaged `app.asar` resolves the Electron main process entry correctly.
 - **asarUnpack**: `apps/desktop-app/dist/**`, `apps/cli/dist/**`, and `node_modules/node-pty/**` are unpacked from the asar archive (configured in `apps/desktop-app/electron-builder.yml`).
 - **extraResources**: `apps/server/dist/runtime` (containing `port-hook.cjs`) is copied to the `runtime` resource directory.
 - **Included files**: `apps/desktop-app/dist/**/*`, `apps/cli/dist/**/*`, `apps/web-app/dist/**/*`, `apps/server/dist/runtime/**/*`, `node_modules/**/*`, `package.json`

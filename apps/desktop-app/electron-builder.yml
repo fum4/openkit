@@ -36,6 +36,8 @@ dmg:
       type: link
       path: /Applications
 asar: true
+extraMetadata:
+  main: apps/desktop-app/dist/main.js
 asarUnpack:
   - apps/desktop-app/dist/**
   - apps/cli/dist/**
