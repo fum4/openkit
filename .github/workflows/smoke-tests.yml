@@ -27,7 +27,7 @@ jobs:
             log_file: /tmp/OpenKit-macos-smoke.log
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-pnpm-node
       - run: pnpm run build:cli && pnpm run build:server
       - name: Smoke test CLI startup
