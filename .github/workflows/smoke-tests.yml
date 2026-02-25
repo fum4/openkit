@@ -1,8 +1,6 @@
 name: Smoke Tests
 
 on:
-  push:
-    branches: [master]
   pull_request:
     branches: [master]
 
@@ -15,7 +13,6 @@ jobs:
     name: CLI startup (${{ matrix.os_name }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12
-    if: "!startsWith(github.event.head_commit.message, '📦 release:')"
     strategy:
       fail-fast: false
       matrix:

@@ -1,8 +1,6 @@
 name: Code Quality
 
 on:
-  push:
-    branches: [master]
   pull_request:
     branches: [master]
 
@@ -14,7 +12,6 @@ jobs:
   format:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: "!startsWith(github.event.head_commit.message, '📦 release:')"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-pnpm-node
@@ -23,7 +20,6 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: "!startsWith(github.event.head_commit.message, '📦 release:')"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-pnpm-node
@@ -32,7 +28,6 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: "!startsWith(github.event.head_commit.message, '📦 release:')"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-pnpm-node
@@ -41,7 +36,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: "!startsWith(github.event.head_commit.message, '📦 release:')"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-pnpm-node

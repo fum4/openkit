@@ -121,6 +121,7 @@ Run `pnpm run setup` to create `.env.local` from `.env.example` (without overwri
 
 npm publishing is currently paused.
 
+- Code quality and smoke-test workflows run on pull requests targeting `master` (not on direct push to `master`).
 - The release workflow still runs `pnpm release:verify` and creates release tags plus the GitHub release.
 - Desktop release assets are built/uploaded in `.github/workflows/package.yml` on release tag pushes (`v*`).
 - npm-specific publish steps are commented out in `.github/workflows/release.yml`.
