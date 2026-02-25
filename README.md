@@ -112,7 +112,8 @@ Everything is released from `master`. On merge/push to master:
 
 - CI runs code quality, type checks, smoke tests, and full builds.
 - The release workflow creates the release commit/tag and GitHub release automatically.
-- A dedicated package workflow runs on the `📦 release:` commit and attaches macOS/Linux artifacts to that tag.
+- A dedicated package workflow runs on release tag pushes (`v*`) and attaches macOS/Linux artifacts to that tag.
+- The website Vercel project uses an `ignoreCommand` to skip deploys when commits do not change files under `apps/website/`.
 
 <br /><br />
 

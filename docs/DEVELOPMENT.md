@@ -122,7 +122,7 @@ Run `pnpm run setup` to create `.env.local` from `.env.example` (without overwri
 npm publishing is currently paused.
 
 - The release workflow still runs `pnpm release:verify` and creates release tags plus the GitHub release.
-- Desktop release assets are built/uploaded in `.github/workflows/package.yml` on push to `master` when the commit message starts with `📦 release:`.
+- Desktop release assets are built/uploaded in `.github/workflows/package.yml` on release tag pushes (`v*`).
 - npm-specific publish steps are commented out in `.github/workflows/release.yml`.
 
 ## Dependency Updates
@@ -238,6 +238,8 @@ Electron has its own TypeScript config (`apps/desktop-app/tsconfig.json`) target
 ### Website (Astro)
 
 The marketing site in `apps/website` uses Astro. `pnpm build:website` (or `nx run website:build`) outputs static assets to `apps/website/dist/`.
+
+For Vercel deployments with `apps/website` as the project root, `apps/website/vercel.json` uses an `ignoreCommand` that skips builds when the current commit does not modify files in `apps/website/`.
 
 ### Mobile (Expo)
 

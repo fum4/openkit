@@ -2,10 +2,11 @@ name: Package
 
 on:
   push:
-    branches: [master]
+    tags:
+      - "v*"
 
 concurrency:
-  group: release-assets-${{ github.sha }}
+  group: release-assets-${{ github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -14,7 +15,6 @@ permissions:
 jobs:
   prepare:
     runs-on: ubuntu-latest
-    if: "startsWith(github.event.head_commit.message, '📦 release:')"
     outputs:
       tag: ${{ steps.release_tag.outputs.tag }}
 
@@ -26,12 +26,7 @@ jobs:
         id: release_tag
         run: |
           set -euo pipefail
-          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
-          if [ -z "$version" ]; then
-            echo "Failed to resolve package version for release tag" >&2
-            exit 1
-          fi
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Wait for GitHub release to exist
         env:
@@ -60,7 +55,6 @@ jobs:
     needs: prepare
     runs-on: macos-latest
     timeout-minutes: 30
-    if: "startsWith(github.event.head_commit.message, '📦 release:')"
 
     steps:
       - name: Checkout release tag
@@ -89,7 +83,6 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: "startsWith(github.event.head_commit.message, '📦 release:')"
 
     steps:
       - name: Checkout release tag
