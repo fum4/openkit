@@ -25,6 +25,7 @@ ok --help
 | `ok [--no-open] [--auto-init]`                             | Alias for `openkit [--no-open] [--auto-init]`.                           |
 | `openkit init`                                             | Run setup wizard and create `.openkit/config.json`.                      |
 | `openkit add [github\|linear\|jira]`                       | Connect or configure an integration.                                     |
+| `openkit ui [status\|install ...]`                         | Manage optional UI components (web bundle and desktop app).              |
 | `openkit mcp`                                              | Run OpenKit as an MCP server for agents.                                 |
 | `openkit activity await-input ...`                         | Emit an "agent awaiting user input" activity event for the UI.           |
 | `openkit activity phase ...`                               | Emit a canonical workflow phase checkpoint event for a worktree.         |
@@ -64,8 +65,9 @@ When run without a subcommand, OpenKit does the following:
 7. Opens the UI:
    - If the Electron app is installed, opens it via the `OpenKit://` protocol
    - If running in dev mode with Electron available, spawns Electron directly
-   - If no Electron is found and the terminal is interactive, prompts to install the desktop app (macOS only — downloads and installs the latest DMG from GitHub Releases)
-   - If the user declines or the terminal is non-interactive, just prints the server URL
+   - If Electron is not available but web UI assets exist (bundled `apps/web-app/dist` or downloaded component), opens the browser
+   - If no UI assets are found and the terminal is interactive, runs an interactive UI setup flow (`openkit ui`) to install optional web/desktop components
+   - If the user skips setup or the terminal is non-interactive, prints the server URL
 
 **Options:**
 
@@ -75,6 +77,33 @@ When run without a subcommand, OpenKit does the following:
 | `--auto-init` | `OPENKIT_AUTO_INIT=1` | Auto-initialize config if none is found (skips interactive prompts) |
 
 On first run, OpenKit also installs itself into `~/.local/bin/` (as shell wrappers) so `openkit` and `ok` are available system-wide. If `~/.local/bin` is not in your `PATH`, it will print a warning with instructions.
+
+---
+
+### `openkit ui`
+
+Manage optional UI components for a core CLI/server install.
+
+```bash
+openkit ui
+openkit ui status
+openkit ui install web
+openkit ui install desktop
+openkit ui install both
+```
+
+Behavior:
+
+- `openkit ui` launches an interactive setup flow
+- `status` shows detected desktop/web UI availability for the current project
+- `install web` downloads and installs a release web UI bundle to `~/.openkit/components/web/`
+- `install desktop` runs desktop app installation flow (macOS DMG)
+- `install both` installs both web and desktop components
+
+Notes:
+
+- Downloaded web UI bundle symlink is maintained at `~/.openkit/components/web/current`
+- The server serves UI from `apps/web-app/dist` first, then falls back to `~/.openkit/components/web/current`
 
 ---
 
@@ -456,7 +485,7 @@ If no config is found, OpenKit uses defaults:
 
 The server port is determined by the following priority (highest first):
 
-1. **`OPENKIT_PORT` environment variable** -- e.g., `OPENKIT_PORT=7070 openkit`
+1. **`OPENKIT_SERVER_PORT` environment variable** -- e.g., `OPENKIT_SERVER_PORT=7070 openkit`
 2. **Global preferences** -- `basePort` in `~/.openkit/app-preferences.json` (configurable through the Electron app or API)
 3. **Default** -- `6969`
 
@@ -468,7 +497,7 @@ If the chosen port is already in use, OpenKit automatically increments and tries
 
 | Variable                   | Description                                                                       |
 | -------------------------- | --------------------------------------------------------------------------------- |
-| `OPENKIT_PORT`             | Override the server port (highest priority)                                       |
+| `OPENKIT_SERVER_PORT`      | Override the server port (highest priority)                                       |
 | `OPENKIT_NO_OPEN`          | Set to `1` to start the server without opening the UI (equivalent to `--no-open`) |
 | `OPENKIT_AUTO_INIT`        | Set to `1` to auto-initialize config if none found (equivalent to `--auto-init`)  |
 | `OPENKIT_ENABLE_MCP_SETUP` | Set to `1` to enable MCP setup routes                                             |

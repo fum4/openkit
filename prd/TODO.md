@@ -2,6 +2,10 @@
 
 ## Misc
 
+- Rename .openkit to .ok
+
+- assets vs public/assets? clean up
+
 - 🚧 After authenticating GitHub the UI does not automatically refresh
 
 - ✅ Use dialogs for commit message / PR name (worktree view)

@@ -18,6 +18,7 @@ OpenKit uses several configuration files at both the project level (`.openkit/` 
 - [Worktree Directory (`.openkit/worktrees/`)](#worktree-directory-openkitworktrees)
 - [Git Ignore (`.openkit/.gitignore`)](#git-ignore-openkitgitignore)
 - [Global Preferences (`~/.openkit/app-preferences.json`)](#global-preferences-openkitapp-preferencesjson)
+- [UI Components (`~/.openkit/components/web/`)](#ui-components-openkitcomponentsweb)
 - [MCP Server Registry (`~/.openkit/mcp-servers.json`)](#mcp-server-registry-openkitmcp-serversjson)
 
 ---
@@ -837,6 +838,28 @@ User-level preferences stored in the home directory. Not project-specific.
 | `windowBounds.y`      | `number`         |         | Window Y position                                                                                                       |
 | `windowBounds.width`  | `number`         |         | Window width                                                                                                            |
 | `windowBounds.height` | `number`         |         | Window height                                                                                                           |
+
+---
+
+## UI Components (`~/.openkit/components/web/`)
+
+Optional UI bundles installed by `openkit ui`.
+
+### Structure
+
+```text
+~/.openkit/components/
+└── web/
+    ├── current -> <version>/   # symlink used by the server as fallback UI path
+    ├── installed.json          # metadata (tag, asset name, timestamp)
+    └── <version>/              # extracted static web app (contains index.html)
+```
+
+### Behavior
+
+- The server serves UI from `apps/web-app/dist` when available.
+- If `apps/web-app/dist` is missing (core-only install), it falls back to `~/.openkit/components/web/current`.
+- `openkit ui install web` updates the `current` symlink to the newly installed version.
 
 ---
 

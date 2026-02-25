@@ -1,0 +1,138 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🏃‍♂️ Run",
+      "command": "pnpm run dev",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🏃‍♂️ Run (cli)",
+      "command": "pnpm run dev:cli",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🏃‍♂️ Run (server)",
+      "command": "pnpm run dev:server",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🏃‍♂️ Run (website)",
+      "command": "pnpm run dev:website",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🏃‍♂️ Run (web-app)",
+      "command": "pnpm run dev:web-app",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🏃‍♂️ Run (mobile-app)",
+      "command": "pnpm run dev:mobile-app",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🏃‍♂️ Run (desktop-app)",
+      "command": "pnpm run dev:desktop-app",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "⚙️ Build",
+      "command": "pnpm run build",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "⚙️ Build (cli)",
+      "command": "pnpm run build:cli",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "⚙️ Build (server)",
+      "command": "pnpm run build:server",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "⚙️ Build (website)",
+      "command": "pnpm run build:website",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "⚙️ Build (web-app)",
+      "command": "pnpm run build:web-app",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "⚙️ Build (mobile-app)",
+      "command": "pnpm run build:mobile-app",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "⚙️ Build (desktop-app)",
+      "command": "pnpm run build:desktop-app",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "📦 Package (mac)",
+      "command": "pnpm run package:desktop:mac",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "📦 Package (linux)",
+      "command": "pnpm run package:desktop:linux",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "📦 Package (mac + linux)",
+      "command": "pnpm run package:desktop",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "👀 Check",
+      "command": "pnpm run check:all",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🛠️ Fix",
+      "command": "pnpm run fix:all",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

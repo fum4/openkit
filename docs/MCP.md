@@ -43,7 +43,7 @@ This endpoint is registered automatically when the OpenKit HTTP server starts. P
 
 ## Complete Tool Reference
 
-All tools are defined in `src/actions.ts` and registered on the MCP server via `src/server/mcp-server-factory.ts`. Every tool returns JSON content.
+All tools are defined in `libs/agent/src/actions.ts` and registered on the MCP server via `apps/server/src/mcp-server-factory.ts`. Every tool returns JSON content.
 
 ### Issue Browsing
 

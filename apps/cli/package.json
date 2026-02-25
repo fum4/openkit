@@ -1,0 +1,24 @@
+{
+  "name": "cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup --dts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "oxlint src",
+    "start": "node dist/cli/index.js",
+    "ui": "node dist/cli/index.js ui"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.3.0",
+    "node-pty": "1.2.0-beta.10",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "oxlint": "^1.50.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.9.3"
+  }
+}

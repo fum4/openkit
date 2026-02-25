@@ -53,20 +53,25 @@ There is no test runner configured.
 
 **Fix any lint or format errors you encounter — whether introduced by current changes or pre-existing in the codebase.** Don't leave broken windows.
 
+## TypeScript Preference
+
+- Always prefer TypeScript (`.ts`/`.tsx`) whenever possible.
+- Use `.js`/`.mjs`/`.cjs` only when required by runtime or tool constraints.
+
 ## UI Theme Consistency
 
-- Always use the standard shared color palette and tokens from `src/ui/theme.ts`.
+- Always use the standard shared color palette and tokens from `apps/web-app/src/theme.ts`.
 - Do not introduce ad-hoc lighter/darker color variants for existing control patterns.
 - For switches/toggles, reuse the app-standard treatment (`bg-accent` when enabled, neutral off-state styling when disabled).
 
 ## Icon Handling
 
-- Store frontend icon assets in `src/ui/icons/` as `.svg`/`.png`.
-- Define and export one icon component per asset from `src/ui/icons/index.tsx` (for example `GitHubIcon`, `JiraIcon`).
-- For SVG assets, import with `*.svg?raw` and render through the shared SVG wrapper in `src/ui/icons/index.tsx` to keep sizing/bounds consistent.
-- PNG assets are allowed when needed (for example `finder.png`), but still must be wrapped by an exported icon component in `src/ui/icons/index.tsx`.
-- In UI code, import icon components from `src/ui/icons/index.tsx` (for example `import { GitHubIcon } from "../icons"`), not raw asset files.
-- Do not import `.svg`/`.png` directly from feature components; only `src/ui/icons/index.tsx` should import raw icon assets.
+- Store frontend icon assets in `apps/web-app/src/icons/` as `.svg`/`.png`.
+- Define and export one icon component per asset from `apps/web-app/src/icons/index.tsx` (for example `GitHubIcon`, `JiraIcon`).
+- For SVG assets, import with `*.svg?raw` and render through the shared SVG wrapper in `apps/web-app/src/icons/index.tsx` to keep sizing/bounds consistent.
+- PNG assets are allowed when needed (for example `finder.png`), but still must be wrapped by an exported icon component in `apps/web-app/src/icons/index.tsx`.
+- In UI code, import icon components from `apps/web-app/src/icons/index.tsx` (for example `import { GitHubIcon } from "../icons"`), not raw asset files.
+- Do not import `.svg`/`.png` directly from feature components; only `apps/web-app/src/icons/index.tsx` should import raw icon assets.
 
 ## Dependencies
 

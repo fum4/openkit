@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "QR Scanner",
+    "slug": "mobile-app",
+    "scheme": "mobileapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera so you can scan QR codes."
+        }
+      ],
+      "expo-router"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.mobileapp",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow this app to use your camera to scan QR codes."
+      }
+    },
+    "android": {
+      "package": "com.example.mobileapp",
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

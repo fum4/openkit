@@ -1,6 +1,10 @@
 node_modules/
+.nx/
 dist/
 release/
 .openkit/*
 !.openkit/config.json
 .DS_Store
+.env
+.env.*
+!.env.example

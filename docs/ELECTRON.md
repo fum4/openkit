@@ -4,24 +4,24 @@ OpenKit includes an optional Electron app that provides a native desktop experie
 
 ## Architecture Overview
 
-The Electron app is structured across several modules in the `electron/` directory:
+The Electron app source is structured across several modules in the `apps/desktop-app/src/` directory:
 
-| File                               | Purpose                                                              |
-| ---------------------------------- | -------------------------------------------------------------------- |
-| `electron/main.ts`                 | Main process: window creation, IPC handlers, tray, protocol handling |
-| `electron/preload.ts`              | TypeScript source for the preload script (reference only)            |
-| `electron/preload.cjs`             | CommonJS preload script that bridges renderer and main process       |
-| `electron/project-manager.ts`      | Manages multiple project connections and server lifecycles           |
-| `electron/notification-manager.ts` | Native OS notifications from project SSE activity streams            |
-| `electron/preferences-manager.ts`  | Persists window state, sidebar width, and app preferences            |
-| `electron/server-spawner.ts`       | Spawns and stops OpenKit backend server processes                    |
-| `electron/tsconfig.json`           | TypeScript config for compiling electron sources to `dist/electron/` |
+| File                                           | Purpose                                                                      |
+| ---------------------------------------------- | ---------------------------------------------------------------------------- |
+| `apps/desktop-app/src/main.ts`                 | Main process: window creation, IPC handlers, tray, protocol handling         |
+| `apps/desktop-app/src/preload.ts`              | TypeScript source for the preload script (reference only)                    |
+| `apps/desktop-app/src/preload.cjs`             | CommonJS preload script that bridges renderer and main process               |
+| `apps/desktop-app/src/project-manager.ts`      | Manages multiple project connections and server lifecycles                   |
+| `apps/desktop-app/src/notification-manager.ts` | Native OS notifications from project SSE activity streams                    |
+| `apps/desktop-app/src/preferences-manager.ts`  | Persists window state, sidebar width, and app preferences                    |
+| `apps/desktop-app/src/server-spawner.ts`       | Spawns and stops OpenKit backend server processes                            |
+| `apps/desktop-app/tsconfig.json`               | TypeScript config for compiling electron sources to `apps/desktop-app/dist/` |
 
-The renderer loads the same React SPA that the browser mode uses (`dist/ui/index.html`), but with additional capabilities exposed through `window.electronAPI` via the preload script.
+The renderer loads the same React SPA that the browser mode uses (`apps/web-app/dist/index.html`), but with additional capabilities exposed through `window.electronAPI` via the preload script.
 
 ## Launch Methods
 
-When you run `OpenKit` from a project directory, the CLI in `src/cli/index.ts` decides where to open the UI through a three-step detection cascade:
+When you run `OpenKit` from a project directory, the CLI in `apps/cli/src/index.ts` decides where to open the UI through a three-step detection cascade:
 
 ### 1. Check for Installed .app Bundle (macOS)
 
@@ -35,7 +35,7 @@ If found, it opens the project via the `OpenKit://` custom protocol, which the i
 
 ### 2. Check for Electron in Dev Mode
 
-If no installed app is found, the CLI looks for the Electron binary at the OpenKit project's own `node_modules/.bin/electron` and the compiled main process entry at `dist/electron/main.js`. If both exist, it spawns Electron directly:
+If no installed app is found, the CLI looks for the Electron binary at the OpenKit project's own `node_modules/.bin/electron` and the compiled main process entry at `apps/desktop-app/dist/main.js`. If both exist, it spawns Electron directly:
 
 ```
 electron <projectRoot> --port <port>
@@ -88,7 +88,7 @@ The app enforces a single instance via `app.requestSingleInstanceLock()`. If a s
 
 ## Multi-Project Support
 
-The Electron app can manage multiple OpenKit projects simultaneously, each running its own backend server. This is handled by `ProjectManager` (`electron/project-manager.ts`).
+The Electron app can manage multiple OpenKit projects simultaneously, each running its own backend server. This is handled by `ProjectManager` (`apps/desktop-app/src/project-manager.ts`).
 
 ### How It Works
 
@@ -96,16 +96,16 @@ Each project gets:
 
 - A unique ID derived from a hash of its absolute directory path
 - An allocated port (incrementing from the base port)
-- A spawned OpenKit server process (`<runtime> dist/cli/index.js --no-open`)
+- A spawned OpenKit server process (`<runtime> apps/cli/dist/cli/index.js --no-open`)
 - A status lifecycle: `starting` -> `running` | `error` -> `stopped`
 
 The project name is resolved from the project's `package.json` name field, falling back to the directory name.
 
 ### Server Spawning
 
-`ServerSpawner` (`electron/server-spawner.ts`) handles the process lifecycle:
+`ServerSpawner` (`apps/desktop-app/src/server-spawner.ts`) handles the process lifecycle:
 
-- **Spawn**: Runs `<runtime> <cliPath> --no-open` with `OPENKIT_PORT` and `OPENKIT_NO_OPEN` environment variables set. In packaged builds, it uses the app's own Electron binary in Node mode (`ELECTRON_RUN_AS_NODE=1`) so the CLI can resolve dependencies from `app.asar`.
+- **Spawn**: Runs `<runtime> <cliPath> --no-open` with `OPENKIT_SERVER_PORT` and `OPENKIT_NO_OPEN` environment variables set. In packaged builds, it uses the app's own Electron binary in Node mode (`ELECTRON_RUN_AS_NODE=1`) so the CLI can resolve dependencies from `app.asar`.
 - **Readiness check**: Polls `GET http://localhost:<port>/api/config` every 500ms until it responds with HTTP 200, with a 30-second timeout.
 - **Shutdown**: Sends `SIGTERM` for graceful shutdown, then `SIGKILL` after 5 seconds if the process has not exited.
 
@@ -113,7 +113,7 @@ Debug output from spawned servers is logged to `/tmp/OpenKit-debug.log`.
 
 ### Tab Bar
 
-The renderer receives project and active-project updates from the main process via IPC events (`projects-changed`, `active-project-changed`). The `ServerContext` (`src/ui/contexts/ServerContext.tsx`) translates the active project's port into a `serverUrl` that all API hooks use for data fetching and SSE connections.
+The renderer receives project and active-project updates from the main process via IPC events (`projects-changed`, `active-project-changed`). The `ServerContext` (`apps/web-app/src/contexts/ServerContext.tsx`) translates the active project's port into a `serverUrl` that all API hooks use for data fetching and SSE connections.
 
 Switching tabs changes the active project in the main process, which updates the `serverUrl` in the renderer, causing React Query to refetch against the new backend.
 
@@ -132,7 +132,7 @@ On launch, if no projects are open (no `--project` flag, no protocol URL), the a
 
 ## PreferencesManager
 
-`PreferencesManager` (`electron/preferences-manager.ts`) is a singleton that persists user preferences to `~/.openkit/app-preferences.json`.
+`PreferencesManager` (`apps/desktop-app/src/preferences-manager.ts`) is a singleton that persists user preferences to `~/.openkit/app-preferences.json`.
 
 ### Stored Preferences
 
@@ -151,7 +151,7 @@ Window bounds are saved on every resize/move (unless the window is maximized or 
 
 ## Preload Script and Context Isolation
 
-The Electron app uses strict context isolation. The preload script (`electron/preload.cjs`) uses `contextBridge.exposeInMainWorld` to expose a limited API on `window.electronAPI`.
+The Electron app uses strict context isolation. The preload script (`apps/desktop-app/src/preload.cjs`) uses `contextBridge.exposeInMainWorld` to expose a limited API on `window.electronAPI`.
 
 ### Window Configuration
 
@@ -214,7 +214,7 @@ The tray icon is a small PNG encoded as a base64 string in `main.ts`, set as a t
 
 ## Native OS Notifications
 
-`NotificationManager` (`electron/notification-manager.ts`) subscribes to activity event streams from all open projects and fires native OS notifications when the app window is unfocused.
+`NotificationManager` (`apps/desktop-app/src/notification-manager.ts`) subscribes to activity event streams from all open projects and fires native OS notifications when the app window is unfocused.
 
 ### How It Works
 
@@ -247,7 +247,7 @@ Notifications are debounced at 10 seconds per project to avoid spam. If multiple
 
 ## Build Configuration
 
-The `electron-builder.yml` file configures the packaged app:
+The `apps/desktop-app/electron-builder.yml` file configures the packaged app:
 
 ```yaml
 appId: com.openkit.app
@@ -263,39 +263,43 @@ productName: OpenKit
 ### Packaging Details
 
 - **asar**: Enabled. The app is bundled into an asar archive for faster loading.
-- **asarUnpack**: `dist/*.js`, `dist/cli/**`, and `node_modules/node-pty/**` are unpacked from the asar archive (configured in `electron-builder.yml`).
-- **extraResources**: `dist/runtime` (containing `port-hook.cjs`) is copied to the `runtime` resource directory.
-- **Included files**: `dist/**/*`, `node_modules/**/*`, `package.json`
-- **Output directory**: `release/`
+- **asarUnpack**: `apps/desktop-app/dist/**`, `apps/cli/dist/**`, and `node_modules/node-pty/**` are unpacked from the asar archive (configured in `apps/desktop-app/electron-builder.yml`).
+- **extraResources**: `apps/server/dist/runtime` (containing `port-hook.cjs`) is copied to the `runtime` resource directory.
+- **Included files**: `apps/desktop-app/dist/**/*`, `apps/cli/dist/**/*`, `apps/web-app/dist/**/*`, `apps/server/dist/runtime/**/*`, `node_modules/**/*`, `package.json`
+- **Output directory**: `apps/desktop-app/release/`
 
 ### Build Command
 
 ```bash
-pnpm build:app   # Runs pnpm build && electron-builder --mac
+pnpm package:desktop   # Runs app-local desktop packaging scripts
 ```
 
-This first builds the entire project (backend, frontend, and Electron sources), then packages it with electron-builder.
+This first builds required app artifacts via Nx, then packages with electron-builder using `apps/desktop-app/electron-builder.yml`.
 
 ## Development
 
 ### Dev Mode
 
-The full dev setup runs four concurrent processes:
+Desktop-shell-only dev runs two concurrent processes:
+
+```bash
+pnpm dev:desktop-app
+```
+
+This executes the app-local `apps/desktop-app` dev script:
+
+| Process               | Command                                                                                                                                                                                  | Description                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `dev:desktop:compile` | `tsc -p tsconfig.json --watch`                                                                                                                                                           | Watches and compiles Electron TypeScript sources                                                  |
+| `dev:desktop:run`     | `wait-on http://localhost:${OPENKIT_WEB_APP_PORT:-5173} ./dist/main.js && UI_DEV_SERVER_URL=http://localhost:${OPENKIT_WEB_APP_PORT:-5173} VITE_DEV_SERVER=1 electronmon ./dist/main.js` | Runs Electron with auto-restart, waits for the configured web-app dev server and compiled main.js |
+
+For the full first-class workspace dev flow (CLI/server/web app/desktop app/website/mobile app), use:
 
 ```bash
 pnpm dev
 ```
 
-This executes:
-
-| Process                | Command                                 | Description                                                                   |
-| ---------------------- | --------------------------------------- | ----------------------------------------------------------------------------- |
-| `dev:ui`               | `vite`                                  | Vite dev server for the React UI (port 6969)                                  |
-| `dev:backend`          | `tsup ... --watch`                      | Watches and rebuilds CLI and electron-entry                                   |
-| `dev:electron:compile` | `tsc -p electron/tsconfig.json --watch` | Watches and compiles Electron TypeScript sources                              |
-| `dev:electron:run`     | `electronmon .`                         | Runs Electron with auto-restart, waits for UI dev server and compiled main.js |
-
-In dev mode, the renderer loads from the Vite dev server (`UI_DEV_SERVER_URL=http://localhost:6969`) instead of the built files, enabling hot module replacement. `electronmon` automatically restarts the Electron main process when `dist/electron/main.js` changes.
+In dev mode, the renderer loads from the Vite dev server (`UI_DEV_SERVER_URL=http://localhost:$OPENKIT_WEB_APP_PORT`, default `http://localhost:5173`) instead of the built files, enabling hot module replacement. `electronmon` automatically restarts the Electron main process when `apps/desktop-app/dist/main.js` changes.
 
 ### Running Electron Standalone
 
@@ -303,7 +307,7 @@ If you only need to test the Electron shell without the full dev pipeline:
 
 ```bash
 # Build first
-pnpm build
+pnpm build:cli && pnpm build:server && pnpm build:web-app && pnpm build:desktop-app
 
 # Then launch
 electron . --project /path/to/your/project
@@ -321,4 +325,4 @@ The `--project` flag tells the app to open a specific project directory on start
 
 ### TypeScript Configuration
 
-The Electron sources use a separate `tsconfig.json` (`electron/tsconfig.json`) that targets ES2022 with NodeNext module resolution, outputting to `dist/electron/`. The preload script is a plain CommonJS file (`preload.cjs`) that is copied directly to the output directory rather than compiled, since Electron requires preload scripts to be CommonJS.
+The Electron sources use a separate `tsconfig.json` (`apps/desktop-app/tsconfig.json`) that targets ES2022 with NodeNext module resolution, outputting to `apps/desktop-app/dist/`. The preload script is a plain CommonJS file (`preload.cjs`) that is copied directly to the output directory rather than compiled, since Electron requires preload scripts to be CommonJS.

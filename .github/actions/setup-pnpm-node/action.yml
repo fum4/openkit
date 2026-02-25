@@ -1,0 +1,34 @@
+name: Setup pnpm + Node
+description: Configure pnpm and Node.js, then install workspace dependencies.
+
+inputs:
+  node-version:
+    description: Node.js version to install.
+    required: false
+    default: "22"
+
+  registry-url:
+    description: Optional npm registry URL for authenticated publish workflows.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+
+    - if: ${{ inputs.registry-url == '' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+
+    - if: ${{ inputs.registry-url != '' }}
+      uses: actions/setup-node@v4
+      with:
+        registry-url: ${{ inputs.registry-url }}
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+
+    - run: pnpm install --frozen-lockfile
+      shell: bash

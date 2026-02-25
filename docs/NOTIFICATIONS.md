@@ -31,24 +31,24 @@ ActivityLog (backend)
 
 ### Key Files
 
-| File                                        | Purpose                                                                                                          |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `src/server/activity-event.ts`              | Event types, category/severity enums, config interface, defaults                                                 |
-| `src/server/activity-log.ts`                | `ActivityLog` class — persistence, pub/sub, pruning                                                              |
-| `src/server/routes/activity.ts`             | REST endpoint `GET /api/activity`                                                                                |
-| `src/server/routes/events.ts`               | SSE endpoint — streams `activity` and `activity-history` messages                                                |
-| `src/server/manager.ts`                     | Creates `ActivityLog` instance, emits events from worktree lifecycle                                             |
-| `src/actions.ts`                            | `notify` MCP action — lets agents send custom activity events                                                    |
-| `src/cli/activity.ts`                       | CLI command for terminal agents to emit awaiting-input activity                                                  |
-| `src/ui/components/ActivityFeed.tsx`        | `ActivityFeed` panel + `ActivityBell` button components                                                          |
-| `src/ui/components/detail/TerminalView.tsx` | Agent terminal rendering/session lifecycle (Claude/Codex/Gemini/OpenCode; no heuristic awaiting-input detection) |
-| `src/ui/hooks/useActivityFeed.ts`           | Hook — listens for `OpenKit:activity` CustomEvents, manages state                                                |
-| `src/ui/hooks/useWorktrees.ts`              | SSE client — bridges SSE messages to window CustomEvents                                                         |
-| `src/ui/components/Header.tsx`              | Wires bell + feed panel into the app header                                                                      |
-| `src/ui/App.tsx`                            | Emits task-detected + selected-agent-started activity events for Jira/Linear/local auto-start                    |
-| `src/ui/components/ConfigurationPanel.tsx`  | Notifications settings card (grouped expand/collapse + per-event delivery modes)                                 |
-| `electron/notification-manager.ts`          | `NotificationManager` — OS-level notifications in Electron                                                       |
-| `src/ui/theme.ts`                           | `activity` theme tokens (category colors + optional severity tokens)                                             |
+| File                                                  | Purpose                                                                                                          |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `libs/shared/src/activity-event.ts`                   | Event types, category/severity enums, config interface, defaults                                                 |
+| `apps/server/src/activity-log.ts`                     | `ActivityLog` class — persistence, pub/sub, pruning                                                              |
+| `apps/server/src/routes/activity.ts`                  | REST endpoint `GET /api/activity`                                                                                |
+| `apps/server/src/routes/events.ts`                    | SSE endpoint — streams `activity` and `activity-history` messages                                                |
+| `apps/server/src/manager.ts`                          | Creates `ActivityLog` instance, emits events from worktree lifecycle                                             |
+| `libs/agent/src/actions.ts`                           | `notify` MCP action — lets agents send custom activity events                                                    |
+| `apps/cli/src/activity.ts`                            | CLI command for terminal agents to emit awaiting-input activity                                                  |
+| `apps/web-app/src/components/ActivityFeed.tsx`        | `ActivityFeed` panel + `ActivityBell` button components                                                          |
+| `apps/web-app/src/components/detail/TerminalView.tsx` | Agent terminal rendering/session lifecycle (Claude/Codex/Gemini/OpenCode; no heuristic awaiting-input detection) |
+| `apps/web-app/src/hooks/useActivityFeed.ts`           | Hook — listens for `OpenKit:activity` CustomEvents, manages state                                                |
+| `apps/web-app/src/hooks/useWorktrees.ts`              | SSE client — bridges SSE messages to window CustomEvents                                                         |
+| `apps/web-app/src/components/Header.tsx`              | Wires bell + feed panel into the app header                                                                      |
+| `apps/web-app/src/App.tsx`                            | Emits task-detected + selected-agent-started activity events for Jira/Linear/local auto-start                    |
+| `apps/web-app/src/components/ConfigurationPanel.tsx`  | Notifications settings card (grouped expand/collapse + per-event delivery modes)                                 |
+| `apps/desktop-app/src/notification-manager.ts`        | `NotificationManager` — OS-level notifications in Electron                                                       |
+| `apps/web-app/src/theme.ts`                           | `activity` theme tokens (category colors + optional severity tokens)                                             |
 
 ## Activity Events
 
@@ -80,7 +80,7 @@ interface ActivityEvent {
 
 ### Event Types
 
-Primary event types surfaced in the feed are defined in `ACTIVITY_TYPES` (`src/server/activity-event.ts`):
+Primary event types surfaced in the feed are defined in `ACTIVITY_TYPES` (`libs/shared/src/activity-event.ts`):
 
 | Constant               | Type string            | Category | Description                              |
 | ---------------------- | ---------------------- | -------- | ---------------------------------------- |
@@ -124,7 +124,7 @@ Feed row dots are an unseen marker only (teal), not severity-coded.
 
 ## Backend: ActivityLog
 
-`ActivityLog` (`src/server/activity-log.ts`) is the central backend class. It's created by `WorktreeManager` and stored as `this.activityLog`.
+`ActivityLog` (`apps/server/src/activity-log.ts`) is the central backend class. It's created by `WorktreeManager` and stored as `this.activityLog`.
 
 ### Storage
 
@@ -201,7 +201,7 @@ The existing SSE endpoint streams activity events alongside worktree updates. Me
 
 ### SSE → CustomEvent Bridge
 
-`useWorktrees` (`src/ui/hooks/useWorktrees.ts`) is the SSE client. When it receives `activity` or `activity-history` messages, it dispatches window-level CustomEvents:
+`useWorktrees` (`apps/web-app/src/hooks/useWorktrees.ts`) is the SSE client. When it receives `activity` or `activity-history` messages, it dispatches window-level CustomEvents:
 
 - `OpenKit:activity` — `detail` is a single `ActivityEvent`
 - `OpenKit:activity-history` — `detail` is an `ActivityEvent[]`
@@ -210,7 +210,7 @@ This decouples the activity feed from the SSE connection hook.
 
 ### useActivityFeed Hook
 
-`useActivityFeed` (`src/ui/hooks/useActivityFeed.ts`) listens for those CustomEvents and manages:
+`useActivityFeed` (`apps/web-app/src/hooks/useActivityFeed.ts`) listens for those CustomEvents and manages:
 
 - **Event list** — up to 200 events, strictly sorted newest-first.
 - **Group-key upserts** — events with the same `groupKey` replace prior events (e.g. creation started → creation completed).
@@ -223,7 +223,7 @@ Returns: `{ events, unreadCount, markAllRead, clearAll }`
 
 ### ActivityFeed Component
 
-`ActivityFeed` (`src/ui/components/ActivityFeed.tsx`) renders the dropdown panel:
+`ActivityFeed` (`apps/web-app/src/components/ActivityFeed.tsx`) renders the dropdown panel:
 
 - **Header** titled "Recent activity", with "Mark read" (only when unread > 0), "Clear", and a `Show all projects` toggle
 - **Filter chips** — multi-select chips directly below the header: `Worktree`, `Hooks`, `Agents`, and `System`. Multiple chips can be enabled simultaneously; when none are selected, all events are shown.
@@ -248,7 +248,7 @@ Returns: `{ events, unreadCount, markAllRead, clearAll }`
 
 ### Wiring in Header
 
-`Header` (`src/ui/components/Header.tsx`) composes everything:
+`Header` (`apps/web-app/src/components/Header.tsx`) composes everything:
 
 1. Creates `useActivityFeed` for timeline state (events, upserts, unread count)
 2. Renders `ActivityBell` in the top-right
@@ -266,7 +266,7 @@ Returns: `{ events, unreadCount, markAllRead, clearAll }`
 
 ### Toast System
 
-`ToastContainer` (`src/ui/components/Toast.tsx`) renders toast notifications. Accepts an `onNavigateToWorktree` prop (wired from App.tsx).
+`ToastContainer` (`apps/web-app/src/components/Toast.tsx`) renders toast notifications. Accepts an `onNavigateToWorktree` prop (wired from App.tsx).
 
 Toast features:
 
@@ -282,7 +282,7 @@ Hook progress is shown only in the Activity feed as a single expandable notifica
 
 ### Settings UI
 
-The Configuration panel (`src/ui/components/ConfigurationPanel.tsx`) includes a grouped "Notifications" card:
+The Configuration panel (`apps/web-app/src/components/ConfigurationPanel.tsx`) includes a grouped "Notifications" card:
 
 - Groups (`Worktree`, `Agent`, `System`) are collapsed by default and expandable
 - Group header mode applies to all events in that group: `Off`, `In-app`, `In-app + desktop`
@@ -292,7 +292,7 @@ The Configuration panel (`src/ui/components/ConfigurationPanel.tsx`) includes a 
 
 ## Electron: Native OS Notifications
 
-`NotificationManager` (`electron/notification-manager.ts`) provides OS-level notifications when the Electron app is **unfocused**.
+`NotificationManager` (`apps/desktop-app/src/notification-manager.ts`) provides OS-level notifications when the Electron app is **unfocused**.
 
 ### How It Works
 
@@ -324,7 +324,7 @@ Clicking a native notification brings the main window to focus.
 
 ## MCP: notify Action
 
-Agents can send custom activity events via the `notify` MCP tool (`src/actions.ts`):
+Agents can send custom activity events via the `notify` MCP tool (`libs/agent/src/actions.ts`):
 
 ```js
 notify({
@@ -381,7 +381,7 @@ The duplicate `emitHookStatusActivity` function in `mcp-server-factory.ts` has b
 
 ## Theme Tokens
 
-Activity-specific tokens in `src/ui/theme.ts`:
+Activity-specific tokens in `apps/web-app/src/theme.ts`:
 
 ```typescript
 export const activity = {

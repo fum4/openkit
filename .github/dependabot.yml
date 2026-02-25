@@ -11,11 +11,61 @@ updates:
       - dependencies
 
   - package-ecosystem: npm
-    directory: /website
+    directory: /apps/website
     schedule:
       interval: weekly
       day: sunday
       time: "09:15"
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: /apps/mobile-app
+    schedule:
+      interval: weekly
+      day: sunday
+      time: "09:22"
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: /apps/cli
+    schedule:
+      interval: weekly
+      day: sunday
+      time: "09:26"
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: /apps/server
+    schedule:
+      interval: weekly
+      day: sunday
+      time: "09:34"
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: /apps/web-app
+    schedule:
+      interval: weekly
+      day: sunday
+      time: "09:41"
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: /apps/desktop-app
+    schedule:
+      interval: weekly
+      day: sunday
+      time: "09:48"
     open-pull-requests-limit: 10
     labels:
       - dependencies

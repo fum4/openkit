@@ -1,0 +1,80 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "desktop-app",
+  "projectType": "application",
+  "sourceRoot": "apps/desktop-app/src",
+  "implicitDependencies": ["web-app", "cli", "server"],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm run dev"
+      }
+    },
+    "compile": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm run compile"
+      }
+    },
+    "run": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm run run"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["web-app:build", "cli:build", "server:build"],
+      "outputs": ["{workspaceRoot}/apps/desktop-app/dist"],
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm run build"
+      }
+    },
+    "package": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm run package"
+      }
+    },
+    "package-mac": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm run package:mac"
+      }
+    },
+    "package-linux": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm run package:linux"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm run typecheck"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm run lint"
+      }
+    }
+  }
+}

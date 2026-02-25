@@ -218,7 +218,7 @@ When hooks are triggered for a worktree:
 
 ## Backend
 
-### HooksManager (`src/server/verification-manager.ts`)
+### HooksManager (`apps/server/src/verification-manager.ts`)
 
 The `HooksManager` class manages all hooks state and execution:
 
@@ -228,13 +228,13 @@ The `HooksManager` class manages all hooks state and execution:
 - **Skill results**: `reportSkillResult()`, `getSkillResults()` -- agent-reported results
 - **Status**: `getStatus()` -- latest pipeline run for a worktree
 
-### Routes (`src/server/routes/verification.ts`)
+### Routes (`apps/server/src/routes/verification.ts`)
 
 Registered via `registerHooksRoutes(app, manager, hooksManager)` in the server setup.
 
 ## Frontend
 
-### HooksPanel (`src/ui/components/VerificationPanel.tsx`)
+### HooksPanel (`apps/web-app/src/components/VerificationPanel.tsx`)
 
 The top-level Hooks view. Displays six sections (one per trigger type). Pre/post/custom/on-demand sections support command/prompt/skill composition; worktree lifecycle sections are command-only.
 
@@ -246,11 +246,11 @@ The top-level Hooks view. Displays six sections (one per trigger type). Pre/post
 
 Custom-trigger sections support grouped condition-based commands, prompts, and skills in a single editor.
 
-### useHooksConfig (`src/ui/hooks/useHooks.ts`)
+### useHooksConfig (`apps/web-app/src/hooks/useHooks.ts`)
 
 Hook for fetching and saving hooks configuration. Returns `{ config, isLoading, refetch, saveConfig }`.
 
-### useHookSkillResults (`src/ui/hooks/useHooks.ts`)
+### useHookSkillResults (`apps/web-app/src/hooks/useHooks.ts`)
 
 Hook for fetching agent-reported skill results for a worktree.
 

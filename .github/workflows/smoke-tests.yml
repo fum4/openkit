@@ -26,26 +26,21 @@ jobs:
             log_file: /tmp/OpenKit-linux-smoke.log
           - os_name: macOS
             runner: macos-latest
-            port: 6980
+            port: 6989
             log_file: /tmp/OpenKit-macos-smoke.log
 
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm run build:cli && pnpm run build:server
       - name: Smoke test CLI startup
         run: |
           set -euo pipefail
           export OPENKIT_NO_OPEN=1
           export OPENKIT_AUTO_INIT=1
-          export OPENKIT_PORT=${{ matrix.port }}
+          export OPENKIT_SERVER_PORT=${{ matrix.port }}
 
-          node dist/cli/index.js --no-open > "${{ matrix.log_file }}" 2>&1 &
+          node apps/cli/dist/cli/index.js --no-open > "${{ matrix.log_file }}" 2>&1 &
           OPENKIT_PID=$!
 
           cleanup() {
@@ -61,7 +56,7 @@ jobs:
               exit 1
             fi
 
-            if curl --silent --fail "http://127.0.0.1:${OPENKIT_PORT}/api/config" >/dev/null; then
+            if curl --silent --fail "http://127.0.0.1:${OPENKIT_SERVER_PORT}/api/config" >/dev/null; then
               exit 0
             fi
 

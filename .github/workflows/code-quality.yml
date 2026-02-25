@@ -17,7 +17,8 @@ jobs:
     if: "!startsWith(github.event.head_commit.message, '📦 release:')"
     steps:
       - uses: actions/checkout@v4
-      - run: npx oxfmt --check .
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm check:format
 
   lint:
     runs-on: ubuntu-latest
@@ -25,7 +26,8 @@ jobs:
     if: "!startsWith(github.event.head_commit.message, '📦 release:')"
     steps:
       - uses: actions/checkout@v4
-      - uses: oxc-project/oxlint-action@v1
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm check:lint
 
   typecheck:
     runs-on: ubuntu-latest
@@ -33,10 +35,14 @@ jobs:
     if: "!startsWith(github.event.head_commit.message, '📦 release:')"
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-pnpm-node
       - run: pnpm check:types
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: "!startsWith(github.event.head_commit.message, '📦 release:')"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm build

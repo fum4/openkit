@@ -1,0 +1,735 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import DownloadSplitButton from "../components/DownloadSplitButton.astro";
+
+const copySvg = `<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+---
+
+<Layout
+  title="Getting Started — OpenKit"
+  description="Set up OpenKit and let your AI agents start shipping pull requests autonomously."
+>
+  <Nav />
+  <main class="docs-page">
+    <div class="container">
+      <header class="docs-header fade-in">
+        <h1>Getting Started</h1>
+        <p class="docs-lead">
+          Set up OpenKit and let your AI agents start shipping.
+        </p>
+      </header>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <nav class="toc" id="toc">
+            <span class="toc-label">On this page</span>
+            <a href="#install" class="toc-link active" data-section="install">Install</a>
+            <a href="#cli-setup" class="toc-link" data-section="cli-setup">CLI Setup</a>
+            <a href="#agents" class="toc-link" data-section="agents">Agent Setup</a>
+            <a href="#cli" class="toc-link" data-section="cli">CLI Reference</a>
+            <a href="#cli-default" class="toc-link toc-sub" data-section="cli-default">openkit</a>
+            <a href="#cli-init" class="toc-link toc-sub" data-section="cli-init">openkit init</a>
+            <a href="#cli-add" class="toc-link toc-sub" data-section="cli-add">openkit add</a>
+            <a href="#cli-task" class="toc-link toc-sub" data-section="cli-task">openkit task</a>
+            <a href="#cli-activity" class="toc-link toc-sub" data-section="cli-activity">openkit activity</a>
+          </nav>
+        </aside>
+
+        <div class="docs-content">
+          <!-- ─── Install ──────────────────────────────────────── -->
+          <section id="install" class="docs-section fade-in">
+            <h2>Install</h2>
+            <p>Download the desktop app. It includes a guided setup wizard that walks you through everything — no prerequisites needed.</p>
+            <div class="install-primary">
+              <DownloadSplitButton buttonId="docs-download-btn" className="docs-download glow-pulse" />
+            </div>
+            <p>Open the app, point it at your project, and the wizard handles config, port discovery, and integrations. That's it — you're ready to go.</p>
+          </section>
+
+          <!-- ─── CLI Setup ──────────────────────────────────────── -->
+          <section id="cli-setup" class="docs-section fade-in">
+            <h2>CLI Setup</h2>
+            <div class="callout">
+              <span class="callout-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              </span>
+              <span>If you installed the desktop app, skip this section — the setup wizard already took care of everything.</span>
+            </div>
+            <p>Install the CLI globally:</p>
+            <div class="cli-block">
+              <div class="cli-lines">
+                <div class="cli-line"><span class="cli-prompt">$ </span>npm install -g openkit</div>
+              </div>
+              <button class="copy-btn" data-copy="npm install -g openkit" aria-label="Copy">
+                <Fragment set:html={copySvg} />
+                <Fragment set:html={checkSvg} />
+              </button>
+            </div>
+            <p>Navigate to your project root and run the setup wizard:</p>
+            <div class="cli-block">
+              <div class="cli-lines">
+                <div class="cli-line"><span class="cli-prompt">$ </span>openkit init</div>
+              </div>
+              <button class="copy-btn" data-copy="openkit init" aria-label="Copy">
+                <Fragment set:html={copySvg} />
+                <Fragment set:html={checkSvg} />
+              </button>
+            </div>
+            <p>
+              The wizard auto-detects your package manager, dev start command, and base branch.
+              It creates a <code>.openkit/config.json</code> that you can commit to share settings with your team.
+            </p>
+            <p>Once the server is running, click <strong>Discover Ports</strong> in the UI to detect which ports your dev server binds. OpenKit uses these to auto-offset ports per worktree so you can run multiple environments in parallel.</p>
+            <div class="callout">
+              <span class="callout-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              </span>
+              <span>OpenKit integrates with <strong>Jira</strong>, <strong>Linear</strong>, and <strong>GitHub</strong>. Connect them from the UI or via <code>openkit add</code>.</span>
+            </div>
+          </section>
+
+          <!-- ─── Agent Setup ──────────────────────────────────── -->
+          <section id="agents" class="docs-section fade-in">
+            <h2>Agent Setup</h2>
+            <p>OpenKit’s agent workflow is driven by Skills. During <code>openkit init</code> (or setup flow), OpenKit enables the bundled <code>work-on-task</code> skill in project skill directories so agents know the expected flow automatically.</p>
+            <p>Recommended flow:</p>
+            <ul>
+              <li>Initialize the project with <code>openkit init</code></li>
+              <li>Create a task/worktree from OpenKit (<code>openkit task ...</code> or UI)</li>
+              <li>Let agents run with OpenKit-provided task context and skills</li>
+              <li>Use hooks for checks and review steps before shipping</li>
+            </ul>
+
+            <p>If the OpenKit UI is running, agent actions appear in the activity feed in real time.</p>
+          </section>
+
+          <!-- ─── CLI Reference ────────────────────────────────── -->
+          <section id="cli" class="docs-section fade-in">
+            <h2>CLI Reference</h2>
+            <div class="cli-block">
+              <div class="cli-lines">
+                <div class="cli-line"><span class="cli-prompt">$ </span>openkit [command] [options]</div>
+              </div>
+            </div>
+
+            <!-- openkit (default) -->
+            <article id="cli-default" class="cli-entry">
+              <h3><code>openkit</code></h3>
+              <p>Start the server.</p>
+              <div class="cli-block">
+                <div class="cli-lines">
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit --no-open</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit --auto-init</div>
+                </div>
+                <button class="copy-btn" data-copy="openkit" aria-label="Copy">
+                  <Fragment set:html={copySvg} />
+                  <Fragment set:html={checkSvg} />
+                </button>
+              </div>
+              <p>Loads config from <code>.openkit/config.json</code>, starts the HTTP server, and opens the UI.</p>
+              <table>
+                <thead><tr><th>Option</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td><code>--no-open</code></td><td>Start the server without opening the UI</td></tr>
+                  <tr><td><code>--auto-init</code></td><td>Auto-initialize config if none is found (skips prompts)</td></tr>
+                  <tr><td><code>--help</code>, <code>-h</code></td><td>Show help</td></tr>
+                  <tr><td><code>--version</code>, <code>-v</code></td><td>Show version</td></tr>
+                </tbody>
+              </table>
+            </article>
+
+            <!-- openkit init -->
+            <article id="cli-init" class="cli-entry">
+              <h3><code>openkit init</code></h3>
+              <p>Interactive setup wizard. Creates <code>.openkit/config.json</code> with your project settings.</p>
+              <div class="cli-block">
+                <div class="cli-lines">
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit init</div>
+                </div>
+                <button class="copy-btn" data-copy="openkit init" aria-label="Copy">
+                  <Fragment set:html={copySvg} />
+                  <Fragment set:html={checkSvg} />
+                </button>
+              </div>
+              <p>Must be run inside a git repository. Auto-detects:</p>
+              <table>
+                <thead><tr><th>Setting</th><th>Detection</th></tr></thead>
+                <tbody>
+                  <tr><td>Base branch</td><td><code>origin/main</code> or <code>origin/master</code></td></tr>
+                  <tr><td>Dev command</td><td>From <code>package.json</code> scripts</td></tr>
+                  <tr><td>Install command</td><td><code>pnpm install</code>, <code>yarn install</code>, etc.</td></tr>
+                  <tr><td>Ports</td><td>Discovered from running dev server</td></tr>
+                </tbody>
+              </table>
+              <p>After setup, both <code>.openkit/config.json</code> and <code>.openkit/.gitignore</code> are staged and ready to commit.</p>
+            </article>
+
+            <!-- openkit add -->
+            <article id="cli-add" class="cli-entry">
+              <h3><code>openkit add [integration]</code></h3>
+              <p>Connect an integration. Run without arguments for an interactive picker.</p>
+              <div class="cli-block">
+                <div class="cli-lines">
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add<span class="cli-comment"> # Interactive picker</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add github</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add linear</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit add jira</div>
+                </div>
+                <button class="copy-btn" data-copy="openkit add" aria-label="Copy">
+                  <Fragment set:html={copySvg} />
+                  <Fragment set:html={checkSvg} />
+                </button>
+              </div>
+              <table>
+                <thead><tr><th>Integration</th><th>What You Need</th></tr></thead>
+                <tbody>
+                  <tr><td><code>github</code></td><td><a href="https://cli.github.com" target="_blank" rel="noopener">GitHub CLI</a> installed and authenticated (<code>gh auth login</code>)</td></tr>
+                  <tr><td><code>linear</code></td><td>API key from <a href="https://linear.app/settings/account/security/api-keys/new" target="_blank" rel="noopener">Linear settings</a></td></tr>
+                  <tr><td><code>jira</code></td><td>OAuth app or API token from <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener">Atlassian</a></td></tr>
+                </tbody>
+              </table>
+            </article>
+
+            <!-- openkit task -->
+            <article id="cli-task" class="cli-entry">
+              <h3><code>openkit task [source] [ID...]</code></h3>
+              <p>Create worktrees from Jira, Linear, or local issues. Run without arguments for an interactive prompt.</p>
+              <div class="cli-block">
+                <div class="cli-lines">
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task<span class="cli-comment"> # Interactive</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task jira TASK-123<span class="cli-comment"> # Jira</span></div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit task jira 101 102 103<span class="cli-comment"> # Batch</span></div>
+                </div>
+                <button class="copy-btn" data-copy="openkit task jira PROJ-123" aria-label="Copy">
+                  <Fragment set:html={copySvg} />
+                  <Fragment set:html={checkSvg} />
+                </button>
+              </div>
+            </article>
+
+            <!-- openkit activity -->
+            <article id="cli-activity" class="cli-entry">
+              <h3><code>openkit activity</code></h3>
+              <p>Emit workflow activity events for agent/user coordination.</p>
+              <ul>
+                <li><code>await-input</code> — mark that agent work is waiting for user action</li>
+                <li><code>phase</code> — record workflow phase checkpoints</li>
+                <li><code>check-flow</code> — validate required workflow checkpoints/hooks</li>
+                <li><code>todo</code> — update issue todo checkboxes from terminal flows</li>
+              </ul>
+              <div class="cli-block">
+                <div class="cli-lines">
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit activity --help</div>
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit activity await-input --message "Need approval for deploy"</div>
+                </div>
+                <button class="copy-btn" data-copy='openkit activity await-input --message "Need approval for deploy"' aria-label="Copy">
+                  <Fragment set:html={copySvg} />
+                  <Fragment set:html={checkSvg} />
+                </button>
+              </div>
+            </article>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+  <Footer />
+  <script src="../scripts/download.ts"></script>
+</Layout>
+
+<script>
+  // TOC scroll tracking
+  const tocLinks = document.querySelectorAll<HTMLAnchorElement>(".toc-link");
+  const sections = document.querySelectorAll<HTMLElement>(".docs-section, .cli-entry");
+
+  const tocObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach((link) => link.classList.remove("active"));
+          const id = entry.target.id;
+          const activeLink = document.querySelector(`.toc-link[data-section="${id}"]`);
+          if (activeLink) activeLink.classList.add("active");
+        }
+      });
+    },
+    { rootMargin: "-80px 0px -60% 0px", threshold: 0 },
+  );
+
+  sections.forEach((section) => tocObserver.observe(section));
+
+  // Copy buttons
+  document.querySelectorAll(".copy-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const text = (btn as HTMLElement).dataset.copy || "";
+      await navigator.clipboard.writeText(text);
+      btn.classList.add("copied");
+      setTimeout(() => btn.classList.remove("copied"), 2000);
+    });
+  });
+</script>
+
+<style>
+  /* ─── Page layout ──────────────────────────────────────────── */
+  .docs-page {
+    padding-top: calc(var(--nav-height) + 24px);
+    padding-bottom: 80px;
+    min-height: 100vh;
+  }
+
+  .docs-header {
+    margin-bottom: 28px;
+  }
+
+  .docs-header h1 {
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    margin-bottom: 12px;
+  }
+
+  .docs-lead {
+    font-size: 17px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 480px;
+  }
+
+  .docs-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 64px;
+    align-items: start;
+  }
+
+  /* ─── Sidebar TOC ──────────────────────────────────────────── */
+  .docs-sidebar {
+    position: sticky;
+    top: calc(var(--nav-height) + 32px);
+  }
+
+  .toc {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-left: 1px solid var(--border-subtle);
+    padding-left: 16px;
+  }
+
+  .toc-label {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+
+  .toc-link {
+    font-size: 13px;
+    color: var(--text-muted) !important;
+    padding: 4px 0;
+    transition: color 0.2s var(--ease-out-quart) !important;
+    position: relative;
+  }
+
+  .toc-link:hover {
+    color: var(--text-secondary) !important;
+  }
+
+  .toc-link.active {
+    color: var(--accent) !important;
+  }
+
+  .toc-link.active::before {
+    content: "";
+    position: absolute;
+    left: -17px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--accent);
+    border-radius: 1px;
+  }
+
+  .toc-sub {
+    padding-left: 12px;
+    font-size: 12px;
+  }
+
+  /* ─── Content ──────────────────────────────────────────────── */
+  .docs-content {
+    min-width: 0;
+  }
+
+  .docs-section {
+    padding-bottom: 48px;
+    margin-bottom: 48px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .docs-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .docs-section h2 {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+  }
+
+  .docs-section h3,
+  .cli-entry h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin-top: 32px;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+
+  .docs-section p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 16px;
+    max-width: 640px;
+  }
+
+  .docs-section ul {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 16px;
+  }
+
+  .docs-section li {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    padding-left: 20px;
+    position: relative;
+    margin-bottom: 6px;
+  }
+
+  .docs-section li::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 11px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+
+  .docs-section strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .docs-section a {
+    color: var(--accent) !important;
+  }
+
+  /* ─── CLI blocks ───────────────────────────────────────────── */
+  .cli-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .cli-lines {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cli-line {
+    white-space: nowrap;
+  }
+
+  .cli-prompt {
+    color: var(--accent);
+    user-select: none;
+  }
+
+  .cli-comment {
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+
+  .cli-block .copy-btn {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* ─── Code blocks (non-CLI) ────────────────────────────────── */
+  pre {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    font-size: inherit;
+    color: var(--text-primary);
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--bg-raised);
+    padding: 2px 7px;
+    border-radius: 5px;
+    color: var(--accent);
+    border: 1px solid var(--border-subtle);
+  }
+
+  /* ─── Tables ───────────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+
+  thead th {
+    text-align: left;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-medium);
+  }
+
+  tbody td {
+    padding: 10px 12px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+    line-height: 1.5;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* ─── Install ─────────────────────────────────────────────── */
+  .install-primary {
+    display: flex;
+    margin-bottom: 20px;
+  }
+
+  .install-alt {
+    font-size: 14px !important;
+    color: var(--text-muted) !important;
+    margin-bottom: 10px !important;
+  }
+
+  .docs-download {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .docs-download .download-main-btn {
+    width: calc(100% - 44px);
+    justify-content: center;
+  }
+
+  /* ─── Copy button ──────────────────────────────────────────── */
+  .copy-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    transition: color 0.2s var(--ease-out-quart);
+    border-radius: 4px;
+  }
+
+  .copy-btn:hover {
+    color: var(--accent);
+    background: rgba(45, 212, 191, 0.08);
+  }
+
+  .copy-btn :global(.check-icon) {
+    display: none;
+    color: var(--accent);
+  }
+
+  .copy-btn.copied :global(.copy-icon) {
+    display: none;
+  }
+
+  .copy-btn.copied :global(.check-icon) {
+    display: block;
+  }
+
+  /* ─── Callout ──────────────────────────────────────────────── */
+  .callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(45, 212, 191, 0.04);
+    border: 1px solid rgba(45, 212, 191, 0.1);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+
+  .callout-icon {
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .callout code {
+    font-size: 12px;
+  }
+
+  /* ─── CLI entries ──────────────────────────────────────────── */
+  .cli-entry {
+    padding-top: 32px;
+    margin-top: 32px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .cli-entry:first-of-type {
+    margin-top: 24px;
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .cli-entry h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+  }
+
+  .cli-entry h3 code {
+    font-size: 16px;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-primary);
+  }
+
+  .cli-entry p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 16px;
+    max-width: 640px;
+  }
+
+  .cli-entry ul {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 16px;
+  }
+
+  .cli-entry li {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    padding-left: 20px;
+    position: relative;
+    margin-bottom: 6px;
+  }
+
+  .cli-entry li::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 11px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+
+  .cli-entry strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .cli-entry a {
+    color: var(--accent) !important;
+  }
+
+  /* ─── Responsive ───────────────────────────────────────────── */
+  @media (max-width: 860px) {
+    .docs-layout {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    .docs-sidebar {
+      position: static;
+      margin-bottom: 40px;
+    }
+
+    .toc {
+      flex-direction: row;
+      flex-wrap: wrap;
+      border-left: none;
+      padding-left: 0;
+      gap: 4px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 16px;
+    }
+
+    .toc-label {
+      width: 100%;
+      margin-bottom: 4px;
+    }
+
+    .toc-link.active::before {
+      display: none;
+    }
+
+    .toc-sub {
+      padding-left: 0;
+      font-size: 12px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .docs-header h1 {
+      font-size: 32px;
+    }
+
+    .docs-page {
+      padding-top: calc(var(--nav-height) + 32px);
+    }
+  }
+</style>

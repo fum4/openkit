@@ -1,0 +1,30 @@
+{
+  "name": "server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/standalone.ts",
+    "build": "mkdir -p dist/runtime && cp src/runtime/port-hook.cjs dist/runtime/port-hook.cjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "oxlint src",
+    "start": "tsx src/standalone.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.8",
+    "@hono/node-ws": "^1.3.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "hono": "^4.12.2",
+    "nanoid": "^5.1.6",
+    "node-pty": "1.2.0-beta.10",
+    "picocolors": "^1.1.1",
+    "ws": "^8.19.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "@types/ws": "^8.18.1",
+    "oxlint": "^1.50.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

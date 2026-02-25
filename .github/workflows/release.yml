@@ -10,7 +10,7 @@ concurrency:
 
 permissions:
   contents: write
-  id-token: write
+  # id-token: write # npm provenance (disabled while npm publishing is paused)
 
 jobs:
   publish:
@@ -27,18 +27,10 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Setup workspace
+        uses: ./.github/actions/setup-pnpm-node
+        # with:
+        #   registry-url: https://registry.npmjs.org
 
       - name: Release verification
         run: pnpm release:verify
@@ -49,14 +41,15 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Release
-        run: pnpm release-it --ci --verbose --release-version 0.1.0
+        run: pnpm release-it --ci --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish npm package
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # npm publish is intentionally paused for now.
+      # - name: Publish npm package
+      #   run: npm publish --access public --provenance
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Resolve release tag
         id: release_tag
@@ -81,20 +74,11 @@ jobs:
         with:
           ref: ${{ needs.publish.outputs.tag }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Setup workspace
+        uses: ./.github/actions/setup-pnpm-node
 
       - name: Build macOS app artifacts
-        run: pnpm build:app:mac
+        run: pnpm package:desktop:mac
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
@@ -103,9 +87,9 @@ jobs:
         with:
           tag_name: ${{ needs.publish.outputs.tag }}
           files: |
-            release/*.dmg
-            release/*.dmg.blockmap
-            release/latest-mac.yml
+            apps/desktop-app/release/*.dmg
+            apps/desktop-app/release/*.dmg.blockmap
+            apps/desktop-app/release/latest-mac.yml
           fail_on_unmatched_files: true
 
   linux-assets:
@@ -120,26 +104,17 @@ jobs:
         with:
           ref: ${{ needs.publish.outputs.tag }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Setup workspace
+        uses: ./.github/actions/setup-pnpm-node
 
       - name: Build Linux app artifacts
-        run: pnpm build:app:linux
+        run: pnpm package:desktop:linux
 
       - name: Upload Linux assets to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.publish.outputs.tag }}
           files: |
-            release/*.AppImage
-            release/latest-linux.yml
+            apps/desktop-app/release/*.AppImage
+            apps/desktop-app/release/latest-linux.yml
           fail_on_unmatched_files: true

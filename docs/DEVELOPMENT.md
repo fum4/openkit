@@ -16,6 +16,7 @@ This document covers everything you need to develop, build, and extend OpenKit.
 git clone <repo-url>
 cd worktree-manager
 pnpm install
+pnpm run setup
 pnpm build
 pnpm start
 ```
@@ -24,25 +25,72 @@ pnpm start
 
 ## Build Commands
 
-| Command               | Description                                                                                  |
-| --------------------- | -------------------------------------------------------------------------------------------- |
-| `pnpm build`          | Full production build (tsup backend + Electron compile + copy port-hook.cjs + Vite frontend) |
-| `pnpm dev`            | Dev mode with concurrent watchers for UI, backend, and Electron                              |
-| `pnpm start`          | Run the built CLI (`node dist/cli/index.js`)                                                 |
-| `pnpm check:types`    | TypeScript type checking (`tsc --noEmit`)                                                    |
-| `pnpm check:format`   | Run oxfmt in check mode                                                                      |
-| `pnpm check:lint`     | Run oxlint                                                                                   |
-| `pnpm lint-staged`    | Run formatter/linter checks only for currently staged files                                  |
-| `pnpm check:all`      | Run typecheck + format check + lint                                                          |
-| `pnpm fix:format`     | Run oxfmt to apply formatting                                                                |
-| `pnpm fix:lint`       | Run oxlint with `--fix`                                                                      |
-| `pnpm fix:all`        | Run format + lint auto-fixes                                                                 |
-| `pnpm verify:package` | Verify npm package metadata and required build artifacts                                     |
-| `pnpm smoke:tarball`  | Pack and unpack the local tarball, then smoke-test the packaged CLI entrypoint               |
-| `pnpm release:verify` | Full release gate: typecheck, lint, build, package verification, tarball smoke test          |
-| `pnpm build:app`      | Full build + package as macOS Electron app via `electron-builder`                            |
+| Command                      | Description                                                                                              |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `pnpm build`                 | Build all first-class apps (`cli`, `server`, `web-app`, `desktop-app`, `website`, `mobile-app`)          |
+| `pnpm build:cli`             | Build CLI app (`cli`)                                                                                    |
+| `pnpm build:server`          | Build backend server app (`server`)                                                                      |
+| `pnpm build:web-app`         | Build web app (`web-app`)                                                                                |
+| `pnpm build:desktop-app`     | Build desktop app runtime (without packaging) (`desktop-app`)                                            |
+| `pnpm build:website`         | Build Astro marketing site (`website`)                                                                   |
+| `pnpm build:mobile-app`      | Build mobile app export (`mobile-app`)                                                                   |
+| `pnpm package:desktop`       | Package desktop app artifacts for all supported desktop targets (`desktop-app`)                          |
+| `pnpm package:desktop:mac`   | Package macOS desktop app artifacts (`desktop-app`)                                                      |
+| `pnpm package:desktop:linux` | Package Linux desktop app artifacts (`desktop-app`)                                                      |
+| `pnpm run setup`             | Create `.env.local` from `.env.example` if missing                                                       |
+| `pnpm dev`                   | Start all first-class app dev flows (`cli`, `server`, `web-app`, `desktop-app`, `website`, `mobile-app`) |
+| `pnpm dev:cli`               | Start CLI dev watch flow (`cli`)                                                                         |
+| `pnpm dev:server`            | Start backend server watch flow (`server`)                                                               |
+| `pnpm dev:web-app`           | Start web app + backend together (`web-app`, `server`)                                                   |
+| `pnpm dev:desktop-app`       | Start desktop app with required deps (`desktop-app`, `web-app`, `cli`)                                   |
+| `pnpm dev:website`           | Start Astro website dev server (`website`)                                                               |
+| `pnpm dev:mobile-app`        | Start Expo mobile dev server (`mobile-app`)                                                              |
+| `pnpm start`                 | Run the built CLI (`node apps/cli/dist/cli/index.js`)                                                    |
+| `pnpm nx:show`               | List Nx projects in the workspace                                                                        |
+| `pnpm nx:affected`           | Run Nx affected tasks for lint/typecheck/build                                                           |
+| `pnpm check:types`           | Nx typecheck across app projects (and dependent libs)                                                    |
+| `pnpm check:format`          | Run oxfmt in check mode                                                                                  |
+| `pnpm check:lint`            | Run oxlint                                                                                               |
+| `pnpm lint-staged`           | Run formatter/linter checks only for currently staged files                                              |
+| `pnpm check:all`             | Run typecheck + format check + lint                                                                      |
+| `pnpm fix:format`            | Run oxfmt to apply formatting                                                                            |
+| `pnpm fix:lint`              | Run oxlint with `--fix`                                                                                  |
+| `pnpm fix:all`               | Run format + lint auto-fixes                                                                             |
+| `pnpm release:verify`        | Full release gate: typecheck, lint, build                                                                |
 
 There is no test runner configured.
+
+Runtime note: UI assets are optional in core installs. The CLI can install optional UI components with `openkit ui` (web bundle and/or desktop app).
+
+## Nx Workspace
+
+OpenKit uses Nx for workspace orchestration and task caching while keeping app-level build tools (tsup, Vite, electron-builder).
+
+- Workspace config lives in `nx.json`
+- pnpm workspace config lives in `pnpm-workspace.yaml` (globs `apps/*`, `libs/*`, and `packages/*`; only directories with their own `package.json` are treated as pnpm packages)
+- Project configs are colocated as `project.json` in:
+  - `apps/web-app` (`web-app`)
+  - `apps/cli` (`cli`)
+  - `apps/server` (`server`)
+  - `apps/desktop-app` (`desktop-app`)
+  - `apps/website` (`website`)
+  - `apps/mobile-app` (`mobile-app`)
+
+Package layout:
+
+- Root `package.json` is the workspace orchestration entrypoint (marked `private` to prevent accidental npm publish).
+- `apps/cli`, `apps/server`, `apps/web-app`, and `apps/desktop-app` own their direct scripts and dependencies.
+- Root `tsconfig.base.json` + `tsconfig.json` provide shared TypeScript workspace configuration.
+- `apps/website/package.json` and `apps/mobile-app/package.json` remain independently tooled ecosystems (Astro and Expo).
+
+Common commands:
+
+```bash
+pnpm nx:show
+pnpm nx run web-app:build
+pnpm nx run cli:typecheck
+pnpm nx:affected
+```
 
 ## Git Hooks
 
@@ -51,32 +99,62 @@ OpenKit uses Husky. Hooks are installed by `pnpm install` through the root `prep
 The configured `.husky/pre-commit` hook runs `pnpm lint-staged` (staged files only for speed).
 Run `pnpm check:all` manually or in CI for full-repository validation.
 
-## npm Publishing
+## VS Code Run Configurations
 
-OpenKit is published on npm as `openkit`.
+The workspace includes script-oriented launch configurations in `.vscode/launch.json` for common flows:
 
-- `prepack` runs `pnpm build && pnpm verify:package`, so local and CI publishes fail fast if required artifacts are missing.
-- GitHub Actions release workflow runs `pnpm release:verify` before creating a release.
-- After `release-it` bumps/tags, the workflow publishes to npm via `npm publish --access public --provenance` using `NPM_TOKEN`.
-- Installed command aliases are `openkit`, `ok`, and `OpenKit`.
+- App development (`dev`, `dev:cli`, `dev:server`, `dev:web-app`, `dev:desktop-app`, `dev:website`, `dev:mobile-app`)
+- App builds (`build` plus app-specific `build:*`)
+- Desktop packaging (`package:desktop`, `package:desktop:mac`, `package:desktop:linux`)
+- Quality helpers (`check:all`, `fix:all`)
+
+## Dev Port Environment Variables
+
+OpenKit dev scripts use root-level port environment variables (with defaults):
+
+- `OPENKIT_SERVER_PORT` (default `6969`) for the backend server
+- `OPENKIT_WEB_APP_PORT` (default `5173`) for the web app Vite dev server
+
+Run `pnpm run setup` to create `.env.local` from `.env.example` (without overwriting an existing file). Nx automatically loads `.env` files for task execution.
+
+## npm Publishing (Paused)
+
+npm publishing is currently paused.
+
+- The release workflow still runs `pnpm release:verify` and creates release tags/assets.
+- npm-specific publish steps are commented out in `.github/workflows/release.yml`.
 
 ## Dependency Updates
 
 Dependabot is configured in `.github/dependabot.yml` to open weekly dependency update PRs for:
 
 - Root npm workspace (`/`)
-- Website npm workspace (`/website`)
+- CLI app npm workspace (`/apps/cli`)
+- Server app npm workspace (`/apps/server`)
+- Web app npm workspace (`/apps/web-app`)
+- Desktop app npm workspace (`/apps/desktop-app`)
+- Website npm workspace (`/apps/website`)
+- Mobile app npm workspace (`/apps/mobile-app`)
 - GitHub Actions workflows (`github-actions`)
 
 ### What `pnpm build` Does
 
-The build script chains several steps:
+`pnpm build` runs:
 
-1. **tsup** bundles `src/cli/index.ts` and `src/electron-entry.ts` into ESM (`dist/`) with `.d.ts` declarations. Config in `tsup.config.ts` externalizes `node-pty` and `electron`, and enables the `.md` text loader for inlining instruction files.
-2. **tsc** compiles the Electron main process (`electron/tsconfig.json` -> `dist/electron/`).
-3. **cp** copies `electron/preload.cjs` to `dist/electron/preload.cjs`.
-4. **cp** copies `src/runtime/port-hook.cjs` to `dist/runtime/port-hook.cjs` (this file must remain CommonJS with zero dependencies).
-5. **Vite** builds the React SPA from `src/ui/` into `dist/ui/`.
+```bash
+pnpm nx run-many -t build --projects cli,server,web-app,desktop-app,website,mobile-app
+```
+
+Build outputs are split by product role:
+
+1. **Core runtime outputs:**
+   - `cli:build` (tsup with `apps/cli/tsup.config.ts` -> `apps/cli/dist/*`)
+   - `server:build` (copies `apps/server/src/runtime/port-hook.cjs` to `apps/server/dist/runtime/port-hook.cjs`)
+   - `web-app:build` (Vite -> `apps/web-app/dist/*`)
+   - `desktop-app:build` (tsc + preload copy -> `apps/desktop-app/dist/*`)
+2. **Standalone app outputs (app-owned):**
+   - `website:build` -> `apps/website/dist/*`
+   - `mobile-app:build` -> `apps/mobile-app/dist/{ios,android}/*`
 
 ## Dev Mode
 
@@ -84,25 +162,41 @@ The build script chains several steps:
 pnpm dev
 ```
 
-This runs four concurrent processes via `concurrently`:
+This runs:
 
-| Process                | What it does                                                                                                          |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `dev:ui`               | Vite dev server on `http://localhost:6969` with HMR                                                                   |
-| `dev:backend`          | tsup in watch mode, rebuilding `src/cli/index.ts` and `src/electron-entry.ts` on changes                              |
-| `dev:electron:compile` | TypeScript watcher for `electron/*.ts` -> `dist/electron/`                                                            |
-| `dev:electron:run`     | Waits for both the Vite server and compiled Electron main, then launches Electron via `electronmon` with auto-restart |
+```bash
+pnpm nx run-many -t dev --projects cli,server,web-app,desktop-app,website,mobile-app --parallel=6
+```
+
+For desktop-only development, use:
+
+```bash
+pnpm dev:desktop-app
+```
+
+`pnpm dev:desktop-app` runs:
+
+```bash
+pnpm nx run-many -t dev --projects web-app,cli,desktop-app --parallel=3
+```
+
+This ensures desktop dependencies are running before/alongside the shell. The desktop target itself still executes the app-local `apps/desktop-app` desktop script (two concurrent processes):
+
+| Process               | What it does                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `dev:desktop:compile` | TypeScript watcher for `apps/desktop-app/src/*.ts` -> `apps/desktop-app/dist/`                                   |
+| `dev:desktop:run`     | Waits for the Vite server and compiled Electron main, then launches Electron via `electronmon` with auto-restart |
 
 ### How Changes Propagate
 
-- **Frontend changes** (`src/ui/`): Vite HMR picks them up instantly. No restart needed.
-- **Backend changes** (`src/server/`, `src/cli/`): tsup rebuilds; restart the CLI manually to pick up changes (or let `electronmon` handle it in Electron mode).
-- **Electron changes** (`electron/`): TypeScript watcher recompiles, `electronmon` auto-restarts the Electron process.
-- **port-hook.cjs**: Must be manually copied to `dist/runtime/` (or run a full `pnpm build`). This file is pure CommonJS with zero dependencies and is loaded via `--require` in spawned processes.
+- **Frontend changes** (`apps/web-app/src/`): Vite HMR picks them up instantly. No restart needed.
+- **Backend changes** (`apps/server/src/`, `apps/cli/src/`): tsup rebuilds; restart the CLI manually to pick up changes (or let `electronmon` handle it in Electron mode).
+- **Electron changes** (`apps/desktop-app/src/`): TypeScript watcher recompiles, `electronmon` auto-restarts the Electron process.
+- **port-hook.cjs**: Must be manually copied to `apps/server/dist/runtime/` (or run a full `pnpm build`). This file is pure CommonJS with zero dependencies and is loaded via `--require` in spawned processes.
 
 ### Vite Dev Server
 
-The Vite config (`vite.config.ts`) sets the root to `src/ui/`, outputs to `dist/ui/`, and runs a dev server on port 6969 with API proxy to the backend. In Electron dev mode, the environment variable `UI_DEV_SERVER_URL=http://localhost:6969` tells Electron to load from Vite instead of the built files.
+The Vite config (`apps/web-app/vite.config.ts`) sets the root to `apps/web-app/src`, outputs to `apps/web-app/dist`, and runs a dev server on `OPENKIT_WEB_APP_PORT` (default `5173`) with API proxy to `OPENKIT_SERVER_PORT` (default `6969`). In Electron dev mode, `UI_DEV_SERVER_URL=http://localhost:$OPENKIT_WEB_APP_PORT` tells Electron to load from Vite instead of built files.
 
 ## Project Structure
 
@@ -114,43 +208,54 @@ In this guide, file references focus on contribution workflows (where to add rou
 
 ### Backend (tsup)
 
-tsup bundles the backend as ESM. Configuration lives in `tsup.config.ts` at the project root:
+tsup bundles the backend as ESM. Configuration lives in `apps/cli/tsup.config.ts`:
 
-- **Entry points:** `src/cli/index.ts` (CLI), `src/electron-entry.ts` (Electron)
+- **Entry points:** `apps/cli/src/index.ts` (CLI), `apps/cli/src/electron-entry.ts` (Electron bridge export)
 - **Format:** ESM (`"type": "module"` in package.json)
 - **Externals:** `node-pty` (native module) and `electron`
-- **esbuild loader:** `.md` files are inlined as text strings (used by `src/instructions/`)
-- **Output:** `dist/` (tsup flattens the directory structure)
+- **esbuild loader:** `.md` files are inlined as text strings (used by `libs/instructions/src/`)
+- **Output:** `apps/cli/dist/` (tsup flattens the directory structure into that app-local build folder)
 
-CLI flags `--dts --clean` are passed in the `build` script only (not needed in dev watch mode).
+CLI flag `--dts` is passed in the `build` script only (not needed in dev watch mode).
 
 ### Frontend (Vite + React)
 
-Vite builds the React SPA. Config in `vite.config.ts`:
+Vite builds the React SPA. Config in `apps/web-app/vite.config.ts`:
 
-- **Root:** `src/ui/`
-- **Output:** `dist/ui/`
+- **Root:** `apps/web-app/src/`
+- **Output:** `apps/web-app/dist/`
 - **Base:** `./` (relative paths for file:// protocol compatibility in Electron)
-- **Dev server:** Port 6969 with API proxy to the backend
+- **Dev server:** Port `OPENKIT_WEB_APP_PORT` (default 5173) with API proxy to backend port `OPENKIT_SERVER_PORT` (default 6969)
 - **Plugin:** `@vitejs/plugin-react` for JSX/Fast Refresh
 
 ### Electron
 
-Electron has its own TypeScript config (`electron/tsconfig.json`) targeting ES2022 with NodeNext module resolution, outputting to `dist/electron/`. The preload script (`electron/preload.cjs`) is plain CommonJS and gets copied during build.
+Electron has its own TypeScript config (`apps/desktop-app/tsconfig.json`) targeting ES2022 with NodeNext module resolution, outputting to `apps/desktop-app/dist/`. The preload script (`apps/desktop-app/src/preload.cjs`) is plain CommonJS and gets copied during build.
 
-`electronmon` handles auto-restart during development. Its config (`electronmon.config.cjs`) watches `dist/electron/**/*.js` and `dist/*.js` while ignoring `dist/ui/` (which has its own HMR).
+`electronmon` handles auto-restart during development. Its config (`apps/desktop-app/electronmon.config.cjs`) watches `./dist/**/*.js` and `../cli/dist/**/*.js`, while ignoring `../../apps/web-app/dist/` (which has its own HMR).
+
+### Website (Astro)
+
+The marketing site in `apps/website` uses Astro. `pnpm build:website` (or `nx run website:build`) outputs static assets to `apps/website/dist/`.
+
+### Mobile (Expo)
+
+`pnpm build:mobile-app` (or `nx run mobile-app:build`) exports platform bundles to:
+
+- `apps/mobile-app/dist/ios/`
+- `apps/mobile-app/dist/android/`
 
 ### Tailwind CSS
 
-Tailwind 3.x with custom theme extensions in `tailwind.config.js`:
-
-- **Content paths:** `src/ui/**/*.{ts,tsx,html}`
-- **Custom colors:** `surface` (page, panel, raised, input) and `accent` (teal palette)
-- **PostCSS:** autoprefixer via `postcss.config.js`
+The web app uses Tailwind v4 through CSS-first configuration in `apps/web-app/src/index.css` (`@import "tailwindcss"` and `@theme` tokens). PostCSS integration lives in `apps/web-app/postcss.config.js`.
 
 ### TypeScript
 
-Single `tsconfig.json` for the main codebase:
+TypeScript uses a layered setup:
+
+- Root `tsconfig.base.json` defines shared compiler defaults.
+- Root `tsconfig.json` defines workspace-wide aliases and defaults.
+- Each app owns `apps/<app>/tsconfig.json`, extending root config and adding app-local overrides (for example `apps/desktop-app` uses NodeNext emit settings, `apps/web-app` adds `vite/client` types).
 
 - **Target/Module:** ES2022 / ESNext with Bundler resolution
 - **Strict mode** enabled
@@ -164,7 +269,7 @@ Single `tsconfig.json` for the main codebase:
 Backend routes follow a consistent pattern. Each route file exports a `register*Routes` function:
 
 ```typescript
-// src/server/routes/my-feature.ts
+// apps/server/src/routes/my-feature.ts
 import type { Hono } from "hono";
 import type { WorktreeManager } from "../manager";
 
@@ -182,7 +287,7 @@ export function registerMyFeatureRoutes(app: Hono, manager: WorktreeManager) {
 }
 ```
 
-Routes are registered in `src/server/index.ts`:
+Routes are registered in `apps/server/src/index.ts`:
 
 ```typescript
 import { registerMyFeatureRoutes } from "./routes/my-feature";
@@ -196,9 +301,9 @@ Some routes receive additional managers (e.g., `terminalManager`, `notesManager`
 
 The frontend API layer has two parts:
 
-1. **`src/ui/hooks/api.ts`** -- Raw fetch functions that accept an optional `serverUrl` parameter. When `null`, they use relative URLs (single-project web mode). When provided, they use full URLs (multi-project Electron mode).
+1. **`apps/web-app/src/hooks/api.ts`** -- Raw fetch functions that accept an optional `serverUrl` parameter. When `null`, they use relative URLs (single-project web mode). When provided, they use full URLs (multi-project Electron mode).
 
-2. **`src/ui/hooks/useApi.ts`** -- A hook that returns all API functions pre-bound to the current `serverUrl` from `ServerContext`. Components call `useApi()` and use the returned functions directly.
+2. **`apps/web-app/src/hooks/useApi.ts`** -- A hook that returns all API functions pre-bound to the current `serverUrl` from `ServerContext`. Components call `useApi()` and use the returned functions directly.
 
 ```typescript
 // In a component:
@@ -211,7 +316,7 @@ await api.createWorktree("feature/my-branch");
 Data-fetching hooks follow React Query patterns:
 
 ```typescript
-// src/ui/hooks/useMyFeature.ts
+// apps/web-app/src/hooks/useMyFeature.ts
 import { useQuery } from "@tanstack/react-query";
 import { fetchMyData } from "./api";
 import { useServerUrlOptional } from "../contexts/ServerContext";
@@ -234,7 +339,7 @@ State is pushed from the server via Server-Sent Events. The `useWorktrees` hook 
 
 ### Theme System
 
-All colors and Tailwind utility classes are centralized in `src/ui/theme.ts`. This file exports named objects (`palette`, `surface`, `border`, `text`, `status`, `action`, `button`, etc.) containing Tailwind class fragments.
+All colors and Tailwind utility classes are centralized in `apps/web-app/src/theme.ts`. This file exports named objects (`palette`, `surface`, `border`, `text`, `status`, `action`, `button`, etc.) containing Tailwind class fragments.
 
 ```typescript
 import { surface, text, border } from '../theme';
@@ -266,45 +371,45 @@ When adding a new selectable entity type, update: the Selection type, CreateForm
 
 ### Adding a New Route
 
-1. Create `src/server/routes/my-feature.ts`.
+1. Create `apps/server/src/routes/my-feature.ts`.
 2. Export a `registerMyFeatureRoutes(app, manager)` function with Hono route handlers.
-3. Import and call it in `src/server/index.ts` alongside the other route registrations.
+3. Import and call it in `apps/server/src/index.ts` alongside the other route registrations.
 
 ### Adding a New UI Component
 
-1. Create the component in `src/ui/components/` (or `src/ui/components/detail/` for right-panel views).
-2. Import all colors from `src/ui/theme.ts`. Never hardcode Tailwind color classes.
-3. Use the `Tooltip` component (`src/ui/components/Tooltip.tsx`) instead of the native `title` attribute.
+1. Create the component in `apps/web-app/src/components/` (or `apps/web-app/src/components/detail/` for right-panel views).
+2. Import all colors from `apps/web-app/src/theme.ts`. Never hardcode Tailwind color classes.
+3. Use the `Tooltip` component (`apps/web-app/src/components/Tooltip.tsx`) instead of the native `title` attribute.
 4. Use the `Modal` component for dialogs (supports `width: 'sm' | 'md' | 'lg'`).
-5. Use icon components from `src/ui/icons/index.tsx` for app/custom icons. Use `lucide-react` for generic utility icons when a custom asset component is not needed.
-6. When adding a new app/custom SVG icon, place the file in `src/ui/icons/`, import it in `src/ui/icons/index.tsx` as `*.svg?raw`, and expose exactly one icon component for it. Do not import raw assets in feature components.
+5. Use icon components from `apps/web-app/src/icons/index.tsx` for app/custom icons. Use `lucide-react` for generic utility icons when a custom asset component is not needed.
+6. When adding a new app/custom SVG icon, place the file in `apps/web-app/src/icons/`, import it in `apps/web-app/src/icons/index.tsx` as `*.svg?raw`, and expose exactly one icon component for it. Do not import raw assets in feature components.
 
 ### Adding a New Hook
 
-1. Create the hook in `src/ui/hooks/`.
+1. Create the hook in `apps/web-app/src/hooks/`.
 2. For data fetching, follow the React Query pattern with `useQuery`, `queryKey`, `enabled`, and `staleTime`.
-3. Add raw API functions to `src/ui/hooks/api.ts` (with the `serverUrl` parameter).
-4. Add bound versions to `src/ui/hooks/useApi.ts` if they are imperative actions (mutations).
+3. Add raw API functions to `apps/web-app/src/hooks/api.ts` (with the `serverUrl` parameter).
+4. Add bound versions to `apps/web-app/src/hooks/useApi.ts` if they are imperative actions (mutations).
 
 ### Adding a New Integration
 
-1. Create a directory in `src/integrations/my-service/`.
+1. Create a directory in `libs/integrations/src/my-service/`.
 2. Implement the API client, credential storage, and type definitions.
-3. Add server routes in `src/server/routes/my-service.ts`.
+3. Add server routes in `apps/server/src/routes/my-service.ts`.
 4. Add UI components for configuration (typically in `IntegrationsPanel.tsx`).
-5. Add status checking to the `/api/integrations/verify` endpoint in `src/server/index.ts`.
+5. Add status checking to the `/api/integrations/verify` endpoint in `apps/server/src/index.ts`.
 6. Add sidebar list and detail panel components if the integration surfaces items.
 
 ### Adding a Sidebar Entity (Issues, Tasks, etc.)
 
 This follows an established pattern. You will need:
 
-1. **Backend route** in `src/server/routes/` for CRUD operations.
+1. **Backend route** in `apps/server/src/routes/` for CRUD operations.
 2. **Types** for summary and detail views.
-3. **API functions** in `src/ui/hooks/api.ts`.
+3. **API functions** in `apps/web-app/src/hooks/api.ts`.
 4. **Hooks** -- a list hook (`useMyItems.ts`) and a detail hook (`useMyItemDetail.ts`).
 5. **Sidebar components** -- `MyItemList.tsx` and `MyItemItem.tsx` (follow existing patterns like `JiraIssueItem.tsx` or `LinearIssueItem.tsx`).
-6. **Detail panel** -- `src/ui/components/detail/MyItemDetailPanel.tsx`.
+6. **Detail panel** -- `apps/web-app/src/components/detail/MyItemDetailPanel.tsx`.
 7. **Selection type** -- add to the `Selection` union in `App.tsx`.
 8. **Theme colors** -- add a section in `theme.ts` for the entity accent color.
 
@@ -320,11 +425,11 @@ This follows an established pattern. You will need:
 - **No backwards compatibility needed.** There are no external users. Data gets deleted and recreated from scratch. Do not add migration code, backfill logic, or compatibility shims.
 - **Never use native `title` attribute for tooltips.** Always use the `Tooltip` component.
 - **All colors in `theme.ts`.** Components import Tailwind class fragments from there. No hardcoded color classes.
-- **ESM throughout.** The project uses `"type": "module"`. The only CommonJS file is `src/runtime/port-hook.cjs`, which must remain CJS because it is loaded via Node's `--require` flag.
+- **ESM throughout.** The project uses `"type": "module"`. The only CommonJS file is `apps/server/src/runtime/port-hook.cjs`, which must remain CJS because it is loaded via Node's `--require` flag.
 - **Hono for HTTP.** The backend uses Hono with `@hono/node-server`, not Express.
 - **React 18 + React Query.** State management is via React Query for server state and `useState`/`useContext` for UI state. No Redux or Zustand.
 - **Motion (Framer Motion v12+).** Animations use the `motion/react` import path.
-- **Keep agent instructions in sync with MCP changes.** When modifying MCP tools, workflows, or hooks behavior, update the relevant `.md` files in `src/instructions/` (MCP instructions, agent skills/rules, hook skill definitions). All instruction text is centralized there — consumer files import from the barrel at `src/instructions/index.ts`. Also update the inline instructions block in `docs/MCP.md`.
+- **Keep agent instructions in sync with MCP changes.** When modifying MCP tools, workflows, or hooks behavior, update the relevant `.md` files in `libs/instructions/src/` (MCP instructions, agent skills/rules, hook skill definitions). All instruction text is centralized there — consumer files import from the barrel at `libs/instructions/src/index.ts`. Also update the inline instructions block in `docs/MCP.md`.
 
 ## Platform Constraints
 
@@ -355,7 +460,7 @@ This follows an established pattern. You will need:
 
 ## CLI Subcommands
 
-For reference, these are the CLI entry points (all in `src/cli/`):
+For reference, these are the CLI entry points (all in `apps/cli/src/`):
 
 | Command               | Description                                               |
 | --------------------- | --------------------------------------------------------- | --------------------------------------------------------- |

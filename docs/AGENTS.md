@@ -76,7 +76,7 @@ Deploying/removing Claude instruction files does not mutate `.claude/settings.js
 
 ### Exposed Tools
 
-The MCP server exposes the following tools (defined in `src/actions.ts`):
+The MCP server exposes the following tools (defined in `libs/agent/src/actions.ts`):
 
 **Issue browsing:**
 
@@ -371,7 +371,7 @@ Each worktree (linked to an issue) can override the global policy. Overrides are
 
 ### Resolution Logic
 
-The policy resolution function (`resolveGitPolicy` in `src/server/git-policy.ts`) follows this order:
+The policy resolution function (`resolveGitPolicy` in `apps/server/src/git-policy.ts`) follows this order:
 
 1. **Check per-worktree override**: Look up the worktree's linked issue notes. If a per-worktree override exists and is `allow` or `deny`, return immediately.
 2. **Fall through to global**: If the override is `inherit` or absent, check the global config key. If the global setting is `false` (or missing), the operation is denied.

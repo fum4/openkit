@@ -1,3 +1,0 @@
-yarn run v1.22.22
-$ eslint --no-error-on-unmatched-pattern --ext .js,.ts,.tsx .
-Done in 1.89s.

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "web-app",
+  "projectType": "application",
+  "sourceRoot": "apps/web-app/src",
+  "implicitDependencies": ["server", "shared"],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/web-app",
+        "command": "pnpm run dev"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/apps/web-app/dist"],
+      "options": {
+        "cwd": "apps/web-app",
+        "command": "pnpm run build"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/web-app",
+        "command": "pnpm run typecheck"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/web-app",
+        "command": "pnpm run lint"
+      }
+    }
+  }
+}

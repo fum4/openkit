@@ -14,10 +14,10 @@ The system is organized into three primary layers:
 
 ```mermaid
 flowchart LR
-    CLI["CLI\n(src/cli/)"]
-    Server["Hono Server\n(src/server/)"]
-    UI["React SPA\n(src/ui/)"]
-    Electron["Electron App\n(electron/)"]
+    CLI["CLI\n(apps/cli/src/)"]
+    Server["Hono Server\n(apps/server/src/)"]
+    UI["React SPA\n(apps/web-app/src/)"]
+    Electron["Electron App\n(apps/desktop-app/)"]
     MCP["MCP Agents\n(Claude Code, etc.)"]
     Integrations["Integrations\n(Jira, Linear, GitHub)"]
 
@@ -41,6 +41,7 @@ flowchart TB
     NM["NotesManager\n(issue notes, todos, AI context)"]
     AL["ActivityLog\n(event persistence + emission)"]
     VM["HooksManager\n(hooks: commands + skills)"]
+    NC["Ngrok Connect Routes\n(qr pairing + gateway proxy)"]
     GH["GitHubManager\n(PR status, git operations)"]
     Hook["port-hook.cjs\n(runtime port patching)"]
     Actions["Actions Registry\n(MCP tool definitions)"]
@@ -57,6 +58,7 @@ flowchart TB
     Routes --> NM
     Routes --> VM
     Routes --> AL
+    Routes --> NC
     Actions --> WM
     Actions --> NM
     Actions --> VM
@@ -67,7 +69,7 @@ flowchart TB
 
 ### WorktreeManager
 
-`src/server/manager.ts` -- The central orchestrator. Manages the lifecycle of git worktrees: creation (with async status updates via SSE), starting/stopping dev processes, removal, and renaming. It owns instances of `PortManager` and `NotesManager`, and optionally initializes `GitHubManager` for PR tracking and git operations.
+`apps/server/src/manager.ts` -- The central orchestrator. Manages the lifecycle of git worktrees: creation (with async status updates via SSE), starting/stopping dev processes, removal, and renaming. It owns instances of `PortManager` and `NotesManager`, and optionally initializes `GitHubManager` for PR tracking and git operations.
 
 Key responsibilities:
 
@@ -81,7 +83,7 @@ Key responsibilities:
 
 ### PortManager
 
-`src/server/port-manager.ts` -- Handles port discovery, offset allocation, and environment variable generation.
+`apps/server/src/port-manager.ts` -- Handles port discovery, offset allocation, and environment variable generation.
 
 Key responsibilities:
 
@@ -93,7 +95,7 @@ Key responsibilities:
 
 ### TerminalManager
 
-`src/server/terminal-manager.ts` -- Manages interactive PTY (pseudo-terminal) sessions that connect to the web UI via WebSockets.
+`apps/server/src/terminal-manager.ts` -- Manages interactive PTY (pseudo-terminal) sessions that connect to the web UI via WebSockets.
 
 Key responsibilities:
 
@@ -103,7 +105,7 @@ Key responsibilities:
 
 ### NotesManager
 
-`src/server/notes-manager.ts` -- Manages per-issue metadata stored as JSON files under `.openkit/issues/{source}/{issueId}/notes.json`.
+`apps/server/src/notes-manager.ts` -- Manages per-issue metadata stored as JSON files under `.openkit/issues/{source}/{issueId}/notes.json`.
 
 Stored data per issue:
 
@@ -117,7 +119,7 @@ The `buildWorktreeLinkMap()` method scans all notes files to produce a reverse m
 
 ### ActivityLog
 
-`src/server/activity-log.ts` -- Persists and broadcasts activity events (agent actions, worktree lifecycle, git operations) to SSE listeners.
+`apps/server/src/activity-log.ts` -- Persists and broadcasts activity events (agent actions, worktree lifecycle, git operations) to SSE listeners.
 
 Key responsibilities:
 
@@ -127,11 +129,11 @@ Key responsibilities:
 - **Pruning**: Removes events older than the configured retention period (default 7 days), runs on startup and every hour
 - **Notification classification**: `isToastEvent()` and `isOsNotificationEvent()` expose config-based checks in `ActivityLog`; product policy routes workflow/agent/live updates to the Activity feed, reserves toasts for direct user actions, and reserves Electron native alerts for agent-attention events
 
-Shared types are defined in `src/server/activity-event.ts`: `ActivityCategory` (`agent` | `worktree` | `system`), `ActivitySeverity` (`info` | `success` | `warning` | `error`), `ActivityEvent`, and the `ACTIVITY_TYPES` event catalog.
+Shared activity types are defined in `libs/shared/src/activity-event.ts`: `ActivityCategory` (`agent` | `worktree` | `system`), `ActivitySeverity` (`info` | `success` | `warning` | `error`), `ActivityEvent`, and the `ACTIVITY_TYPES` event catalog.
 
 ### HooksManager
 
-`src/server/verification-manager.ts` -- Manages automated checks and agent skills organized by trigger type. Contains two item types:
+`apps/server/src/verification-manager.ts` -- Manages automated checks and agent skills organized by trigger type. Contains two item types:
 
 1. **Command steps**: Shell commands (lint, typecheck, build) that run in the worktree directory. Each step has a trigger type, can be enabled/disabled, and custom-trigger steps include a natural-language condition.
 2. **Skill references**: References to skills from the `~/.openkit/skills/` registry. The same skill can be used in multiple trigger types (identified by `skillName + trigger` composite key). Skills support per-issue overrides (inherit/enable/disable).
@@ -141,6 +143,14 @@ Six trigger types: `pre-implementation` (before agent work), `post-implementatio
 Command step runs are persisted to `.openkit/worktrees/{id}/hooks/latest-run.json`. Skill results reported by agents are stored at `.openkit/worktrees/{id}/hooks/skill-results.json`.
 
 Hooks are configured via `.openkit/hooks.json` with `steps` and `skills` arrays.
+
+### Ngrok Connect Routes
+
+`apps/server/src/routes/ngrok-connect.ts` implements the experimental remote gateway flow:
+
+- Tunnel lifecycle endpoints (`/api/ngrok/tunnel/enable`, `/api/ngrok/tunnel/disable`, `/api/ngrok/status`)
+- QR pairing endpoints (`/api/ngrok/pairing/start`, `/api/ngrok/pairing/exchange`, `/_ok/pair`)
+- Authenticated gateway proxy (`/_ok/p/:projectId/*`) that forwards allowlisted internal routes (`/api/*`, `/mcp`)
 
 ## Data Flow
 
@@ -198,7 +208,7 @@ MCP agents communicate with OpenKit through two modes:
 
 **Standalone mode** (fallback): If no server is running, `openkit mcp` creates its own `WorktreeManager` instance and serves MCP tools directly over stdio.
 
-The tool definitions live in `src/actions.ts` as a flat array of `Action` objects. Each action has a name, description, parameter schema, and async handler function. The `MCP Server Factory` (`src/server/mcp-server-factory.ts`) converts these into MCP tools with Zod schemas. The same actions are used for both the Streamable HTTP MCP transport (exposed at `/mcp` on the server) and the standalone stdio MCP server.
+The tool definitions live in `libs/agent/src/actions.ts` as a flat array of `Action` objects. Each action has a name, description, parameter schema, and async handler function. The `MCP Server Factory` (`apps/server/src/mcp-server-factory.ts`) converts these into MCP tools with Zod schemas. The same actions are used for both the Streamable HTTP MCP transport (exposed at `/mcp` on the server) and the standalone stdio MCP server.
 
 ### 3. Terminal Sessions
 
@@ -209,19 +219,34 @@ Terminal sessions use a two-step protocol:
 
 Once attached, the `TerminalManager` spawns a PTY process (`node-pty`) in the worktree directory. Data flows bidirectionally: keystrokes from the WebSocket are written to the PTY; PTY output is sent back over the WebSocket. Resize messages (`{ type: "resize", cols, rows }`) are intercepted and forwarded to `pty.resize()`.
 
+### 4. Ngrok Connect Mobile Routing
+
+1. Laptop user enables the tunnel from the bottom-right Wi-Fi button (Electron tab bar), then creates a one-time pairing session (`/api/ngrok/pairing/start`).
+2. Mobile scans QR and opens `/_ok/pair?token=...` on that ngrok host.
+3. `/_ok/pair` validates token (single-use, short TTL), sets `ok_session`, and redirects.
+4. Programmatic clients call `/_ok/p/:projectId/...` (or `/mcp` through that prefix); gateway validates session and project, then proxies to internal OpenKit routes.
+
 ## Build System
 
 OpenKit uses a dual build system to produce the backend and frontend artifacts:
 
+### Workspace orchestration: Nx
+
+Nx provides project graph orchestration and cached task execution across the repository. Project definitions are colocated with each app (`project.json`), including `web-app`, `cli`, `server`, `desktop-app`, `website`, and `mobile-app`. Nx orchestrates app-local scripts rather than owning app build commands itself.
+
 ### Backend: tsup (ESM)
 
-Configuration lives in `tsup.config.ts` at the project root:
+Configuration lives in `apps/cli/tsup.config.ts`:
 
 ```typescript
 export default defineConfig({
-  entry: ["src/cli/index.ts", "src/electron-entry.ts"],
+  entry: {
+    "cli/index": "src/index.ts",
+    "electron-entry": "src/electron-entry.ts",
+  },
+  outDir: "dist",
   format: "esm",
-  external: ["node-pty", "electron"],
+  external: ["node-pty", "electron", "ws"],
   esbuildOptions(options) {
     options.loader = { ...options.loader, ".md": "text" };
   },
@@ -230,12 +255,12 @@ export default defineConfig({
 
 This bundles two entry points:
 
-- `src/cli/index.ts` -- The CLI entry point (produces `dist/cli/index.js`)
-- `src/electron-entry.ts` -- The Electron IPC bridge entry point
+- `apps/cli/src/index.ts` -- The CLI entry point (produces `apps/cli/dist/cli/index.js`)
+- `apps/cli/src/electron-entry.ts` -- The Electron IPC bridge export entry point
 
 Both are output as ESM. `node-pty` and `electron` are externalized since they contain native bindings that cannot be bundled.
 
-The `.md` text loader inlines markdown files as strings at build time. This is used by the `src/instructions/` directory to keep agent instruction text in standalone `.md` files rather than embedded template literals. See the [Instructions section](#agent-instructions) below.
+The `.md` text loader inlines markdown files as strings at build time. This is used by the `libs/instructions/src/` directory to keep agent instruction text in standalone `.md` files rather than embedded template literals. See the [Instructions section](#agent-instructions) below.
 
 ### Frontend: Vite (React SPA)
 
@@ -243,15 +268,23 @@ The `.md` text loader inlines markdown files as strings at build time. This is u
 vite build
 ```
 
-Vite builds the React SPA from `src/ui/` into `dist/ui/`. The Hono server serves these static files, and the Electron app loads `dist/ui/index.html` directly.
+Vite builds the React SPA through `apps/web-app/vite.config.ts` from `apps/web-app/src/` into `apps/web-app/dist/`. The Hono server serves UI from `apps/web-app/dist` when present, and falls back to downloaded UI components under `~/.openkit/components/web/current` when running in core-only installs. The Electron app loads `apps/web-app/dist/index.html` directly.
 
 ### Electron: tsc + electron-builder
 
-The Electron main process (`electron/main.ts`) is compiled with `tsc -p electron/tsconfig.json` into `dist/electron/main.js`. The preload script (`electron/preload.cjs`) is copied as-is. `electron-builder` packages everything into a macOS `.app` bundle.
+The Electron main process (`apps/desktop-app/src/main.ts`) is compiled with `tsc -p apps/desktop-app/tsconfig.json` into `apps/desktop-app/dist/main.js`. The preload script (`apps/desktop-app/src/preload.cjs`) is copied as-is. `electron-builder` packages everything into a macOS `.app` bundle.
+
+### Website: Astro
+
+The marketing website (`apps/website`) builds with Astro to `apps/website/dist/`.
+
+### Mobile: Expo export
+
+The Expo app (`apps/mobile-app`) exports platform bundles to `apps/mobile-app/dist/ios/` and `apps/mobile-app/dist/android/`.
 
 ### Runtime artifact: port-hook.cjs
 
-`src/runtime/port-hook.cjs` is a pure CommonJS file with zero dependencies. It is copied verbatim to `dist/runtime/port-hook.cjs` during the build. It cannot be bundled because it must be loadable via Node's `--require` flag in any process.
+`apps/server/src/runtime/port-hook.cjs` is a pure CommonJS file with zero dependencies. It is copied verbatim to `apps/server/dist/runtime/port-hook.cjs` during the build. It cannot be bundled because it must be loadable via Node's `--require` flag in any process.
 
 ### Full build pipeline
 
@@ -259,12 +292,18 @@ The Electron main process (`electron/main.ts`) is compiled with `tsc -p electron
 pnpm build
 ```
 
-This runs sequentially:
+This runs `nx run-many -t build --projects cli,server,web-app,desktop-app,website,mobile-app`.
 
-1. tsup -- bundle backend ESM entries
-2. tsc -- compile Electron main process
-3. cp -- copy preload.cjs and port-hook.cjs
-4. vite build -- bundle the React SPA
+Build outputs are intentionally split:
+
+1. Core runtime outputs:
+   - `cli` -> `apps/cli/dist/`
+   - `server` runtime hook -> `apps/server/dist/runtime/`
+   - `web-app` -> `apps/web-app/dist/`
+   - `desktop-app` -> `apps/desktop-app/dist/`
+2. Standalone apps own their output directories:
+   - `website` -> `apps/website/dist/`
+   - `mobile-app` -> `apps/mobile-app/dist/`
 
 ## Directory Structure
 
@@ -274,14 +313,14 @@ Architecture-level discussion in this document focuses on responsibilities and r
 
 ## Agent Instructions
 
-Agent instruction text (MCP instructions, IDE skill/rule files, hook skill definitions) lives in `src/instructions/` as standalone `.md` files. The tsup esbuild text loader (`{ '.md': 'text' }`) inlines them as strings at build time.
+Agent instruction text (MCP instructions, IDE skill/rule files, hook skill definitions) lives in `libs/instructions/src/` as standalone `.md` files. The tsup esbuild text loader (`{ '.md': 'text' }`) inlines them as strings at build time.
 
 ### How it works
 
-1. Each instruction is a `.md` file under `src/instructions/` (or subdirectories `mcp/`, `skills/`)
-2. `src/instructions/index.ts` imports all `.md` files, resolves placeholders, and exports typed constants
+1. Each instruction is a `.md` file under `libs/instructions/src/` (or subdirectories `mcp/`, `skills/`)
+2. `libs/instructions/src/index.ts` imports all `.md` files, resolves placeholders, and exports typed constants
 3. Consumer files (`actions.ts`, `mcp-server-factory.ts`, `builtin-instructions.ts`, `verification-skills.ts`) import from the barrel
-4. `src/md.d.ts` provides TypeScript declarations for `*.md` imports
+4. `md.d.ts` provides TypeScript declarations for `*.md` imports
 
 ### Placeholders
 
@@ -293,15 +332,15 @@ Agent instruction text (MCP instructions, IDE skill/rule files, hook skill defin
 
 ### File map
 
-| File                   | Export                    | Used by                                                                           |
-| ---------------------- | ------------------------- | --------------------------------------------------------------------------------- |
-| `mcp-server.md`        | `MCP_INSTRUCTIONS`        | `mcp-server-factory.ts` (server instructions)                                     |
-| `mcp-work-on-task.md`  | `MCP_WORK_ON_TASK_PROMPT` | `mcp-server-factory.ts` (prompt template)                                         |
-| `mcp/claude-skill.md`  | `CLAUDE_SKILL`            | `builtin-instructions.ts` (deployed to `~/.claude/skills/`)                       |
-| `mcp/cursor-rule.md`   | `CURSOR_RULE`             | `builtin-instructions.ts` (deployed to `.cursor/rules/`)                          |
-| `mcp/vscode-prompt.md` | `VSCODE_PROMPT`           | `builtin-instructions.ts` (deployed to `.github/prompts/`)                        |
-| `mcp/instructions.md`  | _(internal)_              | Interpolated into claude-skill, cursor-rule, and vscode-prompt via `{{WORKFLOW}}` |
-| `skills/*/SKILL.md`    | `BUNDLED_SKILLS`          | `verification-skills.ts` (seeded into `~/.openkit/skills/` registry only)         |
+| File                      | Export                    | Used by                                                                           |
+| ------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
+| `mcp/mcp-server.md`       | `MCP_INSTRUCTIONS`        | `mcp-server-factory.ts` (server instructions)                                     |
+| `mcp/mcp-work-on-task.md` | `MCP_WORK_ON_TASK_PROMPT` | `mcp-server-factory.ts` (prompt template)                                         |
+| `mcp/claude-skill.md`     | `CLAUDE_SKILL`            | `builtin-instructions.ts` (deployed to `~/.claude/skills/`)                       |
+| `mcp/cursor-rule.md`      | `CURSOR_RULE`             | `builtin-instructions.ts` (deployed to `.cursor/rules/`)                          |
+| `mcp/vscode-prompt.md`    | `VSCODE_PROMPT`           | `builtin-instructions.ts` (deployed to `.github/prompts/`)                        |
+| `mcp/instructions.md`     | _(internal)_              | Interpolated into claude-skill, cursor-rule, and vscode-prompt via `{{WORKFLOW}}` |
+| `skills/*/SKILL.md`       | `BUNDLED_SKILLS`          | `verification-skills.ts` (seeded into `~/.openkit/skills/` registry only)         |
 
 ## Server-as-Hub Pattern
 
@@ -320,7 +359,7 @@ This file enables **agent discovery**: when `openkit mcp` starts, it reads `serv
 
 If no server is running (e.g., the agent is invoked before the user starts the UI), `openkit mcp` falls back to **standalone mode** with its own `WorktreeManager`.
 
-The Electron app uses a similar pattern: `electron/server-spawner.ts` spawns a `OpenKit` CLI process per project (with `--no-open` to suppress browser opening), polls until the server is ready, then loads the UI at the server URL. The `electron/project-manager.ts` handles multi-project tabs, each backed by its own server process.
+The Electron app uses a similar pattern: `apps/desktop-app/src/server-spawner.ts` spawns a `OpenKit` CLI process per project (with `--no-open` to suppress browser opening), polls until the server is ready, then loads the UI at the server URL. The `apps/desktop-app/src/project-manager.ts` handles multi-project tabs, each backed by its own server process.
 
 `server.json` is cleaned up on graceful shutdown (SIGINT/SIGTERM).
 

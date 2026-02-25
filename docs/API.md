@@ -1619,6 +1619,160 @@ Get skill hook results for a worktree.
 
 ---
 
+## Ngrok Connect (Experimental)
+
+Remote access flow for exposing a local OpenKit server through ngrok with one-time QR pairing.
+
+#### `GET /api/ngrok/status`
+
+Return current ngrok project + tunnel state.
+
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "project": {
+      "id": "project-id",
+      "name": "project-name"
+    },
+    "tunnel": {
+      "enabled": false,
+      "status": "stopped",
+      "publicUrl": null,
+      "localPort": null,
+      "startedAt": null,
+      "error": null
+    }
+  }
+  ```
+
+#### `GET /api/ngrok/tunnel/status`
+
+Alias of `GET /api/ngrok/status`.
+
+#### `POST /api/ngrok/tunnel/enable`
+
+Start (or re-use) ngrok for the current local OpenKit port.
+
+- **Request**:
+  ```json
+  {
+    "regenerateUrl": false
+  }
+  ```
+- **Response**: same shape as `GET /api/ngrok/status`
+- **Error**:
+  - `500 ngrok_start_failed`
+
+#### `POST /api/ngrok/tunnel/disable`
+
+Stop the active ngrok process.
+
+- **Response**: same shape as `GET /api/ngrok/status`
+
+#### `POST /api/ngrok/pairing/start`
+
+Create a one-time pairing URL (QR target) for mobile login. This will ensure a tunnel exists first.
+
+- **Request**:
+  ```json
+  {
+    "regenerateUrl": false,
+    "next": "/"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "project": { "id": "project-id", "name": "project-name" },
+    "pairUrl": "https://example.ngrok.app/_ok/pair?token=...",
+    "gatewayApiBase": "https://example.ngrok.app/_ok/p/project-id",
+    "expiresAt": "2026-02-24T12:00:00.000Z",
+    "expiresIn": 90
+  }
+  ```
+- **Notes**:
+  - Pairing tokens are random, one-time, and short-lived.
+  - `next` is sanitized to a local path and defaults to `/`.
+  - `regenerateUrl=true` forces a tunnel restart to mint a new public ngrok URL.
+
+#### `POST /api/ngrok/pairing/exchange`
+
+Exchange a one-time pairing token for a short-lived bearer session token (programmatic clients).
+
+- **Request**:
+  ```json
+  { "token": "opaque-token" }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "sessionJwt": "signed-token",
+    "expiresIn": 900,
+    "project": { "id": "project-id", "name": "project-name" }
+  }
+  ```
+
+#### `GET /_ok/health`
+
+Gateway liveness endpoint.
+
+- **Response**: `{ "ok": true, "service": "openkit-gateway" }`
+
+#### `GET /_ok/pair`
+
+Consume a one-time QR pairing token directly on the ngrok-exposed OpenKit server.
+
+- **Query params**: `token` (required), `next` (optional)
+- **Response**: `302` redirect (on success)
+- **Behavior**:
+  - validates token (single-use + short TTL)
+  - sets `ok_session` cookie
+  - applies rate limiting to pairing attempts
+- **Error**:
+  - `400 pair_invalid` (invalid/expired/used token)
+  - `429 pair_rate_limited`
+
+#### `GET /_ok/me`
+
+Get current local gateway identity.
+
+- **Auth**: `ok_session` cookie or `Authorization: Bearer <sessionJwt>`
+- **Response**:
+  ```json
+  {
+    "user": { "id": "uuid-or-paired-id", "email": "user@example.com-or-null" },
+    "projectId": "project-id"
+  }
+  ```
+
+#### `POST /_ok/logout`
+
+Clear local gateway session cookie.
+
+- **Response**: `{ "success": true }`
+
+#### `ANY /_ok/p/:projectId/*`
+
+Authenticated gateway proxy for programmatic access.
+
+- **Auth**: `ok_session` cookie or `Authorization: Bearer <sessionJwt>`
+- **Behavior**:
+  - Verifies session project matches `:projectId`
+  - Proxies to an internal allowlist only: `/api/*` and `/mcp`
+  - Injects:
+    - `X-OpenKit-User-Id`
+    - `X-OpenKit-User-Email` (when available)
+    - `X-OpenKit-Project-Id`
+- **Error**:
+  - `401` unauthenticated
+  - `403` project_forbidden
+  - `404` route_forbidden
+
+---
+
 ## Integration Verification
 
 #### `GET /api/integrations/verify`

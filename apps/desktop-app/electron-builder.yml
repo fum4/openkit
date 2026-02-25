@@ -1,0 +1,45 @@
+appId: com.openkit.app
+productName: OpenKit
+directories:
+  app: ../..
+  output: release
+files:
+  - apps/desktop-app/dist/**/*
+  - apps/cli/dist/**/*
+  - apps/web-app/dist/**/*
+  - apps/server/dist/runtime/**/*
+  - assets/icon.png
+  - node_modules/**/*
+  - package.json
+icon: assets/icon.icns
+mac:
+  icon: assets/icon.icns
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+linux:
+  icon: assets/icon.png
+  category: Development
+  target:
+    - target: AppImage
+      arch:
+        - x64
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+asar: true
+asarUnpack:
+  - apps/desktop-app/dist/**
+  - apps/cli/dist/**
+  - node_modules/node-pty/**
+extraResources:
+  - from: ../../apps/server/dist/runtime
+    to: runtime

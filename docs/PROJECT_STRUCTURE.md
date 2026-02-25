@@ -11,122 +11,134 @@ Use this together with:
 
 ```text
 OpenKit/
-├── src/                 Core application code (CLI, server, UI, integrations, MCP)
-├── electron/            Electron desktop app shell
-├── website/             Public landing page (Astro)
+├── apps/                Deployable applications
+├── libs/                Shared libraries
+├── packages/            Shared configuration packages
 ├── docs/                Documentation
-├── dist/                Build output (generated)
-├── release/             Packaged app artifacts (generated)
+├── dist/                Core runtime build output (generated)
+├── nx.json              Nx workspace/task graph config
+├── pnpm-workspace.yaml  pnpm workspace package map
 ├── package.json
 ├── tsconfig.json
-├── tsup.config.ts
-├── vite.config.ts
 └── ...
 ```
 
-## `src/`
+## `apps/`
 
 ```text
-src/
-├── cli/                 CLI entrypoints and commands
-│   ├── index.ts         Main CLI router (`OpenKit`, `init`, `mcp`, `task`, etc.)
-│   ├── init.ts          Interactive setup flow
-│   ├── add.ts           Integration setup command
-│   └── task.ts          Issue/task worktree creation command
+apps/
+├── cli/                 CLI app (`cli`)
+│   ├── package.json
+│   ├── project.json
+│   ├── tsup.config.ts
+│   └── src/
+│       ├── index.ts     Main CLI router (`openkit`, `init`, `mcp`, `task`, etc.)
+│       ├── electron-entry.ts
+│       ├── init.ts
+│       ├── add.ts
+│       └── task.ts
 │
-├── server/              Hono backend and runtime managers
-│   ├── index.ts         Server bootstrap and route registration
-│   ├── manager.ts       WorktreeManager (core orchestration)
-│   ├── port-manager.ts  Port discovery and offset allocation
-│   ├── terminal-manager.ts
-│   ├── notes-manager.ts
-│   ├── verification-manager.ts
-│   ├── activity-log.ts
-│   ├── mcp-server-factory.ts
-│   └── routes/          REST/SSE/WebSocket route handlers
-│       ├── worktrees.ts
-│       ├── terminal.ts
-│       ├── events.ts
-│       ├── notes.ts
-│       ├── tasks.ts
-│       ├── verification.ts
-│       ├── mcp.ts / mcp-transport.ts / mcp-servers.ts
-│       ├── github.ts / jira.ts / linear.ts
-│       ├── agent-cli.ts
-│       └── claude-plugins.ts
+├── server/              Hono backend app (`server`)
+│   ├── package.json
+│   ├── project.json
+│   └── src/
+│       ├── index.ts
+│       ├── manager.ts
+│       ├── port-manager.ts
+│       ├── terminal-manager.ts
+│       ├── notes-manager.ts
+│       ├── verification-manager.ts
+│       ├── mcp-server-factory.ts
+│       ├── runtime/
+│       └── routes/
 │
-├── ui/                  React SPA
-│   ├── App.tsx          Main application shell and view routing
-│   ├── theme.ts         Centralized UI tokens/classes
-│   ├── contexts/        App contexts (server/project state, etc.)
-│   ├── icons/           Frontend icon assets + icon component entrypoint (`index.tsx`)
-│   ├── components/
-│   │   ├── ...          Shared UI building blocks
-│   │   └── detail/      Right panel views (worktree/issue/task details)
-│   │       ├── DetailPanel.tsx
-│   │       ├── CodeAgentSplitButton.tsx
-│   │       ├── LogsViewer.tsx
-│   │       ├── TerminalView.tsx
-│   │       ├── HooksTab.tsx
-│   │       ├── JiraDetailPanel.tsx
-│   │       ├── LinearDetailPanel.tsx
-│   │       └── CustomTaskDetailPanel.tsx
-│   └── hooks/           API/data hooks (React Query + WS/SSE integration)
-│       ├── api.ts
-│       ├── useApi.ts
-│       ├── useWorktrees.ts
-│       ├── useTerminal.ts
-│       ├── useHooks.ts
-│       └── ...
+├── web-app/             React SPA (`web-app`)
+│   ├── package.json
+│   ├── project.json
+│   ├── vite.config.ts
+│   ├── postcss.config.js
+│   └── src/
+│       ├── App.tsx
+│       ├── theme.ts
+│       ├── components/
+│       ├── hooks/
+│       ├── contexts/
+│       └── icons/
 │
-├── integrations/        External integrations
-│   ├── github/
-│   ├── jira/
-│   └── linear/
+├── desktop-app/         Electron desktop shell (`desktop-app`)
+│   ├── package.json
+│   ├── project.json
+│   ├── electron-builder.yml
+│   ├── electronmon.config.cjs
+│   ├── release/         Packaged desktop artifacts (generated)
+│   └── src/
+│       ├── main.ts
+│       ├── preload.cjs
+│       ├── project-manager.ts
+│       └── server-spawner.ts
 │
-├── instructions/        Agent and MCP instruction markdown (inlined at build)
-│   ├── index.ts
-│   ├── agents/
-│   └── skills/
+├── website/             Astro marketing site (`website`)
+│   ├── project.json
+│   ├── package.json
+│   ├── dist/            Static website output (generated)
+│   └── src/
 │
-├── runtime/             Runtime-only artifacts
-│   └── port-hook.cjs
-│
-├── core/                Shared runtime utilities (git/env helpers)
-├── shared/              Cross-process shared helpers/preferences
-├── actions.ts           MCP action registry
-├── mcp.ts               MCP entrypoint
-└── electron-entry.ts    Electron bridge entry
+└── mobile-app/          Expo mobile app (`mobile-app`)
+    ├── project.json
+    ├── package.json
+    ├── dist/            Exported platform bundles (generated)
+    └── app/
 ```
 
-## `electron/`
+## `packages/`
 
 ```text
-electron/
-├── main.ts              Main process window/lifecycle code
-├── preload.cjs          Renderer bridge
-├── server-spawner.ts    Per-project OpenKit server lifecycle
-├── project-manager.ts   Multi-project tab state
-├── notification-manager.ts
-└── preferences-manager.ts
+packages/                Reserved for future reusable workspace packages
 ```
 
-## `website/`
+## `libs/`
 
 ```text
-website/
-├── src/
-│   ├── pages/
-│   ├── components/
-│   ├── layouts/
-│   ├── scripts/
-│   └── styles/
-└── public/
+libs/
+├── agent/               MCP action/transport library
+│   ├── project.json
+│   └── src/
+│
+├── core/                Core runtime helpers (git/env/process)
+│   ├── project.json
+│   └── src/
+│
+├── integrations/        Jira/Linear/GitHub integration clients
+│   ├── project.json
+│   └── src/
+│
+├── instructions/        MCP and skill markdown instructions
+│   ├── project.json
+│   └── src/
+│
+└── shared/              Shared constants, contracts/types, logger, preferences
+    ├── project.json
+    └── src/
 ```
+
+## Package Boundaries
+
+- `package.json` at the repo root is the workspace orchestration package (marked `private` while npm publishing is paused).
+- App-level `package.json` files exist for `apps/cli`, `apps/server`, `apps/web-app`, and `apps/desktop-app` so each app is directly runnable from its own directory.
+- `apps/website/package.json` is isolated for Astro website tooling.
+- `apps/mobile-app/package.json` is isolated for Expo/React Native tooling.
+- Shared runtime code in `libs/*` uses Nx `project.json` and TypeScript path aliases.
+- Shared build/typecheck configuration is centralized in root `tsconfig.base.json` + `tsconfig.json`.
+- `pnpm-workspace.yaml` uses broad globs (`apps/*`, `libs/*`, `packages/*`) so future package-based subprojects can be added without changing workspace config.
 
 ## Generated Artifacts
 
-- `dist/` is generated by `pnpm build`
-- `release/` is generated by app packaging
+- `apps/cli/dist/` is generated by the CLI build
+- `apps/desktop-app/dist/` is generated by the desktop app TypeScript build
+- `apps/server/dist/runtime/` is generated by the server runtime-hook copy step
+- `apps/web-app/dist/` is generated by the web app build
+- `apps/website/dist/` is generated by the website build
+- `apps/mobile-app/dist/` is generated by mobile export builds
+- `apps/desktop-app/release/` is generated by desktop packaging
 
 Do not hand-edit generated files.

@@ -4,7 +4,7 @@
 
 When a project is opened for the first time (no `.openkit/config.json` exists), OpenKit presents a multi-step setup wizard. The wizard guides users through project configuration, agent skill setup, git setup, and integration linking before dropping them into the main workspace.
 
-The setup flow is implemented in `src/ui/components/ProjectSetupScreen.tsx` as a single component with a `SetupMode` state machine.
+The setup flow is implemented in `apps/web-app/src/components/ProjectSetupScreen.tsx` as a single component with a `SetupMode` state machine.
 
 ---
 

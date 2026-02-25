@@ -1,0 +1,65 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "mobile-app",
+  "projectType": "application",
+  "sourceRoot": "apps/mobile-app/app",
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "pnpm start"
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "pnpm start"
+      }
+    },
+    "android": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "pnpm android"
+      }
+    },
+    "ios": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "pnpm ios"
+      }
+    },
+    "web": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "pnpm web"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/apps/mobile-app/dist"],
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "pnpm run build"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "pnpm typecheck"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "pnpm run lint"
+      }
+    }
+  }
+}

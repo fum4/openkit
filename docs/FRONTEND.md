@@ -2,7 +2,7 @@
 
 ## Overview
 
-The OpenKit frontend is a React single-page application built with TypeScript, Tailwind CSS, React Query, and Framer Motion. Vite bundles it into `dist/ui/`, which the Hono backend serves as static files. The UI connects to the backend via REST API calls, Server-Sent Events (SSE) for real-time worktree status, and WebSockets for interactive terminal sessions.
+The OpenKit frontend is a React single-page application built with TypeScript, Tailwind CSS, React Query, and Framer Motion. Vite bundles it into `apps/web-app/dist/`, which the Hono backend serves as static files. The UI connects to the backend via REST API calls, Server-Sent Events (SSE) for real-time worktree status, and WebSockets for interactive terminal sessions.
 
 The app operates in two modes:
 
@@ -25,19 +25,19 @@ The app operates in two modes:
 
 ### Icon System
 
-- Frontend icon assets live in `src/ui/icons/` as `.svg` or `.png` files.
-- `src/ui/icons/index.tsx` is the single icon component entrypoint for the UI.
-- Each icon asset should have one exported icon component in `src/ui/icons/index.tsx`.
-- SVG assets are imported as `*.svg?raw` and rendered through the shared SVG wrapper in `src/ui/icons/index.tsx` so sizing and bounds stay consistent across icons.
-- `FinderIcon` intentionally uses `finder.png`; PNG assets are still wrapped as icon components in `src/ui/icons/index.tsx`.
-- UI components must import icons from `src/ui/icons/index.tsx` (for example `import { GitHubIcon } from "../icons"`).
-- Do not import raw `.svg`/`.png` files directly in feature components; raw asset imports are allowed only inside `src/ui/icons/index.tsx`.
+- Frontend icon assets live in `apps/web-app/src/icons/` as `.svg` or `.png` files.
+- `apps/web-app/src/icons/index.tsx` is the single icon component entrypoint for the UI.
+- Each icon asset should have one exported icon component in `apps/web-app/src/icons/index.tsx`.
+- SVG assets are imported as `*.svg?raw` and rendered through the shared SVG wrapper in `apps/web-app/src/icons/index.tsx` so sizing and bounds stay consistent across icons.
+- `FinderIcon` intentionally uses `finder.png`; PNG assets are still wrapped as icon components in `apps/web-app/src/icons/index.tsx`.
+- UI components must import icons from `apps/web-app/src/icons/index.tsx` (for example `import { GitHubIcon } from "../icons"`).
+- Do not import raw `.svg`/`.png` files directly in feature components; raw asset imports are allowed only inside `apps/web-app/src/icons/index.tsx`.
 
 ---
 
 ## View System
 
-The application has five top-level views, defined as the `View` type in `src/ui/components/NavBar.tsx`:
+The application has five top-level views, defined as the `View` type in `apps/web-app/src/components/NavBar.tsx`:
 
 ```typescript
 type View = "workspace" | "agents" | "hooks" | "configuration" | "integrations";
@@ -70,7 +70,7 @@ The active view is persisted to `localStorage` per server URL, so switching betw
 
 ## Theme System
 
-**All colors are centralized in `src/ui/theme.ts`.** Components must import from this file instead of hardcoding Tailwind color classes. This makes it possible to adjust the entire visual appearance from a single location.
+**All colors are centralized in `apps/web-app/src/theme.ts`.** Components must import from this file instead of hardcoding Tailwind color classes. This makes it possible to adjust the entire visual appearance from a single location.
 
 ### How It Works
 
@@ -201,14 +201,14 @@ Before the main UI renders, the app checks for several early-exit conditions:
 
 ## Sidebar Components
 
-### CreateForm (`src/ui/components/CreateForm.tsx`)
+### CreateForm (`apps/web-app/src/components/CreateForm.tsx`)
 
 Tab switcher at the top of the sidebar with two tabs:
 
 - **Branch** -- shows worktrees. Provides a "New Worktree" button.
 - **Issues** -- always available, even without Jira/Linear configured. Shows local tasks by default and adds Jira/Linear sections when integrations are connected.
 
-### WorktreeList / WorktreeItem (`src/ui/components/WorktreeList.tsx`, `WorktreeItem.tsx`)
+### WorktreeList / WorktreeItem (`apps/web-app/src/components/WorktreeList.tsx`, `WorktreeItem.tsx`)
 
 Displays all worktrees with filtering support. Each `WorktreeItem` shows the worktree name, branch, status indicator (running/stopped/creating), and linked issue badges (Jira, Linear, custom task). Clicking a worktree selects it and shows its detail panel.
 
@@ -218,7 +218,7 @@ Displays all worktrees with filtering support. Each `WorktreeItem` shows the wor
 - **LinearIssueList / LinearIssueItem** -- Linear issues with state badges and priority indicators.
 - **CustomTaskList / CustomTaskItem** -- Local custom tasks with status, priority dots, and label badges.
 
-### IssueList (`src/ui/components/IssueList.tsx`)
+### IssueList (`apps/web-app/src/components/IssueList.tsx`)
 
 Aggregator component that renders all issue types in a single scrollable list. Receives issues from all sources and delegates rendering to the type-specific list/item components. Jira/Linear issue queries are initialized in the background once integrations are configured (they do not wait for the Issues tab to be opened). The Local section is always shown so users can work with local issues even when no external integration is configured.
 
@@ -226,7 +226,7 @@ Aggregator component that renders all issue types in a single scrollable list. R
 
 ## Detail Panel Components
 
-All detail panels live in `src/ui/components/detail/`.
+All detail panels live in `apps/web-app/src/components/detail/`.
 
 ### DetailPanel (`DetailPanel.tsx`)
 
@@ -282,7 +282,7 @@ Detail view for local custom tasks. Supports inline editing of title, descriptio
 
 ## Hooks and Data Fetching
 
-All hooks live in `src/ui/hooks/`.
+All hooks live in `apps/web-app/src/hooks/`.
 
 ### Real-Time Updates via SSE
 
@@ -345,6 +345,15 @@ Sessions are keyed by `worktreeId + scope` (`terminal`, `claude`, `codex`, `gemi
 
 **`useConfig`** (`useConfig.ts`) fetches `.openkit/config.json` from the server. Returns the config object, project name, whether a branch name rule exists, and loading state.
 
+### Ngrok Connect Controls
+
+Ngrok controls are handled in `App.tsx` and surfaced through `TabBar.tsx` in Electron mode:
+
+- **Wi-Fi button** (left of the Settings icon) toggles `/api/ngrok/tunnel/enable` and `/api/ngrok/tunnel/disable`.
+- On first successful enable per project/server, the app auto-opens a QR modal.
+- **QR button** (left of Wi-Fi) calls `/api/ngrok/pairing/start` and opens the pairing modal with a generated QR image.
+- The QR modal supports copy-to-clipboard for the pairing URL and tunnel URL regeneration.
+
 ---
 
 ## API Layer
@@ -362,9 +371,9 @@ export async function startWorktree(
 ): Promise<{ success: boolean; error?: string }>;
 ```
 
-When `serverUrl` is `null` (web mode), requests use relative URLs. When provided (Electron mode), requests use the full URL (e.g., `http://localhost:6970/api/worktrees`).
+When `serverUrl` is `null` (web mode), requests use relative URLs. When provided (Electron mode), requests use the full URL (e.g., `http://localhost:<project-port>/api/worktrees`).
 
-The file contains functions for every API endpoint: worktree CRUD, git operations (commit, push, PR), Jira/Linear/GitHub integration management, terminal sessions, MCP server management, skills, plugins, notes, todos, hooks, and configuration.
+The file contains functions for every API endpoint: worktree CRUD, git operations (commit, push, PR), Jira/Linear/GitHub integration management, terminal sessions, MCP server management, skills, plugins, notes, todos, hooks, configuration, and ngrok connect status/pairing helpers.
 
 ### `useApi.ts` -- Bound hook
 
@@ -420,7 +429,7 @@ When adding a new selection type (e.g., a new integration), you must update:
 
 ## Multi-Project Support (Electron)
 
-### ServerContext (`src/ui/contexts/ServerContext.tsx`)
+### ServerContext (`apps/web-app/src/contexts/ServerContext.tsx`)
 
 The `ServerProvider` wraps the entire app and manages multi-project state:
 
@@ -464,13 +473,13 @@ The app uses Framer Motion for transitions:
 - **View switching** -- `AnimatePresence` with `mode="wait"` for sidebar tab transitions (worktree list / issue list slide in from opposite directions).
 - **Header fade-in** -- the header fades in on initial render.
 - **Background blobs** -- the configuration, integrations, and hooks views have animated gradient blobs drifting in the background via CSS keyframe animations.
-- **Sweeping border** (currently commented out) -- hook items previously displayed a teal gradient "comet" that sweeps around the card border during execution. The `SweepingBorder` component is still defined in `HooksTab.tsx` but its usage is commented out, replaced by a circular progress spinner (`Loader2`) in the status icon position. The CSS keyframes (`border-sweep`, `border-sweep-fade`) remain defined in `src/ui/index.css`.
+- **Sweeping border** (currently commented out) -- hook items previously displayed a teal gradient "comet" that sweeps around the card border during execution. The `SweepingBorder` component is still defined in `HooksTab.tsx` but its usage is commented out, replaced by a circular progress spinner (`Loader2`) in the status icon position. The CSS keyframes (`border-sweep`, `border-sweep-fade`) remain defined in `apps/web-app/src/index.css`.
 
 ---
 
 ## File Index
 
-### Components (`src/ui/components/`)
+### Components (`apps/web-app/src/components/`)
 
 | File                        | Description                                                                                                                                                                                                                                                                                 |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -512,7 +521,7 @@ The app uses Framer Motion for transitions:
 | `SkillCreateModal.tsx`      | Create/edit skill modal                                                                                                                                                                                                                                                                     |
 | `SkillItem.tsx`             | Skill sidebar item                                                                                                                                                                                                                                                                          |
 | `Spinner.tsx`               | Loading spinner component                                                                                                                                                                                                                                                                   |
-| `TabBar.tsx`                | Electron multi-project tab bar                                                                                                                                                                                                                                                              |
+| `TabBar.tsx`                | Electron multi-project tab bar and bottom-right project controls (QR, Wi-Fi tunnel toggle, Settings)                                                                                                                                                                                        |
 | `ActivityFeed.tsx`          | Activity feed dropdown panel with bell icon, multi-select filter chips (`Worktree`, `Hooks`, `Agents`, `System`), action-required top section, expandable hook-run entries, row-level subject navigation (hook rows open Hooks tab), and inline worktree links that still open the worktree |
 | `Toast.tsx`                 | Animated toast notification (error=red, success=green, info=teal, loading=amber) with groupKey deduplication, grouped children, project name, worktree links                                                                                                                                |
 | `Tooltip.tsx`               | Tooltip component (always use this instead of native `title` attribute)                                                                                                                                                                                                                     |
@@ -523,7 +532,7 @@ The app uses Framer Motion for transitions:
 | `WorktreeItem.tsx`          | Worktree sidebar list item                                                                                                                                                                                                                                                                  |
 | `WorktreeList.tsx`          | Worktree list in sidebar                                                                                                                                                                                                                                                                    |
 
-### Detail Components (`src/ui/components/detail/`)
+### Detail Components (`apps/web-app/src/components/detail/`)
 
 | File                        | Description                                                                                   |
 | --------------------------- | --------------------------------------------------------------------------------------------- |
@@ -546,7 +555,7 @@ The app uses Framer Motion for transitions:
 | `TodoList.tsx`              | Checkbox todo items                                                                           |
 | `AgentPolicySection.tsx`    | Per-issue agent git policy overrides                                                          |
 
-### Hooks (`src/ui/hooks/`)
+### Hooks (`apps/web-app/src/hooks/`)
 
 | File                      | Description                                                                        |
 | ------------------------- | ---------------------------------------------------------------------------------- |
@@ -568,7 +577,7 @@ The app uses Framer Motion for transitions:
 | `useActivityFeed.ts`      | Activity feed state, unread count, chronological upserts, and hook-run aggregation |
 | `useWorktrees.ts`         | SSE-based real-time worktree updates + integration status hooks                    |
 
-### Context (`src/ui/contexts/`)
+### Context (`apps/web-app/src/contexts/`)
 
 | File                | Description                                                                                                                                                                          |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

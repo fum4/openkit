@@ -1,20 +1,36 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "strict": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@openkit/agent/*": ["libs/agent/src/*"],
+      "@openkit/cli/*": ["apps/cli/src/*"],
+      "@openkit/core/*": ["libs/core/src/*"],
+      "@openkit/instructions": ["libs/instructions/src/index.ts"],
+      "@openkit/instructions/*": ["libs/instructions/src/*"],
+      "@openkit/integrations/*": ["libs/integrations/src/*"],
+      "@openkit/server/*": ["apps/server/src/*"],
+      "@openkit/shared/*": ["libs/shared/src/*"]
+    },
     "isolatedModules": true,
     "noEmit": true,
     "declaration": true,
     "outDir": "dist",
-    "rootDir": "src",
     "jsx": "react-jsx"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.cjs"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "apps/**/*.cjs",
+    "libs/**/*.ts",
+    "libs/**/*.tsx",
+    "libs/**/*.cjs",
+    "packages/**/*.ts",
+    "global.d.ts",
+    "md.d.ts"
+  ],
+  "exclude": ["node_modules", "dist", "apps/mobile-app/**", "apps/website/**"]
 }
