@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^8.3.0",
-    "node-pty": "1.2.0-beta.10",
+    "node-pty": "1.2.0-beta.11",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
