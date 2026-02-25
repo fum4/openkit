@@ -5,7 +5,7 @@ This document covers everything you need to develop, build, and extend OpenKit.
 ## Prerequisites
 
 - **Node.js** >= 18
-- **pnpm** (package manager)
+- **pnpm** >= 10 (package manager)
 - **macOS or Linux** (Unix-only -- depends on `lsof` and `pgrep`)
 - **Optional:** `gh` CLI for GitHub integration (PR creation, status checks)
 - **Optional:** Electron for desktop app development (`electron` and `electron-builder` are dev dependencies)

@@ -25,7 +25,7 @@ and ship pull requests with clear visibility.
 ### Prerequisites:
 
 - Node.js >= 18 (LTS recommended)
-- pnpm >= 9
+- pnpm >= 10
 
 <br />
 

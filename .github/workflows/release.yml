@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_BOT_PAT }}
 
       - name: Setup workspace
         uses: ./.github/actions/setup-pnpm-node
@@ -43,7 +43,7 @@ jobs:
       - name: Release
         run: pnpm release-it --ci --verbose
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
 
       # npm publish is intentionally paused for now.
       # - name: Publish npm package
