@@ -1,16 +1,16 @@
-name: Smoke Tests
+name: Test
 
 on:
   pull_request:
     branches: [master]
 
 concurrency:
-  group: smoke-${{ github.ref }}
+  group: test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   cli-startup:
-    name: CLI startup (${{ matrix.os_name }})
+    name: Smoke - CLI startup (${{ matrix.os_name }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12
     strategy:

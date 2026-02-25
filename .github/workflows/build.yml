@@ -1,0 +1,64 @@
+name: Build
+
+on:
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-cli:
+    name: CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm build:cli
+
+  build-server:
+    name: Server
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm build:server
+
+  build-website:
+    name: Website
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm build:website
+
+  build-web-app:
+    name: Web App
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm build:web-app
+
+  build-mobile-app:
+    name: Mobile App
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm build:mobile-app
+
+  build-desktop-app:
+    name: Desktop App
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm build:desktop-app

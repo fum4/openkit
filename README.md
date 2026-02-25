@@ -1,10 +1,12 @@
+<img src="assets/icon.png" alt="OpenKit app icon" width="96" />
+
 # OpenKit
 
 OpenKit is an AI engineering workflow platform.
 It gives agents a real execution loop: pick up tasks, work in isolated environments, run checks,
 and ship pull requests with clear visibility.
 
-🌐 Website & docs: [dawg-chi.vercel.app](https://dawg-chi.vercel.app/)
+🌐 [dawg-chi.vercel.app](https://dawg-chi.vercel.app/)
 
 <br /><br />
 
