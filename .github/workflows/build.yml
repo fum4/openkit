@@ -9,8 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-cli:
-    name: CLI
+  cli:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -18,8 +17,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm-node
       - run: pnpm build:cli
 
-  build-server:
-    name: Server
+  server:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -27,8 +25,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm-node
       - run: pnpm build:server
 
-  build-website:
-    name: Website
+  website:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -36,8 +33,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm-node
       - run: pnpm build:website
 
-  build-web-app:
-    name: Web App
+  web-app:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -45,8 +41,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm-node
       - run: pnpm build:web-app
 
-  build-mobile-app:
-    name: Mobile App
+  mobile-app:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -54,8 +49,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm-node
       - run: pnpm build:mobile-app
 
-  build-desktop-app:
-    name: Desktop App
+  desktop-app:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

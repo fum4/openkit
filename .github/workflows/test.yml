@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   cli-startup:
-    name: Smoke - CLI startup (${{ matrix.os_name }})
+    name: smoke - cli startup (${{ matrix.os_name }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12
     strategy:
