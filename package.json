@@ -9,6 +9,7 @@
     "setup": "sh ./scripts/setup.sh",
     "start": "node apps/cli/dist/cli/index.js",
     "dev": "pnpm nx run-many -t dev --projects cli,server,web-app,desktop-app,website,mobile-app --parallel=6",
+    "dev:build": "pnpm build && pnpm dev",
     "dev:cli": "pnpm nx run cli:dev",
     "dev:server": "pnpm nx run server:dev",
     "dev:website": "pnpm nx run website:dev",
