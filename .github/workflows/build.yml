@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
+  verify-changes:
     runs-on: ubuntu-latest
     outputs:
       global: ${{ steps.filter.outputs.global }}
@@ -48,8 +48,8 @@ jobs:
               - 'apps/desktop-app/**'
 
   cli:
-    needs: changes
-    if: needs.changes.outputs.global == 'true' || needs.changes.outputs.cli == 'true'
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.cli == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -58,8 +58,8 @@ jobs:
       - run: pnpm build:cli
 
   server:
-    needs: changes
-    if: needs.changes.outputs.global == 'true' || needs.changes.outputs.server == 'true'
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.server == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -68,8 +68,8 @@ jobs:
       - run: pnpm build:server
 
   website:
-    needs: changes
-    if: needs.changes.outputs.global == 'true' || needs.changes.outputs.website == 'true'
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.website == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -78,8 +78,8 @@ jobs:
       - run: pnpm build:website
 
   web-app:
-    needs: changes
-    if: needs.changes.outputs.global == 'true' || needs.changes.outputs.web_app == 'true'
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.web_app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -88,8 +88,8 @@ jobs:
       - run: pnpm build:web-app
 
   mobile-app:
-    needs: changes
-    if: needs.changes.outputs.global == 'true' || needs.changes.outputs.mobile_app == 'true'
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.mobile_app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -98,8 +98,8 @@ jobs:
       - run: pnpm build:mobile-app
 
   desktop-app:
-    needs: changes
-    if: needs.changes.outputs.global == 'true' || needs.changes.outputs.desktop_app == 'true'
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.desktop_app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
