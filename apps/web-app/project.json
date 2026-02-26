@@ -9,7 +9,7 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/web-app",
-        "command": "pnpm run dev"
+        "command": "pnpm dev"
       }
     },
     "build": {
@@ -17,21 +17,21 @@
       "outputs": ["{workspaceRoot}/apps/web-app/dist"],
       "options": {
         "cwd": "apps/web-app",
-        "command": "pnpm run build"
+        "command": "pnpm build"
       }
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/web-app",
-        "command": "pnpm run typecheck"
+        "command": "pnpm typecheck"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/web-app",
-        "command": "pnpm run lint"
+        "command": "pnpm lint"
       }
     }
   }

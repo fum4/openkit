@@ -265,7 +265,7 @@ TypeScript uses a layered setup:
 - **Target/Module:** ES2022 / ESNext with Bundler resolution
 - **Strict mode** enabled
 - **JSX:** `react-jsx` (automatic runtime)
-- **noEmit:** true (tsup and Vite handle compilation; tsc is for type checking only)
+- **noEmit:** true (tsup and Vite handle compilation; `tsgo` is used for type checking)
 
 ## Architecture Patterns
 

@@ -11,7 +11,7 @@
     "build": "pnpm run build:ios && pnpm run build:android",
     "build:ios": "expo export --platform ios --output-dir dist/ios --clear",
     "build:android": "expo export --platform android --output-dir dist/android --clear",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint app"
   },
   "dependencies": {

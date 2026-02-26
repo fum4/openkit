@@ -44,7 +44,7 @@
       "outputs": ["{workspaceRoot}/apps/mobile-app/dist"],
       "options": {
         "cwd": "apps/mobile-app",
-        "command": "pnpm run build"
+        "command": "pnpm build"
       }
     },
     "typecheck": {
@@ -58,7 +58,7 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/mobile-app",
-        "command": "pnpm run lint"
+        "command": "pnpm lint"
       }
     }
   }

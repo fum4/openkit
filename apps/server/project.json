@@ -9,14 +9,14 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/server",
-        "command": "pnpm run dev"
+        "command": "pnpm dev"
       }
     },
     "start": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/server",
-        "command": "pnpm run start"
+        "command": "pnpm start"
       }
     },
     "build": {
@@ -24,21 +24,21 @@
       "outputs": ["{workspaceRoot}/apps/server/dist/runtime"],
       "options": {
         "cwd": "apps/server",
-        "command": "pnpm run build"
+        "command": "pnpm build"
       }
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/server",
-        "command": "pnpm run typecheck"
+        "command": "pnpm typecheck"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/server",
-        "command": "pnpm run lint"
+        "command": "pnpm lint"
       }
     }
   }

@@ -23,14 +23,14 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/website",
-        "command": "pnpm run typecheck"
+        "command": "pnpm typecheck"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/website",
-        "command": "pnpm run lint"
+        "command": "pnpm lint"
       }
     },
     "preview": {

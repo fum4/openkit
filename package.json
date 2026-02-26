@@ -50,13 +50,13 @@
   },
   "devDependencies": {
     "@types/node": "^25.3.0",
+    "@typescript/native-preview": "7.0.0-dev.20260226.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "nx": "^22.5.2",
     "oxfmt": "^0.35.0",
     "oxlint": "^1.50.0",
-    "release-it": "^19.2.4",
-    "typescript": "^5.5.4"
+    "release-it": "^19.2.4"
   },
   "lint-staged": {
     "*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}": [

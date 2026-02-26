@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/standalone.ts",
     "build": "mkdir -p dist/runtime && cp src/runtime/port-hook.cjs dist/runtime/port-hook.cjs",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint src",
     "start": "tsx src/standalone.ts"
   },
