@@ -20,6 +20,7 @@ OpenKit uses several configuration files at both the project level (`.openkit/` 
 - [Global Preferences (`~/.openkit/app-preferences.json`)](#global-preferences-openkitapp-preferencesjson)
 - [UI Components (`~/.openkit/components/web/`)](#ui-components-openkitcomponentsweb)
 - [MCP Server Registry (`~/.openkit/mcp-servers.json`)](#mcp-server-registry-openkitmcp-serversjson)
+- [Runtime Environment Variables](#runtime-environment-variables)
 
 ---
 
@@ -907,6 +908,20 @@ A global registry of MCP servers that can be deployed to various AI agents (Clau
 | `updatedAt`   | `string`                 | ISO 8601 last update timestamp                           |
 
 Servers in this registry can be deployed (written to agent config files) or undeployed via the UI. The deployment supports both global and project-level scopes depending on the target agent.
+
+---
+
+## Runtime Environment Variables
+
+OpenKit also supports runtime behavior overrides via process environment variables:
+
+| Variable                           | Default       | Description                                                                 |
+| ---------------------------------- | ------------- | --------------------------------------------------------------------------- |
+| `OPENKIT_SERVER_PORT`              | `6969`        | Base HTTP port for the OpenKit server.                                      |
+| `OPENKIT_WEB_APP_PORT`             | `5173`        | Vite dev server port for `apps/web-app`.                                    |
+| `OPENKIT_NGROK_MOBILE_SCHEME`      | `"mobileapp"` | Deep-link scheme used when generating `mobilePairUrl` for ngrok pairing QR. |
+| `OPENKIT_NGROK_PAIRING_RATE_LIMIT` | `0`           | Set to `1` to enable strict rate limiting for pairing exchange endpoints.   |
+| `OPENKIT_NGROK_SIGNING_SECRET`     | random value  | Optional signing secret for ngrok pairing/session tokens.                   |
 
 ---
 

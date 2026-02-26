@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { createTerminalSession, destroyTerminalSession, getTerminalWsUrl } from "./api";
+import {
+  createTerminalSession,
+  destroyTerminalSession,
+  fetchActiveTerminalSession,
+  getTerminalWsUrl,
+} from "./api";
 import { useServerUrlOptional } from "../contexts/ServerContext";
 
 interface UseTerminalOptions {
@@ -229,6 +234,42 @@ export function useTerminal({
         worktreeId,
         sessionScope,
         sessionId: cachedSessionId,
+        generation: gen,
+      });
+    }
+
+    const activeSessionResult = await fetchActiveTerminalSession(
+      worktreeId,
+      sessionScope,
+      serverUrl,
+    );
+    if (gen !== connectGenRef.current) return;
+    if (activeSessionResult.success && activeSessionResult.sessionId) {
+      const activeSid = activeSessionResult.sessionId;
+      sessionIdRef.current = activeSid;
+      setSessionId(activeSid);
+      terminalSessionCache.set(key, activeSid);
+      console.info("[terminal][TEMP] attaching active scoped session", {
+        worktreeId,
+        sessionScope,
+        sessionId: activeSid,
+        generation: gen,
+      });
+
+      const attached = await openSessionWebSocket(activeSid, gen);
+      if (attached) {
+        setConnectionSource("reused");
+        return;
+      }
+
+      if (gen !== connectGenRef.current) return;
+      terminalSessionCache.delete(key);
+      sessionIdRef.current = null;
+      setSessionId(null);
+      console.info("[terminal][TEMP] active scoped session attach failed; creating new session", {
+        worktreeId,
+        sessionScope,
+        sessionId: activeSid,
         generation: gen,
       });
     }

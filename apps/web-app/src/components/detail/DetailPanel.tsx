@@ -699,31 +699,41 @@ export function DetailPanel({
     if (!worktree) return;
     let cancelled = false;
 
-    void (async () => {
-      const claudeResult = await api.fetchActiveTerminalSession(worktree.id, "claude");
+    const syncActiveAgentTabs = async () => {
+      const [claudeResult, codexResult, geminiResult, opencodeResult] = await Promise.all([
+        api.fetchActiveTerminalSession(worktree.id, "claude"),
+        api.fetchActiveTerminalSession(worktree.id, "codex"),
+        api.fetchActiveTerminalSession(worktree.id, "gemini"),
+        api.fetchActiveTerminalSession(worktree.id, "opencode"),
+      ]);
       if (cancelled) return;
+
       if (claudeResult.success && claudeResult.sessionId) {
         ensureClaudeTabMounted(worktree.id);
+      } else {
+        closeClaudeTab(worktree.id);
       }
 
-      const codexResult = await api.fetchActiveTerminalSession(worktree.id, "codex");
-      if (cancelled) return;
       if (codexResult.success && codexResult.sessionId) {
         ensureCodexTabMounted(worktree.id);
+      } else {
+        closeCodexTab(worktree.id);
       }
 
-      const geminiResult = await api.fetchActiveTerminalSession(worktree.id, "gemini");
-      if (cancelled) return;
       if (geminiResult.success && geminiResult.sessionId) {
         ensureGeminiTabMounted(worktree.id);
+      } else {
+        closeGeminiTab(worktree.id);
       }
 
-      const opencodeResult = await api.fetchActiveTerminalSession(worktree.id, "opencode");
-      if (cancelled) return;
       if (opencodeResult.success && opencodeResult.sessionId) {
         ensureOpenCodeTabMounted(worktree.id);
+      } else {
+        closeOpenCodeTab(worktree.id);
       }
-    })();
+    };
+
+    void syncActiveAgentTabs();
 
     return () => {
       cancelled = true;
@@ -731,10 +741,87 @@ export function DetailPanel({
   }, [
     api,
     ensureClaudeTabMounted,
+    closeClaudeTab,
+    ensureCodexTabMounted,
+    closeCodexTab,
+    ensureGeminiTabMounted,
+    closeGeminiTab,
+    ensureOpenCodeTabMounted,
+    closeOpenCodeTab,
+    worktree?.id,
+  ]);
+
+  useEffect(() => {
+    const handleTerminalSessionEvent = (
+      event: CustomEvent<{
+        action?: "created" | "closed";
+        worktreeId?: string;
+        scope?: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null;
+      }>,
+    ) => {
+      const detail = event.detail;
+      if (!detail || typeof detail.worktreeId !== "string") return;
+
+      const worktreeId = detail.worktreeId;
+      const action = detail.action;
+      if (action !== "created" && action !== "closed") return;
+
+      if (detail.scope === "claude") {
+        if (action === "created") {
+          ensureClaudeTabMounted(worktreeId);
+        } else {
+          closeClaudeTab(worktreeId);
+        }
+        return;
+      }
+
+      if (detail.scope === "codex") {
+        if (action === "created") {
+          ensureCodexTabMounted(worktreeId);
+        } else {
+          closeCodexTab(worktreeId);
+        }
+        return;
+      }
+
+      if (detail.scope === "gemini") {
+        if (action === "created") {
+          ensureGeminiTabMounted(worktreeId);
+        } else {
+          closeGeminiTab(worktreeId);
+        }
+        return;
+      }
+
+      if (detail.scope === "opencode") {
+        if (action === "created") {
+          ensureOpenCodeTabMounted(worktreeId);
+        } else {
+          closeOpenCodeTab(worktreeId);
+        }
+      }
+    };
+
+    window.addEventListener(
+      "OpenKit:terminal-session",
+      handleTerminalSessionEvent as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "OpenKit:terminal-session",
+        handleTerminalSessionEvent as EventListener,
+      );
+    };
+  }, [
+    closeClaudeTab,
+    closeCodexTab,
+    closeGeminiTab,
+    closeOpenCodeTab,
+    ensureClaudeTabMounted,
     ensureCodexTabMounted,
     ensureGeminiTabMounted,
     ensureOpenCodeTabMounted,
-    worktree?.id,
   ]);
 
   useEffect(() => {

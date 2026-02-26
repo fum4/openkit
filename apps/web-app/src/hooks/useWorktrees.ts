@@ -78,6 +78,8 @@ export function useWorktrees(
           window.dispatchEvent(
             new CustomEvent("OpenKit:activity-history", { detail: data.events }),
           );
+        } else if (data.type === "terminal-session") {
+          window.dispatchEvent(new CustomEvent("OpenKit:terminal-session", { detail: data.event }));
         }
       } catch {
         // Ignore parse errors
