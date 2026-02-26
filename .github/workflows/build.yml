@@ -9,7 +9,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      global: ${{ steps.filter.outputs.global }}
+      cli: ${{ steps.filter.outputs.cli }}
+      server: ${{ steps.filter.outputs.server }}
+      website: ${{ steps.filter.outputs.website }}
+      web_app: ${{ steps.filter.outputs.web_app }}
+      mobile_app: ${{ steps.filter.outputs.mobile_app }}
+      desktop_app: ${{ steps.filter.outputs.desktop_app }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            global:
+              - 'libs/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'nx.json'
+              - 'tsconfig*.json'
+              - '.github/actions/setup-pnpm-node/**'
+              - '.github/workflows/build.yml'
+            cli:
+              - 'apps/cli/**'
+            server:
+              - 'apps/server/**'
+            website:
+              - 'apps/website/**'
+            web_app:
+              - 'apps/web-app/**'
+            mobile_app:
+              - 'apps/mobile-app/**'
+            desktop_app:
+              - 'apps/desktop-app/**'
+
   cli:
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.cli == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -18,6 +58,8 @@ jobs:
       - run: pnpm build:cli
 
   server:
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.server == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,6 +68,8 @@ jobs:
       - run: pnpm build:server
 
   website:
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.website == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -34,6 +78,8 @@ jobs:
       - run: pnpm build:website
 
   web-app:
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.web_app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -42,6 +88,8 @@ jobs:
       - run: pnpm build:web-app
 
   mobile-app:
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.mobile_app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -50,6 +98,8 @@ jobs:
       - run: pnpm build:mobile-app
 
   desktop-app:
+    needs: verify-changes
+    if: needs.verify-changes.outputs.global == 'true' || needs.verify-changes.outputs.desktop_app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

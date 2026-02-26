@@ -133,6 +133,13 @@
       "name": "🛠️ Fix",
       "command": "pnpm run fix:all",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "⚙️ 🏃‍♂️ Build & Run",
+      "command": "pnpm run dev:build",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

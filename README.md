@@ -112,7 +112,7 @@ Environment variables:
 
 Everything is released from `master`.
 
-- On pull requests targeting `master`, CI runs code quality, type checks, smoke tests, and full builds.
+- On pull requests targeting `master`, CI runs code quality, type checks, smoke tests, and build jobs scoped by changed app folders (plus shared/global build files).
 - On push/merge to `master`, the release workflow creates the release commit/tag and GitHub release automatically.
 - A dedicated package workflow runs on release tag pushes (`v*`) and attaches macOS/Linux artifacts to that tag.
 - The website Vercel project uses an `ignoreCommand` to skip deploys when commits do not change files under `apps/website/`.
