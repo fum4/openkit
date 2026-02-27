@@ -67,6 +67,8 @@ export function useApi() {
       disableNgrokTunnel: () => api.disableNgrokTunnel(serverUrl),
       createNgrokPairingSession: (regenerateUrl = false, next = "/") =>
         api.createNgrokPairingSession(regenerateUrl, next, serverUrl),
+      fetchNgrokPairingStatus: (pairingId: string) =>
+        api.fetchNgrokPairingStatus(pairingId, serverUrl),
 
       setupJira: (baseUrl: string, email: string, token: string) =>
         api.setupJira(baseUrl, email, token, serverUrl),

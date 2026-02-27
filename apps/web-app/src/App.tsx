@@ -718,7 +718,8 @@ export default function App() {
       setNgrokQrMessage(null);
 
       const pairing = await api.createNgrokPairingSession(regenerateUrl, "/");
-      if (!pairing.success || !pairing.pairUrl) {
+      const qrPayload = pairing.mobilePairUrl ?? pairing.pairUrl;
+      if (!pairing.success || !qrPayload) {
         setNgrokPairing(pairing);
         setNgrokQrDataUrl(null);
         setNgrokQrMessage(pairing.error ?? "Failed to generate pairing QR.");
@@ -730,7 +731,7 @@ export default function App() {
 
       setNgrokPairing(pairing);
       try {
-        const qrDataUrl = await QRCode.toDataURL(pairing.pairUrl, {
+        const qrDataUrl = await QRCode.toDataURL(qrPayload, {
           errorCorrectionLevel: "M",
           margin: 1,
           width: 240,
@@ -741,7 +742,7 @@ export default function App() {
       }
 
       setShowNgrokQrModal(true);
-      setNgrokQrMessage("Scan this QR on your mobile device.");
+      setNgrokQrMessage("Scan this QR with your phone camera to open the mobile app.");
       setNgrokBusy(false);
       await refreshNgrokStatus();
       return true;
@@ -749,53 +750,82 @@ export default function App() {
     [api, ngrokBusy, refreshNgrokStatus, serverUrl],
   );
 
+  useEffect(() => {
+    const pairingId = ngrokPairing?.pairingId;
+    if (!showNgrokQrModal || !serverUrl || !pairingId) return;
+
+    let cancelled = false;
+
+    const pollPairingStatus = async () => {
+      const result = await api.fetchNgrokPairingStatus(pairingId);
+      if (cancelled || result.success !== true || !result.pairing) return;
+
+      if (result.pairing.status === "used") {
+        setShowNgrokQrModal(false);
+        setNgrokQrMessage("Mobile device connected.");
+        return;
+      }
+
+      if (result.pairing.status === "expired" && !ngrokBusy) {
+        setNgrokQrMessage("QR expired. Regenerating...");
+        await generateNgrokPairingQr(false);
+      }
+    };
+
+    void pollPairingStatus();
+    const intervalId = window.setInterval(() => {
+      void pollPairingStatus();
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [
+    api,
+    generateNgrokPairingQr,
+    ngrokBusy,
+    ngrokPairing?.pairingId,
+    serverUrl,
+    showNgrokQrModal,
+  ]);
+
   const handleToggleNgrokTunnel = useCallback(async () => {
     if (!serverUrl || ngrokBusy) return;
-    setNgrokBusy(true);
-    setNgrokQrMessage(null);
 
-    const currentlyEnabled = ngrokStatus?.tunnel.enabled === true;
-    const status = currentlyEnabled
-      ? await api.disableNgrokTunnel()
-      : await api.enableNgrokTunnel();
-    setNgrokStatus(status);
-    setNgrokBusy(false);
-
-    if (!currentlyEnabled && status.success && status.tunnel.enabled) {
-      const key = `${APP_NAME}:ngrok-first-qr-shown:${serverUrl}`;
-      if (localStorage.getItem(key) !== "1") {
-        const opened = await generateNgrokPairingQr(false);
-        if (opened) {
-          localStorage.setItem(key, "1");
-        }
-      }
+    if (ngrokStatus?.tunnel.enabled === true) {
+      setNgrokBusy(true);
+      setNgrokQrMessage(null);
+      const status = await api.disableNgrokTunnel();
+      setNgrokStatus(status);
+      setShowNgrokQrModal(false);
+      setNgrokBusy(false);
+      return;
     }
+
+    await generateNgrokPairingQr(true);
   }, [api, generateNgrokPairingQr, ngrokBusy, ngrokStatus?.tunnel.enabled, serverUrl]);
 
-  const handleOpenNgrokQr = useCallback(async () => {
-    if (!serverUrl) return;
-    const regenerateUrl = ngrokStatus?.tunnel.enabled !== true;
-    await generateNgrokPairingQr(regenerateUrl);
-  }, [generateNgrokPairingQr, ngrokStatus?.tunnel.enabled, serverUrl]);
-
   const handleCopyNgrokPairingUrl = useCallback(async () => {
-    if (!ngrokPairing?.pairUrl) return;
+    const mobilePairUrl = ngrokPairing?.mobilePairUrl;
+    const fallbackPairUrl = ngrokPairing?.pairUrl;
+    const copyValue = mobilePairUrl ?? fallbackPairUrl;
+    if (!copyValue) return;
     try {
-      await navigator.clipboard.writeText(ngrokPairing.pairUrl);
-      setNgrokQrMessage("Pairing URL copied.");
+      await navigator.clipboard.writeText(copyValue);
+      setNgrokQrMessage(mobilePairUrl ? "Mobile camera link copied." : "Pairing URL copied.");
     } catch {
       setNgrokQrMessage("Could not copy pairing URL.");
     }
-  }, [ngrokPairing?.pairUrl]);
+  }, [ngrokPairing?.mobilePairUrl, ngrokPairing?.pairUrl]);
 
   const renderTabBar = () => (
     <TabBar
       onOpenSettings={() => setShowSettingsModal(true)}
       onToggleNgrok={handleToggleNgrokTunnel}
-      onOpenNgrokQr={handleOpenNgrokQr}
       ngrokEnabled={ngrokStatus?.tunnel.enabled === true}
       ngrokBusy={ngrokBusy}
-      ngrokQrDisabled={!serverUrl}
+      ngrokDisabled={!serverUrl}
     />
   );
 
@@ -2745,12 +2775,12 @@ export default function App() {
             </p>
           )}
 
-          {ngrokPairing?.pairUrl && (
+          {ngrokPairing?.mobilePairUrl && (
             <div className="mt-3 space-y-2">
               <div>
-                <p className={`text-[11px] ${text.muted} mb-1`}>Pairing URL</p>
+                <p className={`text-[11px] ${text.muted} mb-1`}>Mobile Camera Link</p>
                 <code className="block w-full overflow-x-auto rounded-md border border-white/[0.08] bg-black/40 px-2 py-1.5 text-[11px] text-white">
-                  {ngrokPairing.pairUrl}
+                  {ngrokPairing.mobilePairUrl}
                 </code>
               </div>
               <button
@@ -2758,8 +2788,17 @@ export default function App() {
                 onClick={() => void handleCopyNgrokPairingUrl()}
                 className={`px-2.5 py-1 text-[11px] font-medium rounded-md ${button.secondary} transition-colors`}
               >
-                Copy URL
+                Copy Link
               </button>
+            </div>
+          )}
+
+          {ngrokPairing?.pairUrl && (
+            <div className="mt-3">
+              <p className={`text-[11px] ${text.muted} mb-1`}>Browser Pairing URL</p>
+              <code className="block w-full overflow-x-auto rounded-md border border-white/[0.08] bg-black/40 px-2 py-1.5 text-[11px] text-white">
+                {ngrokPairing.pairUrl}
+              </code>
             </div>
           )}
 

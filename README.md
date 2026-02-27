@@ -19,6 +19,9 @@ and ship pull requests with clear visibility.
 - **Agent tooling hub**: Centralize agent tooling and workflow hooks instead of per-agent silos.
 - **Real-time visibility**: Track execution across agents with live activity and high-signal
   blocker/approval notifications.
+- **Ngrok mobile pairing (experimental)**: Generate desktop QR deep links that open the mobile app
+  from the phone camera, pair to one project, and attach to scoped agent sessions remotely with
+  interactive terminal streaming plus live desktop tab sync when sessions start/stop from mobile.
 
 <br /><br />
 
@@ -105,6 +108,8 @@ Environment variables:
 
 - `OPENKIT_SERVER_PORT` (default `6969`) — backend server base port
 - `OPENKIT_WEB_APP_PORT` (default `5173`) — web-app Vite dev server port
+- `OPENKIT_NGROK_MOBILE_SCHEME` (default `mobileapp`) — deep-link scheme for ngrok mobile pairing QR payloads
+- `OPENKIT_NGROK_PAIRING_RATE_LIMIT` (default `0`) — set to `1` to enable strict pairing rate limiting (`/api/ngrok/pairing/exchange` and `/_ok/pair`)
 
 <br /><br />
 
