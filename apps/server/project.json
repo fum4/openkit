@@ -9,36 +9,43 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/server",
-        "command": "pnpm run dev"
+        "command": "pnpm dev"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/apps/server/dist"],
+      "options": {
+        "cwd": "apps/server",
+        "command": "pnpm build"
+      }
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/server",
+        "command": "pnpm preview"
       }
     },
     "start": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/server",
-        "command": "pnpm run start"
-      }
-    },
-    "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/apps/server/dist/runtime"],
-      "options": {
-        "cwd": "apps/server",
-        "command": "pnpm run build"
+        "command": "pnpm start"
       }
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/server",
-        "command": "pnpm run typecheck"
+        "command": "pnpm typecheck"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/server",
-        "command": "pnpm run lint"
+        "command": "pnpm lint"
       }
     }
   }

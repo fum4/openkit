@@ -292,7 +292,7 @@ The Expo app (`apps/mobile-app`) exports platform bundles to `apps/mobile-app/di
 pnpm build
 ```
 
-This runs `nx run-many -t build --projects cli,server,web-app,desktop-app,website,mobile-app`.
+This runs `nx run-many -t build`.
 
 Build outputs are intentionally split:
 
