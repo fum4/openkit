@@ -9,21 +9,7 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/desktop-app",
-        "command": "pnpm run dev"
-      }
-    },
-    "compile": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm run compile"
-      }
-    },
-    "run": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm run run"
+        "command": "pnpm dev"
       }
     },
     "build": {
@@ -32,7 +18,21 @@
       "outputs": ["{workspaceRoot}/apps/desktop-app/dist"],
       "options": {
         "cwd": "apps/desktop-app",
-        "command": "pnpm run build"
+        "command": "pnpm build"
+      }
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm preview"
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm start"
       }
     },
     "package": {
@@ -41,7 +41,7 @@
       "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
       "options": {
         "cwd": "apps/desktop-app",
-        "command": "pnpm run package"
+        "command": "pnpm package"
       }
     },
     "package-mac": {
@@ -50,7 +50,7 @@
       "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
       "options": {
         "cwd": "apps/desktop-app",
-        "command": "pnpm run package:mac"
+        "command": "pnpm package:mac"
       }
     },
     "package-linux": {
@@ -59,21 +59,21 @@
       "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
       "options": {
         "cwd": "apps/desktop-app",
-        "command": "pnpm run package:linux"
+        "command": "pnpm package:linux"
       }
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/desktop-app",
-        "command": "pnpm run typecheck"
+        "command": "pnpm typecheck"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/desktop-app",
-        "command": "pnpm run lint"
+        "command": "pnpm lint"
       }
     }
   }

@@ -20,15 +20,25 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-pnpm-node
-      - run: pnpm check:lint
+      - run: pnpm nx affected -t lint --base="${BASE_SHA}" --head="${HEAD_SHA}"
 
   type-check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-pnpm-node
-      - run: pnpm check:types
+      - run: pnpm nx affected -t typecheck --base="${BASE_SHA}" --head="${HEAD_SHA}"

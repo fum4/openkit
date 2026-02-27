@@ -19,25 +19,32 @@
         "command": "pnpm build"
       }
     },
+    "preview": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/website",
+        "command": "pnpm preview"
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/website",
+        "command": "pnpm start"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/website",
-        "command": "pnpm run typecheck"
+        "command": "pnpm typecheck"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/website",
-        "command": "pnpm run lint"
-      }
-    },
-    "preview": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/website",
-        "command": "pnpm preview"
+        "command": "pnpm lint"
       }
     }
   }

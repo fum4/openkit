@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n desktop:compile,desktop:run -c yellow,magenta \"pnpm run compile\" \"pnpm run run\"",
-    "build": "mkdir -p dist && cp src/preload.cjs dist/preload.cjs && tsc -p tsconfig.json",
-    "compile": "mkdir -p dist && cp src/preload.cjs dist/preload.cjs && tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "build": "mkdir -p dist && cp src/preload.cjs dist/preload.cjs && tsgo -p tsconfig.json",
+    "preview": "wait-on ./dist/main.js ../web-app/dist/index.html ../cli/dist/cli/index.js ../server/dist/runtime/port-hook.cjs && electron ./dist/main.js",
+    "start": "pnpm -C ../.. nx run desktop-app:build && pnpm preview",
+    "compile": "mkdir -p dist && cp src/preload.cjs dist/preload.cjs && tsgo -p tsconfig.json --watch --preserveWatchOutput",
     "run": "wait-on http://localhost:${OPENKIT_WEB_APP_PORT:-5173} ./dist/main.js && UI_DEV_SERVER_URL=http://localhost:${OPENKIT_WEB_APP_PORT:-5173} VITE_DEV_SERVER=1 electronmon ./dist/main.js",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint src",
-    "package": "pnpm run package:mac && pnpm run package:linux",
+    "package": "pnpm package:mac && pnpm package:linux",
     "package:mac": "pnpm exec electron-builder --config electron-builder.yml --mac --publish never",
     "package:linux": "pnpm exec electron-builder --config electron-builder.yml --linux AppImage --publish never"
   },
@@ -21,7 +23,6 @@
     "electron-builder": "^26.8.1",
     "electronmon": "^2.0.4",
     "oxlint": "^1.50.0",
-    "typescript": "^5.9.3",
     "wait-on": "^9.0.4"
   }
 }
