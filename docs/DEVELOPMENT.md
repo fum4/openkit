@@ -130,7 +130,7 @@ npm publishing is currently paused.
   - `/package` packages both macOS and Linux desktop artifacts.
   - `/package:mac` packages only macOS desktop artifacts.
   - `/package:linux` packages only Linux desktop artifacts.
-    It reacts to the triggering comment, posts a status comment, and updates that same comment with final platform status and artifact download links.
+    It reacts to the triggering comment, posts a status comment, updates that same comment as each platform finishes, then posts a final summary with platform status and artifact download links. Comment rendering is shared via `.github/actions/update-package-comment`.
 - The release workflow still runs `pnpm check:all` and creates release tags plus the GitHub release.
 - Desktop release assets are built/uploaded in `.github/workflows/package.yml` on release tag pushes (`v*`).
 - npm-specific publish steps are commented out in `.github/workflows/release.yml`.

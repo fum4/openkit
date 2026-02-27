@@ -1,0 +1,122 @@
+name: Update Package Comment
+description: Update an existing PR package status comment.
+
+inputs:
+  comment-id:
+    description: Numeric issue comment id to update.
+    required: true
+  command:
+    description: Slash command that triggered packaging.
+    required: true
+  logs-url:
+    description: URL to the current workflow run logs.
+    required: true
+  mode:
+    description: "Comment mode: progress or final."
+    required: true
+  build-mac:
+    description: Whether macOS packaging was requested (true/false).
+    required: true
+  build-linux:
+    description: Whether Linux packaging was requested (true/false).
+    required: true
+  mac-result:
+    description: macOS job result (success/failure/cancelled/skipped). Leave empty while running.
+    required: false
+    default: ""
+  linux-result:
+    description: Linux job result (success/failure/cancelled/skipped). Leave empty while running.
+    required: false
+    default: ""
+  mac-artifact-url:
+    description: Artifact URL for macOS package.
+    required: false
+    default: ""
+  linux-artifact-url:
+    description: Artifact URL for Linux package.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@v7
+      env:
+        COMMENT_ID: ${{ inputs.comment-id }}
+        COMMAND: ${{ inputs.command }}
+        LOGS_URL: ${{ inputs.logs-url }}
+        MODE: ${{ inputs.mode }}
+        BUILD_MAC: ${{ inputs.build-mac }}
+        BUILD_LINUX: ${{ inputs.build-linux }}
+        MAC_RESULT: ${{ inputs.mac-result }}
+        LINUX_RESULT: ${{ inputs.linux-result }}
+        MAC_ARTIFACT_URL: ${{ inputs.mac-artifact-url }}
+        LINUX_ARTIFACT_URL: ${{ inputs.linux-artifact-url }}
+      with:
+        script: |
+          const statusIcon = {
+            success: "✅",
+            failure: "❌",
+            cancelled: "⚠️",
+            skipped: "🚫",
+          };
+          const statusLabel = {
+            success: "Success",
+            failure: "Failed",
+            cancelled: "Cancelled",
+            skipped: "Skipped",
+          };
+
+          const mode = process.env.MODE;
+          const buildMac = process.env.BUILD_MAC === "true";
+          const buildLinux = process.env.BUILD_LINUX === "true";
+
+          const rowFor = (name, result, artifactUrl) => {
+            if (!result) {
+              return `| ${name} | ⏳ Running | — |`;
+            }
+            const normalized = statusIcon[result] ? result : "skipped";
+            const icon = statusIcon[normalized];
+            const label = statusLabel[normalized];
+            const artifact =
+              normalized === "success"
+                ? artifactUrl
+                  ? `[Download](${artifactUrl})`
+                  : "Available in run artifacts"
+                : "—";
+            return `| ${name} | ${icon} ${label} | ${artifact} |`;
+          };
+
+          const macResult = process.env.MAC_RESULT || "";
+          const linuxResult = process.env.LINUX_RESULT || "";
+
+          const rows = [];
+          if (buildMac) rows.push(rowFor("macOS", macResult, process.env.MAC_ARTIFACT_URL || ""));
+          if (buildLinux)
+            rows.push(rowFor("Linux", linuxResult, process.env.LINUX_ARTIFACT_URL || ""));
+
+          let title = "### 🚧 Packaging in progress";
+          if (mode === "final") {
+            const finalResults = [];
+            if (buildMac) finalResults.push(macResult || "skipped");
+            if (buildLinux) finalResults.push(linuxResult || "skipped");
+
+            const allSucceeded =
+              finalResults.length > 0 && finalResults.every((result) => result === "success");
+            const anyFailed = finalResults.some((result) => result === "failure");
+            const anyCancelled = finalResults.some((result) => result === "cancelled");
+
+            title = "### ℹ️ Packaging finished";
+            if (allSucceeded) title = "### ✅ Packaging completed";
+            else if (anyFailed) title = "### ❌ Packaging failed";
+            else if (anyCancelled) title = "### ⚠️ Packaging cancelled";
+          }
+
+          const body = `${title}\nTriggered with \`${process.env.COMMAND}\`.\n\n[View workflow logs](${process.env.LOGS_URL})\n\n| Target | Status | Artifact |\n| --- | --- | --- |\n${rows.join("\n")}`;
+
+          await github.rest.issues.updateComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: Number(process.env.COMMENT_ID),
+            body,
+          });

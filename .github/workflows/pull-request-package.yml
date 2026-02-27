@@ -61,7 +61,7 @@ jobs:
             build_mac=false
             build_linux=true
             command="/package:linux"
-            fi
+          fi
           fi
 
           echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
@@ -168,88 +168,73 @@ jobs:
             apps/desktop-app/release/*.AppImage
           if-no-files-found: error
 
-  notify-package-result:
-    if: ${{ always() && needs.notify-package-start.outputs.should_run == 'true' }}
+  notify-package-progress-macos:
+    if: ${{ always() && needs.notify-package-start.outputs.should_run == 'true' && needs.notify-package-start.outputs.build_mac == 'true' }}
     needs:
       - notify-package-start
       - package-macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Update status comment (macOS)
+        uses: ./.github/actions/update-package-comment
+        with:
+          comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
+          command: ${{ needs.notify-package-start.outputs.command }}
+          logs-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          mode: progress
+          build-mac: ${{ needs.notify-package-start.outputs.build_mac }}
+          build-linux: ${{ needs.notify-package-start.outputs.build_linux }}
+          mac-result: ${{ needs.package-macos.result }}
+          mac-artifact-url: ${{ needs.package-macos.outputs.artifact_url }}
+
+  notify-package-progress-linux:
+    if: ${{ always() && needs.notify-package-start.outputs.should_run == 'true' && needs.notify-package-start.outputs.build_linux == 'true' }}
+    needs:
+      - notify-package-start
       - package-linux
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
     steps:
-      - name: Update status comment
-        uses: actions/github-script@v7
-        env:
-          COMMENT_ID: ${{ needs.notify-package-start.outputs.comment_id }}
-          COMMAND: ${{ needs.notify-package-start.outputs.command }}
-          BUILD_MAC: ${{ needs.notify-package-start.outputs.build_mac }}
-          BUILD_LINUX: ${{ needs.notify-package-start.outputs.build_linux }}
-          MAC_RESULT: ${{ needs.package-macos.result }}
-          LINUX_RESULT: ${{ needs.package-linux.result }}
-          MAC_ARTIFACT_URL: ${{ needs.package-macos.outputs.artifact_url }}
-          LINUX_ARTIFACT_URL: ${{ needs.package-linux.outputs.artifact_url }}
-          LOGS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      - name: Update status comment (Linux)
+        uses: ./.github/actions/update-package-comment
         with:
-          script: |
-            const statusIcon = {
-              success: "✅",
-              failure: "❌",
-              cancelled: "⚠️",
-              skipped: "🚫",
-            };
-            const statusLabel = {
-              success: "Success",
-              failure: "Failed",
-              cancelled: "Cancelled",
-              skipped: "Skipped",
-            };
+          comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
+          command: ${{ needs.notify-package-start.outputs.command }}
+          logs-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          mode: progress
+          build-mac: ${{ needs.notify-package-start.outputs.build_mac }}
+          build-linux: ${{ needs.notify-package-start.outputs.build_linux }}
+          linux-result: ${{ needs.package-linux.result }}
+          linux-artifact-url: ${{ needs.package-linux.outputs.artifact_url }}
 
-            const targets = [];
-            if (process.env.BUILD_MAC === "true") {
-              targets.push({
-                name: "macOS",
-                result: process.env.MAC_RESULT || "skipped",
-                artifactUrl: process.env.MAC_ARTIFACT_URL || "",
-              });
-            }
-            if (process.env.BUILD_LINUX === "true") {
-              targets.push({
-                name: "Linux",
-                result: process.env.LINUX_RESULT || "skipped",
-                artifactUrl: process.env.LINUX_ARTIFACT_URL || "",
-              });
-            }
-
-            const anyFailed = targets.some((target) => target.result === "failure");
-            const anyCancelled = targets.some((target) => target.result === "cancelled");
-            const allSucceeded = targets.length > 0 && targets.every((target) => target.result === "success");
-
-            let title = "### ℹ️ Packaging finished";
-            if (allSucceeded) title = "### ✅ Packaging completed";
-            else if (anyFailed) title = "### ❌ Packaging failed";
-            else if (anyCancelled) title = "### ⚠️ Packaging cancelled";
-
-            const rows = targets
-              .map((target) => {
-                const icon = statusIcon[target.result] || "❔";
-                const label = statusLabel[target.result] || target.result;
-                const artifact =
-                  target.result === "success"
-                    ? target.artifactUrl
-                      ? `[Download](${target.artifactUrl})`
-                      : "Available in run artifacts"
-                    : "—";
-                return `| ${target.name} | ${icon} ${label} | ${artifact} |`;
-              })
-              .join("\n");
-
-            const body = `${title}\nTriggered with \`${process.env.COMMAND}\`.\n\n[View workflow logs](${process.env.LOGS_URL})\n\n| Target | Status | Artifact |\n| --- | --- | --- |\n${rows}`;
-
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: Number(process.env.COMMENT_ID),
-              body,
-            });
+  notify-package-result:
+    if: ${{ always() && needs.notify-package-start.outputs.should_run == 'true' }}
+    needs:
+      - notify-package-start
+      - package-macos
+      - package-linux
+      - notify-package-progress-macos
+      - notify-package-progress-linux
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Update status comment
+        uses: ./.github/actions/update-package-comment
+        with:
+          comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
+          command: ${{ needs.notify-package-start.outputs.command }}
+          logs-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          mode: final
+          build-mac: ${{ needs.notify-package-start.outputs.build_mac }}
+          build-linux: ${{ needs.notify-package-start.outputs.build_linux }}
+          mac-result: ${{ needs.package-macos.result }}
+          linux-result: ${{ needs.package-linux.result }}
+          mac-artifact-url: ${{ needs.package-macos.outputs.artifact_url }}
+          linux-artifact-url: ${{ needs.package-linux.outputs.artifact_url }}
