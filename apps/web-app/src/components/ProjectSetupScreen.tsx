@@ -105,11 +105,18 @@ export function ProjectSetupScreen({
         setError(
           `Code ${result.code} copied to clipboard! Paste it in your browser to authenticate.`,
         );
-        setGhWaitingForAuth(true);
+      } else {
+        setError("Continue authentication in your browser if prompted.");
       }
       // Refresh status
       const data = await fetchGitHubStatus(serverUrl);
       setGhStatus(data);
+      if (data?.authenticated) {
+        setGhWaitingForAuth(false);
+        setError(null);
+      } else {
+        setGhWaitingForAuth(true);
+      }
     } else {
       setError(result.error ?? "Failed to install gh CLI");
     }
@@ -120,20 +127,31 @@ export function ProjectSetupScreen({
     setError(null);
     const result = await api.loginGitHub();
     setGhLoading(false);
-    if (result.success && result.code) {
-      try {
-        await navigator.clipboard.writeText(result.code);
-      } catch {
-        /* ignore */
+    if (result.success) {
+      if (result.code) {
+        try {
+          await navigator.clipboard.writeText(result.code);
+        } catch {
+          /* ignore */
+        }
+        setError(
+          `Code ${result.code} copied to clipboard! Paste it in your browser to authenticate.`,
+        );
+      } else {
+        setError("Authentication started. Finish sign-in in your browser.");
       }
-      setError(
-        `Code ${result.code} copied to clipboard! Paste it in your browser to authenticate.`,
-      );
-      setGhWaitingForAuth(true);
-    } else if (!result.success) {
+      const data = await fetchGitHubStatus(serverUrl);
+      setGhStatus(data);
+      if (data?.authenticated) {
+        setGhWaitingForAuth(false);
+        setError(null);
+      } else {
+        setGhWaitingForAuth(true);
+      }
+    } else {
       setError(result.error ?? "Failed to authenticate");
     }
-  }, [api]);
+  }, [api, serverUrl]);
 
   // Form values for manual setup
   const [detectedConfig, setDetectedConfig] = useState<DetectedConfig | null>(null);
@@ -245,10 +263,15 @@ export function ProjectSetupScreen({
           type: "success",
           message: `Code ${result.code} copied! Paste it in your browser.`,
         });
-        setIntGhWaiting(true);
+      } else {
+        setIntGhFeedback({
+          type: "success",
+          message: "Continue authentication in your browser if prompted.",
+        });
       }
       const data = await fetchGitHubStatus(serverUrl);
       setIntGhStatus(data);
+      setIntGhWaiting(!(data?.authenticated && data?.username));
     } else {
       setIntGhFeedback({ type: "error", message: result.error ?? "Failed to install gh CLI" });
     }
@@ -259,21 +282,30 @@ export function ProjectSetupScreen({
     setIntGhFeedback(null);
     const result = await api.loginGitHub();
     setIntGhLoading(false);
-    if (result.success && result.code) {
-      try {
-        await navigator.clipboard.writeText(result.code);
-      } catch {
-        /* ignore */
+    if (result.success) {
+      if (result.code) {
+        try {
+          await navigator.clipboard.writeText(result.code);
+        } catch {
+          /* ignore */
+        }
+        setIntGhFeedback({
+          type: "success",
+          message: `Code ${result.code} copied! Paste it in your browser.`,
+        });
+      } else {
+        setIntGhFeedback({
+          type: "success",
+          message: "Authentication started. Finish sign-in in your browser.",
+        });
       }
-      setIntGhFeedback({
-        type: "success",
-        message: `Code ${result.code} copied! Paste it in your browser.`,
-      });
-      setIntGhWaiting(true);
-    } else if (!result.success) {
+      const data = await fetchGitHubStatus(serverUrl);
+      setIntGhStatus(data);
+      setIntGhWaiting(!(data?.authenticated && data?.username));
+    } else {
       setIntGhFeedback({ type: "error", message: result.error ?? "Failed to start login" });
     }
-  }, [api]);
+  }, [api, serverUrl]);
 
   const handleJiraConnect = useCallback(async () => {
     if (!jiraBaseUrl || !jiraEmail || !jiraToken) return;
@@ -497,12 +529,12 @@ export function ProjectSetupScreen({
         id: "github",
         name: "GitHub",
         description: "Commits, pushes, and pull requests",
-        color: "text-[#2dd4bf]",
-        colorBg: "bg-[#2dd4bf]/10",
-        borderColor: "border-[#2dd4bf]/30",
+        color: "text-white",
+        colorBg: "bg-white/[0.05]",
+        borderColor: "border-white/[0.12]",
         connected: !!ghReady,
         connectedLabel: intGhStatus?.username ? `@${intGhStatus.username}` : undefined,
-        icon: <GitHubIcon className="w-[18px] h-[18px]" />,
+        icon: <GitHubIcon className="w-[18px] h-[18px] text-white" />,
       },
       {
         id: "jira",
@@ -567,7 +599,9 @@ export function ProjectSetupScreen({
                     <div
                       className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${isConnected ? integration.colorBg : "bg-white/[0.04]"} transition-colors`}
                     >
-                      <span className={isConnected ? integration.color : text.muted}>
+                      <span
+                        className={`flex h-[18px] w-[18px] items-center justify-center leading-none ${isConnected ? integration.color : text.muted}`}
+                      >
                         {integration.icon}
                       </span>
                     </div>
@@ -891,7 +925,7 @@ export function ProjectSetupScreen({
     // Build a summary of what was configured during setup
     const configuredItems: { label: string; color: string }[] = [];
     if (intGhStatus?.authenticated)
-      configuredItems.push({ label: "GitHub", color: "text-[#2dd4bf]" });
+      configuredItems.push({ label: "GitHub", color: "text-[#cbd5e1]" });
     if (intJiraStatus?.configured) configuredItems.push({ label: "Jira", color: "text-blue-400" });
     if (intLinearStatus?.configured)
       configuredItems.push({ label: "Linear", color: "text-[#5E6AD2]" });
@@ -1140,12 +1174,12 @@ export function ProjectSetupScreen({
               className={`${surface.panel} rounded-xl border border-white/[0.08] p-5 mb-6 text-left`}
             >
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-orange-400/10">
-                  <LogIn className="w-5 h-5 text-orange-400" />
+                <div className="p-2 rounded-lg bg-[#2dd4bf]/10">
+                  <GitHubIcon className="w-5 h-5 text-[#2dd4bf]" />
                 </div>
                 <div className="flex-1">
                   <h3 className={`text-sm font-medium ${text.primary} mb-1`}>
-                    GitHub authentication needed
+                    Authenticate with GitHub
                   </h3>
                   <p className={`text-xs ${text.muted} leading-relaxed`}>
                     Authenticate with GitHub to enable commits, pushes, and pull requests.

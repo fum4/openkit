@@ -467,11 +467,15 @@ function GitHubCard({
           type: "success",
           message: `Code ${result.code} copied! Paste it in your browser.`,
         });
-        setWaitingForAuth(true);
       } else {
-        setFeedback({ type: "success", message: "gh CLI installed" });
+        setFeedback({
+          type: "success",
+          message: "Continue authentication in your browser if prompted.",
+        });
       }
-      onStatusChange();
+      const data = await fetchGitHubStatus(serverUrl);
+      onStatusChange(data ?? undefined);
+      setWaitingForAuth(!(data?.authenticated ?? false));
     } else {
       setFeedback({ type: "error", message: result.error ?? "Failed to install gh" });
       setTimeout(() => setFeedback(null), 4000);
@@ -481,14 +485,23 @@ function GitHubCard({
   const handleLogin = async () => {
     setFeedback(null);
     const result = await api.loginGitHub();
-    if (result.success && result.code) {
-      await copyToClipboard(result.code);
-      setFeedback({
-        type: "success",
-        message: `Code ${result.code} copied! Paste it in your browser.`,
-      });
-      setWaitingForAuth(true);
-    } else if (!result.success) {
+    if (result.success) {
+      if (result.code) {
+        await copyToClipboard(result.code);
+        setFeedback({
+          type: "success",
+          message: `Code ${result.code} copied! Paste it in your browser.`,
+        });
+      } else {
+        setFeedback({
+          type: "success",
+          message: "Authentication started. Finish sign-in in your browser.",
+        });
+      }
+      const data = await fetchGitHubStatus(serverUrl);
+      onStatusChange(data ?? undefined);
+      setWaitingForAuth(!(data?.authenticated ?? false));
+    } else {
       setFeedback({ type: "error", message: result.error ?? "Failed to start login" });
       setTimeout(() => setFeedback(null), 4000);
     }

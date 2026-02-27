@@ -5,6 +5,8 @@ import type { Hono } from "hono";
 import { configureGitUser } from "@openkit/integrations/github/gh-client";
 import type { WorktreeManager } from "../manager";
 
+const DEVICE_LOGIN_URL = "https://github.com/login/device";
+
 function runExecFile(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     execFile(cmd, args, (error) => {
@@ -12,6 +14,31 @@ function runExecFile(cmd: string, args: string[]): Promise<void> {
       else resolve();
     });
   });
+}
+
+function parseGhLoginOutput(output: string): { code: string; url: string } {
+  // Trim ANSI escapes to make matching robust across terminals.
+  let normalized = output;
+  let ansiStart = normalized.indexOf("\x1b[");
+  while (ansiStart !== -1) {
+    let ansiEnd = ansiStart + 2;
+    while (ansiEnd < normalized.length && /[0-9;]/.test(normalized[ansiEnd])) {
+      ansiEnd += 1;
+    }
+    if (normalized[ansiEnd] === "m") {
+      ansiEnd += 1;
+    }
+    normalized = normalized.slice(0, ansiStart) + normalized.slice(ansiEnd);
+    ansiStart = normalized.indexOf("\x1b[");
+  }
+  const codeMatch =
+    normalized.match(/one-time code:\s*([A-Z0-9-]+)/i) ??
+    normalized.match(/code:\s*([A-Z0-9-]{4,})/i);
+  const urlMatch = normalized.match(/https:\/\/github\.com\/login\/device\S*/i);
+
+  const code = codeMatch?.[1] ?? "";
+  const url = urlMatch?.[0] ?? (code ? DEVICE_LOGIN_URL : "");
+  return { code, url };
 }
 
 function startGhAuthLogin(manager: WorktreeManager): Promise<{ code: string; url: string }> {
@@ -26,34 +53,72 @@ function startGhAuthLogin(manager: WorktreeManager): Promise<{ code: string; url
     );
 
     let output = "";
+    let settled = false;
+
+    const resolveOnce = (value: { code: string; url: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+
+    const tryResolveFromOutput = () => {
+      const parsed = parseGhLoginOutput(output);
+      if (!parsed.code && !parsed.url) return;
+      if (parsed.url) {
+        execFile("open", [parsed.url], () => {
+          // Best effort only.
+        });
+      }
+      resolveOnce(parsed);
+    };
 
     child.stderr.on("data", (data: Buffer) => {
       output += data.toString();
+      tryResolveFromOutput();
     });
     child.stdout.on("data", (data: Buffer) => {
       output += data.toString();
+      tryResolveFromOutput();
     });
 
-    // Wait briefly for gh to print the code and URL, then parse and open browser
+    // If gh takes longer to print login details, don't fail the API call.
     setTimeout(() => {
-      const codeMatch = output.match(/one-time code:\s*(\S+)/);
-      const urlMatch = output.match(/(https:\/\/github\.com\/login\/device\S*)/);
-      if (urlMatch) {
-        execFile("open", [urlMatch[1]]);
-        resolve({
-          code: codeMatch?.[1] ?? "",
-          url: urlMatch[1],
-        });
-      } else {
-        reject(new Error("Could not start GitHub login flow"));
-        child.kill();
+      tryResolveFromOutput();
+      if (!settled) {
+        resolveOnce({ code: "", url: "" });
       }
-    }, 2000);
+    }, 2500);
 
     child.stdin.write("\n");
     child.stdin.end();
 
+    child.on("error", (error) => {
+      rejectOnce(error instanceof Error ? error : new Error("Could not start GitHub login flow"));
+    });
+
     child.on("close", async (exitCode) => {
+      if (exitCode !== 0 && !settled) {
+        const trimmed = output.trim();
+        rejectOnce(
+          new Error(
+            trimmed
+              ? `Could not start GitHub login flow: ${trimmed}`
+              : "Could not start GitHub login flow",
+          ),
+        );
+        return;
+      }
+
+      if (!settled) {
+        resolveOnce({ code: "", url: "" });
+      }
+
       if (exitCode === 0) {
         // Configure gh as the git credential helper so git uses the same account
         try {
