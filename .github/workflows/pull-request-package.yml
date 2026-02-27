@@ -178,6 +178,7 @@ jobs:
       contents: read
       issues: write
     steps:
+      - uses: actions/checkout@v6
       - name: Update status comment (macOS)
         uses: ./.github/actions/update-package-comment
         with:
@@ -200,6 +201,7 @@ jobs:
       contents: read
       issues: write
     steps:
+      - uses: actions/checkout@v6
       - name: Update status comment (Linux)
         uses: ./.github/actions/update-package-comment
         with:
@@ -225,6 +227,7 @@ jobs:
       contents: read
       issues: write
     steps:
+      - uses: actions/checkout@v6
       - name: Update status comment
         uses: ./.github/actions/update-package-comment
         with:
