@@ -9,6 +9,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-affected:
+    runs-on: ubuntu-latest
+    outputs:
+      lint: ${{ steps.lint-affected.outputs.affected }}
+      typecheck: ${{ steps.typecheck-affected.outputs.affected }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-pnpm-node
+      - id: lint-affected
+        uses: ./.github/actions/check-affected-target
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          targets: lint
+      - id: typecheck-affected
+        uses: ./.github/actions/check-affected-target
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          targets: typecheck
+
   format:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -18,6 +41,8 @@ jobs:
       - run: pnpm check:format
 
   lint:
+    needs: check-affected
+    if: needs.check-affected.outputs.lint == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -31,6 +56,8 @@ jobs:
       - run: pnpm nx affected -t lint --base="${BASE_SHA}" --head="${HEAD_SHA}"
 
   type-check:
+    needs: check-affected
+    if: needs.check-affected.outputs.typecheck == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
