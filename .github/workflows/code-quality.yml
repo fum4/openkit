@@ -12,34 +12,25 @@ jobs:
   check-affected:
     runs-on: ubuntu-latest
     outputs:
-      lint: ${{ steps.affected.outputs.lint }}
-      typecheck: ${{ steps.affected.outputs.typecheck }}
+      lint: ${{ steps.lint-affected.outputs.affected }}
+      typecheck: ${{ steps.typecheck-affected.outputs.affected }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-pnpm-node
-      - id: affected
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-
-          lint_projects="$(pnpm nx show projects --affected --withTarget=lint --base="${BASE_SHA}" --head="${HEAD_SHA}" --sep=,)"
-          typecheck_projects="$(pnpm nx show projects --affected --withTarget=typecheck --base="${BASE_SHA}" --head="${HEAD_SHA}" --sep=,)"
-
-          if [[ -n "${lint_projects}" ]]; then
-            echo "lint=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "lint=false" >> "${GITHUB_OUTPUT}"
-          fi
-
-          if [[ -n "${typecheck_projects}" ]]; then
-            echo "typecheck=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "typecheck=false" >> "${GITHUB_OUTPUT}"
-          fi
+      - id: lint-affected
+        uses: ./.github/actions/check-affected-target
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          targets: lint
+      - id: typecheck-affected
+        uses: ./.github/actions/check-affected-target
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          targets: typecheck
 
   format:
     runs-on: ubuntu-latest

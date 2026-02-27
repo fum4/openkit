@@ -122,12 +122,14 @@ Run `pnpm run setup` to create `.env.local` from `.env.example` (without overwri
 npm publishing is currently paused.
 
 - Code quality and smoke-test workflows run on pull requests targeting `master` (not on direct push to `master`).
-- The code quality workflow runs format globally, and runs lint/typecheck via `nx affected` against PR base/head commits. Lint/typecheck jobs are skipped entirely when no projects are affected for those targets.
-- The PR build workflow (`.github/workflows/build.yml`) determines affected build app projects via `nx show projects --affected --withTarget=build` against PR base/head commits, and runs per-app build jobs only for affected apps (with a global fallback for shared/config/workflow changes).
+- The code quality workflow runs format globally, and runs lint/typecheck via `nx affected` against PR base/head commits. Lint/typecheck jobs are skipped entirely when no projects are affected for those targets (via reusable composite action `.github/actions/check-affected-target`).
+- The smoke-test workflow (`.github/workflows/test.yml`) runs the CLI startup matrix only when CLI/server-related changes are detected (using the same reusable `.github/actions/check-affected-target` action, plus workflow/action self-change guards).
+- The PR build workflow (`.github/workflows/build.yml`) uses reusable `.github/actions/check-affected-build` to compute per-app build flags and global fallback changes (internally using `.github/actions/check-affected-target`), then runs per-app build jobs only for affected apps.
+- `.github/actions/check-affected-target` supports comma-separated `targets` (or no target filter, which checks all affected projects) and optional `include-projects` filtering for project subsets.
 - The PR packaging workflow (`.github/workflows/pull-request-package.yml`) runs on PR comments with slash commands:
-  - `/build` packages both macOS and Linux desktop artifacts.
-  - `/build:mac` packages only macOS desktop artifacts.
-  - `/build:linux` packages only Linux desktop artifacts.
+  - `/package` packages both macOS and Linux desktop artifacts.
+  - `/package:mac` packages only macOS desktop artifacts.
+  - `/package:linux` packages only Linux desktop artifacts.
     It reacts to the triggering comment, posts a status comment, and updates that same comment with final platform status and artifact download links.
 - The release workflow still runs `pnpm check:all` and creates release tags plus the GitHub release.
 - Desktop release assets are built/uploaded in `.github/workflows/package.yml` on release tag pushes (`v*`).
