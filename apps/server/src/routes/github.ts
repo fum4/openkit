@@ -2,7 +2,7 @@ import { execFile, spawn } from "child_process";
 
 import type { Hono } from "hono";
 
-import { configureGitUser } from "@openkit/integrations/github/gh-client";
+import { checkGhInstalled, configureGitUser } from "@openkit/integrations/github/gh-client";
 import type { WorktreeManager } from "../manager";
 
 function runExecFile(cmd: string, args: string[]): Promise<void> {
@@ -12,6 +12,14 @@ function runExecFile(cmd: string, args: string[]): Promise<void> {
       else resolve();
     });
   });
+}
+
+function formatGitHubInstallError(error: unknown): string {
+  const detail = error instanceof Error ? error.message : "Failed to install gh";
+  if (/spawn brew ENOENT/i.test(detail)) {
+    return `Could not install GitHub CLI automatically because Homebrew was not found. Install Homebrew and try again (${detail})`;
+  }
+  return `Could not install GitHub CLI automatically (${detail})`;
 }
 
 function startGhAuthLogin(manager: WorktreeManager): Promise<{ code: string; url: string }> {
@@ -76,13 +84,13 @@ function startGhAuthLogin(manager: WorktreeManager): Promise<{ code: string; url
 export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
   app.post("/api/github/install", async (c) => {
     try {
-      await runExecFile("brew", ["install", "gh"]);
+      const ghAlreadyInstalled = await checkGhInstalled();
+      if (!ghAlreadyInstalled) {
+        await runExecFile("brew", ["install", "gh"]);
+      }
       await manager.initGitHub();
     } catch (error) {
-      return c.json(
-        { success: false, error: error instanceof Error ? error.message : "Failed to install gh" },
-        400,
-      );
+      return c.json({ success: false, error: formatGitHubInstallError(error) }, 400);
     }
     try {
       const { code } = await startGhAuthLogin(manager);

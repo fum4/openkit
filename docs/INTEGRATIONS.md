@@ -279,13 +279,15 @@ OpenKit checks for `gh` availability in two steps:
 1. `which gh` -- Is the CLI installed?
 2. `gh auth status` -- Is the user authenticated?
 
+On macOS desktop launches, OpenKit ensures common Homebrew bin directories are present in `PATH` (`/opt/homebrew/bin`, `/usr/local/bin`, `/opt/local/bin`) so `gh`/`brew` can be discovered even when the app is started outside a shell.
+
 If both pass, OpenKit queries repo info via `gh repo view --json nameWithOwner,defaultBranchRef` to determine the owner, repo name, and default branch.
 
 ### Installation and Authentication
 
 **Via the web UI:**
 
-The Integrations panel can install `gh` automatically using `brew install gh` (macOS only). After installation, it initiates the GitHub device flow (`gh auth login --web`) with the `user` scope, parses the one-time code from stderr, opens the browser, and copies the code to the clipboard.
+The Integrations panel first checks whether `gh` is already available. If not, it can install `gh` automatically using `brew install gh` (macOS only). After installation, it initiates the GitHub device flow (`gh auth login --web`) with the `user` scope, parses the one-time code from stderr, opens the browser, and copies the code to the clipboard.
 
 After successful authentication, OpenKit automatically:
 
