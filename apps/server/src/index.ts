@@ -54,6 +54,14 @@ import type { WorktreeConfig } from "./types";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
+function ensureCommandPath(): void {
+  const commonBinDirs = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"];
+  const currentPath = process.env.PATH ?? "";
+  const entries = currentPath.split(path.delimiter).filter(Boolean);
+  const merged = [...entries, ...commonBinDirs];
+  process.env.PATH = [...new Set(merged)].join(path.delimiter);
+}
+
 function resolveProjectRoot(startDir: string): string {
   const candidates = [
     path.resolve(startDir, "..", "..", ".."), // apps/server/src or apps/cli/dist -> root
@@ -74,6 +82,7 @@ function resolveProjectRoot(startDir: string): string {
 }
 
 const projectRoot = resolveProjectRoot(currentDir);
+ensureCommandPath();
 
 function formatHookTriggerLabel(trigger: "worktree-created" | "worktree-removed"): string {
   return trigger === "worktree-created" ? "Worktree Created" : "Worktree Removed";
