@@ -1,0 +1,142 @@
+name: Check Nx Affected Target
+description: Determine whether a PR changes any projects for selected Nx targets.
+
+inputs:
+  base-sha:
+    description: Base git SHA for Nx affected comparison.
+    required: true
+  head-sha:
+    description: Head git SHA for Nx affected comparison.
+    required: true
+  targets:
+    description: Optional comma-separated Nx target names (for example lint,typecheck,build).
+    required: false
+    default: ""
+  project-type:
+    description: Optional Nx project type filter (for example app, lib).
+    required: false
+    default: ""
+  include-projects:
+    description: Optional comma-separated project names to keep from affected results.
+    required: false
+    default: ""
+
+outputs:
+  affected:
+    description: Whether at least one project is affected for the target.
+    value: ${{ steps.detect.outputs.affected }}
+  projects:
+    description: Comma-separated list of affected projects for the target.
+    value: ${{ steps.detect.outputs.projects }}
+
+runs:
+  using: composite
+  steps:
+    - id: detect
+      shell: bash
+      env:
+        BASE_SHA: ${{ inputs.base-sha }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        TARGETS: ${{ inputs.targets }}
+        PROJECT_TYPE: ${{ inputs.project-type }}
+        INCLUDE_PROJECTS: ${{ inputs.include-projects }}
+      run: |
+        set -euo pipefail
+
+        normalize_csv() {
+          local value="$1"
+          local normalized=""
+          IFS=',' read -r -a parts <<< "${value}"
+          for part in "${parts[@]}"; do
+            local trimmed
+            trimmed="$(echo "${part}" | xargs)"
+            if [[ -z "${trimmed}" ]]; then
+              continue
+            fi
+            if [[ -z "${normalized}" ]]; then
+              normalized="${trimmed}"
+            else
+              normalized="${normalized},${trimmed}"
+            fi
+          done
+          echo "${normalized}"
+        }
+
+        add_projects_from_csv() {
+          local raw="$1"
+          IFS=',' read -r -a entries <<< "${raw}"
+          for entry in "${entries[@]}"; do
+            local project
+            project="$(echo "${entry}" | xargs)"
+            if [[ -z "${project}" ]]; then
+              continue
+            fi
+            if [[ -z "${projects}" ]]; then
+              projects="${project}"
+            elif [[ ",${projects}," != *",${project},"* ]]; then
+              projects="${projects},${project}"
+            fi
+          done
+        }
+
+        resolved_targets="$(normalize_csv "${TARGETS}")"
+        include_projects="$(normalize_csv "${INCLUDE_PROJECTS}")"
+
+        projects=""
+        if [[ -n "${resolved_targets}" ]]; then
+          IFS=',' read -r -a target_list <<< "${resolved_targets}"
+          for target_name in "${target_list[@]}"; do
+            args=(
+              "nx"
+              "show"
+              "projects"
+              "--affected"
+              "--withTarget=${target_name}"
+              "--base=${BASE_SHA}"
+              "--head=${HEAD_SHA}"
+              "--sep=,"
+            )
+            if [[ -n "${PROJECT_TYPE}" ]]; then
+              args+=("--type=${PROJECT_TYPE}")
+            fi
+            target_projects="$(pnpm "${args[@]}")"
+            add_projects_from_csv "${target_projects}"
+          done
+        else
+          args=(
+            "nx"
+            "show"
+            "projects"
+            "--affected"
+            "--base=${BASE_SHA}"
+            "--head=${HEAD_SHA}"
+            "--sep=,"
+          )
+          if [[ -n "${PROJECT_TYPE}" ]]; then
+            args+=("--type=${PROJECT_TYPE}")
+          fi
+          all_projects="$(pnpm "${args[@]}")"
+          add_projects_from_csv "${all_projects}"
+        fi
+
+        if [[ -n "${include_projects}" ]]; then
+          filtered_projects=""
+          IFS=',' read -r -a include_list <<< "${include_projects}"
+          for include_project in "${include_list[@]}"; do
+            if [[ ",${projects}," == *",${include_project},"* ]]; then
+              if [[ -z "${filtered_projects}" ]]; then
+                filtered_projects="${include_project}"
+              elif [[ ",${filtered_projects}," != *",${include_project},"* ]]; then
+                filtered_projects="${filtered_projects},${include_project}"
+              fi
+            fi
+          done
+          projects="${filtered_projects}"
+        fi
+
+        echo "projects=${projects}" >> "${GITHUB_OUTPUT}"
+        if [[ -n "${projects}" ]]; then
+          echo "affected=true" >> "${GITHUB_OUTPUT}"
+        else
+          echo "affected=false" >> "${GITHUB_OUTPUT}"
+        fi

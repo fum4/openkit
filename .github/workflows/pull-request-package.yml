@@ -1,0 +1,252 @@
+name: Pull Request Package
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-package-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  notify-package-start:
+    if: ${{ github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      should_run: ${{ steps.parse-command.outputs.should_run }}
+      command: ${{ steps.parse-command.outputs.command }}
+      build_mac: ${{ steps.parse-command.outputs.build_mac }}
+      build_linux: ${{ steps.parse-command.outputs.build_linux }}
+      comment_id: ${{ steps.create-status-comment.outputs.result }}
+    steps:
+      - name: Parse slash command
+        id: parse-command
+        shell: bash
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+        run: |
+          set -euo pipefail
+
+          first_line="$(printf '%s\n' "$COMMENT_BODY" | head -n1 | tr -d '\r' | xargs)"
+
+          should_run=false
+          build_mac=false
+          build_linux=false
+          command=""
+
+          if [[ "$AUTHOR_ASSOCIATION" =~ ^(OWNER|MEMBER|COLLABORATOR)$ ]]; then
+            if [[ "$first_line" =~ ^/package($|[[:space:]]) ]]; then
+              should_run=true
+              build_mac=true
+              build_linux=true
+              command="/package"
+            elif [[ "$first_line" =~ ^/package:mac($|[[:space:]]) ]]; then
+              should_run=true
+              build_mac=true
+              build_linux=false
+              command="/package:mac"
+            elif [[ "$first_line" =~ ^/package:linux($|[[:space:]]) ]]; then
+              should_run=true
+              build_mac=false
+              build_linux=true
+              command="/package:linux"
+            fi
+          fi
+
+          echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
+          echo "build_mac=$build_mac" >> "$GITHUB_OUTPUT"
+          echo "build_linux=$build_linux" >> "$GITHUB_OUTPUT"
+          echo "command=$command" >> "$GITHUB_OUTPUT"
+
+      - name: Add reaction to triggering comment
+        if: ${{ steps.parse-command.outputs.should_run == 'true' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              comment_id: context.payload.comment.id,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              content: "+1",
+            });
+
+      - name: Create status comment
+        if: ${{ steps.parse-command.outputs.should_run == 'true' }}
+        id: create-status-comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const logsUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const command = "${{ steps.parse-command.outputs.command }}";
+            const targets = [];
+            if ("${{ steps.parse-command.outputs.build_mac }}" === "true") targets.push("macOS");
+            if ("${{ steps.parse-command.outputs.build_linux }}" === "true") targets.push("Linux");
+
+            const rows = targets.map((target) => `| ${target} | ⏳ Queued |`).join("\n");
+            const body = `### 🚀 Packaging started\nTriggered by @${context.payload.comment.user.login} with \`${command}\`.\n\n[View workflow logs](${logsUrl})\n\n| Target | Status |\n| --- | --- |\n${rows}`;
+
+            const comment = await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+            return comment.data.id;
+
+  package-macos:
+    needs: notify-package-start
+    if: ${{ needs.notify-package-start.outputs.should_run == 'true' && needs.notify-package-start.outputs.build_mac == 'true' }}
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      artifact_url: ${{ steps.upload.outputs.artifact-url }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+
+      - name: Setup pnpm + Node
+        uses: ./.github/actions/setup-pnpm-node
+
+      - name: Build desktop artifacts (macOS)
+        run: pnpm package:desktop:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload macOS artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: openkit-pr-${{ github.event.issue.number }}-macos
+          path: |
+            apps/desktop-app/release/*.dmg
+            apps/desktop-app/release/*.dmg.blockmap
+          if-no-files-found: error
+
+  package-linux:
+    needs: notify-package-start
+    if: ${{ needs.notify-package-start.outputs.should_run == 'true' && needs.notify-package-start.outputs.build_linux == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      artifact_url: ${{ steps.upload.outputs.artifact-url }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+
+      - name: Setup pnpm + Node
+        uses: ./.github/actions/setup-pnpm-node
+
+      - name: Build desktop artifacts (Linux)
+        run: pnpm package:desktop:linux
+
+      - name: Upload Linux artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: openkit-pr-${{ github.event.issue.number }}-linux
+          path: |
+            apps/desktop-app/release/*.AppImage
+          if-no-files-found: error
+
+  notify-package-result:
+    if: ${{ always() && needs.notify-package-start.outputs.should_run == 'true' }}
+    needs:
+      - notify-package-start
+      - package-macos
+      - package-linux
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Update status comment
+        uses: actions/github-script@v7
+        env:
+          COMMENT_ID: ${{ needs.notify-package-start.outputs.comment_id }}
+          COMMAND: ${{ needs.notify-package-start.outputs.command }}
+          BUILD_MAC: ${{ needs.notify-package-start.outputs.build_mac }}
+          BUILD_LINUX: ${{ needs.notify-package-start.outputs.build_linux }}
+          MAC_RESULT: ${{ needs.package-macos.result }}
+          LINUX_RESULT: ${{ needs.package-linux.result }}
+          MAC_ARTIFACT_URL: ${{ needs.package-macos.outputs.artifact_url }}
+          LINUX_ARTIFACT_URL: ${{ needs.package-linux.outputs.artifact_url }}
+          LOGS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const statusIcon = {
+              success: "✅",
+              failure: "❌",
+              cancelled: "⚠️",
+              skipped: "🚫",
+            };
+            const statusLabel = {
+              success: "Success",
+              failure: "Failed",
+              cancelled: "Cancelled",
+              skipped: "Skipped",
+            };
+
+            const targets = [];
+            if (process.env.BUILD_MAC === "true") {
+              targets.push({
+                name: "macOS",
+                result: process.env.MAC_RESULT || "skipped",
+                artifactUrl: process.env.MAC_ARTIFACT_URL || "",
+              });
+            }
+            if (process.env.BUILD_LINUX === "true") {
+              targets.push({
+                name: "Linux",
+                result: process.env.LINUX_RESULT || "skipped",
+                artifactUrl: process.env.LINUX_ARTIFACT_URL || "",
+              });
+            }
+
+            const anyFailed = targets.some((target) => target.result === "failure");
+            const anyCancelled = targets.some((target) => target.result === "cancelled");
+            const allSucceeded = targets.length > 0 && targets.every((target) => target.result === "success");
+
+            let title = "### ℹ️ Packaging finished";
+            if (allSucceeded) title = "### ✅ Packaging completed";
+            else if (anyFailed) title = "### ❌ Packaging failed";
+            else if (anyCancelled) title = "### ⚠️ Packaging cancelled";
+
+            const rows = targets
+              .map((target) => {
+                const icon = statusIcon[target.result] || "❔";
+                const label = statusLabel[target.result] || target.result;
+                const artifact =
+                  target.result === "success"
+                    ? target.artifactUrl
+                      ? `[Download](${target.artifactUrl})`
+                      : "Available in run artifacts"
+                    : "—";
+                return `| ${target.name} | ${icon} ${label} | ${artifact} |`;
+              })
+              .join("\n");
+
+            const body = `${title}\nTriggered with \`${process.env.COMMAND}\`.\n\n[View workflow logs](${process.env.LOGS_URL})\n\n| Target | Status | Artifact |\n| --- | --- | --- |\n${rows}`;
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: Number(process.env.COMMENT_ID),
+              body,
+            });

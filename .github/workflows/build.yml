@@ -12,53 +12,23 @@ jobs:
   check-affected:
     runs-on: ubuntu-latest
     outputs:
-      global: ${{ steps.affected.outputs.global }}
-      cli: ${{ steps.affected.outputs.cli }}
-      server: ${{ steps.affected.outputs.server }}
-      website: ${{ steps.affected.outputs.website }}
-      web_app: ${{ steps.affected.outputs.web_app }}
-      mobile_app: ${{ steps.affected.outputs.mobile_app }}
-      desktop_app: ${{ steps.affected.outputs.desktop_app }}
+      global: ${{ steps.build-affected.outputs.global }}
+      cli: ${{ steps.build-affected.outputs.cli }}
+      server: ${{ steps.build-affected.outputs.server }}
+      website: ${{ steps.build-affected.outputs.website }}
+      web_app: ${{ steps.build-affected.outputs.web_app }}
+      mobile_app: ${{ steps.build-affected.outputs.mobile_app }}
+      desktop_app: ${{ steps.build-affected.outputs.desktop_app }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-pnpm-node
-      - id: affected
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-
-          affected="$(pnpm nx show projects --affected --type app --withTarget=build --base="${BASE_SHA}" --head="${HEAD_SHA}" --sep=,)"
-          changed="$(git diff --name-only --no-renames "${BASE_SHA}" "${HEAD_SHA}")"
-
-          echo "Affected build app projects: ${affected:-<none>}"
-
-          has_project() {
-            local project="$1"
-            if [[ -z "${affected}" ]]; then
-              echo "false"
-            elif [[ ",${affected}," == *",${project},"* ]]; then
-              echo "true"
-            else
-              echo "false"
-            fi
-          }
-
-          global="false"
-          if echo "${changed}" | grep -Eq '^(libs/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|nx\.json$|tsconfig.*\.json$|\.github/actions/setup-pnpm-node/|\.github/workflows/build\.yml$)'; then
-            global="true"
-          fi
-
-          echo "global=${global}" >> "${GITHUB_OUTPUT}"
-          echo "cli=$(has_project cli)" >> "${GITHUB_OUTPUT}"
-          echo "server=$(has_project server)" >> "${GITHUB_OUTPUT}"
-          echo "website=$(has_project website)" >> "${GITHUB_OUTPUT}"
-          echo "web_app=$(has_project web-app)" >> "${GITHUB_OUTPUT}"
-          echo "mobile_app=$(has_project mobile-app)" >> "${GITHUB_OUTPUT}"
-          echo "desktop_app=$(has_project desktop-app)" >> "${GITHUB_OUTPUT}"
+      - id: build-affected
+        uses: ./.github/actions/check-affected-build
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
 
   cli:
     needs: check-affected
