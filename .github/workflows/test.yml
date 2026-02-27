@@ -9,7 +9,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-affected:
+    runs-on: ubuntu-latest
+    outputs:
+      cli_startup: ${{ steps.affected.outputs.cli_startup }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-pnpm-node
+      - id: smoke-affected
+        uses: ./.github/actions/check-affected-target
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          targets: build
+          project-type: app
+          include-projects: cli,server
+      - id: affected
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_AFFECTED: ${{ steps.smoke-affected.outputs.affected }}
+        run: |
+          set -euo pipefail
+
+          changed="$(git diff --name-only --no-renames "${BASE_SHA}" "${HEAD_SHA}")"
+
+          should_run="${BASE_AFFECTED}"
+
+          # Always validate smoke test changes themselves.
+          if echo "${changed}" | grep -Eq '^(\.github/workflows/test\.yml$|\.github/actions/setup-pnpm-node/|\.github/actions/check-affected-target/)'; then
+            should_run="true"
+          fi
+
+          echo "cli_startup=${should_run}" >> "${GITHUB_OUTPUT}"
+
   cli-startup:
+    needs: check-affected
+    if: needs.check-affected.outputs.cli_startup == 'true'
     name: smoke - cli startup (${{ matrix.os_name }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12

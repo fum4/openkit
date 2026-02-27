@@ -43,21 +43,21 @@ jobs:
           command=""
 
           if [[ "$AUTHOR_ASSOCIATION" =~ ^(OWNER|MEMBER|COLLABORATOR)$ ]]; then
-            if [[ "$first_line" =~ ^/build($|[[:space:]]) ]]; then
+            if [[ "$first_line" =~ ^/package($|[[:space:]]) ]]; then
               should_run=true
               build_mac=true
               build_linux=true
-              command="/build"
-            elif [[ "$first_line" =~ ^/build:mac($|[[:space:]]) ]]; then
+              command="/package"
+            elif [[ "$first_line" =~ ^/package:mac($|[[:space:]]) ]]; then
               should_run=true
               build_mac=true
               build_linux=false
-              command="/build:mac"
-            elif [[ "$first_line" =~ ^/build:linux($|[[:space:]]) ]]; then
+              command="/package:mac"
+            elif [[ "$first_line" =~ ^/package:linux($|[[:space:]]) ]]; then
               should_run=true
               build_mac=false
               build_linux=true
-              command="/build:linux"
+              command="/package:linux"
             fi
           fi
 
