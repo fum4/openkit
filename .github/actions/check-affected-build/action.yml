@@ -1,0 +1,82 @@
+name: Check Build Affected Projects
+description: Resolve per-app build affected flags and global fallback changes for PR builds.
+
+inputs:
+  base-sha:
+    description: Base git SHA for comparison.
+    required: true
+  head-sha:
+    description: Head git SHA for comparison.
+    required: true
+
+outputs:
+  global:
+    description: Whether shared/global changes require all build jobs.
+    value: ${{ steps.resolve.outputs.global }}
+  cli:
+    description: Whether CLI app build should run.
+    value: ${{ steps.resolve.outputs.cli }}
+  server:
+    description: Whether server app build should run.
+    value: ${{ steps.resolve.outputs.server }}
+  website:
+    description: Whether website app build should run.
+    value: ${{ steps.resolve.outputs.website }}
+  web_app:
+    description: Whether web-app build should run.
+    value: ${{ steps.resolve.outputs.web_app }}
+  mobile_app:
+    description: Whether mobile-app build should run.
+    value: ${{ steps.resolve.outputs.mobile_app }}
+  desktop_app:
+    description: Whether desktop-app build should run.
+    value: ${{ steps.resolve.outputs.desktop_app }}
+
+runs:
+  using: composite
+  steps:
+    - id: build-affected
+      uses: ./.github/actions/check-affected-target
+      with:
+        base-sha: ${{ inputs.base-sha }}
+        head-sha: ${{ inputs.head-sha }}
+        targets: build
+        project-type: app
+
+    - id: resolve
+      shell: bash
+      env:
+        BASE_SHA: ${{ inputs.base-sha }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        AFFECTED_PROJECTS: ${{ steps.build-affected.outputs.projects }}
+      run: |
+        set -euo pipefail
+
+        affected="${AFFECTED_PROJECTS}"
+        changed="$(git diff --name-only --no-renames "${BASE_SHA}" "${HEAD_SHA}")"
+
+        echo "Affected build app projects: ${affected:-<none>}"
+
+        has_project() {
+          local project="$1"
+          if [[ -z "${affected}" ]]; then
+            echo "false"
+          elif [[ ",${affected}," == *",${project},"* ]]; then
+            echo "true"
+          else
+            echo "false"
+          fi
+        }
+
+        global="false"
+        if echo "${changed}" | grep -Eq '^(libs/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|nx\.json$|tsconfig.*\.json$|\.github/actions/setup-pnpm-node/|\.github/actions/check-affected-target/|\.github/actions/check-affected-build/|\.github/workflows/build\.yml$)'; then
+          global="true"
+        fi
+
+        echo "global=${global}" >> "${GITHUB_OUTPUT}"
+        echo "cli=$(has_project cli)" >> "${GITHUB_OUTPUT}"
+        echo "server=$(has_project server)" >> "${GITHUB_OUTPUT}"
+        echo "website=$(has_project website)" >> "${GITHUB_OUTPUT}"
+        echo "web_app=$(has_project web-app)" >> "${GITHUB_OUTPUT}"
+        echo "mobile_app=$(has_project mobile-app)" >> "${GITHUB_OUTPUT}"
+        echo "desktop_app=$(has_project desktop-app)" >> "${GITHUB_OUTPUT}"
