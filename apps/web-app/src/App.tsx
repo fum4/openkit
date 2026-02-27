@@ -61,7 +61,7 @@ type Selection =
   | { type: "custom-task"; id: string }
   | null;
 
-type ClaudeLaunchMode = "resume" | "start";
+type ClaudeLaunchMode = "resume" |, "start";
 
 interface ClaudeLaunchIntent {
   worktreeId: string;
