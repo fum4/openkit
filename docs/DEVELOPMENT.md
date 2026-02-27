@@ -122,7 +122,7 @@ Run `pnpm run setup` to create `.env.local` from `.env.example` (without overwri
 npm publishing is currently paused.
 
 - Code quality and smoke-test workflows run on pull requests targeting `master` (not on direct push to `master`).
-- The code quality workflow runs format globally, and runs lint/typecheck via `nx affected` against PR base/head commits.
+- The code quality workflow runs format globally, and runs lint/typecheck via `nx affected` against PR base/head commits. Lint/typecheck jobs are skipped entirely when no projects are affected for those targets.
 - The PR build workflow (`.github/workflows/build.yml`) determines affected build app projects via `nx show projects --affected --withTarget=build` against PR base/head commits, and runs per-app build jobs only for affected apps (with a global fallback for shared/config/workflow changes).
 - The PR packaging workflow (`.github/workflows/pull-request-package.yml`) runs on PR comments with slash commands:
   - `/build` packages both macOS and Linux desktop artifacts.

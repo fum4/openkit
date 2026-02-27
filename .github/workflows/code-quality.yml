@@ -9,6 +9,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-affected:
+    runs-on: ubuntu-latest
+    outputs:
+      lint: ${{ steps.affected.outputs.lint }}
+      typecheck: ${{ steps.affected.outputs.typecheck }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-pnpm-node
+      - id: affected
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          lint_projects="$(pnpm nx show projects --affected --withTarget=lint --base="${BASE_SHA}" --head="${HEAD_SHA}" --sep=,)"
+          typecheck_projects="$(pnpm nx show projects --affected --withTarget=typecheck --base="${BASE_SHA}" --head="${HEAD_SHA}" --sep=,)"
+
+          if [[ -n "${lint_projects}" ]]; then
+            echo "lint=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "lint=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          if [[ -n "${typecheck_projects}" ]]; then
+            echo "typecheck=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "typecheck=false" >> "${GITHUB_OUTPUT}"
+          fi
+
   format:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -18,6 +50,8 @@ jobs:
       - run: pnpm check:format
 
   lint:
+    needs: check-affected
+    if: needs.check-affected.outputs.lint == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -31,6 +65,8 @@ jobs:
       - run: pnpm nx affected -t lint --base="${BASE_SHA}" --head="${HEAD_SHA}"
 
   type-check:
+    needs: check-affected
+    if: needs.check-affected.outputs.typecheck == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
