@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "preview": "vite preview",
+    "start": "pnpm build && pnpm preview",
     "typecheck": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint src"
   },
@@ -34,7 +36,6 @@
     "oxlint": "^1.50.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^4.2.1",
-    "typescript": "^5.9.3",
     "vite": "^7.3.1"
   }
 }

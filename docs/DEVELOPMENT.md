@@ -18,16 +18,16 @@ cd worktree-manager
 pnpm install
 pnpm run setup
 pnpm build
-pnpm start
+pnpm dev
 ```
 
-`pnpm start` launches the server and opens the UI -- in the Electron app if available, otherwise in the default browser. The server runs on port **6969** by default and automatically finds the next available port if that one is in use.
+`pnpm dev` runs all app dev targets in parallel (`cli`, `server`, `web-app`, `desktop-app`, `website`, `mobile-app`).
 
 ## Build Commands
 
 | Command                      | Description                                                                                              |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `pnpm build`                 | Build all first-class apps (`cli`, `server`, `web-app`, `desktop-app`, `website`, `mobile-app`)          |
+| `pnpm build`                 | Run Nx `build` target across workspace projects that define it                                           |
 | `pnpm build:cli`             | Build CLI app (`cli`)                                                                                    |
 | `pnpm build:server`          | Build backend server app (`server`)                                                                      |
 | `pnpm build:web-app`         | Build web app (`web-app`)                                                                                |
@@ -45,22 +45,22 @@ pnpm start
 | `pnpm dev:desktop-app`       | Start desktop app with required deps (`desktop-app`, `web-app`, `cli`)                                   |
 | `pnpm dev:website`           | Start Astro website dev server (`website`)                                                               |
 | `pnpm dev:mobile-app`        | Start Expo mobile dev server (`mobile-app`)                                                              |
-| `pnpm start`                 | Run the built CLI (`node apps/cli/dist/cli/index.js`)                                                    |
-| `pnpm nx:show`               | List Nx projects in the workspace                                                                        |
-| `pnpm nx:affected`           | Run Nx affected tasks for lint/typecheck/build                                                           |
-| `pnpm check:types`           | Nx typecheck across app projects (and dependent libs)                                                    |
+| `pnpm nx run cli:start`      | Build and run CLI from app scripts (`apps/cli`)                                                          |
+| `pnpm check:affected`        | Format + Nx affected lint/typecheck/build (`NX_BASE`/`NX_HEAD` override supported)                       |
+| `pnpm check:types`           | Nx typecheck across projects that define `typecheck` (apps + libs)                                       |
 | `pnpm check:format`          | Run oxfmt in check mode                                                                                  |
-| `pnpm check:lint`            | Run oxlint                                                                                               |
+| `pnpm check:lint`            | Nx lint across projects that define `lint` (apps + libs)                                                 |
 | `pnpm lint-staged`           | Run formatter/linter checks only for currently staged files                                              |
-| `pnpm check:all`             | Run typecheck + format check + lint                                                                      |
+| `pnpm check:all`             | Run format + Nx run-many lint/typecheck/build                                                            |
 | `pnpm fix:format`            | Run oxfmt to apply formatting                                                                            |
 | `pnpm fix:lint`              | Run oxlint with `--fix`                                                                                  |
 | `pnpm fix:all`               | Run format + lint auto-fixes                                                                             |
-| `pnpm release:verify`        | Full release gate: typecheck, lint, build                                                                |
 
 There is no test runner configured.
 
 Runtime note: UI assets are optional in core installs. The CLI can install optional UI components with `openkit ui` (web bundle and/or desktop app).
+
+App script contract: app packages expose a non-watch `preview` script for running built artifacts and a `start` script that builds first, then runs preview. `desktop-app` follows the same direction and uses Nx (`desktop-app:build`) inside its `start` script so dependent app artifacts are built before launch.
 
 ## Nx Workspace
 
@@ -86,10 +86,10 @@ Package layout:
 Common commands:
 
 ```bash
-pnpm nx:show
+pnpm nx show projects
 pnpm nx run web-app:build
 pnpm nx run cli:typecheck
-pnpm nx:affected
+pnpm run check:affected
 ```
 
 ## Git Hooks
@@ -106,7 +106,7 @@ The workspace includes script-oriented launch configurations in `.vscode/launch.
 - App development (`dev`, `dev:cli`, `dev:server`, `dev:web-app`, `dev:desktop-app`, `dev:website`, `dev:mobile-app`)
 - App builds (`build` plus app-specific `build:*`)
 - Desktop packaging (`package:desktop`, `package:desktop:mac`, `package:desktop:linux`)
-- Quality helpers (`check:all`, `fix:all`)
+- Quality helpers (`check:all`, `check:affected`, `fix:all`)
 
 ## Dev Port Environment Variables
 
@@ -122,8 +122,9 @@ Run `pnpm run setup` to create `.env.local` from `.env.example` (without overwri
 npm publishing is currently paused.
 
 - Code quality and smoke-test workflows run on pull requests targeting `master` (not on direct push to `master`).
-- The PR build workflow (`.github/workflows/build.yml`) runs per-app build jobs only when matching app folders change, or when shared/global build files change (`libs/**`, root package/lock/workspace/Nx/tsconfig files, or setup action files).
-- The release workflow still runs `pnpm release:verify` and creates release tags plus the GitHub release.
+- The code quality workflow runs format globally, and runs lint/typecheck via `nx affected` against PR base/head commits.
+- The PR build workflow (`.github/workflows/build.yml`) determines affected build app projects via `nx show projects --affected --withTarget=build` against PR base/head commits, and runs per-app build jobs only for affected apps (with a global fallback for shared/config/workflow changes).
+- The release workflow still runs `pnpm check:all` and creates release tags plus the GitHub release.
 - Desktop release assets are built/uploaded in `.github/workflows/package.yml` on release tag pushes (`v*`).
 - npm-specific publish steps are commented out in `.github/workflows/release.yml`.
 
@@ -145,16 +146,16 @@ Dependabot is configured in `.github/dependabot.yml` to open weekly dependency u
 `pnpm build` runs:
 
 ```bash
-pnpm nx run-many -t build --projects cli,server,web-app,desktop-app,website,mobile-app
+pnpm nx run-many -t build
 ```
 
 Build outputs are split by product role:
 
 1. **Core runtime outputs:**
    - `cli:build` (tsup with `apps/cli/tsup.config.ts` -> `apps/cli/dist/*`)
-   - `server:build` (copies `apps/server/src/runtime/port-hook.cjs` to `apps/server/dist/runtime/port-hook.cjs`)
+   - `server:build` (tsup bundles standalone server runtime to `apps/server/dist/standalone.js` and copies `apps/server/src/runtime/port-hook.cjs` to `apps/server/dist/runtime/port-hook.cjs`)
    - `web-app:build` (Vite -> `apps/web-app/dist/*`)
-   - `desktop-app:build` (tsc + preload copy -> `apps/desktop-app/dist/*`)
+   - `desktop-app:build` (tsgo + preload copy -> `apps/desktop-app/dist/*`)
 2. **Standalone app outputs (app-owned):**
    - `website:build` -> `apps/website/dist/*`
    - `mobile-app:build` -> `apps/mobile-app/dist/{ios,android}/*`
@@ -168,7 +169,7 @@ pnpm dev
 This runs:
 
 ```bash
-pnpm nx run-many -t dev --projects cli,server,web-app,desktop-app,website,mobile-app --parallel=6
+pnpm nx run-many -t dev --parallel=6
 ```
 
 For desktop-only development, use:
@@ -193,9 +194,9 @@ This ensures desktop dependencies are running before/alongside the shell. The de
 ### How Changes Propagate
 
 - **Frontend changes** (`apps/web-app/src/`): Vite HMR picks them up instantly. No restart needed.
-- **Backend changes** (`apps/server/src/`, `apps/cli/src/`): tsup rebuilds; restart the CLI manually to pick up changes (or let `electronmon` handle it in Electron mode).
+- **Backend changes** (`apps/server/src/`, `apps/cli/src/`): `cli` uses tsup watch, while `server` uses `tsx watch`. Restart the running process when needed (or let `electronmon` handle it in Electron mode).
 - **Electron changes** (`apps/desktop-app/src/`): TypeScript watcher recompiles, `electronmon` auto-restarts the Electron process.
-- **port-hook.cjs**: Must be manually copied to `apps/server/dist/runtime/` (or run a full `pnpm build`). This file is pure CommonJS with zero dependencies and is loaded via `--require` in spawned processes.
+- **port-hook.cjs**: copied by `server:build` into `apps/server/dist/runtime/`. This file is pure CommonJS with zero dependencies and is loaded via `--require` in spawned processes.
 
 ### Vite Dev Server
 
@@ -209,17 +210,22 @@ In this guide, file references focus on contribution workflows (where to add rou
 
 ## Build System Details
 
-### Backend (tsup)
+### Backend Builds (CLI + Server)
 
-tsup bundles the backend as ESM. Configuration lives in `apps/cli/tsup.config.ts`:
+Both `cli` and `server` use tsup for production build output:
 
-- **Entry points:** `apps/cli/src/index.ts` (CLI), `apps/cli/src/electron-entry.ts` (Electron bridge export)
-- **Format:** ESM (`"type": "module"` in package.json)
-- **Externals:** `node-pty` (native module) and `electron`
-- **esbuild loader:** `.md` files are inlined as text strings (used by `libs/instructions/src/`)
-- **Output:** `apps/cli/dist/` (tsup flattens the directory structure into that app-local build folder)
-
-CLI flag `--dts` is passed in the `build` script only (not needed in dev watch mode).
+- `apps/cli/tsup.config.ts`
+  - **Entry points:** `apps/cli/src/index.ts` (CLI), `apps/cli/src/electron-entry.ts` (Electron bridge export)
+  - **Format:** ESM (`"type": "module"` in package.json)
+  - **Externals:** `node-pty` (native module) and `electron`
+  - **esbuild loader:** `.md` files are inlined as text strings (used by `libs/instructions/src/`)
+  - **Output:** `apps/cli/dist/`
+- `apps/server/tsup.config.ts`
+  - **Entry point:** `apps/server/src/standalone.ts`
+  - **Format:** ESM
+  - **Externals:** `node-pty` and `ws`
+  - **esbuild loader:** `.md` files are inlined as text strings
+  - **Output:** `apps/server/dist/standalone.js` (+ chunk files)
 
 ### Frontend (Vite + React)
 

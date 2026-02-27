@@ -94,9 +94,6 @@ importers:
       oxlint:
         specifier: ^1.50.0
         version: 1.50.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
       wait-on:
         specifier: ^9.0.4
         version: 9.0.4
@@ -177,12 +174,12 @@ importers:
       oxlint:
         specifier: ^1.50.0
         version: 1.50.0
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
 
   apps/web-app:
     dependencies:
@@ -256,9 +253,6 @@ importers:
       tailwindcss:
         specifier: ^4.2.1
         version: 4.2.1
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
       vite:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@25.3.2)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)

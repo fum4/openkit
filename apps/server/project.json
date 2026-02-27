@@ -12,19 +12,26 @@
         "command": "pnpm dev"
       }
     },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/apps/server/dist"],
+      "options": {
+        "cwd": "apps/server",
+        "command": "pnpm build"
+      }
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/server",
+        "command": "pnpm preview"
+      }
+    },
     "start": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/server",
         "command": "pnpm start"
-      }
-    },
-    "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/apps/server/dist/runtime"],
-      "options": {
-        "cwd": "apps/server",
-        "command": "pnpm build"
       }
     },
     "typecheck": {

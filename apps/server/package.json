@@ -4,10 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/standalone.ts",
-    "build": "mkdir -p dist/runtime && cp src/runtime/port-hook.cjs dist/runtime/port-hook.cjs",
+    "build": "tsup && mkdir -p dist/runtime && cp src/runtime/port-hook.cjs dist/runtime/port-hook.cjs",
+    "preview": "node dist/standalone.js",
+    "start": "pnpm build && pnpm preview",
     "typecheck": "tsgo --noEmit -p tsconfig.json",
-    "lint": "oxlint src",
-    "start": "tsx src/standalone.ts"
+    "lint": "oxlint src"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",
@@ -24,7 +25,7 @@
     "@types/node": "^25.3.0",
     "@types/ws": "^8.18.1",
     "oxlint": "^1.50.0",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0"
   }
 }

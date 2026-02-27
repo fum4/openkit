@@ -12,20 +12,6 @@
         "command": "pnpm dev"
       }
     },
-    "compile": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm compile"
-      }
-    },
-    "run": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm run run"
-      }
-    },
     "build": {
       "executor": "nx:run-commands",
       "dependsOn": ["web-app:build", "cli:build", "server:build"],
@@ -33,6 +19,20 @@
       "options": {
         "cwd": "apps/desktop-app",
         "command": "pnpm build"
+      }
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm preview"
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/desktop-app",
+        "command": "pnpm start"
       }
     },
     "package": {

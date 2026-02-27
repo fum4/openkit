@@ -8,35 +8,28 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/mobile-app",
-        "command": "pnpm start"
+        "command": "pnpm dev"
       }
     },
-    "start": {
+    "dev:android": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/mobile-app",
-        "command": "pnpm start"
+        "command": "pnpm dev:android"
       }
     },
-    "android": {
+    "dev:ios": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/mobile-app",
-        "command": "pnpm android"
+        "command": "pnpm dev:ios"
       }
     },
-    "ios": {
+    "dev:web": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/mobile-app",
-        "command": "pnpm ios"
-      }
-    },
-    "web": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/mobile-app",
-        "command": "pnpm web"
+        "command": "pnpm dev:web"
       }
     },
     "build": {
@@ -45,6 +38,13 @@
       "options": {
         "cwd": "apps/mobile-app",
         "command": "pnpm build"
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "pnpm start"
       }
     },
     "typecheck": {

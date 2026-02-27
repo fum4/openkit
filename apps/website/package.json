@@ -6,6 +6,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "start": "pnpm build && pnpm preview",
     "typecheck": "astro check",
     "lint": "oxlint src/scripts"
   },
