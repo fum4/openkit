@@ -60,7 +60,7 @@ There is no test runner configured.
 
 Runtime note: UI assets are optional in core installs. The CLI can install optional UI components with `openkit ui` (web bundle and/or desktop app).
 
-App script contract: app packages expose a non-watch `preview` script for running built artifacts and a `start` script that builds first, then runs preview. `desktop-app` follows the same direction and uses Nx (`desktop-app:build`) inside its `start` script so dependent app artifacts are built before launch.
+App script contract: app packages expose a non-watch `preview` script for running built artifacts and a `start` script that builds first, then runs preview. `desktop-app` follows the same direction and uses Nx (`desktop-app:build`) inside its `start` script so dependent app artifacts are built before launch. Website is the current exception: when using `@astrojs/vercel` server output, `astro preview` is not supported by the adapter.
 
 ## Nx Workspace
 
@@ -252,7 +252,9 @@ Electron has its own TypeScript config (`apps/desktop-app/tsconfig.json`) target
 
 ### Website (Astro)
 
-The marketing site in `apps/website` uses Astro. `pnpm build:website` (or `nx run website:build`) outputs static assets to `apps/website/dist/`.
+The marketing site in `apps/website` uses Astro with the Vercel adapter in server output mode. `pnpm build:website` (or `nx run website:build`) outputs client assets to `apps/website/dist/` and Vercel runtime artifacts to `apps/website/.vercel/output/`.
+
+The website layout generates host-aware Open Graph/Twitter metadata (`og:url` and social image host) from each request URL so preview deployments (`*.vercel.app`) unfurl correctly. Canonical URLs remain pinned to `https://openkit.dev`.
 
 For Vercel deployments with `apps/website` as the project root, `apps/website/vercel.json` uses an `ignoreCommand` that skips builds when the current commit does not modify files in `apps/website/`.
 

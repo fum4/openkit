@@ -2,6 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "ignoreCommand": "if git rev-parse HEAD^ >/dev/null 2>&1; then git diff --quiet HEAD^ HEAD -- . && exit 0 || exit 1; fi; exit 1",
   "installCommand": "corepack enable && corepack prepare pnpm@10.30.1 --activate && corepack pnpm --version && if [ -f ../../pnpm-lock.yaml ]; then corepack pnpm install --frozen-lockfile --lockfile-dir ../..; else corepack pnpm install --no-frozen-lockfile; fi",
-  "buildCommand": "corepack pnpm build",
-  "outputDirectory": "dist"
+  "buildCommand": "corepack pnpm build"
 }
