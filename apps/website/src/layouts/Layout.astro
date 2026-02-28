@@ -9,9 +9,10 @@ const {
   description = "Stop babysitting your AI agents. OpenKit gives them a real workflow — pick up tasks, work in isolation, ship PRs. Works with Claude Code, Cursor, or any MCP-compatible agent.",
 } = Astro.props;
 
-const site = Astro.site ?? new URL("https://openkit.dev");
-const canonicalUrl = new URL(Astro.url.pathname, site).toString();
-const socialImage = new URL("/og-image.webp", site).toString();
+const productionSite = Astro.site ?? new URL("https://openkit.dev");
+const canonicalUrl = new URL(Astro.url.pathname, productionSite).toString();
+const ogUrl = Astro.url.toString();
+const socialImage = new URL("/og-image.jpeg", Astro.url).toString();
 ---
 
 <!doctype html>
@@ -24,11 +25,11 @@ const socialImage = new URL("/og-image.webp", site).toString();
     <link rel="canonical" href={canonicalUrl} />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="OpenKit" />
-    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:url" content={ogUrl} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={socialImage} />
-    <meta property="og:image:type" content="image/webp" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="998" />
     <meta property="og:image:height" content="638" />
     <meta name="twitter:card" content="summary_large_image" />

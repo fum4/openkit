@@ -276,7 +276,7 @@ The Electron main process (`apps/desktop-app/src/main.ts`) is compiled with `tsc
 
 ### Website: Astro
 
-The marketing website (`apps/website`) builds with Astro to `apps/website/dist/`.
+The marketing website (`apps/website`) builds with Astro using the Vercel adapter in server output mode. The build emits browser assets to `apps/website/dist/` and Vercel runtime output to `apps/website/.vercel/output/`.
 
 ### Mobile: Expo export
 
@@ -302,7 +302,7 @@ Build outputs are intentionally split:
    - `web-app` -> `apps/web-app/dist/`
    - `desktop-app` -> `apps/desktop-app/dist/`
 2. Standalone apps own their output directories:
-   - `website` -> `apps/website/dist/`
+   - `website` -> `apps/website/dist/` + `apps/website/.vercel/output/`
    - `mobile-app` -> `apps/mobile-app/dist/`
 
 ## Directory Structure
