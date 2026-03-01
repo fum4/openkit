@@ -21,7 +21,7 @@
   "dependencies": {
     "expo": "^54.0.33",
     "expo-camera": "^17.0.10",
-    "expo-router": "^6.0.23",
+    "expo-router": "^55.0.3",
     "expo-status-bar": "^3.0.9",
     "react": "^19.1.0",
     "react-native": "0.81.5",
