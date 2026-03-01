@@ -71,7 +71,7 @@ jobs:
 
       - name: Add reaction to triggering comment
         if: ${{ steps.parse-command.outputs.should_run == 'true' }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.reactions.createForIssueComment({
@@ -84,7 +84,7 @@ jobs:
       - name: Create status comment
         if: ${{ steps.parse-command.outputs.should_run == 'true' }}
         id: create-status-comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const logsUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
