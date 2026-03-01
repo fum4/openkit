@@ -130,7 +130,7 @@ jobs:
 
       - name: Upload macOS artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openkit-pr-${{ github.event.issue.number }}-macos
           path: |
@@ -161,7 +161,7 @@ jobs:
 
       - name: Upload Linux artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openkit-pr-${{ github.event.issue.number }}-linux
           path: |
