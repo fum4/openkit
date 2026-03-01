@@ -17,7 +17,7 @@
     "package:linux": "pnpm exec electron-builder --config electron-builder.yml --linux AppImage --publish never"
   },
   "devDependencies": {
-    "@types/node": "^25.3.0",
+    "@types/node": "^25.3.3",
     "concurrently": "^9.2.1",
     "electron": "^40.6.1",
     "electron-builder": "^26.8.1",
