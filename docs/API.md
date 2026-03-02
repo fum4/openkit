@@ -770,11 +770,11 @@ Manage a centralized registry of MCP servers stored at `~/.openkit/mcp-servers.j
 List all registered MCP servers.
 
 - **Query params**:
-  - `?q=search` -- Filter by name, ID, description, or command
+  - `?q=search` -- Filter by name, ID, description, command, or URL
   - `?tag=tagname` -- Filter by tag
 - **Response**: `{ servers: McpServerDefinition[] }`
 
-Each server includes: `id`, `name`, `description`, `tags`, `command`, `args`, `env`, `source`, `createdAt`, `updatedAt`.
+Each server includes: `id`, `name`, `description`, `tags`, optional `command`/`args`, optional `type`/`url`, `env`, `source`, `createdAt`, `updatedAt`.
 
 #### `GET /api/mcp-servers/deployment-status`
 
@@ -815,7 +815,15 @@ Register a new MCP server.
     "env": { "API_KEY": "..." }
   }
   ```
-  `name` and `command` are required. `id` is auto-generated from name if omitted.
+  `name` is required and either `command` or `url` must be provided. `id` is auto-generated from name if omitted.
+  URL-based server example:
+  ```json
+  {
+    "name": "remote-mcp",
+    "type": "http",
+    "url": "https://mcp.example.com"
+  }
+  ```
 - **Response**: `{ success: true, server: McpServerDefinition }`
 - **Error** (409): `{ success: false, error: "Server \"id\" already exists" }`
 
@@ -823,7 +831,7 @@ Register a new MCP server.
 
 Update an existing MCP server definition.
 
-- **Request**: Partial server fields (`name`, `description`, `tags`, `command`, `args`, `env`)
+- **Request**: Partial server fields (`name`, `description`, `tags`, `command`, `args`, `type`, `url`, `env`)
 - **Response**: `{ success: true, server: McpServerDefinition }`
 - **Error** (404): `{ success: false, error: "Server not found" }`
 
@@ -882,6 +890,8 @@ Scan the filesystem for MCP server definitions in agent config files.
         "key": "server-name",
         "command": "npx",
         "args": ["..."],
+        "type": "http",
+        "url": "https://mcp.example.com",
         "env": {},
         "foundIn": [{ "configPath": "..." }],
         "alreadyInRegistry": false
@@ -903,6 +913,8 @@ Bulk import discovered servers into the registry.
         "name": "Display Name",
         "command": "npx",
         "args": ["..."],
+        "type": "http",
+        "url": "https://mcp.example.com",
         "env": {},
         "source": "/path/to/config"
       }
@@ -1193,6 +1205,195 @@ Get detailed information about a specific plugin, including manifest, README, co
   ```
 - **Error** (404): `{ error: "Plugin not found" }`
 - **Error** (501): `{ error: "Claude CLI not available", cliAvailable: false }`
+
+#### `GET /api/claude/agents`
+
+List agent definitions discovered from installed Claude plugins (`agents/*.md`).
+
+- **Response**:
+  ```json
+  {
+    "agents": [
+      {
+        "id": "plugin-id::agent-name",
+        "name": "agent-name",
+        "description": "...",
+        "pluginId": "plugin-id",
+        "pluginName": "Plugin Name",
+        "pluginScope": "user",
+        "pluginEnabled": true,
+        "marketplace": "..."
+      }
+    ],
+    "cliAvailable": true
+  }
+  ```
+- **Error** (500): `{ agents: [], cliAvailable: true, error: "..." }`
+
+#### `GET /api/claude/agents/:id`
+
+Get full agent definition content for a discovered plugin agent.
+
+- **Response**:
+  ```json
+  {
+    "agent": {
+      "id": "plugin-id::agent-name",
+      "name": "agent-name",
+      "description": "...",
+      "pluginId": "plugin-id",
+      "pluginName": "Plugin Name",
+      "pluginScope": "user",
+      "pluginEnabled": true,
+      "marketplace": "...",
+      "installPath": "/path/to/plugin",
+      "agentPath": "/path/to/plugin/agents/agent-name.md",
+      "content": "# agent markdown..."
+    }
+  }
+  ```
+- **Error** (400): `{ error: "Invalid agent id" }`
+- **Error** (404): `{ error: "Plugin not found" }` or `{ error: "Agent definition not found" }`
+- **Error** (501): `{ error: "Claude CLI not available", cliAvailable: false }`
+
+#### `GET /api/claude/custom-agents`
+
+List custom agents from the OpenKit registry (`~/.openkit/agents/*.md`) with deployment status across all supported tools (Claude, Cursor, Gemini CLI, VS Code, Codex).
+
+- **Response**:
+  ```json
+  {
+    "agents": [
+      {
+        "id": "custom::reviewer",
+        "name": "reviewer",
+        "description": "...",
+        "pluginId": "custom",
+        "pluginName": "Custom",
+        "pluginScope": "local",
+        "pluginEnabled": true,
+        "marketplace": "local",
+        "isCustom": true,
+        "deployments": {
+          "claude": { "global": true, "project": false },
+          "cursor": { "global": false, "project": false }
+        }
+      }
+    ]
+  }
+  ```
+
+#### `GET /api/claude/custom-agents/:id`
+
+Get full custom agent markdown content.
+
+- **Response**:
+  ```json
+  {
+    "agent": {
+      "id": "custom::reviewer",
+      "name": "reviewer",
+      "description": "...",
+      "isCustom": true,
+      "agentPath": "/abs/path/.openkit/agents/reviewer.md",
+      "installPath": "/abs/path/.openkit/agents",
+      "deployments": {
+        "claude": { "global": false, "project": true },
+        "codex": { "global": false, "project": true }
+      },
+      "content": "---\nname: reviewer\n---\n..."
+    }
+  }
+  ```
+- **Error** (400): `{ error: "Invalid custom agent id" }`
+- **Error** (404): `{ error: "Custom agent not found" }`
+
+#### `POST /api/claude/custom-agents`
+
+Create a custom agent markdown file.
+
+- **Request**:
+  ```json
+  {
+    "name": "reviewer",
+    "description": "Code review specialist",
+    "tools": "Read, Grep, Glob",
+    "model": "optional model hint",
+    "instructions": "# reviewer\n...",
+    "scope": "project",
+    "deployAgents": ["claude", "codex", "cursor", "gemini", "vscode"]
+  }
+  ```
+- **Response**: `{ success: true, agent: { ... } }`
+
+#### `DELETE /api/claude/custom-agents/:id`
+
+Delete a custom agent markdown file.
+
+- **Response**: `{ success: true }`
+
+#### `PATCH /api/claude/custom-agents/:id`
+
+Update custom agent markdown content in the registry (and sync deployed copies).
+
+- **Request**:
+  ```json
+  { "content": "---\nname: reviewer\n---\n# reviewer\n..." }
+  ```
+- **Response**: `{ success: true, agent: { ... } }`
+
+#### `POST /api/claude/custom-agents/:id/deploy`
+
+Deploy a custom agent to one tool + scope.
+
+- **Request**:
+  ```json
+  { "agent": "codex", "scope": "project" }
+  ```
+- **Response**: `{ success: true }`
+
+#### `POST /api/claude/custom-agents/:id/undeploy`
+
+Undeploy a custom agent from one tool + scope.
+
+- **Request**:
+  ```json
+  { "agent": "codex", "scope": "project" }
+  ```
+- **Response**: `{ success: true }`
+
+#### `POST /api/claude/custom-agents/scan`
+
+Scan filesystem for existing custom agent markdown files.
+
+- **Request**: `{ mode: "project" | "folder" | "device", scanPath?: string }`
+- **Response**:
+  ```json
+  {
+    "discovered": [
+      {
+        "name": "reviewer",
+        "description": "...",
+        "agentPath": "/abs/path/.codex/agents/reviewer.md",
+        "alreadyInRegistry": false
+      }
+    ]
+  }
+  ```
+
+#### `POST /api/claude/custom-agents/import`
+
+Import scanned agent markdown files into the registry and optionally deploy to selected tools.
+
+- **Request**:
+  ```json
+  {
+    "scope": "project",
+    "deployAgents": ["claude", "codex", "cursor", "gemini", "vscode"],
+    "agents": [{ "name": "reviewer", "agentPath": "/some/path/reviewer.md" }]
+  }
+  ```
+- **Response**: `{ success: true, imported: ["reviewer"] }`
 
 #### `POST /api/claude/plugins/install`
 
@@ -1541,7 +1742,11 @@ Import a skill from the registry into hooks.
 
 - **Request**:
   ```json
-  { "skillName": "review-changes", "trigger": "post-implementation", "condition": "optional" }
+  {
+    "skillName": "review-changes",
+    "trigger": "post-implementation",
+    "condition": "optional"
+  }
   ```
   The same skill can be imported into multiple trigger types. Deduplication is by `skillName + trigger`.
   `worktree-created` and `worktree-removed` reject skill imports (command-only triggers).

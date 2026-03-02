@@ -347,9 +347,9 @@ export function getLabelColor(label: string) {
 
 // ─── Agent Rules ────────────────────────────────────────────────
 export const agentRule = {
-  accent: "text-cyan-400",
-  accentBg: "bg-cyan-400/10",
-  accentBorder: "border-cyan-400/30",
+  accent: "text-white",
+  accentBg: "bg-white/10",
+  accentBorder: "border-white/30",
 } as const;
 
 // ─── Skills ─────────────────────────────────────────────────────

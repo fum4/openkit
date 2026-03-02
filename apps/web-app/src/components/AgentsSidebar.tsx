@@ -2,10 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { FileCode, Filter, Plus, Server, Settings, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import type { McpServerSummary, SkillSummary, PluginSummary } from "../types";
+import type { ClaudeAgentSummary, McpServerSummary, SkillSummary, PluginSummary } from "../types";
 import { useApi } from "../hooks/useApi";
 import { useAgentRule } from "../hooks/useAgentRules";
 import { agentRule, border, surface, text } from "../theme";
+import { AgentItem } from "./AgentItem";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DeployDialog } from "./DeployDialog";
 import { McpServerItem } from "./McpServerItem";
@@ -16,10 +17,34 @@ import { ToggleSwitch } from "./ToggleSwitch";
 
 type AgentSelection =
   | { type: "agent-rule"; fileId: string }
+  | { type: "agent"; id: string }
   | { type: "mcp-server"; id: string }
   | { type: "skill"; name: string }
   | { type: "plugin"; id: string }
   | null;
+
+type AgentDeploymentState = { global?: boolean; project?: boolean };
+
+function getSearchValue(value: unknown): string {
+  return typeof value === "string" ? value.toLowerCase() : "";
+}
+
+function getAgentDeploymentEntries(
+  deployments: ClaudeAgentSummary["deployments"],
+): AgentDeploymentState[] {
+  if (!deployments || typeof deployments !== "object") return [];
+  return Object.values(deployments).filter(
+    (value): value is AgentDeploymentState =>
+      !!value && typeof value === "object" && !Array.isArray(value),
+  );
+}
+
+function hasAgentDeploymentScope(
+  deployments: ClaudeAgentSummary["deployments"],
+  scope: "global" | "project",
+): boolean {
+  return getAgentDeploymentEntries(deployments).some((value) => value[scope] === true);
+}
 
 function ChevronIcon({ collapsed }: { collapsed: boolean }) {
   return (
@@ -27,7 +52,9 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }) {
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 16 16"
       fill="currentColor"
-      className={`w-3 h-3 ${text.muted} transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
+      className={`w-3 h-3 ${text.muted} transition-transform duration-150 ${
+        collapsed ? "" : "rotate-90"
+      }`}
     >
       <path
         fillRule="evenodd"
@@ -39,6 +66,9 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }) {
 }
 
 interface AgentsSidebarProps {
+  agents: ClaudeAgentSummary[];
+  agentsLoading: boolean;
+  agentsFetching?: boolean;
   servers: McpServerSummary[];
   serversLoading: boolean;
   deploymentStatus: Record<string, Record<string, { global?: boolean; project?: boolean }>>;
@@ -46,13 +76,17 @@ interface AgentsSidebarProps {
   skillsLoading: boolean;
   skillDeploymentStatus: Record<
     string,
-    { inRegistry: boolean; agents: Record<string, { global?: boolean; project?: boolean }> }
+    {
+      inRegistry: boolean;
+      agents: Record<string, { global?: boolean; project?: boolean }>;
+    }
   >;
   plugins: PluginSummary[];
   pluginsLoading: boolean;
   selection: AgentSelection;
   onSelect: (selection: AgentSelection) => void;
   search: string;
+  onAddAgent: () => void;
   onAddServer: () => void;
   onAddSkill: () => void;
   onAddPlugin: () => void;
@@ -65,6 +99,9 @@ interface AgentsSidebarProps {
 }
 
 export function AgentsSidebar({
+  agents,
+  agentsLoading,
+  agentsFetching,
   servers,
   serversLoading,
   deploymentStatus,
@@ -76,6 +113,7 @@ export function AgentsSidebar({
   selection,
   onSelect,
   search,
+  onAddAgent,
   onAddServer,
   onAddSkill,
   onAddPlugin,
@@ -94,6 +132,9 @@ export function AgentsSidebar({
   );
   const [mcpCollapsed, setMcpCollapsed] = useState(
     () => localStorage.getItem("OpenKit:agentsMcpCollapsed") === "1",
+  );
+  const [agentsCollapsed, setAgentsCollapsed] = useState(
+    () => localStorage.getItem("OpenKit:agentsListCollapsed") === "1",
   );
   const [skillsCollapsed, setSkillsCollapsed] = useState(
     () => localStorage.getItem("OpenKit:agentsSkillsCollapsed") === "1",
@@ -119,6 +160,10 @@ export function AgentsSidebar({
     confirmLabel: string;
     action: () => Promise<void>;
   } | null>(null);
+  const [pendingPluginToggle, setPendingPluginToggle] = useState<{
+    agent: ClaudeAgentSummary;
+    enable: boolean;
+  } | null>(null);
   const [deployDialog, setDeployDialog] = useState<{
     type: "mcp" | "skill";
     id: string;
@@ -138,6 +183,9 @@ export function AgentsSidebar({
   useEffect(() => {
     localStorage.setItem("OpenKit:agentsMcpCollapsed", mcpCollapsed ? "1" : "0");
   }, [mcpCollapsed]);
+  useEffect(() => {
+    localStorage.setItem("OpenKit:agentsListCollapsed", agentsCollapsed ? "1" : "0");
+  }, [agentsCollapsed]);
   useEffect(() => {
     localStorage.setItem("OpenKit:agentsSkillsCollapsed", skillsCollapsed ? "1" : "0");
   }, [skillsCollapsed]);
@@ -175,6 +223,18 @@ export function AgentsSidebar({
   }, [filterOpen]);
 
   const filteredServers = servers;
+
+  const loweredSearch = search.toLowerCase();
+  const filteredAgents = search
+    ? agents.filter((agent) => {
+        return (
+          getSearchValue(agent.name).includes(loweredSearch) ||
+          getSearchValue(agent.pluginName).includes(loweredSearch) ||
+          getSearchValue(agent.pluginId).includes(loweredSearch) ||
+          getSearchValue(agent.description).includes(loweredSearch)
+        );
+      })
+    : agents;
 
   const filteredSkills = search
     ? skills.filter(
@@ -218,6 +278,73 @@ export function AgentsSidebar({
     if (showGlobal && hasGlobal) return true;
     if (showProject && hasProj) return true;
     return false;
+  };
+
+  const isAgentVisible = (agent: ClaudeAgentSummary) => {
+    if (showGlobal && showProject) return true;
+    if (agent.isCustom) {
+      const hasGlobal = hasAgentDeploymentScope(agent.deployments, "global");
+      const hasProject = hasAgentDeploymentScope(agent.deployments, "project");
+      if (!hasGlobal && !hasProject) return true;
+      if (showGlobal && hasGlobal) return true;
+      if (showProject && hasProject) return true;
+      return false;
+    }
+    if (agent.pluginScope === "user") return showGlobal;
+    return showProject;
+  };
+
+  const isCustomAgentEnabled = (agent: ClaudeAgentSummary) => {
+    if (!agent.isCustom) return agent.pluginEnabled;
+    return (
+      hasAgentDeploymentScope(agent.deployments, "global") ||
+      hasAgentDeploymentScope(agent.deployments, "project")
+    );
+  };
+
+  const setCustomAgentEnabled = async (agent: ClaudeAgentSummary, enabled: boolean) => {
+    if (!agent.isCustom) return;
+
+    if (!enabled) {
+      const deployments = agent.deployments;
+      if (deployments && typeof deployments === "object") {
+        for (const [agentId, value] of Object.entries(deployments)) {
+          if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+          const scopes = value as AgentDeploymentState;
+          if (scopes.global) {
+            await api.undeployCustomClaudeAgent(agent.id, agentId, "global");
+          }
+          if (scopes.project) {
+            await api.undeployCustomClaudeAgent(agent.id, agentId, "project");
+          }
+        }
+      }
+    } else {
+      await api.deployCustomClaudeAgent(agent.id, "claude", "project");
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ["claudeAgents"] });
+    await queryClient.invalidateQueries({ queryKey: ["claudeAgent"] });
+  };
+
+  const setPluginAgentEnabled = async (agent: ClaudeAgentSummary, enabled: boolean) => {
+    if (agent.isCustom) return;
+
+    onPluginActingChange?.(true);
+    try {
+      if (enabled) {
+        await api.enableClaudePlugin(agent.pluginId, agent.pluginScope);
+      } else {
+        await api.disableClaudePlugin(agent.pluginId, agent.pluginScope);
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["claudePlugins"] }),
+        queryClient.invalidateQueries({ queryKey: ["claudeAgents"] }),
+        queryClient.invalidateQueries({ queryKey: ["claudeAgent"] }),
+      ]);
+    } finally {
+      onPluginActingChange?.(false);
+    }
   };
 
   const isPluginVisible = (plugin: PluginSummary) => {
@@ -296,6 +423,97 @@ export function AgentsSidebar({
           )}
         </div>
 
+        {/* Agents Section */}
+        <div>
+          <div className="relative mb-px group">
+            <button
+              type="button"
+              onClick={() => setAgentsCollapsed(!agentsCollapsed)}
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
+            >
+              <ChevronIcon collapsed={agentsCollapsed} />
+              <span className={`text-[11px] font-medium ${text.secondary}`}>Agents</span>
+              <span className="inline-flex items-center h-[18px]">
+                {agentsLoading || agentsFetching ? (
+                  <Spinner size="xs" className={`${text.muted} ml-0.5`} />
+                ) : (
+                  <span
+                    className={`text-[10px] ${text.muted} bg-white/[0.06] px-1.5 py-0.5 rounded-full`}
+                  >
+                    {filteredAgents.filter((agent) => isAgentVisible(agent)).length}
+                  </span>
+                )}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={onAddAgent}
+              className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded ${text.dimmed} hover:${text.muted} hover:bg-white/[0.06] transition-colors z-10`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {!agentsCollapsed && (
+            <div className="space-y-px">
+              {[...filteredAgents]
+                .filter((agent) => isAgentVisible(agent))
+                .sort((a, b) => {
+                  if (a.pluginEnabled !== b.pluginEnabled) return a.pluginEnabled ? -1 : 1;
+                  const pluginCmp = a.pluginName.localeCompare(b.pluginName);
+                  if (pluginCmp !== 0) return pluginCmp;
+                  return a.name.localeCompare(b.name);
+                })
+                .map((agent) => {
+                  return (
+                    <AgentItem
+                      key={agent.id}
+                      agent={agent}
+                      isEnabled={isCustomAgentEnabled(agent)}
+                      isSelected={selection?.type === "agent" && selection.id === agent.id}
+                      onSelect={() => onSelect({ type: "agent", id: agent.id })}
+                      onToggleEnabled={() => {
+                        const nextEnabled = !isCustomAgentEnabled(agent);
+                        if (agent.isCustom) {
+                          void setCustomAgentEnabled(agent, nextEnabled);
+                          return;
+                        }
+                        if (pluginActing) return;
+                        setPendingPluginToggle({ agent, enable: nextEnabled });
+                      }}
+                      onRemove={
+                        agent.isCustom
+                          ? () => {
+                              setPendingRemove({
+                                title: "Delete custom agent?",
+                                message: `This will delete "${agent.name}" from your custom agents registry.`,
+                                confirmLabel: "Delete",
+                                action: async () => {
+                                  await api.deleteCustomClaudeAgent(agent.id);
+                                  await queryClient.invalidateQueries({
+                                    queryKey: ["claudeAgents"],
+                                  });
+                                  if (selection?.type === "agent" && selection.id === agent.id) {
+                                    onSelect(null as unknown as AgentSelection);
+                                  }
+                                },
+                              });
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              {!agentsLoading &&
+                filteredAgents.filter((agent) => isAgentVisible(agent)).length === 0 && (
+                  <div className="flex justify-center py-4">
+                    <p className={`text-xs ${text.dimmed}`}>No agents found</p>
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+
         {/* MCP Servers Section */}
         <div>
           <div className="relative mb-px group">
@@ -360,7 +578,11 @@ export function AgentsSidebar({
                           onSelect={() => onSelect({ type: "mcp-server", id: server.id })}
                           isActive={agents.length > 0}
                           onDeploy={() =>
-                            setDeployDialog({ type: "mcp", id: server.id, name: server.name })
+                            setDeployDialog({
+                              type: "mcp",
+                              id: server.id,
+                              name: server.name,
+                            })
                           }
                           onRemove={() => {
                             setPendingRemove({
@@ -375,7 +597,9 @@ export function AgentsSidebar({
                                     await api.undeployMcpServer(server.id, tool, "project");
                                 }
                                 await api.deleteMcpServer(server.id);
-                                await queryClient.invalidateQueries({ queryKey: ["mcpServers"] });
+                                await queryClient.invalidateQueries({
+                                  queryKey: ["mcpServers"],
+                                });
                                 await queryClient.invalidateQueries({
                                   queryKey: ["mcpDeploymentStatus"],
                                 });
@@ -465,7 +689,9 @@ export function AgentsSidebar({
                               confirmLabel: "Delete",
                               action: async () => {
                                 await api.deleteSkill(skill.name);
-                                await queryClient.invalidateQueries({ queryKey: ["skills"] });
+                                await queryClient.invalidateQueries({
+                                  queryKey: ["skills"],
+                                });
                                 await queryClient.invalidateQueries({
                                   queryKey: ["skillDeploymentStatus"],
                                 });
@@ -572,8 +798,15 @@ export function AgentsSidebar({
                           await api.enableClaudePlugin(plugin.id, plugin.scope);
                         }
                         await Promise.all([
-                          queryClient.invalidateQueries({ queryKey: ["claudePlugins"] }),
-                          queryClient.invalidateQueries({ queryKey: ["claudePlugin"] }),
+                          queryClient.invalidateQueries({
+                            queryKey: ["claudePlugins"],
+                          }),
+                          queryClient.invalidateQueries({
+                            queryKey: ["claudePlugin"],
+                          }),
+                          queryClient.invalidateQueries({
+                            queryKey: ["claudeAgents"],
+                          }),
                         ]);
                       } finally {
                         onPluginActingChange?.(false);
@@ -587,7 +820,12 @@ export function AgentsSidebar({
                         confirmLabel: "Uninstall",
                         action: async () => {
                           await api.uninstallClaudePlugin(plugin.id, plugin.scope);
-                          await queryClient.invalidateQueries({ queryKey: ["claudePlugins"] });
+                          await queryClient.invalidateQueries({
+                            queryKey: ["claudePlugins"],
+                          });
+                          await queryClient.invalidateQueries({
+                            queryKey: ["claudeAgents"],
+                          });
                           if (selection?.type === "plugin" && selection.id === plugin.id) {
                             onSelect(null as unknown as AgentSelection);
                           }
@@ -686,6 +924,31 @@ export function AgentsSidebar({
         </ConfirmDialog>
       )}
 
+      {pendingPluginToggle && (
+        <ConfirmDialog
+          title={`${pendingPluginToggle.enable ? "Enable" : "Disable"} plugin "${pendingPluginToggle.agent.pluginName}"?`}
+          confirmLabel={pendingPluginToggle.enable ? "Enable plugin" : "Disable plugin"}
+          onConfirm={() => {
+            const target = pendingPluginToggle;
+            setPendingPluginToggle(null);
+            void setPluginAgentEnabled(target.agent, target.enable);
+          }}
+          onCancel={() => setPendingPluginToggle(null)}
+        >
+          <p className={`text-xs ${text.secondary}`}>
+            This agent comes from a Claude plugin. This action will{" "}
+            <span className="font-medium">{pendingPluginToggle.enable ? "enable" : "disable"}</span>{" "}
+            the entire plugin for the{" "}
+            <span className="font-medium">
+              {pendingPluginToggle.agent.pluginScope === "user"
+                ? "global"
+                : pendingPluginToggle.agent.pluginScope}
+            </span>{" "}
+            scope.
+          </p>
+        </ConfirmDialog>
+      )}
+
       {deployDialog && (
         <DeployDialog
           title={`Deploy ${deployDialog.name}`}
@@ -714,7 +977,11 @@ export function AgentsSidebar({
             const claudeAgent = skillDeploymentStatus[deployDialog.id]?.agents?.claude ?? {};
             return [
               { key: "global", label: "Global", active: !!claudeAgent.global },
-              { key: "project", label: "Project", active: !!claudeAgent.project },
+              {
+                key: "project",
+                label: "Project",
+                active: !!claudeAgent.project,
+              },
             ];
           })()}
           onApply={async (desired) => {
@@ -730,7 +997,9 @@ export function AgentsSidebar({
                   await api.deployMcpServer(deployDialog.id, "claude", scope);
                 }
               }
-              await queryClient.invalidateQueries({ queryKey: ["mcpDeploymentStatus"] });
+              await queryClient.invalidateQueries({
+                queryKey: ["mcpDeploymentStatus"],
+              });
             } else {
               const current = skillDeploymentStatus[deployDialog.id]?.agents?.claude ?? {};
               for (const scope of ["global", "project"] as const) {
@@ -743,7 +1012,9 @@ export function AgentsSidebar({
                   await api.deploySkill(deployDialog.id, "claude", scope);
                 }
               }
-              await queryClient.invalidateQueries({ queryKey: ["skillDeploymentStatus"] });
+              await queryClient.invalidateQueries({
+                queryKey: ["skillDeploymentStatus"],
+              });
             }
           }}
           onClose={() => setDeployDialog(null)}
@@ -851,7 +1122,7 @@ function RuleItem({
       <div className="flex items-center gap-2.5 min-w-0">
         <FileCode
           className={`w-3.5 h-3.5 flex-shrink-0 transition-colors duration-150 ${
-            isSelected ? "text-cyan-400" : `${text.muted} group-hover:text-cyan-400`
+            isSelected ? "text-white" : `${text.muted} group-hover:text-white`
           }`}
         />
         <span

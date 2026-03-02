@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FolderOpen, FolderSearch, HardDrive, ScanSearch, Settings2 } from "lucide-react";
+import { Bot, FolderOpen, FolderSearch, HardDrive, ScanSearch, Settings2 } from "lucide-react";
 
 import { useServer } from "../contexts/ServerContext";
 import { useApi } from "../hooks/useApi";
-import type { McpScanResult, PluginSummary, SkillScanResult } from "../types";
+import type {
+  ClaudeAgentScanResult,
+  McpScanResult,
+  PluginSummary,
+  SkillScanResult,
+} from "../types";
 import { Modal } from "./Modal";
 import { input, text } from "../theme";
 import { Spinner } from "./Spinner";
 
 type ScanMode = "project" | "folder" | "device";
-type ResultTab = "servers" | "skills" | "plugins";
+type ResultTab = "servers" | "skills" | "agents" | "plugins";
 
 interface McpServerScanModalProps {
   onImported: () => void;
@@ -20,6 +25,7 @@ interface McpServerScanModalProps {
   prefilledResults?: {
     mcpResults: McpScanResult[];
     skillResults: SkillScanResult[];
+    agentResults: ClaudeAgentScanResult[];
   } | null;
 }
 
@@ -44,6 +50,14 @@ const MODES: { id: ScanMode; label: string; description: string; icon: typeof Sc
   },
 ];
 
+const AGENT_TARGETS = [
+  { id: "claude", label: "Claude Code" },
+  { id: "cursor", label: "Cursor" },
+  { id: "gemini", label: "Gemini CLI" },
+  { id: "vscode", label: "VS Code" },
+  { id: "codex", label: "Codex" },
+] as const;
+
 export function McpServerScanModal({
   onImported,
   onClose,
@@ -63,20 +77,33 @@ export function McpServerScanModal({
   // Results — null = not scanned yet, [] = scanned but nothing new
   const [mcpResults, setMcpResults] = useState<McpScanResult[] | null>(null);
   const [skillResults, setSkillResults] = useState<SkillScanResult[] | null>(null);
+  const [agentResults, setAgentResults] = useState<ClaudeAgentScanResult[] | null>(null);
   const [selectedMcps, setSelectedMcps] = useState<Set<string>>(new Set());
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
+  const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set());
+  const [agentScope, setAgentScope] = useState<"global" | "project">("project");
+  const [agentDeployTargets, setAgentDeployTargets] = useState<string[]>(
+    AGENT_TARGETS.map((target) => target.id),
+  );
   const [error, setError] = useState<string | null>(null);
   const autoScanTriggered = useRef(false);
 
-  const applyResults = useCallback((mcps: McpScanResult[], skills: SkillScanResult[]) => {
-    setError(null);
-    setMcpResults(mcps);
-    setSkillResults(skills);
-    setSelectedMcps(new Set(mcps.map((r) => r.key)));
-    setSelectedSkills(new Set(skills.map((r) => r.name)));
-    if (mcps.length > 0) setTab("servers");
-    else if (skills.length > 0) setTab("skills");
-  }, []);
+  const applyResults = useCallback(
+    (mcps: McpScanResult[], skills: SkillScanResult[], agents: ClaudeAgentScanResult[]) => {
+      setError(null);
+      setMcpResults(mcps);
+      setSkillResults(skills);
+      setAgentResults(agents);
+      setSelectedMcps(new Set(mcps.map((r) => r.key)));
+      setSelectedSkills(new Set(skills.map((r) => r.name)));
+      setSelectedAgents(new Set(agents.map((r) => r.agentPath)));
+      if (mcps.length > 0) setTab("servers");
+      else if (skills.length > 0) setTab("skills");
+      else if (agents.length > 0) setTab("agents");
+      else if (pluginsLoading || plugins.length > 0) setTab("plugins");
+    },
+    [plugins.length, pluginsLoading],
+  );
 
   const handleScanWithMode = useCallback(
     async (scanMode: ScanMode) => {
@@ -86,18 +113,20 @@ export function McpServerScanModal({
       setError(null);
       setMcpResults(null);
       setSkillResults(null);
+      setAgentResults(null);
 
       const options: { mode: ScanMode; scanPath?: string } = { mode: scanMode };
       if (scanMode === "folder") options.scanPath = scanPath.trim();
 
-      const [mcpRes, skillRes] = await Promise.all([
+      const [mcpRes, skillRes, agentRes] = await Promise.all([
         api.scanMcpServers(options),
         api.scanSkills(options),
+        api.scanClaudeAgents(options),
       ]);
 
       setScanning(false);
 
-      if (mcpRes.error && skillRes.error) {
+      if (mcpRes.error && skillRes.error && agentRes.error) {
         setError(mcpRes.error);
         return;
       }
@@ -105,15 +134,20 @@ export function McpServerScanModal({
       // Filter: hide already-imported items
       const newMcps = (mcpRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
       const newSkills = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
+      const newAgents = (agentRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
 
-      applyResults(newMcps, newSkills);
+      applyResults(newMcps, newSkills, newAgents);
     },
     [api, applyResults, scanPath],
   );
 
   useEffect(() => {
     if (!prefilledResults) return;
-    applyResults(prefilledResults.mcpResults, prefilledResults.skillResults);
+    applyResults(
+      prefilledResults.mcpResults,
+      prefilledResults.skillResults,
+      prefilledResults.agentResults,
+    );
   }, [applyResults, prefilledResults]);
 
   const handleScan = () => handleScanWithMode(mode);
@@ -143,7 +177,16 @@ export function McpServerScanModal({
     });
   };
 
-  const totalSelected = selectedMcps.size + selectedSkills.size;
+  const toggleAgent = (agentPath: string) => {
+    setSelectedAgents((prev) => {
+      const next = new Set(prev);
+      if (next.has(agentPath)) next.delete(agentPath);
+      else next.add(agentPath);
+      return next;
+    });
+  };
+
+  const totalSelected = selectedMcps.size + selectedSkills.size + selectedAgents.size;
 
   const handleImport = async () => {
     setImporting(true);
@@ -159,6 +202,8 @@ export function McpServerScanModal({
           name: r.key,
           command: r.command,
           args: r.args,
+          type: r.type,
+          url: r.url,
           env: r.env,
           source: r.foundIn[0]?.configPath,
         }));
@@ -176,15 +221,25 @@ export function McpServerScanModal({
       }
     }
 
+    if (selectedAgents.size > 0 && agentResults) {
+      const toImport = agentResults
+        .filter((r) => selectedAgents.has(r.agentPath))
+        .map((r) => ({ name: r.name, agentPath: r.agentPath }));
+      if (toImport.length > 0) {
+        promises.push(api.importClaudeAgents(toImport, agentScope, agentDeployTargets));
+      }
+    }
+
     await Promise.all(promises);
     setImporting(false);
     onImported();
     onClose();
   };
 
-  const showResults = mcpResults !== null || skillResults !== null;
+  const showResults = mcpResults !== null || skillResults !== null || agentResults !== null;
   const mcpCount = mcpResults?.length ?? 0;
   const skillCount = skillResults?.length ?? 0;
+  const agentCount = agentResults?.length ?? 0;
 
   return (
     <Modal
@@ -200,6 +255,7 @@ export function McpServerScanModal({
               onClick={() => {
                 setMcpResults(null);
                 setSkillResults(null);
+                setAgentResults(null);
               }}
               className={`px-3 py-1.5 text-xs rounded-lg ${text.muted} hover:${text.secondary} transition-colors`}
             >
@@ -240,7 +296,9 @@ export function McpServerScanModal({
       {scanning ? (
         <div className="flex items-center justify-center gap-2 py-12">
           <Spinner size="sm" className={text.muted} />
-          <span className={`text-xs ${text.muted}`}>Scanning for MCP servers and skills...</span>
+          <span className={`text-xs ${text.muted}`}>
+            Scanning for MCP servers, skills, and agents...
+          </span>
         </div>
       ) : showResults ? (
         /* Results view */
@@ -269,6 +327,19 @@ export function McpServerScanModal({
             >
               Skills{skillCount > 0 ? ` (${skillCount})` : ""}
             </button>
+            {agentResults !== null && (
+              <button
+                type="button"
+                onClick={() => setTab("agents")}
+                className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors inline-flex items-center gap-1.5 ${
+                  tab === "agents"
+                    ? "text-[#d1d5db] bg-white/[0.06]"
+                    : `${text.dimmed} hover:${text.muted}`
+                }`}
+              >
+                <>Agents{agentCount > 0 ? ` (${agentCount})` : ""}</>
+              </button>
+            )}
             {(pluginsLoading || plugins.length > 0) && (
               <button
                 type="button"
@@ -313,9 +384,15 @@ export function McpServerScanModal({
                       />
                       <div className="flex-1 min-w-0">
                         <span className={`text-xs font-medium ${text.primary}`}>{r.key}</span>
-                        <div className={`text-[11px] ${text.muted} font-mono`}>
-                          {r.command} {r.args.join(" ")}
-                        </div>
+                        {r.url ? (
+                          <div className={`text-[11px] ${text.muted} font-mono truncate`}>
+                            {r.type ?? "http"} {r.url}
+                          </div>
+                        ) : (
+                          <div className={`text-[11px] ${text.muted} font-mono`}>
+                            {r.command} {r.args.join(" ")}
+                          </div>
+                        )}
                         <div className={`text-[10px] ${text.dimmed} mt-0.5`}>
                           {r.foundIn.map((f) => (
                             <div key={f.configPath} className="truncate">
@@ -359,6 +436,94 @@ export function McpServerScanModal({
                       </div>
                     </label>
                   ))}
+                </div>
+              )}
+            </div>
+          ) : tab === "agents" ? (
+            <div key="agents-tab">
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <p className={`${text.dimmed} text-[11px] flex-1`}>
+                  Import scanned `agents/*.md` files as custom agents and deploy to selected tools.
+                </p>
+                <div className="flex items-center bg-white/[0.04] rounded-lg p-0.5">
+                  {(["project", "global"] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setAgentScope(s)}
+                      className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
+                        agentScope === s
+                          ? "text-[#d1d5db] bg-white/[0.06]"
+                          : `${text.dimmed} hover:${text.muted}`
+                      }`}
+                    >
+                      {s === "global" ? "Global" : "Project"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {AGENT_TARGETS.map((target) => {
+                  const selected = agentDeployTargets.includes(target.id);
+                  return (
+                    <label
+                      key={target.id}
+                      className="flex items-center gap-1.5 cursor-pointer group"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() =>
+                          setAgentDeployTargets((prev) =>
+                            prev.includes(target.id)
+                              ? prev.filter((id) => id !== target.id)
+                              : [...prev, target.id],
+                          )
+                        }
+                        className="accent-cyan-400"
+                      />
+                      <span
+                        className={`text-[11px] ${selected ? text.secondary : text.dimmed} group-hover:${text.secondary} transition-colors`}
+                      >
+                        {target.label}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {agentCount === 0 ? (
+                <p className={`${text.muted} text-xs py-6 text-center`}>No agents found.</p>
+              ) : (
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  {agentResults!.map((agent) => {
+                    return (
+                      <label
+                        key={agent.agentPath}
+                        className="flex items-start gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-white/[0.04] transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedAgents.has(agent.agentPath)}
+                          onChange={() => toggleAgent(agent.agentPath)}
+                          className="mt-[7px] accent-cyan-400"
+                        />
+                        <Bot className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 mt-1" />
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-xs font-medium ${text.primary}`}>
+                            {agent.name}
+                          </span>
+                          {agent.description && (
+                            <div className={`text-[11px] ${text.muted} truncate`}>
+                              {agent.description}
+                            </div>
+                          )}
+                          <div className={`text-[10px] ${text.dimmed} mt-0.5 font-mono truncate`}>
+                            {agent.agentPath}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               )}
             </div>

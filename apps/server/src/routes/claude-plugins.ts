@@ -79,9 +79,18 @@ function readSettingsPlugins(projectDir: string): SettingsPluginEntry[] {
   const results: SettingsPluginEntry[] = [];
 
   const scopes: Array<{ scope: "user" | "project" | "local"; path: string }> = [
-    { scope: "user", path: path.join(os.homedir(), ".claude", "settings.json") },
-    { scope: "project", path: path.join(projectDir, ".claude", "settings.json") },
-    { scope: "local", path: path.join(projectDir, ".claude", "settings.local.json") },
+    {
+      scope: "user",
+      path: path.join(os.homedir(), ".claude", "settings.json"),
+    },
+    {
+      scope: "project",
+      path: path.join(projectDir, ".claude", "settings.json"),
+    },
+    {
+      scope: "local",
+      path: path.join(projectDir, ".claude", "settings.local.json"),
+    },
   ];
 
   for (const { scope, path: settingsPath } of scopes) {
@@ -119,6 +128,72 @@ interface PluginComponents {
   mcpServers: string[];
   hasHooks: boolean;
   hasLsp: boolean;
+}
+
+interface ClaudeAgentEntry {
+  id: string;
+  name: string;
+  description: string;
+  pluginId: string;
+  pluginName: string;
+  pluginScope: "user" | "project" | "local";
+  pluginEnabled: boolean;
+  marketplace: string;
+  installPath: string;
+  agentPath: string;
+}
+
+function extractFrontmatterDescription(content: string): string {
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (fmMatch) {
+    const descMatch = fmMatch[1].match(/^\s*description\s*:\s*(.+)\s*$/m);
+    if (descMatch?.[1]) {
+      return descMatch[1].trim().replace(/^['"]|['"]$/g, "");
+    }
+  }
+
+  const body = fmMatch ? content.slice(fmMatch[0].length) : content;
+  const firstLine = body
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("#"));
+  return firstLine ?? "";
+}
+
+function scanPluginAgents(
+  installPath: string,
+  pluginId: string,
+  pluginName: string,
+  pluginScope: "user" | "project" | "local",
+  pluginEnabled: boolean,
+  marketplace: string,
+): ClaudeAgentEntry[] {
+  const agentsDir = path.join(installPath, "agents");
+  if (!existsSync(agentsDir)) return [];
+
+  try {
+    return readdirSync(agentsDir)
+      .filter((file) => file.endsWith(".md"))
+      .map((file) => {
+        const name = file.replace(/\.md$/, "");
+        const agentPath = path.join(agentsDir, file);
+        const content = readFileSync(agentPath, "utf-8");
+        return {
+          id: `${pluginId}::${name}`,
+          name,
+          description: extractFrontmatterDescription(content),
+          pluginId,
+          pluginName,
+          pluginScope,
+          pluginEnabled,
+          marketplace,
+          installPath,
+          agentPath,
+        };
+      });
+  } catch {
+    return [];
+  }
 }
 
 function scanPluginComponents(installPath: string): PluginComponents {
@@ -381,7 +456,14 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
                     hooks: components.hasHooks,
                     lsp: components.hasLsp,
                   }
-                : { commands: 0, agents: 0, skills: 0, mcpServers: 0, hooks: false, lsp: false },
+                : {
+                    commands: 0,
+                    agents: 0,
+                    skills: 0,
+                    mcpServers: 0,
+                    hooks: false,
+                    lsp: false,
+                  },
             };
           }),
         );
@@ -416,6 +498,154 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     const response = { plugins, cliAvailable: false };
     setCache("plugins:list", response, 5_000);
     return c.json(response);
+  });
+
+  // ── Plugin agents (agents/*.md) ─────────────────────────────
+
+  app.get("/api/claude/agents", async (c) => {
+    const cached = getCached<unknown>("plugins:agents:list");
+    if (cached) return c.json(cached);
+
+    const hasCli = await checkCli();
+    if (!hasCli) {
+      return c.json({ agents: [], cliAvailable: false });
+    }
+
+    const result = await runClaude(["plugin", "list", "--json"]);
+    if (!result.success) {
+      return c.json(
+        {
+          agents: [],
+          cliAvailable: true,
+          error: result.stderr || "Failed to list plugins",
+        },
+        500,
+      );
+    }
+
+    const parsedList = tryParseJson<unknown>(result.stdout, []);
+    const cliPlugins: Array<Record<string, unknown>> = Array.isArray(parsedList)
+      ? parsedList
+      : Array.isArray((parsedList as Record<string, unknown>)?.installed)
+        ? ((parsedList as Record<string, unknown>).installed as Array<Record<string, unknown>>)
+        : [];
+
+    const agents = cliPlugins
+      .flatMap((plugin) => {
+        const installPath = typeof plugin.installPath === "string" ? plugin.installPath : "";
+        if (!installPath || !existsSync(installPath)) return [];
+        const pluginId = (plugin.id ?? plugin.name ?? "") as string;
+        const pluginName = (plugin.name ?? plugin.id ?? "") as string;
+        const pluginScope = (plugin.scope ?? "user") as "user" | "project" | "local";
+        const pluginEnabled = plugin.enabled !== false;
+        const marketplace = (plugin.marketplace ||
+          (pluginId.includes("@") ? pluginId.split("@").pop() : "")) as string;
+        return scanPluginAgents(
+          installPath,
+          pluginId,
+          pluginName,
+          pluginScope,
+          pluginEnabled,
+          marketplace,
+        );
+      })
+      .sort((a, b) => {
+        if (a.pluginEnabled !== b.pluginEnabled) return a.pluginEnabled ? -1 : 1;
+        const pluginCmp = a.pluginName.localeCompare(b.pluginName);
+        if (pluginCmp !== 0) return pluginCmp;
+        return a.name.localeCompare(b.name);
+      })
+      .map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        pluginId: agent.pluginId,
+        pluginName: agent.pluginName,
+        pluginScope: agent.pluginScope,
+        pluginEnabled: agent.pluginEnabled,
+        marketplace: agent.marketplace,
+      }));
+
+    const response = { agents, cliAvailable: true };
+    setCache("plugins:agents:list", response, 5_000);
+    return c.json(response);
+  });
+
+  app.get("/api/claude/agents/:id", async (c) => {
+    const id = c.req.param("id");
+    const separator = id.indexOf("::");
+    if (separator === -1) {
+      return c.json({ error: "Invalid agent id" }, 400);
+    }
+
+    const pluginId = id.slice(0, separator);
+    const agentName = id.slice(separator + 2);
+    if (!pluginId || !agentName) {
+      return c.json({ error: "Invalid agent id" }, 400);
+    }
+
+    const hasCli = await checkCli();
+    if (!hasCli) {
+      return c.json({ error: "Claude CLI not available", cliAvailable: false }, 501);
+    }
+
+    const result = await runClaude(["plugin", "list", "--json"]);
+    if (!result.success) {
+      return c.json({ error: "Failed to list plugins" }, 500);
+    }
+
+    const parsedList = tryParseJson<unknown>(result.stdout, []);
+    const cliPlugins: Array<Record<string, unknown>> = Array.isArray(parsedList)
+      ? parsedList
+      : Array.isArray((parsedList as Record<string, unknown>)?.installed)
+        ? ((parsedList as Record<string, unknown>).installed as Array<Record<string, unknown>>)
+        : [];
+
+    const plugin = cliPlugins.find((p) => (p.id ?? p.name ?? "") === pluginId);
+    if (!plugin) {
+      return c.json({ error: "Plugin not found" }, 404);
+    }
+
+    const installPath = typeof plugin.installPath === "string" ? plugin.installPath : "";
+    if (!installPath || !existsSync(installPath)) {
+      return c.json({ error: "Plugin install path not found" }, 404);
+    }
+
+    const agentsDir = path.join(installPath, "agents");
+    const resolvedAgentPath = path.resolve(agentsDir, `${agentName}.md`);
+    const resolvedAgentsDir = path.resolve(agentsDir) + path.sep;
+    if (!resolvedAgentPath.startsWith(resolvedAgentsDir) || !existsSync(resolvedAgentPath)) {
+      return c.json({ error: "Agent definition not found" }, 404);
+    }
+
+    let content = "";
+    try {
+      content = readFileSync(resolvedAgentPath, "utf-8");
+    } catch {
+      return c.json({ error: "Failed to read agent definition" }, 500);
+    }
+
+    const pluginName = (plugin.name ?? plugin.id ?? "") as string;
+    const pluginScope = (plugin.scope ?? "user") as "user" | "project" | "local";
+    const pluginEnabled = plugin.enabled !== false;
+    const marketplace = (plugin.marketplace ||
+      (pluginId.includes("@") ? pluginId.split("@").pop() : "")) as string;
+
+    return c.json({
+      agent: {
+        id,
+        name: agentName,
+        description: extractFrontmatterDescription(content),
+        pluginId,
+        pluginName,
+        pluginScope,
+        pluginEnabled,
+        marketplace,
+        installPath,
+        agentPath: resolvedAgentPath,
+        content,
+      },
+    });
   });
 
   // ── Available plugins (marketplace) ───────────────────────────
@@ -496,7 +726,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     invalidateCache("plugins:");
 
     if (!result.success) {
-      return c.json({ success: false, error: result.stderr || "Failed to add marketplace" });
+      return c.json({
+        success: false,
+        error: result.stderr || "Failed to add marketplace",
+      });
     }
 
     return c.json({ success: true });
@@ -509,7 +742,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     invalidateCache("plugins:");
 
     if (!result.success) {
-      return c.json({ success: false, error: result.stderr || "Failed to remove marketplace" });
+      return c.json({
+        success: false,
+        error: result.stderr || "Failed to remove marketplace",
+      });
     }
 
     return c.json({ success: true });
@@ -522,7 +758,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     invalidateCache("plugins:");
 
     if (!result.success) {
-      return c.json({ success: false, error: result.stderr || "Failed to update marketplace" });
+      return c.json({
+        success: false,
+        error: result.stderr || "Failed to update marketplace",
+      });
     }
 
     return c.json({ success: true });
@@ -649,7 +888,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     invalidateCache("plugins:");
 
     if (!result.success) {
-      return c.json({ success: false, error: result.stderr || "Install failed" });
+      return c.json({
+        success: false,
+        error: result.stderr || "Install failed",
+      });
     }
 
     return c.json({ success: true });
@@ -668,7 +910,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     invalidateCache("plugins:");
 
     if (!result.success) {
-      return c.json({ success: false, error: result.stderr || "Uninstall failed" });
+      return c.json({
+        success: false,
+        error: result.stderr || "Uninstall failed",
+      });
     }
 
     return c.json({ success: true });
@@ -687,7 +932,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     invalidateCache("plugins:");
 
     if (!result.success) {
-      return c.json({ success: false, error: result.stderr || "Enable failed" });
+      return c.json({
+        success: false,
+        error: result.stderr || "Enable failed",
+      });
     }
 
     return c.json({ success: true });
@@ -706,7 +954,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     invalidateCache("plugins:");
 
     if (!result.success) {
-      return c.json({ success: false, error: result.stderr || "Disable failed" });
+      return c.json({
+        success: false,
+        error: result.stderr || "Disable failed",
+      });
     }
 
     return c.json({ success: true });
@@ -721,7 +972,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     invalidateCache("plugins:");
 
     if (!result.success) {
-      return c.json({ success: false, error: result.stderr || "Update failed" });
+      return c.json({
+        success: false,
+        error: result.stderr || "Update failed",
+      });
     }
 
     return c.json({ success: true });

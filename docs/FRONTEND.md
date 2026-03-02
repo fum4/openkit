@@ -49,8 +49,9 @@ The main view. Displays a two-panel layout: a sidebar with worktree and issue li
 
 ### Agents
 
-Manages MCP servers, skills, and plugins. This is the hub for configuring agent tooling -- registering MCP servers, creating/deploying skills to coding agents (Claude, Cursor, etc.), and managing Claude plugins.
-On initial load, Agents triggers a background device scan for MCP servers/skills and shows a discovery banner with quick `Scan again` and `Import` actions when items are found. If opened from that banner, the import dialog reuses the already-scanned results (no second scan).
+Manages custom agents, plugin agents, MCP servers, skills, and plugins. This is the hub for configuring agent tooling -- creating custom registry-backed agents (`~/.openkit/agents/*.md`) and deploying them to Claude/Cursor/Gemini CLI/VS Code/Codex, browsing plugin-provided `agents/*.md` definitions, registering MCP servers, creating/deploying skills, and managing Claude plugins.
+On initial load, Agents triggers a background device scan for MCP servers/skills/custom-agents and shows a discovery banner with quick `Scan again` and `Import` actions when items are found. If opened from that banner, the import dialog reuses the already-scanned results (no second scan).
+The Agents list is cache-first: sidebar items render immediately from local cache and then refresh in the background (with a loading spinner shown during refresh).
 
 ### Hooks
 
@@ -121,7 +122,7 @@ The app uses a dark theme with a neutral slate background family and teal as the
 | `mcpServer`   | MCP server accent (purple), deployment status dot colors                                                   |
 | `hooks`       | Hooks accent (emerald), step result status colors                                                          |
 | `notes`       | Notes tab styles, todo checkbox colors                                                                     |
-| `agentRule`   | Agent rule accent (cyan), background, border styles                                                        |
+| `agentRule`   | Agent rule accent (white), background, border styles                                                       |
 | `activity`    | Activity feed category colors (agent=purple, worktree=teal, system=red) and optional severity token colors |
 
 ### Integration Color Mapping
@@ -135,6 +136,7 @@ Each entity type has a consistent accent color used across the entire UI:
 - **MCP Server** -- purple (`text-purple-400`)
 - **Skill** -- pink (`text-pink-400`)
 - **Plugin** -- warm copper (`#D4A574`)
+- **Plugin Subagent** -- cyan (`text-cyan-400`)
 - **Hooks** -- emerald (`text-emerald-400`)
 
 ### Label Color Hashing
@@ -173,7 +175,7 @@ App
 |       +-- CustomTaskDetailPanel (custom task selected)
 |
 +-- [Agents view]
-|   +-- AgentsView            (MCP servers, skills, plugins management)
+|   +-- AgentsView            (rules, custom/plugin agents, MCP servers, skills, plugins management)
 |
 +-- [Configuration view]
 |   +-- ConfigurationPanel
@@ -254,12 +256,12 @@ Similar to JiraDetailPanel but for Linear issues. Shows title, description, stat
 
 ### CustomTaskDetailPanel (`CustomTaskDetailPanel.tsx`)
 
-Detail view for local custom tasks. Supports inline editing of title, description, status, priority, and labels. Shows file attachments with image preview support and supports split "Code with ..." launch (Claude, Codex, Gemini CLI, or OpenCode); launches check CLI availability first and offer Homebrew install if missing, and all supported agents use the shared manual permissions choice modal.
+Detail view for local custom tasks. Supports inline editing of title, description, status, priority, and labels. Description uses the shared editable textarea card behavior (click to edit, save on blur). Shows file attachments with image preview support and supports split "Code with ..." launch (Claude, Codex, Gemini CLI, or OpenCode); launches check CLI availability first and offer Homebrew install if missing, and all supported agents use the shared manual permissions choice modal.
 
 ### Other Detail Panels
 
 - **McpServerDetailPanel** -- MCP server configuration, environment variables, deployment status across agents.
-- **SkillDetailPanel** -- Skill markdown editing (skill.md, reference.md, examples.md), frontmatter editing, deployment status.
+- **SkillDetailPanel** -- Skill markdown editing (`SKILL.md`, `reference.md`, `examples.md`) with path-annotation headers, frontmatter editing, deployment status.
 - **PluginDetailPanel** -- Claude plugin details, install/uninstall/enable/disable actions.
 
 ### Supporting Components
@@ -483,12 +485,15 @@ The app uses Framer Motion for transitions:
 
 | File                        | Description                                                                                                                                                                                                                                                                                 |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AgentCreateModal.tsx`      | Create custom agent modal (writes to `~/.openkit/agents/*.md` and selects deployment targets/scope)                                                                                                                                                                                         |
+| `AgentItem.tsx`             | Agent sidebar item (custom + plugin-discovered)                                                                                                                                                                                                                                             |
 | `AgentsView.tsx`            | Top-level agents management view                                                                                                                                                                                                                                                            |
-| `AgentsSidebar.tsx`         | Sidebar for agents view (MCP servers, skills, plugins lists)                                                                                                                                                                                                                                |
+| `AgentsSidebar.tsx`         | Sidebar for agents view (rules, agents, MCP servers, skills, plugins lists)                                                                                                                                                                                                                 |
 | `AgentsToolbar.tsx`         | Toolbar for agents view actions                                                                                                                                                                                                                                                             |
 | `AppSettingsModal.tsx`      | Electron app settings (themes, preferences)                                                                                                                                                                                                                                                 |
 | `AttachmentImage.tsx`       | Image attachment preview with lightbox                                                                                                                                                                                                                                                      |
 | `Button.tsx`                | Reusable button component                                                                                                                                                                                                                                                                   |
+| `ClickToEditHint.tsx`       | Reusable inline helper text for editable fields (`Click to edit`)                                                                                                                                                                                                                           |
 | `ConfigurationPanel.tsx`    | Edit `.openkit/config.json` settings                                                                                                                                                                                                                                                        |
 | `ConfirmDialog.tsx`         | Confirmation dialog for destructive actions                                                                                                                                                                                                                                                 |
 | `ConfirmModal.tsx`          | Generic confirmation modal                                                                                                                                                                                                                                                                  |
@@ -498,6 +503,7 @@ The app uses Framer Motion for transitions:
 | `CustomTaskItem.tsx`        | Custom task sidebar list item                                                                                                                                                                                                                                                               |
 | `CustomTaskList.tsx`        | Custom task list in sidebar                                                                                                                                                                                                                                                                 |
 | `DeployDialog.tsx`          | MCP server/skill deployment dialog                                                                                                                                                                                                                                                          |
+| `EditableTextareaCard.tsx`  | Shared inline-edit textarea card with optional path annotation row/actions, debounce auto-save, and click-to-edit hint                                                                                                                                                                      |
 | `GitHubSetupModal.tsx`      | GitHub initial setup (commit + repo creation)                                                                                                                                                                                                                                               |
 | `Header.tsx`                | Top header bar with nav tabs, running count, and activity bell icon                                                                                                                                                                                                                         |
 | `ImageModal.tsx`            | Full-screen image lightbox                                                                                                                                                                                                                                                                  |
@@ -510,7 +516,7 @@ The app uses Framer Motion for transitions:
 | `MarkdownContent.tsx`       | Markdown renderer with dark theme styling                                                                                                                                                                                                                                                   |
 | `McpServerCreateModal.tsx`  | Create/edit MCP server modal                                                                                                                                                                                                                                                                |
 | `McpServerItem.tsx`         | MCP server sidebar item                                                                                                                                                                                                                                                                     |
-| `McpServerScanModal.tsx`    | Scan and import MCP servers/skills (supports direct device-scan entry from discovery banner and prefilled results from the latest banner scan)                                                                                                                                              |
+| `McpServerScanModal.tsx`    | Scan and import MCP servers/skills/custom agents (supports direct device-scan entry from discovery banner, prefilled results reuse, and custom-agent deploy target selection)                                                                                                               |
 | `Modal.tsx`                 | Base modal component (sm/md/lg widths)                                                                                                                                                                                                                                                      |
 | `NavBar.tsx`                | Navigation bar (defines View type)                                                                                                                                                                                                                                                          |
 | `PluginInstallModal.tsx`    | Install Claude plugin modal                                                                                                                                                                                                                                                                 |
@@ -534,26 +540,27 @@ The app uses Framer Motion for transitions:
 
 ### Detail Components (`apps/web-app/src/components/detail/`)
 
-| File                        | Description                                                                                   |
-| --------------------------- | --------------------------------------------------------------------------------------------- |
-| `DetailPanel.tsx`           | Worktree detail (logs, terminal, Claude/Codex/Gemini/OpenCode tabs, hooks, git actions)       |
-| `DetailHeader.tsx`          | Worktree header with inline rename, action buttons, and split `Open` target control           |
-| `CodeAgentSplitButton.tsx`  | Split "Code with ..." launcher (Claude/Codex/Gemini/OpenCode) used by issue/task detail views |
-| `JiraDetailPanel.tsx`       | Jira issue detail view                                                                        |
-| `LinearDetailPanel.tsx`     | Linear issue detail view                                                                      |
-| `CustomTaskDetailPanel.tsx` | Custom task detail with inline editing                                                        |
-| `McpServerDetailPanel.tsx`  | MCP server detail and deployment                                                              |
-| `SkillDetailPanel.tsx`      | Skill detail with markdown editor                                                             |
-| `AgentRuleDetailPanel.tsx`  | Agent rule file viewer/editor (CLAUDE.md, AGENTS.md)                                          |
-| `PluginDetailPanel.tsx`     | Claude plugin detail                                                                          |
-| `LogsViewer.tsx`            | Streaming ANSI log output                                                                     |
-| `TerminalView.tsx`          | xterm.js interactive terminal                                                                 |
-| `HooksTab.tsx`              | Hooks runner with multi-expand, pipeline auto-expand, and circular progress spinner           |
-| `GitActionInputs.tsx`       | Inline commit/PR input forms                                                                  |
-| `ActionToolbar.tsx`         | Git action buttons                                                                            |
-| `NotesSection.tsx`          | PersonalNotesSection + AgentSection (tabbed: Context, Todos, Git Policy, Hooks)               |
-| `TodoList.tsx`              | Checkbox todo items                                                                           |
-| `AgentPolicySection.tsx`    | Per-issue agent git policy overrides                                                          |
+| File                        | Description                                                                                                                                                                                           |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DetailPanel.tsx`           | Worktree detail (logs, terminal, Claude/Codex/Gemini/OpenCode tabs, hooks, git actions)                                                                                                               |
+| `DetailHeader.tsx`          | Worktree header with inline rename, action buttons, and split `Open` target control                                                                                                                   |
+| `CodeAgentSplitButton.tsx`  | Split "Code with ..." launcher (Claude/Codex/Gemini/OpenCode) used by issue/task detail views                                                                                                         |
+| `JiraDetailPanel.tsx`       | Jira issue detail view                                                                                                                                                                                |
+| `LinearDetailPanel.tsx`     | Linear issue detail view                                                                                                                                                                              |
+| `CustomTaskDetailPanel.tsx` | Custom task detail with inline editing (description uses shared editable textarea card)                                                                                                               |
+| `McpServerDetailPanel.tsx`  | MCP server detail (command or URL transport), env overrides, and deployment                                                                                                                           |
+| `SkillDetailPanel.tsx`      | Skill detail with markdown editor using shared editable textarea cards + path annotations                                                                                                             |
+| `AgentRuleDetailPanel.tsx`  | Agent rule file viewer/editor (CLAUDE.md, AGENTS.md)                                                                                                                                                  |
+| `AgentDetailPanel.tsx`      | Agent definition detail (custom + plugin metadata, source paths, enabled toggle with plugin-scope confirmation, custom deployment toggles, shared editable textarea cards for description/definition) |
+| `PluginDetailPanel.tsx`     | Claude plugin detail                                                                                                                                                                                  |
+| `LogsViewer.tsx`            | Streaming ANSI log output                                                                                                                                                                             |
+| `TerminalView.tsx`          | xterm.js interactive terminal                                                                                                                                                                         |
+| `HooksTab.tsx`              | Hooks runner with multi-expand, pipeline auto-expand, and circular progress spinner                                                                                                                   |
+| `GitActionInputs.tsx`       | Inline commit/PR input forms                                                                                                                                                                          |
+| `ActionToolbar.tsx`         | Git action buttons                                                                                                                                                                                    |
+| `NotesSection.tsx`          | PersonalNotesSection + AgentSection (tabbed: Context, Todos, Git Policy, Hooks)                                                                                                                       |
+| `TodoList.tsx`              | Checkbox todo items                                                                                                                                                                                   |
+| `AgentPolicySection.tsx`    | Per-issue agent git policy overrides                                                                                                                                                                  |
 
 ### Hooks (`apps/web-app/src/hooks/`)
 
@@ -570,7 +577,7 @@ The app uses Framer Motion for transitions:
 | `useLinearIssueDetail.ts` | React Query hook for single Linear issue                                           |
 | `useMcpServers.ts`        | Hooks for MCP server data                                                          |
 | `useNotes.ts`             | Hook for issue notes and todos                                                     |
-| `useSkills.ts`            | Hooks for skills data                                                              |
+| `useSkills.ts`            | Hooks for skills, Claude plugins, and combined custom+plugin agents data           |
 | `useTerminal.ts`          | WebSocket terminal session management                                              |
 | `useAgentRules.ts`        | React Query hook for agent rule file content                                       |
 | `useHooks.ts`             | Hooks config and skill results fetching                                            |

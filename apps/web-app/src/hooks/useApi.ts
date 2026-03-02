@@ -265,8 +265,10 @@ export function useApi() {
           name?: string;
           description?: string;
           tags?: string[];
-          command: string;
-          args: string[];
+          command?: string;
+          args?: string[];
+          type?: "http" | "sse";
+          url?: string;
           env?: Record<string, string>;
           source?: string;
         }>,
@@ -323,7 +325,29 @@ export function useApi() {
 
       fetchClaudePlugins: () => api.fetchClaudePlugins(serverUrl),
 
+      fetchClaudeAgents: () => api.fetchClaudeAgents(serverUrl),
+      fetchCustomClaudeAgents: () => api.fetchCustomClaudeAgents(serverUrl),
+
       fetchClaudePluginDetail: (id: string) => api.fetchClaudePluginDetail(id, serverUrl),
+
+      fetchClaudeAgentDetail: (id: string) => api.fetchClaudeAgentDetail(id, serverUrl),
+
+      fetchCustomClaudeAgentDetail: (id: string) => api.fetchCustomClaudeAgentDetail(id, serverUrl),
+
+      createCustomClaudeAgent: (data: {
+        name: string;
+        description?: string;
+        tools?: string;
+        model?: string;
+        instructions?: string;
+        scope?: "global" | "project";
+        deployAgents?: string[];
+      }) => api.createCustomClaudeAgent(data, serverUrl),
+
+      deleteCustomClaudeAgent: (id: string) => api.deleteCustomClaudeAgent(id, serverUrl),
+
+      updateCustomClaudeAgent: (id: string, data: { content: string }) =>
+        api.updateCustomClaudeAgent(id, data, serverUrl),
 
       installClaudePlugin: (ref: string, scope?: string) =>
         api.installClaudePlugin(ref, scope, serverUrl),
@@ -351,6 +375,21 @@ export function useApi() {
 
       scanSkills: (options?: { mode?: "project" | "folder" | "device"; scanPath?: string }) =>
         api.scanSkills(options, serverUrl),
+
+      scanClaudeAgents: (options?: { mode?: "project" | "folder" | "device"; scanPath?: string }) =>
+        api.scanClaudeAgents(options, serverUrl),
+
+      importClaudeAgents: (
+        agents: Array<{ name: string; agentPath: string }>,
+        scope: "global" | "project",
+        deployAgents?: string[],
+      ) => api.importClaudeAgents(agents, scope, deployAgents, serverUrl),
+
+      deployCustomClaudeAgent: (id: string, agent: string, scope: "global" | "project") =>
+        api.deployCustomClaudeAgent(id, agent, scope, serverUrl),
+
+      undeployCustomClaudeAgent: (id: string, agent: string, scope: "global" | "project") =>
+        api.undeployCustomClaudeAgent(id, agent, scope, serverUrl),
 
       // Hooks
       fetchHooksConfig: () => api.fetchHooksConfig(serverUrl),

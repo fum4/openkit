@@ -154,8 +154,10 @@ export interface McpServerSummary {
   name: string;
   description: string;
   tags: string[];
-  command: string;
-  args: string[];
+  command?: string;
+  args?: string[];
+  type?: "http" | "sse";
+  url?: string;
   env: Record<string, string>;
   source?: string;
   createdAt: string;
@@ -182,8 +184,10 @@ export interface McpDeploymentStatus {
 
 export interface McpScanResult {
   key: string;
-  command: string;
+  command?: string;
   args: string[];
+  type?: "http" | "sse";
+  url?: string;
   env: Record<string, string>;
   foundIn: Array<{ configPath: string }>;
   alreadyInRegistry: boolean;
@@ -273,6 +277,33 @@ export interface PluginDetail extends PluginSummary {
   license: string;
   keywords: string[];
   readme: string;
+}
+
+export interface ClaudeAgentSummary {
+  id: string;
+  name: string;
+  description: string;
+  pluginId: string;
+  pluginName: string;
+  pluginScope: "user" | "project" | "local";
+  pluginEnabled: boolean;
+  marketplace: string;
+  isCustom?: boolean;
+  customScope?: "global" | "project";
+  deployments?: Record<string, { global?: boolean; project?: boolean }>;
+}
+
+export interface ClaudeAgentDetail extends ClaudeAgentSummary {
+  installPath: string;
+  agentPath: string;
+  content: string;
+}
+
+export interface ClaudeAgentScanResult {
+  name: string;
+  description: string;
+  agentPath: string;
+  alreadyInRegistry: boolean;
 }
 
 export interface AvailablePlugin {

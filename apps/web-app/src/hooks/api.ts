@@ -19,6 +19,9 @@ import type {
   SkillInstallRequest,
   PluginSummary,
   PluginDetail,
+  ClaudeAgentSummary,
+  ClaudeAgentDetail,
+  ClaudeAgentScanResult,
   AvailablePlugin,
   MarketplaceSummary,
   SkillScanResult,
@@ -55,7 +58,12 @@ export async function createWorktree(
   branch: string,
   name?: string,
   serverUrl: string | null = null,
-): Promise<{ success: boolean; error?: string; code?: string; worktreeId?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  code?: string;
+  worktreeId?: string;
+}> {
   try {
     const body: { branch: string; name?: string } = { branch };
     if (name) body.name = name;
@@ -249,7 +257,13 @@ export async function createFromJira(
   serverUrl: string | null = null,
 ): Promise<{
   success: boolean;
-  task?: { key: string; summary: string; status: string; type: string; url: string };
+  task?: {
+    key: string;
+    summary: string;
+    status: string;
+    type: string;
+    url: string;
+  };
   error?: string;
   code?: string;
   worktreeId?: string;
@@ -340,7 +354,9 @@ export async function installGitHubCli(
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; code?: string; error?: string }> {
   try {
-    const res = await fetch(`${getBaseUrl(serverUrl)}/api/github/install`, { method: "POST" });
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/github/install`, {
+      method: "POST",
+    });
     return await res.json();
   } catch (err) {
     return {
@@ -354,7 +370,9 @@ export async function loginGitHub(
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; code?: string; error?: string }> {
   try {
-    const res = await fetch(`${getBaseUrl(serverUrl)}/api/github/login`, { method: "POST" });
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/github/login`, {
+      method: "POST",
+    });
     return await res.json();
   } catch (err) {
     return {
@@ -368,7 +386,9 @@ export async function logoutGitHub(
   serverUrl: string | null = null,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`${getBaseUrl(serverUrl)}/api/github/logout`, { method: "POST" });
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/github/logout`, {
+      method: "POST",
+    });
     const text = await res.text();
     try {
       return JSON.parse(text);
@@ -572,7 +592,9 @@ export async function fetchActiveTerminalSession(
 ): Promise<{ success: boolean; sessionId: string | null; error?: string }> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(worktreeId)}/terminals/active?scope=${encodeURIComponent(scope)}`,
+      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(
+        worktreeId,
+      )}/terminals/active?scope=${encodeURIComponent(scope)}`,
     );
     return await res.json();
   } catch (err) {
@@ -1160,14 +1182,17 @@ export async function commitSetup(
     });
     return await res.json();
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Failed to commit" };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to commit",
+    };
   }
 }
 
 // MCP agent setup
-export async function fetchMcpStatus(
-  serverUrl: string | null = null,
-): Promise<{ statuses: Record<string, { global?: boolean; project?: boolean }> }> {
+export async function fetchMcpStatus(serverUrl: string | null = null): Promise<{
+  statuses: Record<string, { global?: boolean; project?: boolean }>;
+}> {
   try {
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/mcp/status`);
     return await res.json();
@@ -1365,7 +1390,9 @@ export async function updateGitPolicy(
 ): Promise<IssueNotes> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(source)}/${encodeURIComponent(id)}/git-policy`,
+      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(
+        source,
+      )}/${encodeURIComponent(id)}/git-policy`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1374,7 +1401,12 @@ export async function updateGitPolicy(
     );
     return await res.json();
   } catch {
-    return { linkedWorktreeId: null, personal: null, aiContext: null, todos: [] };
+    return {
+      linkedWorktreeId: null,
+      personal: null,
+      aiContext: null,
+      todos: [],
+    };
   }
 }
 
@@ -1388,7 +1420,9 @@ export async function updateHookSkills(
 ): Promise<IssueNotes> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(source)}/${encodeURIComponent(id)}/hook-skills`,
+      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(
+        source,
+      )}/${encodeURIComponent(id)}/hook-skills`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1397,7 +1431,12 @@ export async function updateHookSkills(
     );
     return await res.json();
   } catch {
-    return { linkedWorktreeId: null, personal: null, aiContext: null, todos: [] };
+    return {
+      linkedWorktreeId: null,
+      personal: null,
+      aiContext: null,
+      todos: [],
+    };
   }
 }
 
@@ -1497,7 +1536,12 @@ export async function createWorktreeFromCustomTask(
   id: string,
   branch?: string,
   serverUrl: string | null = null,
-): Promise<{ success: boolean; worktreeId?: string; error?: string; code?: string }> {
+): Promise<{
+  success: boolean;
+  worktreeId?: string;
+  error?: string;
+  code?: string;
+}> {
   try {
     const res = await fetch(
       `${getBaseUrl(serverUrl)}/api/tasks/${encodeURIComponent(id)}/create-worktree`,
@@ -1553,7 +1597,9 @@ export async function deleteTaskAttachment(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/tasks/${encodeURIComponent(taskId)}/attachments/${encodeURIComponent(filename)}`,
+      `${getBaseUrl(serverUrl)}/api/tasks/${encodeURIComponent(
+        taskId,
+      )}/attachments/${encodeURIComponent(filename)}`,
       { method: "DELETE" },
     );
     return await res.json();
@@ -1570,7 +1616,9 @@ export function getTaskAttachmentUrl(
   filename: string,
   serverUrl: string | null = null,
 ): string {
-  return `${getBaseUrl(serverUrl)}/api/tasks/${encodeURIComponent(taskId)}/attachments/${encodeURIComponent(filename)}`;
+  return `${getBaseUrl(serverUrl)}/api/tasks/${encodeURIComponent(
+    taskId,
+  )}/attachments/${encodeURIComponent(filename)}`;
 }
 
 // -- Notes API --
@@ -1608,7 +1656,12 @@ export async function fetchNotes(
     );
     return await res.json();
   } catch {
-    return { linkedWorktreeId: null, personal: null, aiContext: null, todos: [] };
+    return {
+      linkedWorktreeId: null,
+      personal: null,
+      aiContext: null,
+      todos: [],
+    };
   }
 }
 
@@ -1630,7 +1683,12 @@ export async function updateNotes(
     );
     return await res.json();
   } catch {
-    return { linkedWorktreeId: null, personal: null, aiContext: null, todos: [] };
+    return {
+      linkedWorktreeId: null,
+      personal: null,
+      aiContext: null,
+      todos: [],
+    };
   }
 }
 
@@ -1644,7 +1702,9 @@ export async function addTodo(
 ): Promise<IssueNotes> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(source)}/${encodeURIComponent(id)}/todos`,
+      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(
+        source,
+      )}/${encodeURIComponent(id)}/todos`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1653,7 +1713,12 @@ export async function addTodo(
     );
     return await res.json();
   } catch {
-    return { linkedWorktreeId: null, personal: null, aiContext: null, todos: [] };
+    return {
+      linkedWorktreeId: null,
+      personal: null,
+      aiContext: null,
+      todos: [],
+    };
   }
 }
 
@@ -1666,7 +1731,9 @@ export async function updateTodo(
 ): Promise<IssueNotes> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(source)}/${encodeURIComponent(id)}/todos/${encodeURIComponent(todoId)}`,
+      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(
+        source,
+      )}/${encodeURIComponent(id)}/todos/${encodeURIComponent(todoId)}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1675,7 +1742,12 @@ export async function updateTodo(
     );
     return await res.json();
   } catch {
-    return { linkedWorktreeId: null, personal: null, aiContext: null, todos: [] };
+    return {
+      linkedWorktreeId: null,
+      personal: null,
+      aiContext: null,
+      todos: [],
+    };
   }
 }
 
@@ -1687,14 +1759,21 @@ export async function deleteTodo(
 ): Promise<IssueNotes> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(source)}/${encodeURIComponent(id)}/todos/${encodeURIComponent(todoId)}`,
+      `${getBaseUrl(serverUrl)}/api/notes/${encodeURIComponent(
+        source,
+      )}/${encodeURIComponent(id)}/todos/${encodeURIComponent(todoId)}`,
       {
         method: "DELETE",
       },
     );
     return await res.json();
   } catch {
-    return { linkedWorktreeId: null, personal: null, aiContext: null, todos: [] };
+    return {
+      linkedWorktreeId: null,
+      personal: null,
+      aiContext: null,
+      todos: [],
+    };
   }
 }
 
@@ -1709,7 +1788,10 @@ export async function fetchMcpServers(
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/mcp-servers${params}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      return { servers: [], error: (body as { error?: string }).error ?? `Failed (${res.status})` };
+      return {
+        servers: [],
+        error: (body as { error?: string }).error ?? `Failed (${res.status})`,
+      };
     }
     return await res.json();
   } catch (err) {
@@ -1728,7 +1810,9 @@ export async function fetchMcpServer(
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/mcp-servers/${encodeURIComponent(id)}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      return { error: (body as { error?: string }).error ?? `Failed (${res.status})` };
+      return {
+        error: (body as { error?: string }).error ?? `Failed (${res.status})`,
+      };
     }
     return await res.json();
   } catch (err) {
@@ -1744,8 +1828,10 @@ export async function createMcpServer(
     name: string;
     description?: string;
     tags?: string[];
-    command: string;
+    command?: string;
     args?: string[];
+    type?: "http" | "sse";
+    url?: string;
     env?: Record<string, string>;
   },
   serverUrl: string | null = null,
@@ -1834,8 +1920,10 @@ export async function importMcpServers(
     name?: string;
     description?: string;
     tags?: string[];
-    command: string;
-    args: string[];
+    command?: string;
+    args?: string[];
+    type?: "http" | "sse";
+    url?: string;
     env?: Record<string, string>;
     source?: string;
   }>,
@@ -1977,7 +2065,9 @@ export async function fetchSkill(
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/skills/${encodeURIComponent(name)}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      return { error: (body as { error?: string }).error ?? `Failed (${res.status})` };
+      return {
+        error: (body as { error?: string }).error ?? `Failed (${res.status})`,
+      };
     }
     return await res.json();
   } catch (err) {
@@ -2190,11 +2280,257 @@ export async function fetchClaudePluginDetail(
     );
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      return { error: (body as { error?: string }).error ?? `Failed (${res.status})` };
+      return {
+        error: (body as { error?: string }).error ?? `Failed (${res.status})`,
+      };
     }
     return await res.json();
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Failed to fetch plugin detail" };
+    return {
+      error: err instanceof Error ? err.message : "Failed to fetch plugin detail",
+    };
+  }
+}
+
+export async function fetchClaudeAgents(serverUrl: string | null = null): Promise<{
+  agents: ClaudeAgentSummary[];
+  cliAvailable?: boolean;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/claude/agents`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return {
+        agents: [],
+        error: (body as { error?: string }).error ?? `Failed (${res.status})`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      agents: [],
+      error: err instanceof Error ? err.message : "Failed to fetch agents",
+    };
+  }
+}
+
+export async function fetchClaudeAgentDetail(
+  id: string,
+  serverUrl: string | null = null,
+): Promise<{ agent?: ClaudeAgentDetail; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/claude/agents/${encodeURIComponent(id)}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return {
+        error: (body as { error?: string }).error ?? `Failed (${res.status})`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Failed to fetch agent detail",
+    };
+  }
+}
+
+export async function fetchCustomClaudeAgents(
+  serverUrl: string | null = null,
+): Promise<{ agents: ClaudeAgentSummary[]; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/claude/custom-agents`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return {
+        agents: [],
+        error: (body as { error?: string }).error ?? `Failed (${res.status})`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      agents: [],
+      error: err instanceof Error ? err.message : "Failed to fetch custom agents",
+    };
+  }
+}
+
+export async function fetchCustomClaudeAgentDetail(
+  id: string,
+  serverUrl: string | null = null,
+): Promise<{ agent?: ClaudeAgentDetail; error?: string }> {
+  try {
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/claude/custom-agents/${encodeURIComponent(id)}`,
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return {
+        error: (body as { error?: string }).error ?? `Failed (${res.status})`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Failed to fetch custom agent detail",
+    };
+  }
+}
+
+export async function createCustomClaudeAgent(
+  data: {
+    name: string;
+    description?: string;
+    tools?: string;
+    model?: string;
+    instructions?: string;
+    scope?: "global" | "project";
+    deployAgents?: string[];
+  },
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; agent?: ClaudeAgentDetail; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/claude/custom-agents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to create custom agent",
+    };
+  }
+}
+
+export async function deleteCustomClaudeAgent(
+  id: string,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/claude/custom-agents/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete custom agent",
+    };
+  }
+}
+
+export async function updateCustomClaudeAgent(
+  id: string,
+  data: { content: string },
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; agent?: ClaudeAgentDetail; error?: string }> {
+  try {
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/claude/custom-agents/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      },
+    );
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update custom agent",
+    };
+  }
+}
+
+export async function scanClaudeAgents(
+  options?: { mode?: "project" | "folder" | "device"; scanPath?: string },
+  serverUrl: string | null = null,
+): Promise<{ discovered: ClaudeAgentScanResult[]; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/claude/custom-agents/scan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options ?? {}),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      discovered: [],
+      error: err instanceof Error ? err.message : "Failed to scan agents",
+    };
+  }
+}
+
+export async function importClaudeAgents(
+  agents: Array<{ name: string; agentPath: string }>,
+  scope: "global" | "project",
+  deployAgents?: string[],
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; imported?: string[]; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/claude/custom-agents/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agents, scope, deployAgents }),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to import agents",
+    };
+  }
+}
+
+export async function deployCustomClaudeAgent(
+  id: string,
+  agent: string,
+  scope: "global" | "project",
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/claude/custom-agents/${encodeURIComponent(id)}/deploy`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent, scope }),
+      },
+    );
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to deploy custom agent",
+    };
+  }
+}
+
+export async function undeployCustomClaudeAgent(
+  id: string,
+  agent: string,
+  scope: "global" | "project",
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/claude/custom-agents/${encodeURIComponent(id)}/undeploy`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent, scope }),
+      },
+    );
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to undeploy custom agent",
+    };
   }
 }
 
@@ -2497,7 +2833,9 @@ export async function fetchEffectiveHooksConfig(
 ): Promise<HooksConfig> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(worktreeId)}/hooks/effective-config`,
+      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(
+        worktreeId,
+      )}/hooks/effective-config`,
     );
     const data = await res.json();
     data.skills ??= [];
@@ -2559,7 +2897,9 @@ export async function runHookStep(
 ): Promise<StepResult> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(worktreeId)}/hooks/run/${encodeURIComponent(stepId)}`,
+      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(
+        worktreeId,
+      )}/hooks/run/${encodeURIComponent(stepId)}`,
       { method: "POST" },
     );
     return await res.json();
@@ -2664,7 +3004,10 @@ export async function importHookSkill(
     });
     return await res.json();
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Failed to import skill" };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to import skill",
+    };
   }
 }
 
@@ -2674,11 +3017,16 @@ export async function removeHookSkill(
   trigger?: HookTrigger,
 ): Promise<{ success: boolean; config?: HooksConfig; error?: string }> {
   try {
-    const url = `${getBaseUrl(serverUrl)}/api/hooks/skills/${encodeURIComponent(skillName)}${trigger ? `?trigger=${encodeURIComponent(trigger)}` : ""}`;
+    const url = `${getBaseUrl(serverUrl)}/api/hooks/skills/${encodeURIComponent(
+      skillName,
+    )}${trigger ? `?trigger=${encodeURIComponent(trigger)}` : ""}`;
     const res = await fetch(url, { method: "DELETE" });
     return await res.json();
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Failed to remove skill" };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to remove skill",
+    };
   }
 }
 
@@ -2699,13 +3047,16 @@ export async function toggleHookSkill(
     );
     return await res.json();
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Failed to toggle skill" };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to toggle skill",
+    };
   }
 }
 
-export async function fetchAvailableHookSkills(
-  serverUrl: string | null = null,
-): Promise<{ available: Array<{ name: string; displayName: string; description: string }> }> {
+export async function fetchAvailableHookSkills(serverUrl: string | null = null): Promise<{
+  available: Array<{ name: string; displayName: string; description: string }>;
+}> {
   try {
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/hooks/skills/available`);
     return await res.json();
@@ -2749,7 +3100,9 @@ export async function fetchHookSkillResults(
 ): Promise<{ results: SkillHookResult[] }> {
   try {
     const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(worktreeId)}/hooks/skill-results`,
+      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(
+        worktreeId,
+      )}/hooks/skill-results`,
     );
     return await res.json();
   } catch {
