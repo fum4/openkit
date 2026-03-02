@@ -20,6 +20,14 @@ inputs:
   build-linux:
     description: Whether Linux packaging was requested (true/false).
     required: true
+  mac-running:
+    description: Whether macOS packaging is currently running (true/false).
+    required: false
+    default: "false"
+  linux-running:
+    description: Whether Linux packaging is currently running (true/false).
+    required: false
+    default: "false"
   mac-result:
     description: macOS job result (success/failure/cancelled/skipped). Leave empty while running.
     required: false
@@ -52,13 +60,15 @@ runs:
         LINUX_RESULT: ${{ inputs.linux-result }}
         MAC_ARTIFACT_URL: ${{ inputs.mac-artifact-url }}
         LINUX_ARTIFACT_URL: ${{ inputs.linux-artifact-url }}
+        MAC_RUNNING: ${{ inputs.mac-running }}
+        LINUX_RUNNING: ${{ inputs.linux-running }}
       with:
         script: |
           const statusIcon = {
             success: "✅",
             failure: "❌",
-            cancelled: "⚠️",
-            skipped: "🚫",
+            cancelled: "🚫",
+            skipped: "⚠️",
           };
           const statusLabel = {
             success: "Success",
@@ -71,9 +81,9 @@ runs:
           const buildMac = process.env.BUILD_MAC === "true";
           const buildLinux = process.env.BUILD_LINUX === "true";
 
-          const rowFor = (name, result, artifactUrl) => {
+          const rowFor = (name, result, running, artifactUrl) => {
             if (!result) {
-              return `| ${name} | ⏳ Running | — |`;
+              return `| ${name} | ${running ? "⏳ In Progress" : "⏳ Queued"} | — |`;
             }
             const normalized = statusIcon[result] ? result : "skipped";
             const icon = statusIcon[normalized];
@@ -89,11 +99,17 @@ runs:
 
           const macResult = process.env.MAC_RESULT || "";
           const linuxResult = process.env.LINUX_RESULT || "";
+          const macRunning = process.env.MAC_RUNNING === "true";
+          const linuxRunning = process.env.LINUX_RUNNING === "true";
 
           const rows = [];
-          if (buildMac) rows.push(rowFor("macOS", macResult, process.env.MAC_ARTIFACT_URL || ""));
+          if (buildMac) {
+            rows.push(rowFor("macOS", macResult, macRunning, process.env.MAC_ARTIFACT_URL || ""));
+          }
           if (buildLinux)
-            rows.push(rowFor("Linux", linuxResult, process.env.LINUX_ARTIFACT_URL || ""));
+            rows.push(
+              rowFor("Linux", linuxResult, linuxRunning, process.env.LINUX_ARTIFACT_URL || "")
+            );
 
           let title = "### 🚧 Packaging in progress";
           if (mode === "final") {
@@ -109,10 +125,10 @@ runs:
             title = "### ℹ️ Packaging finished";
             if (allSucceeded) title = "### ✅ Packaging completed";
             else if (anyFailed) title = "### ❌ Packaging failed";
-            else if (anyCancelled) title = "### ⚠️ Packaging cancelled";
+            else if (anyCancelled) title = "### 🚫 Packaging cancelled";
           }
 
-          const body = `${title}\nTriggered with \`${process.env.COMMAND}\`.\n\n[View workflow logs](${process.env.LOGS_URL})\n\n| Target | Status | Artifact |\n| --- | --- | --- |\n${rows.join("\n")}`;
+          const body = `${title}\nTriggered with \`${process.env.COMMAND}\`\n\n[View workflow logs](${process.env.LOGS_URL})\n\n| Target | Status | Artifact |\n| --- | --- | --- |\n${rows.join("\n")}`;
 
           await github.rest.issues.updateComment({
             owner: context.repo.owner,

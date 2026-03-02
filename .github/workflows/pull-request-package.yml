@@ -112,6 +112,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      issues: write
     outputs:
       artifact_url: ${{ steps.upload.outputs.artifact-url }}
     steps:
@@ -119,6 +120,17 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: refs/pull/${{ github.event.issue.number }}/head
+
+      - name: Update status comment (macOS in progress)
+        uses: ./.github/actions/update-package-comment
+        with:
+          comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
+          command: ${{ needs.notify-package-start.outputs.command }}
+          logs-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          mode: progress
+          build-mac: ${{ needs.notify-package-start.outputs.build_mac }}
+          build-linux: ${{ needs.notify-package-start.outputs.build_linux }}
+          mac-running: "true"
 
       - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
@@ -145,6 +157,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      issues: write
     outputs:
       artifact_url: ${{ steps.upload.outputs.artifact-url }}
     steps:
@@ -152,6 +165,17 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: refs/pull/${{ github.event.issue.number }}/head
+
+      - name: Update status comment (Linux in progress)
+        uses: ./.github/actions/update-package-comment
+        with:
+          comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
+          command: ${{ needs.notify-package-start.outputs.command }}
+          logs-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          mode: progress
+          build-mac: ${{ needs.notify-package-start.outputs.build_mac }}
+          build-linux: ${{ needs.notify-package-start.outputs.build_linux }}
+          linux-running: "true"
 
       - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
