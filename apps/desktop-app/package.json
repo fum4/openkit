@@ -23,7 +23,7 @@
     "electron": "^40.6.1",
     "electron-builder": "^26.8.1",
     "electronmon": "^2.0.4",
-    "oxlint": "^1.50.0",
+    "oxlint": "^1.51.0",
     "wait-on": "^9.0.4"
   }
 }
