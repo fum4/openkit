@@ -1,4 +1,4 @@
-name: Setup pnpm + Node
+name: Setup (pnpm + Node)
 description: Configure pnpm and Node.js, then install workspace dependencies.
 
 inputs:

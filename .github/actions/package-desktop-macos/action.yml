@@ -1,4 +1,4 @@
-name: Package Desktop macOS
+name: Package (macOS)
 description: Build macOS desktop artifacts, optionally with signing and notarization.
 
 inputs:
@@ -70,11 +70,14 @@ runs:
         echo "$MAC_CERTIFICATE" | base64 --decode > cert.p12
         security create-keychain -p actions build.keychain
         security default-keychain -s build.keychain
+        security set-keychain-settings -lut 21600 build.keychain
         security unlock-keychain -p actions build.keychain
         security import cert.p12 \
           -k build.keychain \
           -P "$MAC_CERTIFICATE_PASSWORD" \
           -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple: -s -k actions build.keychain
+        security find-identity -v -p codesigning build.keychain
 
     - name: Build desktop artifacts (signed/notarized)
       if: ${{ inputs.sign-and-notarize == 'true' }}

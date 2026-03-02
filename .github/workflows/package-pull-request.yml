@@ -1,4 +1,4 @@
-name: Pull Request Package
+name: Package (Pull Request)
 
 on:
   issue_comment:
@@ -127,7 +127,7 @@ jobs:
             if ("${{ steps.parse-command.outputs.build_linux }}" === "true") targets.push("Linux");
 
             const rows = targets.map((target) => `| ${target} | ⏳ Queued |`).join("\n");
-            const body = `### 🚀 Packaging started\nTriggered by @${context.payload.comment.user.login} with \`${command}\`.\n\n[View workflow logs](${logsUrl})\n\n| Target | Status |\n| --- | --- |\n${rows}`;
+            const body = `### ⏳ Packaging queued\nTriggered by @${context.payload.comment.user.login} with \`${command}\`\n\n[View workflow logs](${logsUrl})\n\n| Target | Status |\n| --- | --- |\n${rows}`;
 
             const comment = await github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -156,7 +156,7 @@ jobs:
           ref: refs/pull/${{ github.event.issue.number }}/head
 
       - name: Update status comment (macOS in progress)
-        uses: ./.github/actions/update-package-comment
+        uses: ./.github/actions/package-update-comment
         with:
           comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
           command: ${{ needs.notify-package-start.outputs.command }}
@@ -214,7 +214,7 @@ jobs:
           ref: refs/pull/${{ github.event.issue.number }}/head
 
       - name: Update status comment (Linux in progress)
-        uses: ./.github/actions/update-package-comment
+        uses: ./.github/actions/package-update-comment
         with:
           comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
           command: ${{ needs.notify-package-start.outputs.command }}
@@ -251,7 +251,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Update status comment (macOS)
-        uses: ./.github/actions/update-package-comment
+        uses: ./.github/actions/package-update-comment
         with:
           comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
           command: ${{ needs.notify-package-start.outputs.command }}
@@ -275,7 +275,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Update status comment (Linux)
-        uses: ./.github/actions/update-package-comment
+        uses: ./.github/actions/package-update-comment
         with:
           comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
           command: ${{ needs.notify-package-start.outputs.command }}
@@ -301,7 +301,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Update status comment
-        uses: ./.github/actions/update-package-comment
+        uses: ./.github/actions/package-update-comment
         with:
           comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
           command: ${{ needs.notify-package-start.outputs.command }}

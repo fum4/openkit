@@ -1,4 +1,4 @@
-name: Update Package Comment
+name: Package (Update Comment)
 description: Update an existing PR package status comment.
 
 inputs:
@@ -70,7 +70,7 @@ runs:
       with:
         script: |
           const statusIcon = {
-            success: "✅",
+            success: "📦",
             failure: "❌",
             cancelled: "🚫",
             skipped: "⚠️",
@@ -88,7 +88,7 @@ runs:
 
           const rowFor = (name, result, running, artifactValue) => {
             if (!result) {
-              return `| ${name} | ${running ? "⏳ In Progress" : "⏳ Queued"} | — |`;
+              return `| ${name} | ${running ? "⚙️ In Progress" : "⏳ Queued"} | — |`;
             }
             const normalized = statusIcon[result] ? result : "skipped";
             const icon = statusIcon[normalized];
@@ -136,7 +136,7 @@ runs:
               )
             );
 
-          let title = "### 🚧 Packaging in progress";
+          let title = "### ⚙️ Packaging in progress";
           if (mode === "final") {
             const finalResults = [];
             if (buildMac) finalResults.push(macResult || "skipped");
@@ -148,7 +148,7 @@ runs:
             const anyCancelled = finalResults.some((result) => result === "cancelled");
 
             title = "### ℹ️ Packaging finished";
-            if (allSucceeded) title = "### ✅ Packaging completed";
+            if (allSucceeded) title = "### 📦 Packaging completed";
             else if (anyFailed) title = "### ❌ Packaging failed";
             else if (anyCancelled) title = "### 🚫 Packaging cancelled";
           }
