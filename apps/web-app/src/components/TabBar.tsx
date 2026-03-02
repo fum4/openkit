@@ -1,4 +1,4 @@
-import { Folder, Loader2, Plus, QrCode, Settings, Wifi, X } from "lucide-react";
+import { Folder, Loader2, Plus, Settings, Wifi, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useServer } from "../contexts/ServerContext";
@@ -9,20 +9,18 @@ import { Tooltip } from "./Tooltip";
 interface TabBarProps {
   onOpenSettings?: () => void;
   onToggleNgrok?: () => void;
-  onOpenNgrokQr?: () => void;
   ngrokEnabled?: boolean;
   ngrokBusy?: boolean;
-  ngrokQrDisabled?: boolean;
+  ngrokDisabled?: boolean;
   onOverlapChange?: (overlaps: boolean) => void;
 }
 
 export function TabBar({
   onOpenSettings,
   onToggleNgrok,
-  onOpenNgrokQr,
   ngrokEnabled = false,
   ngrokBusy = false,
-  ngrokQrDisabled = false,
+  ngrokDisabled = false,
   onOverlapChange,
 }: TabBarProps) {
   const {
@@ -105,23 +103,11 @@ export function TabBar({
       {/* Spacer */}
       <div className="ml-auto" />
 
-      {onOpenNgrokQr && (
-        <Tooltip text="Generate Pairing QR">
-          <button
-            onClick={onOpenNgrokQr}
-            disabled={ngrokBusy || ngrokQrDisabled}
-            className="flex items-center justify-center w-7 h-7 rounded-md text-[#6b7280] hover:text-[#e5e7eb] hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
-          >
-            <QrCode className="w-4 h-4" />
-          </button>
-        </Tooltip>
-      )}
-
       {onToggleNgrok && (
-        <Tooltip text={ngrokEnabled ? "Disable Tunnel" : "Enable Tunnel"}>
+        <Tooltip text={ngrokEnabled ? "Disable Tunnel" : "Enable Tunnel + Show QR"}>
           <button
             onClick={onToggleNgrok}
-            disabled={ngrokBusy}
+            disabled={ngrokBusy || ngrokDisabled}
             className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
               ngrokEnabled
                 ? "text-[#2dd4bf] bg-[#2dd4bf]/10 hover:bg-[#2dd4bf]/20"

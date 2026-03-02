@@ -17,6 +17,12 @@ function isTerminalScope(
   );
 }
 
+function isAgentTerminalScope(
+  value: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null,
+): value is "claude" | "codex" | "gemini" | "opencode" {
+  return value === "claude" || value === "codex" || value === "gemini" || value === "opencode";
+}
+
 export function registerTerminalRoutes(
   app: Hono,
   worktreeManager: WorktreeManager,
@@ -40,6 +46,21 @@ export function registerTerminalRoutes(
         typeof body.startupCommand === "string" && body.startupCommand.trim()
           ? body.startupCommand
           : null;
+
+      if (isAgentTerminalScope(scope) && !startupCommand) {
+        const activeSessionId = terminalManager.getSessionIdForScope(worktreeId, scope);
+        if (activeSessionId) {
+          return c.json({ success: true, sessionId: activeSessionId });
+        }
+
+        return c.json(
+          {
+            success: false,
+            error: `No active ${scope} session to resume. Start a new ${scope} session first.`,
+          },
+          404,
+        );
+      }
 
       const sessionId = terminalManager.createSession(
         worktreeId,

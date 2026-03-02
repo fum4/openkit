@@ -696,13 +696,19 @@ Opens an SSE connection. Immediately sends the current worktree state and recent
 - **Event format**:
   ```
   data: {"type":"worktrees","worktrees":[...]}
+  data: {"type":"notification","level":"info","message":"..."}
+  data: {"type":"hook-update","worktreeId":"..."}
   data: {"type":"activity-history","events":[...]}
   data: {"type":"activity","event":{...}}
+  data: {"type":"terminal-session","event":{"action":"created","sessionId":"term-1","worktreeId":"...","scope":"claude","timestamp":"..."}}
   ```
 - **Event types**:
   - `worktrees` -- Full worktree list on every state change (status transitions, log updates, port changes, etc.)
+  - `notification` -- Immediate info/error notifications emitted by server operations
+  - `hook-update` -- Hook-runner update signal for a specific worktree
   - `activity-history` -- Sent once on connection, contains the last 50 activity events
   - `activity` -- Individual activity events as they occur in real-time
+  - `terminal-session` -- Scoped terminal lifecycle event (`created`/`closed`) for desktop live tab sync when sessions are started/stopped remotely (for example from mobile)
 
 The connection stays open until the client disconnects.
 
@@ -1465,8 +1471,10 @@ Create a new terminal session for a worktree.
   }
   ```
   Defaults to 80 columns and 24 rows. `startupCommand` (optional) runs via shell startup (`$SHELL -lc <command>`). `scope` (optional: `"terminal"`, `"claude"`, `"codex"`, `"gemini"`, or `"opencode"`) reuses a single session per worktree+scope when present.
+  For agent scopes (`claude|codex|gemini|opencode`), if `startupCommand` is omitted the route only resumes an existing scoped session and does not create a new shell-backed placeholder session.
 - **Response**: `{ success: true, sessionId: "string" }`
 - **Error** (404): `{ success: false, error: "Worktree not found" }`
+- **Error** (404): `{ success: false, error: "No active <scope> session to resume. Start a new <scope> session first." }`
 
 #### `DELETE /api/terminals/:sessionId`
 
@@ -1491,6 +1499,7 @@ WebSocket endpoint for bidirectional terminal communication. Upgrades the HTTP c
 - **Client to Server**: Send raw terminal input as text/binary frames
 - **Server to Client**: Receive PTY output as text/binary frames
 - **Connection**: Automatically attaches to the PTY session on open; closes with code `1008` if session not found
+- **Multi-client attach**: multiple WebSocket clients can attach to the same session concurrently; PTY output is fanned out to all attached clients and input from any client is forwarded to the same PTY.
 
 ---
 
@@ -1623,6 +1632,8 @@ Get skill hook results for a worktree.
 
 Remote access flow for exposing a local OpenKit server through ngrok with one-time QR pairing.
 
+Only ngrok-specific endpoints are exposed when requests arrive via ngrok hostnames (`*.ngrok.app`, `*.ngrok-free.app`, `*.ngrok.io`). Non-allowlisted routes return `404 ngrok_route_forbidden`. Generic project API proxying is intentionally disabled for this flow; only dedicated mobile gateway routes are exposed.
+
 #### `GET /api/ngrok/status`
 
 Return current ngrok project + tunnel state.
@@ -1686,16 +1697,45 @@ Create a one-time pairing URL (QR target) for mobile login. This will ensure a t
   {
     "success": true,
     "project": { "id": "project-id", "name": "project-name" },
+    "pairingId": "64f3c9ae-...",
+    "mobilePairUrl": "https://example.ngrok.app/_ok/mobile/connect?token=...",
     "pairUrl": "https://example.ngrok.app/_ok/pair?token=...",
-    "gatewayApiBase": "https://example.ngrok.app/_ok/p/project-id",
+    "mobileApiBase": "https://example.ngrok.app/_ok/mobile/v1",
+    "gatewayApiBase": "https://example.ngrok.app/_ok/mobile/v1",
     "expiresAt": "2026-02-24T12:00:00.000Z",
     "expiresIn": 90
   }
   ```
 - **Notes**:
   - Pairing tokens are random, one-time, and short-lived.
+  - `pairingId` can be polled from the laptop via the pairing status endpoint.
+  - `mobilePairUrl` is an HTTPS handoff URL for mobile camera scans; it redirects to the configured app deep link scheme.
   - `next` is sanitized to a local path and defaults to `/`.
   - `regenerateUrl=true` forces a tunnel restart to mint a new public ngrok URL.
+
+#### `GET /api/ngrok/pairing/status/:pairingId`
+
+Get the status of a pairing session created by `POST /api/ngrok/pairing/start`.
+
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "pairing": {
+      "id": "64f3c9ae-...",
+      "status": "pending",
+      "expiresAt": "2026-02-24T12:00:00.000Z",
+      "usedAt": null
+    }
+  }
+  ```
+- **Status values**:
+  - `pending`: token not yet consumed
+  - `used`: token was consumed by mobile/browser pairing
+  - `expired`: token expired without being consumed
+- **Error**:
+  - `400 invalid_payload` (missing pairing id)
+  - `404 pair_not_found` (unknown/expired retention window)
 
 #### `POST /api/ngrok/pairing/exchange`
 
@@ -1711,15 +1751,47 @@ Exchange a one-time pairing token for a short-lived bearer session token (progra
     "success": true,
     "sessionJwt": "signed-token",
     "expiresIn": 900,
+    "expiresAt": "2026-02-24T12:15:00.000Z",
+    "replayed": false,
     "project": { "id": "project-id", "name": "project-name" }
   }
   ```
+- **Replay resilience**:
+  - exchange remains one-time, but duplicate submissions of the same token from the same client IP are accepted for a short replay window (30 seconds) to tolerate deep-link/browser double-open behavior.
+  - `replayed: true` indicates the token was already consumed and this response came from replay tolerance.
+- **Error**:
+  - `400 invalid_payload` (missing token)
+  - `400 pair_invalid` (invalid, expired, already-used, or wrong-project token)
+  - `429 pair_rate_limited` with `Retry-After` header and JSON `retryAfterSec` (only when `OPENKIT_NGROK_PAIRING_RATE_LIMIT=1`)
+    ```json
+    {
+      "error": {
+        "code": "pair_rate_limited",
+        "message": "Pairing temporarily blocked. Try again shortly."
+      },
+      "retryAfterSec": 300
+    }
+    ```
 
 #### `GET /_ok/health`
 
 Gateway liveness endpoint.
 
 - **Response**: `{ "ok": true, "service": "openkit-gateway" }`
+
+#### `GET /_ok/mobile/connect`
+
+Mobile camera handoff endpoint hosted on the ngrok origin.
+
+- **Query params**: `token` (required)
+- **Response**: `200 text/html` handoff page that immediately attempts to open the app deep link and includes a manual fallback button
+- **Behavior**:
+  - validates token presence
+  - builds the app deep link using the request origin and configured scheme (`OPENKIT_NGROK_MOBILE_SCHEME`)
+  - attempts app launch via client-side redirect to `<scheme>://connect?origin=...&token=...`
+  - shows explicit "Open App" fallback link when automatic launch is blocked by the OS/browser
+- **Error**:
+  - `400 pair_invalid` (missing token or invalid HTTPS origin)
 
 #### `GET /_ok/pair`
 
@@ -1730,10 +1802,10 @@ Consume a one-time QR pairing token directly on the ngrok-exposed OpenKit server
 - **Behavior**:
   - validates token (single-use + short TTL)
   - sets `ok_session` cookie
-  - applies rate limiting to pairing attempts
+  - applies rate limiting to pairing attempts only when `OPENKIT_NGROK_PAIRING_RATE_LIMIT=1`
 - **Error**:
   - `400 pair_invalid` (invalid/expired/used token)
-  - `429 pair_rate_limited`
+  - `429 pair_rate_limited` (only when `OPENKIT_NGROK_PAIRING_RATE_LIMIT=1`)
 
 #### `GET /_ok/me`
 
@@ -1748,28 +1820,146 @@ Get current local gateway identity.
   }
   ```
 
+#### `POST /_ok/refresh`
+
+Refresh a valid gateway bearer session before it expires.
+
+- **Auth**: `ok_session` cookie or `Authorization: Bearer <sessionJwt>`
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "sessionJwt": "new-signed-token",
+    "expiresIn": 900,
+    "expiresAt": "2026-02-24T12:30:00.000Z",
+    "project": { "id": "project-id", "name": "project-name" }
+  }
+  ```
+- **Error**:
+  - `401 unauthenticated`
+  - `403 project_forbidden`
+
+#### `GET /_ok/mobile/v1/context`
+
+Return mobile gateway context for the paired project.
+
+- **Auth**: `ok_session` cookie or `Authorization: Bearer <sessionJwt>`
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "project": { "id": "project-id", "name": "project-name" },
+    "scopes": ["claude", "codex", "gemini", "opencode"]
+  }
+  ```
+
+#### `GET /_ok/mobile/v1/worktrees`
+
+List worktrees for the paired project.
+
+- **Auth**: `ok_session` cookie or `Authorization: Bearer <sessionJwt>`
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "worktrees": [
+      {
+        "id": "PROJ-123",
+        "branch": "PROJ-123",
+        "status": "running",
+        "jiraStatus": "In Progress",
+        "linearStatus": null,
+        "localIssueStatus": null,
+        "hasActivePorts": true
+      }
+    ]
+  }
+  ```
+
+#### `GET /_ok/mobile/v1/agent-sessions`
+
+List active scoped agent sessions for a worktree.
+
+- **Auth**: `ok_session` cookie or `Authorization: Bearer <sessionJwt>`
+- **Query**: `worktreeId` (required)
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "worktree": { "id": "PROJ-123", "branch": "PROJ-123" },
+    "sessions": [
+      { "scope": "claude", "sessionId": "term-7", "active": true },
+      { "scope": "codex", "sessionId": null, "active": false },
+      { "scope": "gemini", "sessionId": null, "active": false },
+      { "scope": "opencode", "sessionId": null, "active": false }
+    ]
+  }
+  ```
+- **Error**:
+  - `400 invalid_payload` (missing `worktreeId`)
+  - `404 worktree_not_found`
+
+#### `POST /_ok/mobile/v1/agent-sessions/connect`
+
+Connect to an existing scoped agent session, or create one when `startIfMissing=true`.
+
+- **Auth**: `ok_session` cookie or `Authorization: Bearer <sessionJwt>`
+- **Request**:
+  ```json
+  {
+    "worktreeId": "PROJ-123",
+    "scope": "claude",
+    "startIfMissing": true,
+    "prompt": "Implement the assigned task from TASK.md",
+    "skipPermissions": false,
+    "cols": 120,
+    "rows": 30
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "sessionId": "term-9",
+    "created": true
+  }
+  ```
+- **Notes**:
+  - Allowed scopes are `claude`, `codex`, `gemini`, and `opencode`.
+  - `terminal` scope is not exposed through this mobile flow.
+  - `startupCommand` is never accepted from client payload.
+  - Payload is strict: unknown fields are rejected and typed fields must match expected primitive types.
+- **Error**:
+  - `400 invalid_payload`
+  - `404 worktree_not_found`
+  - `404 session_not_found` (when `startIfMissing=false` and no active scoped session)
+  - `500 session_create_failed`
+
+#### `GET /_ok/mobile/v1/agent-sessions/:sessionId/ws`
+
+Attach a WebSocket stream to a scoped mobile agent session.
+
+- **Auth**: `ok_session` cookie, `Authorization: Bearer <sessionJwt>`, or `accessToken=<sessionJwt>` query parameter
+- **Behavior**:
+  - Verifies project scope from gateway session.
+  - Verifies target session exists and scope is one of `claude|codex|gemini|opencode`.
+  - Reuses terminal PTY stream protocol used by desktop terminal sessions.
+  - Supports concurrent attach with desktop/local terminal clients; all clients share the same underlying PTY session.
+  - Supports JSON control messages:
+    - `{ "type": "resize", "cols": number, "rows": number }`
+    - `{ "type": "ping" }` (server replies with `{ "type": "pong" }`)
+  - Non-control frames are treated as raw terminal input bytes and forwarded to the PTY.
+- **Close reasons**:
+  - `unauthenticated`
+  - `project-forbidden`
+  - `session-not-found`
+  - `scope-forbidden`
+
 #### `POST /_ok/logout`
 
 Clear local gateway session cookie.
 
 - **Response**: `{ "success": true }`
-
-#### `ANY /_ok/p/:projectId/*`
-
-Authenticated gateway proxy for programmatic access.
-
-- **Auth**: `ok_session` cookie or `Authorization: Bearer <sessionJwt>`
-- **Behavior**:
-  - Verifies session project matches `:projectId`
-  - Proxies to an internal allowlist only: `/api/*` and `/mcp`
-  - Injects:
-    - `X-OpenKit-User-Id`
-    - `X-OpenKit-User-Email` (when available)
-    - `X-OpenKit-Project-Id`
-- **Error**:
-  - `401` unauthenticated
-  - `403` project_forbidden
-  - `404` route_forbidden
 
 ---
 

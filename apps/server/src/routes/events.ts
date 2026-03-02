@@ -1,8 +1,13 @@
 import type { Hono } from "hono";
 
 import type { WorktreeManager } from "../manager";
+import type { TerminalManager } from "../terminal-manager";
 
-export function registerEventRoutes(app: Hono, manager: WorktreeManager) {
+export function registerEventRoutes(
+  app: Hono,
+  manager: WorktreeManager,
+  terminalManager: TerminalManager,
+) {
   app.get("/api/events", (c) => {
     const stream = new ReadableStream({
       start(controller) {
@@ -65,11 +70,25 @@ export function registerEventRoutes(app: Hono, manager: WorktreeManager) {
           }
         });
 
+        const unsubscribeTerminalSessions = terminalManager.subscribeSessionLifecycle((event) => {
+          try {
+            controller.enqueue(
+              `data: ${JSON.stringify({
+                type: "terminal-session",
+                event,
+              })}\n\n`,
+            );
+          } catch {
+            unsubscribeTerminalSessions();
+          }
+        });
+
         c.req.raw.signal.addEventListener("abort", () => {
           unsubscribeWorktrees();
           unsubscribeNotifications();
           unsubscribeHookUpdates();
           unsubscribeActivity();
+          unsubscribeTerminalSessions();
           controller.close();
         });
       },
