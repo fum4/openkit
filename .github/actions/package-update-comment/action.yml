@@ -274,7 +274,7 @@ runs:
             }
           }
 
-          const body = `${title}\nTriggered with \`${process.env.COMMAND}\`\n\n[View workflow logs](${process.env.LOGS_URL})\n\n| Target | Status | Artifact |\n| --- | --- | --- |\n${rows.join("\n")}`;
+          const body = `${title}\nTriggered by @${context.actor} with \`${process.env.COMMAND}\`\n\n[View workflow logs](${process.env.LOGS_URL})\n\n| Target | Status | Artifact |\n| --- | --- | --- |\n${rows.join("\n")}`;
 
           await github.rest.issues.updateComment({
             owner: context.repo.owner,

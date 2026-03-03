@@ -4,6 +4,10 @@
   "private": true,
   "description": "Your local kit for agentic development",
   "homepage": "https://dawg-chi.vercel.app/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openkit/openkit.git"
+  },
   "type": "module",
   "scripts": {
     "setup": "sh ./scripts/setup.sh",
