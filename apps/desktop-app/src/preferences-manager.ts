@@ -7,6 +7,7 @@ export type SetupPreference = "auto" | "manual" | "ask";
 export interface AppPreferences {
   basePort: number;
   setupPreference: SetupPreference;
+  autoDownloadUpdates: boolean;
   sidebarWidth: number;
   windowBounds: {
     x?: number;
@@ -24,6 +25,7 @@ const DEFAULT_PORT = 6969;
 const DEFAULT_PREFERENCES: AppPreferences = {
   basePort: DEFAULT_PORT,
   setupPreference: "ask",
+  autoDownloadUpdates: true,
   sidebarWidth: 300,
   windowBounds: null,
 };

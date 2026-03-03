@@ -139,11 +139,11 @@ export function IssueList({
   const [customCollapsed, setCustomCollapsed] = useState(false);
   const [showPriority, setShowPriority] = useState(() => {
     const saved = localStorage.getItem("OpenKit:issueShowPriority");
-    return saved !== null ? saved === "1" : true;
+    return saved !== null ? saved === "1" : false;
   });
   const [showStatus, setShowStatus] = useState(() => {
     const saved = localStorage.getItem("OpenKit:issueShowStatus");
-    return saved !== null ? saved === "1" : true;
+    return saved !== null ? saved === "1" : false;
   });
   const [configOpen, setConfigOpen] = useState(false);
   const configRef = useRef<HTMLDivElement>(null);

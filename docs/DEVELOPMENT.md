@@ -133,7 +133,7 @@ npm publishing is currently paused.
     It reacts to the triggering comment, posts a status comment with queued targets, flips each target to in-progress when its packaging job starts, updates that same comment as each platform finishes, then posts a final summary with platform status and artifact download links. For macOS PR packaging, arm64 and x64 DMGs are uploaded as separate artifacts (no blockmaps), and the comment table includes separate `macOS (Apple Silicon)` and `macOS (Intel)` rows with independent download links. Comment rendering is shared via `.github/actions/package-update-comment`.
     macOS PR packaging uses the same shared build/sign/notarize action as release packaging (`.github/actions/package-desktop-macos`). Signing/notarization is enabled only when the PR head is in the same repository; fork PR heads are built unsigned to avoid exposing Apple secrets to untrusted code.
 - The release workflow still runs `pnpm check:all` and creates release tags plus the GitHub release.
-- Desktop release assets are built/uploaded in `.github/workflows/package-release.yml` on release tag pushes (`v*`).
+- Desktop release assets are built/uploaded in `.github/workflows/package-release.yml` on release tag pushes (`v*`), including updater metadata/assets (`latest*.yml`, macOS ZIPs, and blockmaps) required by `electron-updater`.
 - npm-specific publish steps are commented out in `.github/workflows/release.yml`.
 
 ## Dependency Updates

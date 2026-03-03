@@ -34,4 +34,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getSidebarWidth: () => ipcRenderer.invoke("get-sidebar-width"),
   setSidebarWidth: (width) => ipcRenderer.invoke("set-sidebar-width", width),
   updatePreferences: (updates) => ipcRenderer.invoke("update-preferences", updates),
+
+  // App updates
+  getAppUpdateState: () => ipcRenderer.invoke("get-app-update-state"),
+  checkAppUpdates: () => ipcRenderer.invoke("check-app-updates"),
+  downloadAppUpdate: () => ipcRenderer.invoke("download-app-update"),
+  installAppUpdate: () => ipcRenderer.invoke("install-app-update"),
+  onAppUpdateState: (callback) => {
+    const handler = (_event, state) => callback(state);
+    ipcRenderer.on("app-update-state", handler);
+    return () => ipcRenderer.removeListener("app-update-state", handler);
+  },
 });

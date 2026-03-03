@@ -816,6 +816,7 @@ User-level preferences stored in the home directory. Not project-specific.
 {
   "basePort": 6969,
   "setupPreference": "ask",
+  "autoDownloadUpdates": true,
   "sidebarWidth": 300,
   "windowBounds": {
     "x": 100,
@@ -832,6 +833,7 @@ User-level preferences stored in the home directory. Not project-specific.
 | --------------------- | ---------------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `basePort`            | `number`         | `6969`  | The port the OpenKit server listens on                                                                                  |
 | `setupPreference`     | `string`         | `"ask"` | How to handle missing config: `"auto"` (auto-detect and create), `"manual"` (prompt), or `"ask"` (show UI setup screen) |
+| `autoDownloadUpdates` | `boolean`        | `true`  | Whether desktop app updates are downloaded automatically in the background                                              |
 | `sidebarWidth`        | `number`         | `300`   | Sidebar width in pixels (persisted across sessions)                                                                     |
 | `windowBounds`        | `object \| null` | `null`  | Electron window position and size                                                                                       |
 | `windowBounds.x`      | `number`         |         | Window X position                                                                                                       |
