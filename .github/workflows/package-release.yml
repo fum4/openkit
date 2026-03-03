@@ -1,4 +1,4 @@
-name: Package
+name: Package (Release)
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
           mac-certificate-password: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           apple-id: ${{ secrets.APPLE_ID }}
           apple-team-id: ${{ secrets.APPLE_TEAM_ID }}
-          apple-app-specific-password: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+          apple-app-specific-password: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
       - name: Upload assets to release
         uses: softprops/action-gh-release@v2
@@ -43,7 +43,9 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             apps/desktop-app/release/*.dmg
-            apps/desktop-app/release/*.dmg.blockmap
+            apps/desktop-app/release/*.zip
+            apps/desktop-app/release/*.blockmap
+            apps/desktop-app/release/latest*.yml
 
   linux:
     runs-on: ubuntu-latest

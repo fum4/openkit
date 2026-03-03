@@ -16,12 +16,15 @@
     "package:mac": "pnpm exec electron-builder --config electron-builder.yml --mac --publish never",
     "package:linux": "pnpm exec electron-builder --config electron-builder.yml --linux AppImage --publish never"
   },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "@types/node": "^25.3.0",
     "concurrently": "^9.2.1",
     "electron": "^40.6.1",
     "electron-builder": "^26.8.1",
-    "electron-notarize": "^1.2.2",
     "electronmon": "^2.0.4",
     "oxlint": "^1.50.0",
     "wait-on": "^9.0.4"

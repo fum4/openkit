@@ -1,4 +1,4 @@
-name: Check Nx Affected Target
+name: Check (Nx Affected Targets)
 description: Determine whether a PR changes any projects for selected Nx targets.
 
 inputs:

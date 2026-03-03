@@ -10,7 +10,6 @@ concurrency:
 
 permissions:
   contents: write
-  # id-token: write # npm provenance (disabled while npm publishing is paused)
 
 jobs:
   publish:
@@ -29,8 +28,6 @@ jobs:
 
       - name: Setup workspace
         uses: ./.github/actions/setup-pnpm-node
-        # with:
-        #   registry-url: https://registry.npmjs.org
 
       - name: Release verification
         run: pnpm check:all
@@ -44,12 +41,6 @@ jobs:
         run: pnpm release-it --ci --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
-
-      # npm publish is intentionally paused for now.
-      # - name: Publish npm package
-      #   run: npm publish --access public --provenance
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Resolve release tag
         id: release_tag

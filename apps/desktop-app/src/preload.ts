@@ -15,6 +15,14 @@ export interface OpenProjectResult {
   error?: string;
 }
 
+export interface AppUpdateState {
+  status: "idle" | "checking" | "available" | "downloading" | "downloaded" | "error";
+  version: string | null;
+  progress: number | null;
+  autoDownloadEnabled: boolean;
+  error: string | null;
+}
+
 contextBridge.exposeInMainWorld("electronAPI", {
   // Platform detection
   isElectron: true,
@@ -47,5 +55,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       callback(projectId);
     ipcRenderer.on("active-project-changed", handler);
     return () => ipcRenderer.removeListener("active-project-changed", handler);
+  },
+
+  // App updates
+  getAppUpdateState: (): Promise<AppUpdateState> => ipcRenderer.invoke("get-app-update-state"),
+  checkAppUpdates: (): Promise<AppUpdateState> => ipcRenderer.invoke("check-app-updates"),
+  downloadAppUpdate: (): Promise<AppUpdateState> => ipcRenderer.invoke("download-app-update"),
+  installAppUpdate: (): Promise<boolean> => ipcRenderer.invoke("install-app-update"),
+  onAppUpdateState: (callback: (state: AppUpdateState) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: AppUpdateState) => callback(state);
+    ipcRenderer.on("app-update-state", handler);
+    return () => ipcRenderer.removeListener("app-update-state", handler);
   },
 });

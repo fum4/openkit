@@ -1,4 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
+import electronUpdater from "electron-updater";
+import type { AppUpdater } from "electron-updater";
 import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -9,6 +11,8 @@ import {
   type AppPreferences,
   type SetupPreference,
 } from "./preferences-manager.js";
+
+const { autoUpdater } = electronUpdater as { autoUpdater: AppUpdater };
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,6 +40,35 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 const projectManager = new ProjectManager();
 const notificationManager = new NotificationManager(() => mainWindow, projectManager);
+
+type AppUpdateStatus = "idle" | "checking" | "available" | "downloading" | "downloaded" | "error";
+interface AppUpdateState {
+  status: AppUpdateStatus;
+  version: string | null;
+  progress: number | null;
+  autoDownloadEnabled: boolean;
+  error: string | null;
+}
+
+let appUpdateState: AppUpdateState = {
+  status: "idle",
+  version: null,
+  progress: null,
+  autoDownloadEnabled: preferencesManager.getPreferences().autoDownloadUpdates,
+  error: null,
+};
+
+function emitAppUpdateState() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  mainWindow.webContents.send("app-update-state", appUpdateState);
+}
+
+function setAppUpdateState(updates: Partial<AppUpdateState>) {
+  appUpdateState = { ...appUpdateState, ...updates };
+  emitAppUpdateState();
+}
 
 function getUiPath(): string {
   const appLocalUi = path.join(workspaceRoot, "apps", "web-app", "dist", "index.html");
@@ -76,6 +109,9 @@ function createMainWindow(): BrowserWindow {
   };
 
   mainWindow = new BrowserWindow(windowConfig);
+  mainWindow.webContents.on("did-finish-load", () => {
+    emitAppUpdateState();
+  });
 
   // Load the main UI - from dev server in dev mode, from file in prod
   if (process.env.UI_DEV_SERVER_URL) {
@@ -204,6 +240,53 @@ function setupIpcHandlers() {
 
   ipcMain.handle("update-preferences", (_, updates: Partial<AppPreferences>) => {
     preferencesManager.updatePreferences(updates);
+    if (typeof updates.autoDownloadUpdates === "boolean") {
+      appUpdateState = {
+        ...appUpdateState,
+        autoDownloadEnabled: updates.autoDownloadUpdates,
+      };
+      if (app.isPackaged) {
+        autoUpdater.autoDownload = updates.autoDownloadUpdates;
+        if (updates.autoDownloadUpdates && appUpdateState.status === "available") {
+          setAppUpdateState({ status: "downloading", progress: 0, error: null });
+          void autoUpdater.downloadUpdate().catch((error: unknown) => {
+            setAppUpdateState({
+              status: "error",
+              error: error instanceof Error ? error.message : "Failed to download update",
+            });
+          });
+        } else {
+          emitAppUpdateState();
+        }
+      } else {
+        emitAppUpdateState();
+      }
+    }
+  });
+
+  ipcMain.handle("get-app-update-state", () => {
+    return appUpdateState;
+  });
+
+  ipcMain.handle("check-app-updates", async () => {
+    if (!app.isPackaged) return appUpdateState;
+    await autoUpdater.checkForUpdates();
+    return appUpdateState;
+  });
+
+  ipcMain.handle("download-app-update", async () => {
+    if (!app.isPackaged) return appUpdateState;
+    if (appUpdateState.status !== "available") return appUpdateState;
+    setAppUpdateState({ status: "downloading", progress: 0, error: null });
+    await autoUpdater.downloadUpdate();
+    return appUpdateState;
+  });
+
+  ipcMain.handle("install-app-update", async () => {
+    if (!app.isPackaged) return false;
+    if (appUpdateState.status !== "downloaded") return false;
+    setImmediate(() => autoUpdater.quitAndInstall());
+    return true;
   });
 }
 
@@ -277,6 +360,99 @@ function createTray() {
   updateTrayMenu();
 }
 
+function setupAutoUpdater() {
+  if (!app.isPackaged) {
+    return;
+  }
+
+  const { autoDownloadUpdates } = preferencesManager.getPreferences();
+  autoUpdater.autoDownload = autoDownloadUpdates;
+  autoUpdater.autoInstallOnAppQuit = true;
+  setAppUpdateState({
+    status: "idle",
+    version: null,
+    progress: null,
+    autoDownloadEnabled: autoDownloadUpdates,
+    error: null,
+  });
+
+  autoUpdater.on("checking-for-update", () => {
+    setAppUpdateState({ status: "checking", error: null });
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    setAppUpdateState({ status: "idle", version: null, progress: null, error: null });
+  });
+
+  autoUpdater.on("update-available", (info) => {
+    const shouldAutoDownload = preferencesManager.getPreferences().autoDownloadUpdates;
+    setAppUpdateState({
+      status: shouldAutoDownload ? "downloading" : "available",
+      version: info.version ?? null,
+      progress: shouldAutoDownload ? 0 : null,
+      autoDownloadEnabled: shouldAutoDownload,
+      error: null,
+    });
+
+    if (shouldAutoDownload) {
+      void autoUpdater.downloadUpdate().catch((error: unknown) => {
+        setAppUpdateState({
+          status: "error",
+          error: error instanceof Error ? error.message : "Failed to download update",
+        });
+      });
+    }
+  });
+
+  autoUpdater.on("download-progress", (progressObj) => {
+    setAppUpdateState({
+      status: "downloading",
+      progress: Math.max(0, Math.min(100, progressObj.percent)),
+      error: null,
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    setAppUpdateState({
+      status: "downloaded",
+      version: info.version ?? appUpdateState.version,
+      progress: 100,
+      error: null,
+    });
+  });
+
+  autoUpdater.on("error", (error) => {
+    console.error("[auto-updater] update check failed", error);
+    setAppUpdateState({
+      status: "error",
+      error: error.message,
+      progress: null,
+    });
+  });
+
+  autoUpdater.checkForUpdates().catch((error: unknown) => {
+    console.error("[auto-updater] initial update check failed", error);
+    setAppUpdateState({
+      status: "error",
+      error: error instanceof Error ? error.message : "Failed to check for updates",
+    });
+  });
+
+  const periodicCheck = setInterval(
+    () => {
+      autoUpdater.checkForUpdates().catch((error: unknown) => {
+        console.error("[auto-updater] periodic update check failed", error);
+        setAppUpdateState({
+          status: "error",
+          error: error instanceof Error ? error.message : "Failed to check for updates",
+        });
+      });
+    },
+    1000 * 60 * 10,
+  );
+  periodicCheck.unref();
+}
+
 function handleProtocolUrl(url: string) {
   try {
     const parsed = new URL(url);
@@ -347,6 +523,7 @@ app.whenReady().then(() => {
   setupIpcHandlers();
   createMainWindow();
   createTray();
+  setupAutoUpdater();
 
   // Check if launched with a protocol URL
   const protocolArg = process.argv.find((arg) => arg.startsWith(`${PROTOCOL}://`));

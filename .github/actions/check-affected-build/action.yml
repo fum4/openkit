@@ -1,4 +1,4 @@
-name: Check Build Affected Projects
+name: Check (Build Affected Projects)
 description: Resolve per-app build affected flags and global fallback changes for PR builds.
 
 inputs:

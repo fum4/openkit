@@ -1,4 +1,4 @@
-name: Pull Request Package
+name: Package (Pull Request)
 
 on:
   issue_comment:
@@ -127,7 +127,7 @@ jobs:
             if ("${{ steps.parse-command.outputs.build_linux }}" === "true") targets.push("Linux");
 
             const rows = targets.map((target) => `| ${target} | ⏳ Queued |`).join("\n");
-            const body = `### 🚀 Packaging started\nTriggered by @${context.payload.comment.user.login} with \`${command}\`.\n\n[View workflow logs](${logsUrl})\n\n| Target | Status |\n| --- | --- |\n${rows}`;
+            const body = `### ⏳ Packaging queued\nTriggered by @${context.payload.comment.user.login} with \`${command}\`\n\n[View workflow logs](${logsUrl})\n\n| Target | Status |\n| --- | --- |\n${rows}`;
 
             const comment = await github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -138,8 +138,31 @@ jobs:
 
             return comment.data.id;
 
-  package-macos:
+  notify-package-in-progress:
     needs: notify-package-start
+    if: ${{ needs.notify-package-start.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Update status comment (set in-progress targets)
+        uses: ./.github/actions/package-update-comment
+        with:
+          comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
+          command: ${{ needs.notify-package-start.outputs.command }}
+          logs-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          mode: progress
+          build-mac: ${{ needs.notify-package-start.outputs.build_mac }}
+          build-linux: ${{ needs.notify-package-start.outputs.build_linux }}
+          mac-running: ${{ needs.notify-package-start.outputs.build_mac }}
+          linux-running: ${{ needs.notify-package-start.outputs.build_linux }}
+
+  package-macos:
+    needs:
+      - notify-package-start
+      - notify-package-in-progress
     if: ${{ needs.notify-package-start.outputs.should_run == 'true' && needs.notify-package-start.outputs.build_mac == 'true' }}
     runs-on: macos-latest
     timeout-minutes: 45
@@ -155,17 +178,6 @@ jobs:
         with:
           ref: refs/pull/${{ github.event.issue.number }}/head
 
-      - name: Update status comment (macOS in progress)
-        uses: ./.github/actions/update-package-comment
-        with:
-          comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
-          command: ${{ needs.notify-package-start.outputs.command }}
-          logs-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          mode: progress
-          build-mac: ${{ needs.notify-package-start.outputs.build_mac }}
-          build-linux: ${{ needs.notify-package-start.outputs.build_linux }}
-          mac-running: "true"
-
       - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
 
@@ -177,7 +189,7 @@ jobs:
           mac-certificate-password: ${{ needs.notify-package-start.outputs.sign_mac == 'true' && secrets.MAC_CERTIFICATE_PASSWORD || '' }}
           apple-id: ${{ needs.notify-package-start.outputs.sign_mac == 'true' && secrets.APPLE_ID || '' }}
           apple-team-id: ${{ needs.notify-package-start.outputs.sign_mac == 'true' && secrets.APPLE_TEAM_ID || '' }}
-          apple-app-specific-password: ${{ needs.notify-package-start.outputs.sign_mac == 'true' && secrets.APPLE_NOTARIZATION_PASSWORD || '' }}
+          apple-app-specific-password: ${{ needs.notify-package-start.outputs.sign_mac == 'true' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
 
       - name: Upload macOS artifacts (Apple Silicon)
         id: upload_arm
@@ -198,7 +210,9 @@ jobs:
           if-no-files-found: error
 
   package-linux:
-    needs: notify-package-start
+    needs:
+      - notify-package-start
+      - notify-package-in-progress
     if: ${{ needs.notify-package-start.outputs.should_run == 'true' && needs.notify-package-start.outputs.build_linux == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -212,17 +226,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: refs/pull/${{ github.event.issue.number }}/head
-
-      - name: Update status comment (Linux in progress)
-        uses: ./.github/actions/update-package-comment
-        with:
-          comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
-          command: ${{ needs.notify-package-start.outputs.command }}
-          logs-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          mode: progress
-          build-mac: ${{ needs.notify-package-start.outputs.build_mac }}
-          build-linux: ${{ needs.notify-package-start.outputs.build_linux }}
-          linux-running: "true"
 
       - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
@@ -243,6 +246,7 @@ jobs:
     if: ${{ always() && needs.notify-package-start.outputs.should_run == 'true' && needs.notify-package-start.outputs.build_mac == 'true' }}
     needs:
       - notify-package-start
+      - notify-package-in-progress
       - package-macos
     runs-on: ubuntu-latest
     permissions:
@@ -251,7 +255,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Update status comment (macOS)
-        uses: ./.github/actions/update-package-comment
+        uses: ./.github/actions/package-update-comment
         with:
           comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
           command: ${{ needs.notify-package-start.outputs.command }}
@@ -267,6 +271,7 @@ jobs:
     if: ${{ always() && needs.notify-package-start.outputs.should_run == 'true' && needs.notify-package-start.outputs.build_linux == 'true' }}
     needs:
       - notify-package-start
+      - notify-package-in-progress
       - package-linux
     runs-on: ubuntu-latest
     permissions:
@@ -275,7 +280,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Update status comment (Linux)
-        uses: ./.github/actions/update-package-comment
+        uses: ./.github/actions/package-update-comment
         with:
           comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
           command: ${{ needs.notify-package-start.outputs.command }}
@@ -290,6 +295,7 @@ jobs:
     if: ${{ always() && needs.notify-package-start.outputs.should_run == 'true' }}
     needs:
       - notify-package-start
+      - notify-package-in-progress
       - package-macos
       - package-linux
       - notify-package-progress-macos
@@ -301,7 +307,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Update status comment
-        uses: ./.github/actions/update-package-comment
+        uses: ./.github/actions/package-update-comment
         with:
           comment-id: ${{ needs.notify-package-start.outputs.comment_id }}
           command: ${{ needs.notify-package-start.outputs.command }}
