@@ -73,7 +73,9 @@ function normalizeAgentSummary(raw: unknown): ClaudeAgentSummary | null {
 
   const customScope = normalizeCustomScope(raw.customScope);
   if (customScope) normalized.customScope = customScope;
-  if (isCustom) normalized.deployments = normalizeDeployments(raw.deployments);
+  if (isRecord(raw.deployments)) {
+    normalized.deployments = normalizeDeployments(raw.deployments);
+  }
 
   return normalized;
 }
@@ -292,6 +294,23 @@ export function useClaudePluginDetail(id: string | null) {
 
 export function useClaudeAgentDetail(id: string | null) {
   const serverUrl = useServerUrlOptional();
+  const storageKey =
+    serverUrl && id
+      ? `OpenKit:claudeAgentDetailCache:${serverUrl}:${id}`
+      : id
+        ? `OpenKit:claudeAgentDetailCache:${id}`
+        : null;
+
+  const readCache = (): ClaudeAgentDetail | null => {
+    if (typeof window === "undefined" || !storageKey) return null;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) return null;
+      return normalizeAgentDetail(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  };
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["claudeAgent", serverUrl, id],
@@ -300,12 +319,27 @@ export function useClaudeAgentDetail(id: string | null) {
       const result = id.startsWith("custom::")
         ? await fetchCustomClaudeAgentDetail(id, serverUrl)
         : await fetchClaudeAgentDetail(id, serverUrl);
-      if (result.error) throw new Error(result.error);
+      if (result.error) {
+        const cached = readCache();
+        if (cached) return cached;
+        throw new Error(result.error);
+      }
       return normalizeAgentDetail(result.agent);
     },
+    initialData: () => readCache(),
     enabled: serverUrl !== null && id !== null,
-    staleTime: 5_000,
+    staleTime: 60_000,
+    refetchOnMount: "always",
   });
+
+  useEffect(() => {
+    if (!data || typeof window === "undefined" || !storageKey) return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch {
+      // Ignore localStorage failures.
+    }
+  }, [data, storageKey]);
 
   return {
     agent: data ?? null,

@@ -1,11 +1,12 @@
 import { execFile as execFileCb } from "child_process";
-import { existsSync, readdirSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
 import { promisify } from "util";
 import type { Hono } from "hono";
 
 import type { WorktreeManager } from "../manager";
+import { CUSTOM_AGENT_SPECS, type AgentId, resolveAgentDeployDir } from "../lib/tool-configs";
 
 const execFile = promisify(execFileCb);
 
@@ -141,6 +142,56 @@ interface ClaudeAgentEntry {
   marketplace: string;
   installPath: string;
   agentPath: string;
+  deployments?: Record<string, { global?: boolean; project?: boolean }>;
+}
+
+const SUPPORTED_AGENTS = Object.keys(CUSTOM_AGENT_SPECS) as AgentId[];
+const SUPPORTED_SCOPES = new Set(["global", "project"]);
+
+function parsePluginAgentId(id: string): { pluginId: string; agentName: string } | null {
+  const separator = id.indexOf("::");
+  if (separator === -1) return null;
+
+  const pluginId = id.slice(0, separator);
+  const agentName = id.slice(separator + 2);
+  if (!pluginId || !agentName) return null;
+  return { pluginId, agentName };
+}
+
+function getClaudeDeploymentScope(scope: "user" | "project" | "local"): "global" | "project" {
+  return scope === "user" ? "global" : "project";
+}
+
+function getPluginAgentDeployments(
+  agentName: string,
+  pluginScope: "user" | "project" | "local",
+  pluginEnabled: boolean,
+  projectDir: string,
+): Record<string, { global?: boolean; project?: boolean }> {
+  const deployments: Record<string, { global?: boolean; project?: boolean }> = {};
+
+  for (const agentId of SUPPORTED_AGENTS) {
+    if (agentId === "claude") {
+      const scope = getClaudeDeploymentScope(pluginScope);
+      deployments[agentId] = pluginEnabled ? { [scope]: true } : {};
+      continue;
+    }
+
+    deployments[agentId] = {
+      global: (() => {
+        const deployDir = resolveAgentDeployDir(agentId, "global", projectDir);
+        if (!deployDir) return false;
+        return existsSync(path.join(deployDir, `${agentName}.md`));
+      })(),
+      project: (() => {
+        const deployDir = resolveAgentDeployDir(agentId, "project", projectDir);
+        if (!deployDir) return false;
+        return existsSync(path.join(deployDir, `${agentName}.md`));
+      })(),
+    };
+  }
+
+  return deployments;
 }
 
 function extractFrontmatterDescription(content: string): string {
@@ -555,43 +606,49 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
         if (pluginCmp !== 0) return pluginCmp;
         return a.name.localeCompare(b.name);
       })
-      .map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        description: agent.description,
-        pluginId: agent.pluginId,
-        pluginName: agent.pluginName,
-        pluginScope: agent.pluginScope,
-        pluginEnabled: agent.pluginEnabled,
-        marketplace: agent.marketplace,
-      }));
+      .map((agent) => {
+        const deployments = getPluginAgentDeployments(
+          agent.name,
+          agent.pluginScope,
+          agent.pluginEnabled,
+          projectDir,
+        );
+        return {
+          id: agent.id,
+          name: agent.name,
+          description: agent.description,
+          pluginId: agent.pluginId,
+          pluginName: agent.pluginName,
+          pluginScope: agent.pluginScope,
+          pluginEnabled: agent.pluginEnabled,
+          marketplace: agent.marketplace,
+          deployments,
+        };
+      });
 
     const response = { agents, cliAvailable: true };
     setCache("plugins:agents:list", response, 5_000);
     return c.json(response);
   });
 
-  app.get("/api/claude/agents/:id", async (c) => {
-    const id = c.req.param("id");
-    const separator = id.indexOf("::");
-    if (separator === -1) {
-      return c.json({ error: "Invalid agent id" }, 400);
+  const fetchPluginAgentDetail = async (id: string) => {
+    const parsedAgentId = parsePluginAgentId(id);
+    if (!parsedAgentId) {
+      return { status: 400 as const, body: { error: "Invalid agent id" } };
     }
-
-    const pluginId = id.slice(0, separator);
-    const agentName = id.slice(separator + 2);
-    if (!pluginId || !agentName) {
-      return c.json({ error: "Invalid agent id" }, 400);
-    }
+    const { pluginId, agentName } = parsedAgentId;
 
     const hasCli = await checkCli();
     if (!hasCli) {
-      return c.json({ error: "Claude CLI not available", cliAvailable: false }, 501);
+      return {
+        status: 501 as const,
+        body: { error: "Claude CLI not available", cliAvailable: false },
+      };
     }
 
     const result = await runClaude(["plugin", "list", "--json"]);
     if (!result.success) {
-      return c.json({ error: "Failed to list plugins" }, 500);
+      return { status: 500 as const, body: { error: "Failed to list plugins" } };
     }
 
     const parsedList = tryParseJson<unknown>(result.stdout, []);
@@ -603,26 +660,26 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
 
     const plugin = cliPlugins.find((p) => (p.id ?? p.name ?? "") === pluginId);
     if (!plugin) {
-      return c.json({ error: "Plugin not found" }, 404);
+      return { status: 404 as const, body: { error: "Plugin not found" } };
     }
 
     const installPath = typeof plugin.installPath === "string" ? plugin.installPath : "";
     if (!installPath || !existsSync(installPath)) {
-      return c.json({ error: "Plugin install path not found" }, 404);
+      return { status: 404 as const, body: { error: "Plugin install path not found" } };
     }
 
     const agentsDir = path.join(installPath, "agents");
     const resolvedAgentPath = path.resolve(agentsDir, `${agentName}.md`);
     const resolvedAgentsDir = path.resolve(agentsDir) + path.sep;
     if (!resolvedAgentPath.startsWith(resolvedAgentsDir) || !existsSync(resolvedAgentPath)) {
-      return c.json({ error: "Agent definition not found" }, 404);
+      return { status: 404 as const, body: { error: "Agent definition not found" } };
     }
 
     let content = "";
     try {
       content = readFileSync(resolvedAgentPath, "utf-8");
     } catch {
-      return c.json({ error: "Failed to read agent definition" }, 500);
+      return { status: 500 as const, body: { error: "Failed to read agent definition" } };
     }
 
     const pluginName = (plugin.name ?? plugin.id ?? "") as string;
@@ -631,21 +688,196 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     const marketplace = (plugin.marketplace ||
       (pluginId.includes("@") ? pluginId.split("@").pop() : "")) as string;
 
-    return c.json({
-      agent: {
-        id,
-        name: agentName,
-        description: extractFrontmatterDescription(content),
-        pluginId,
-        pluginName,
-        pluginScope,
-        pluginEnabled,
-        marketplace,
-        installPath,
-        agentPath: resolvedAgentPath,
-        content,
+    return {
+      status: 200 as const,
+      body: {
+        agent: {
+          id,
+          name: agentName,
+          description: extractFrontmatterDescription(content),
+          pluginId,
+          pluginName,
+          pluginScope,
+          pluginEnabled,
+          marketplace,
+          installPath,
+          agentPath: resolvedAgentPath,
+          content,
+          deployments: getPluginAgentDeployments(agentName, pluginScope, pluginEnabled, projectDir),
+        },
       },
-    });
+    };
+  };
+
+  app.post("/api/claude/agents/deploy", async (c) => {
+    const body = await c.req.json<{
+      id: string;
+      agent: AgentId;
+      scope: "global" | "project";
+    }>();
+
+    const parsedAgentId = parsePluginAgentId(body.id);
+    if (!parsedAgentId) return c.json({ success: false, error: "Invalid agent id" }, 400);
+    if (!SUPPORTED_AGENTS.includes(body.agent)) {
+      return c.json({ success: false, error: "Unsupported target agent" }, 400);
+    }
+    if (!SUPPORTED_SCOPES.has(body.scope)) {
+      return c.json({ success: false, error: "Invalid scope" }, 400);
+    }
+
+    const detail = await fetchPluginAgentDetail(body.id);
+    if (detail.status !== 200) {
+      return c.json(
+        { success: false, error: detail.body.error ?? "Agent not found" },
+        detail.status,
+      );
+    }
+
+    const agentDetail = detail.body.agent;
+    if (!agentDetail) {
+      return c.json({ success: false, error: "Agent not found" }, 404);
+    }
+
+    if (body.agent === "claude") {
+      const claudeScope = getClaudeDeploymentScope(agentDetail.pluginScope);
+      if (body.scope !== claudeScope) {
+        return c.json(
+          {
+            success: false,
+            error: `Claude plugin agents are only available in ${claudeScope} scope for this plugin`,
+          },
+          400,
+        );
+      }
+
+      if (!agentDetail.pluginEnabled) {
+        const enable = await runClaude([
+          "plugin",
+          "enable",
+          agentDetail.pluginId,
+          "--scope",
+          claudeScope,
+        ]);
+        if (!enable.success) {
+          return c.json({ success: false, error: enable.stderr || "Failed to enable plugin" }, 500);
+        }
+        invalidateCache("plugins:");
+      }
+
+      return c.json({ success: true });
+    }
+
+    const deployDir = resolveAgentDeployDir(body.agent, body.scope, projectDir);
+    if (!deployDir) {
+      return c.json({ success: false, error: "No deploy path for target agent" }, 400);
+    }
+
+    try {
+      mkdirSync(deployDir, { recursive: true });
+      const content = readFileSync(agentDetail.agentPath, "utf-8");
+      writeFileSync(path.join(deployDir, `${parsedAgentId.agentName}.md`), content);
+      return c.json({ success: true });
+    } catch (err) {
+      return c.json(
+        {
+          success: false,
+          error: err instanceof Error ? err.message : "Failed to deploy plugin agent",
+        },
+        500,
+      );
+    }
+  });
+
+  app.post("/api/claude/agents/undeploy", async (c) => {
+    const body = await c.req.json<{
+      id: string;
+      agent: AgentId;
+      scope: "global" | "project";
+    }>();
+
+    const parsedAgentId = parsePluginAgentId(body.id);
+    if (!parsedAgentId) return c.json({ success: false, error: "Invalid agent id" }, 400);
+    if (!SUPPORTED_AGENTS.includes(body.agent)) {
+      return c.json({ success: false, error: "Unsupported target agent" }, 400);
+    }
+    if (!SUPPORTED_SCOPES.has(body.scope)) {
+      return c.json({ success: false, error: "Invalid scope" }, 400);
+    }
+
+    const detail = await fetchPluginAgentDetail(body.id);
+    if (detail.status !== 200) {
+      return c.json(
+        { success: false, error: detail.body.error ?? "Agent not found" },
+        detail.status,
+      );
+    }
+
+    const agentDetail = detail.body.agent;
+    if (!agentDetail) {
+      return c.json({ success: false, error: "Agent not found" }, 404);
+    }
+
+    if (body.agent === "claude") {
+      const claudeScope = getClaudeDeploymentScope(agentDetail.pluginScope);
+      if (body.scope !== claudeScope) {
+        return c.json(
+          {
+            success: false,
+            error: `Claude plugin agents are only available in ${claudeScope} scope for this plugin`,
+          },
+          400,
+        );
+      }
+
+      if (agentDetail.pluginEnabled) {
+        const disable = await runClaude([
+          "plugin",
+          "disable",
+          agentDetail.pluginId,
+          "--scope",
+          claudeScope,
+        ]);
+        if (!disable.success) {
+          return c.json(
+            { success: false, error: disable.stderr || "Failed to disable plugin" },
+            500,
+          );
+        }
+        invalidateCache("plugins:");
+      }
+
+      return c.json({ success: true });
+    }
+
+    const deployDir = resolveAgentDeployDir(body.agent, body.scope, projectDir);
+    if (!deployDir) {
+      return c.json({ success: false, error: "No deploy path for target agent" }, 400);
+    }
+
+    try {
+      rmSync(path.join(deployDir, `${parsedAgentId.agentName}.md`), { force: true });
+      return c.json({ success: true });
+    } catch (err) {
+      return c.json(
+        {
+          success: false,
+          error: err instanceof Error ? err.message : "Failed to undeploy plugin agent",
+        },
+        500,
+      );
+    }
+  });
+
+  app.get("/api/claude/agents/detail", async (c) => {
+    const id = c.req.query("id") ?? "";
+    const result = await fetchPluginAgentDetail(id);
+    return c.json(result.body, result.status);
+  });
+
+  app.get("/api/claude/agents/:id", async (c) => {
+    const id = c.req.param("id");
+    const result = await fetchPluginAgentDetail(id);
+    return c.json(result.body, result.status);
   });
 
   // ── Available plugins (marketplace) ───────────────────────────

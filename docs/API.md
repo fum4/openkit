@@ -1222,7 +1222,14 @@ List agent definitions discovered from installed Claude plugins (`agents/*.md`).
         "pluginName": "Plugin Name",
         "pluginScope": "user",
         "pluginEnabled": true,
-        "marketplace": "..."
+        "marketplace": "...",
+        "deployments": {
+          "claude": { "global": true, "project": false },
+          "cursor": { "global": false, "project": true },
+          "gemini": { "global": false, "project": false },
+          "vscode": { "global": false, "project": false },
+          "codex": { "global": false, "project": false }
+        }
       }
     ],
     "cliAvailable": true
@@ -1230,7 +1237,7 @@ List agent definitions discovered from installed Claude plugins (`agents/*.md`).
   ```
 - **Error** (500): `{ agents: [], cliAvailable: true, error: "..." }`
 
-#### `GET /api/claude/agents/:id`
+#### `GET /api/claude/agents/detail?id=:id` (also `/api/claude/agents/:id`)
 
 Get full agent definition content for a discovered plugin agent.
 
@@ -1248,6 +1255,10 @@ Get full agent definition content for a discovered plugin agent.
       "marketplace": "...",
       "installPath": "/path/to/plugin",
       "agentPath": "/path/to/plugin/agents/agent-name.md",
+      "deployments": {
+        "claude": { "global": true, "project": false },
+        "cursor": { "global": false, "project": false }
+      },
       "content": "# agent markdown..."
     }
   }
@@ -1255,6 +1266,32 @@ Get full agent definition content for a discovered plugin agent.
 - **Error** (400): `{ error: "Invalid agent id" }`
 - **Error** (404): `{ error: "Plugin not found" }` or `{ error: "Agent definition not found" }`
 - **Error** (501): `{ error: "Claude CLI not available", cliAvailable: false }`
+
+#### `POST /api/claude/agents/deploy`
+
+Deploy a plugin-provided agent to a target tool and scope.
+
+- **Request**:
+  ```json
+  { "id": "plugin-id::agent-name", "agent": "cursor", "scope": "project" }
+  ```
+- **Behavior**:
+  - For non-Claude targets, copies the plugin `agents/<name>.md` into that target's agent config directory.
+  - For Claude target, enables the underlying plugin in its valid scope.
+- **Response**: `{ "success": true }`
+
+#### `POST /api/claude/agents/undeploy`
+
+Remove plugin-provided agent deployment from a target tool and scope.
+
+- **Request**:
+  ```json
+  { "id": "plugin-id::agent-name", "agent": "cursor", "scope": "project" }
+  ```
+- **Behavior**:
+  - For non-Claude targets, removes the deployed markdown file.
+  - For Claude target, disables the underlying plugin in its valid scope.
+- **Response**: `{ "success": true }`
 
 #### `GET /api/claude/custom-agents`
 

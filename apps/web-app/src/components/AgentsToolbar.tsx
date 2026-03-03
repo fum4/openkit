@@ -95,7 +95,7 @@ export function AgentsToolbar({
             className={menuItemClass}
           >
             <Bot className="w-4 h-4 text-cyan-400" />
-            Custom Agent
+            Agent
           </button>
           <button
             type="button"

@@ -29,6 +29,12 @@ interface McpServerScanModalProps {
   } | null;
 }
 
+function hasImportableMcpEndpoint(result: McpScanResult): boolean {
+  const command = typeof result.command === "string" ? result.command.trim() : "";
+  const url = typeof result.url === "string" ? result.url.trim() : "";
+  return command.length > 0 || url.length > 0;
+}
+
 const MODES: { id: ScanMode; label: string; description: string; icon: typeof ScanSearch }[] = [
   {
     id: "project",
@@ -132,7 +138,9 @@ export function McpServerScanModal({
       }
 
       // Filter: hide already-imported items
-      const newMcps = (mcpRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
+      const newMcps = (mcpRes.discovered ?? []).filter(
+        (r) => !r.alreadyInRegistry && hasImportableMcpEndpoint(r),
+      );
       const newSkills = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
       const newAgents = (agentRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
 
@@ -192,11 +200,12 @@ export function McpServerScanModal({
     setImporting(true);
     setError(null);
 
-    const promises: Promise<unknown>[] = [];
+    const promises: Array<Promise<{ success: boolean; error?: string; imported?: string[] }>> = [];
 
     if (selectedMcps.size > 0 && mcpResults) {
       const toImport = mcpResults
         .filter((r) => selectedMcps.has(r.key))
+        .filter((r) => hasImportableMcpEndpoint(r))
         .map((r) => ({
           key: r.key,
           name: r.key,
@@ -209,6 +218,9 @@ export function McpServerScanModal({
         }));
       if (toImport.length > 0) {
         promises.push(api.importMcpServers(toImport));
+      } else {
+        setError("Selected MCP entries are not importable (missing command/url)");
+        return;
       }
     }
 
@@ -217,7 +229,13 @@ export function McpServerScanModal({
         .filter((r) => selectedSkills.has(r.name))
         .map((r) => ({ name: r.name, skillPath: r.skillPath }));
       if (toImport.length > 0) {
-        promises.push(api.importSkills(toImport));
+        promises.push(
+          api.importSkills(toImport).then((result) => ({
+            success: result.success,
+            error: result.error,
+            imported: result.imported,
+          })),
+        );
       }
     }
 
@@ -226,14 +244,41 @@ export function McpServerScanModal({
         .filter((r) => selectedAgents.has(r.agentPath))
         .map((r) => ({ name: r.name, agentPath: r.agentPath }));
       if (toImport.length > 0) {
-        promises.push(api.importClaudeAgents(toImport, agentScope, agentDeployTargets));
+        promises.push(
+          api.importClaudeAgents(toImport, agentScope, agentDeployTargets).then((result) => ({
+            success: result.success,
+            error: result.error,
+            imported: result.imported,
+          })),
+        );
       }
     }
 
-    await Promise.all(promises);
-    setImporting(false);
-    onImported();
-    onClose();
+    try {
+      const results = await Promise.all(promises);
+      const failed = results.find((result) => result.success === false);
+      if (failed) {
+        setError(failed.error ?? "Import failed");
+        return;
+      }
+      if (results.length === 0) {
+        setError("Nothing selected to import");
+        return;
+      }
+      const importedCount = results.reduce(
+        (sum, result) => sum + (Array.isArray(result.imported) ? result.imported.length : 0),
+        0,
+      );
+      if (importedCount === 0) {
+        setError("No new items were imported. They may already exist in registry.");
+        return;
+      }
+
+      onImported();
+      onClose();
+    } finally {
+      setImporting(false);
+    }
   };
 
   const showResults = mcpResults !== null || skillResults !== null || agentResults !== null;
@@ -441,90 +486,93 @@ export function McpServerScanModal({
             </div>
           ) : tab === "agents" ? (
             <div key="agents-tab">
-              <div className="flex items-center justify-between mb-3 gap-2">
-                <p className={`${text.dimmed} text-[11px] flex-1`}>
-                  Import scanned `agents/*.md` files as custom agents and deploy to selected tools.
-                </p>
-                <div className="flex items-center bg-white/[0.04] rounded-lg p-0.5">
-                  {(["project", "global"] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setAgentScope(s)}
-                      className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
-                        agentScope === s
-                          ? "text-[#d1d5db] bg-white/[0.06]"
-                          : `${text.dimmed} hover:${text.muted}`
-                      }`}
-                    >
-                      {s === "global" ? "Global" : "Project"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {AGENT_TARGETS.map((target) => {
-                  const selected = agentDeployTargets.includes(target.id);
-                  return (
-                    <label
-                      key={target.id}
-                      className="flex items-center gap-1.5 cursor-pointer group"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={() =>
-                          setAgentDeployTargets((prev) =>
-                            prev.includes(target.id)
-                              ? prev.filter((id) => id !== target.id)
-                              : [...prev, target.id],
-                          )
-                        }
-                        className="accent-cyan-400"
-                      />
-                      <span
-                        className={`text-[11px] ${selected ? text.secondary : text.dimmed} group-hover:${text.secondary} transition-colors`}
-                      >
-                        {target.label}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
               {agentCount === 0 ? (
-                <p className={`${text.muted} text-xs py-6 text-center`}>No agents found.</p>
+                <p className={`${text.muted} text-xs py-6 text-center`}>No new agents found.</p>
               ) : (
-                <div className="space-y-1 max-h-72 overflow-y-auto">
-                  {agentResults!.map((agent) => {
-                    return (
-                      <label
-                        key={agent.agentPath}
-                        className="flex items-start gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-white/[0.04] transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedAgents.has(agent.agentPath)}
-                          onChange={() => toggleAgent(agent.agentPath)}
-                          className="mt-[7px] accent-cyan-400"
-                        />
-                        <Bot className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 mt-1" />
-                        <div className="flex-1 min-w-0">
-                          <span className={`text-xs font-medium ${text.primary}`}>
-                            {agent.name}
+                <>
+                  <div className="flex items-center justify-between mb-3 gap-2">
+                    <p className={`${text.dimmed} text-[11px] flex-1`}>
+                      Import scanned `agents/*.md` files as custom agents and deploy to selected
+                      tools.
+                    </p>
+                    <div className="flex items-center bg-white/[0.04] rounded-lg p-0.5">
+                      {(["project", "global"] as const).map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setAgentScope(s)}
+                          className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
+                            agentScope === s
+                              ? "text-[#d1d5db] bg-white/[0.06]"
+                              : `${text.dimmed} hover:${text.muted}`
+                          }`}
+                        >
+                          {s === "global" ? "Global" : "Project"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {AGENT_TARGETS.map((target) => {
+                      const selected = agentDeployTargets.includes(target.id);
+                      return (
+                        <label
+                          key={target.id}
+                          className="flex items-center gap-1.5 cursor-pointer group"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() =>
+                              setAgentDeployTargets((prev) =>
+                                prev.includes(target.id)
+                                  ? prev.filter((id) => id !== target.id)
+                                  : [...prev, target.id],
+                              )
+                            }
+                            className="accent-cyan-400"
+                          />
+                          <span
+                            className={`text-[11px] ${selected ? text.secondary : text.dimmed} group-hover:${text.secondary} transition-colors`}
+                          >
+                            {target.label}
                           </span>
-                          {agent.description && (
-                            <div className={`text-[11px] ${text.muted} truncate`}>
-                              {agent.description}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="space-y-1 max-h-72 overflow-y-auto">
+                    {agentResults!.map((agent) => {
+                      return (
+                        <label
+                          key={agent.agentPath}
+                          className="flex items-start gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-white/[0.04] transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedAgents.has(agent.agentPath)}
+                            onChange={() => toggleAgent(agent.agentPath)}
+                            className="mt-[7px] accent-cyan-400"
+                          />
+                          <Bot className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 mt-1" />
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-xs font-medium ${text.primary}`}>
+                              {agent.name}
+                            </span>
+                            {agent.description && (
+                              <div className={`text-[11px] ${text.muted} truncate`}>
+                                {agent.description}
+                              </div>
+                            )}
+                            <div className={`text-[10px] ${text.dimmed} mt-0.5 font-mono truncate`}>
+                              {agent.agentPath}
                             </div>
-                          )}
-                          <div className={`text-[10px] ${text.dimmed} mt-0.5 font-mono truncate`}>
-                            {agent.agentPath}
                           </div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           ) : (

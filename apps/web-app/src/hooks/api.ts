@@ -2320,7 +2320,9 @@ export async function fetchClaudeAgentDetail(
   serverUrl: string | null = null,
 ): Promise<{ agent?: ClaudeAgentDetail; error?: string }> {
   try {
-    const res = await fetch(`${getBaseUrl(serverUrl)}/api/claude/agents/${encodeURIComponent(id)}`);
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/claude/agents/detail?id=${encodeURIComponent(id)}`,
+    );
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       return {
@@ -2510,6 +2512,27 @@ export async function deployCustomClaudeAgent(
   }
 }
 
+export async function deployPluginClaudeAgent(
+  id: string,
+  agent: string,
+  scope: "global" | "project",
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/claude/agents/deploy`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, agent, scope }),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to deploy plugin agent",
+    };
+  }
+}
+
 export async function undeployCustomClaudeAgent(
   id: string,
   agent: string,
@@ -2530,6 +2553,27 @@ export async function undeployCustomClaudeAgent(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to undeploy custom agent",
+    };
+  }
+}
+
+export async function undeployPluginClaudeAgent(
+  id: string,
+  agent: string,
+  scope: "global" | "project",
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/claude/agents/undeploy`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, agent, scope }),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to undeploy plugin agent",
     };
   }
 }

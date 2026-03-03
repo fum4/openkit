@@ -8,8 +8,8 @@ import { useApi } from "../../hooks/useApi";
 import { MarkdownContent } from "../MarkdownContent";
 import { Spinner } from "../Spinner";
 import { ConfirmDialog } from "../ConfirmDialog";
-import { ToggleSwitch } from "../ToggleSwitch";
 import { EditableTextareaCard } from "../EditableTextareaCard";
+import { ToggleSwitch } from "../ToggleSwitch";
 
 interface AgentDetailPanelProps {
   agentId: string;
@@ -108,28 +108,31 @@ function getPluginScopeLabel(scope: "user" | "project" | "local"): string {
   return "local";
 }
 
+function getClaudeScopeForPlugin(scope: "user" | "project" | "local"): "global" | "project" {
+  return scope === "user" ? "global" : "project";
+}
+
 export function AgentDetailPanel({ agentId, onMissing, onDeleted }: AgentDetailPanelProps) {
   const api = useApi();
   const queryClient = useQueryClient();
   const { agent, isLoading, error } = useClaudeAgentDetail(agentId);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showPluginToggleConfirm, setShowPluginToggleConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deploying, setDeploying] = useState<string | null>(null);
-  const [togglingEnabled, setTogglingEnabled] = useState(false);
-  const [enabledError, setEnabledError] = useState<string | null>(null);
+  const [deploymentError, setDeploymentError] = useState<string | null>(null);
+  const [pendingPluginDisable, setPendingPluginDisable] = useState<{
+    targetAgent: string;
+    scope: "global" | "project";
+  } | null>(null);
 
   const isCustom = agent?.isCustom === true;
   const deploymentMap = getDeploymentMap(agent?.deployments);
   const agentContent = typeof agent?.content === "string" ? agent.content : "";
   const agentDescription = typeof agent?.description === "string" ? agent.description : "";
-  const isEnabled = isCustom
-    ? Object.values(deploymentMap).some((value) => value.global || value.project)
-    : agent?.pluginEnabled === true;
 
   useEffect(() => {
-    if (!isLoading && (error || !agent)) onMissing();
+    if (!isLoading && !error && !agent) onMissing();
   }, [isLoading, error, agent, onMissing]);
 
   const saveDefinition = useCallback(
@@ -149,8 +152,8 @@ export function AgentDetailPanel({ agentId, onMissing, onDeleted }: AgentDetailP
   );
 
   useEffect(() => {
-    setEnabledError(null);
-    setShowPluginToggleConfirm(false);
+    setDeploymentError(null);
+    setPendingPluginDisable(null);
   }, [agent?.id]);
 
   const handleDelete = async () => {
@@ -166,48 +169,40 @@ export function AgentDetailPanel({ agentId, onMissing, onDeleted }: AgentDetailP
     }
   };
 
-  const handleCustomEnabledToggle = async () => {
-    if (!agent || !isCustom) return;
+  const handleDeployToggle = async (
+    targetAgent: string,
+    scope: "global" | "project",
+    isDeployed: boolean,
+    skipPluginDisableConfirm = false,
+  ) => {
+    if (!agent) return;
 
-    setEnabledError(null);
-    setTogglingEnabled(true);
-
-    try {
-      if (isEnabled) {
-        for (const [targetAgentId, scopes] of Object.entries(deploymentMap)) {
-          if (scopes.global) {
-            await api.undeployCustomClaudeAgent(agent.id, targetAgentId, "global");
-          }
-          if (scopes.project) {
-            await api.undeployCustomClaudeAgent(agent.id, targetAgentId, "project");
-          }
-        }
-      } else {
-        await api.deployCustomClaudeAgent(agent.id, "claude", "project");
-      }
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["claudeAgents"] }),
-        queryClient.invalidateQueries({ queryKey: ["claudeAgent"] }),
-      ]);
-    } catch (err) {
-      setEnabledError(err instanceof Error ? err.message : "Failed to update enabled state");
-    } finally {
-      setTogglingEnabled(false);
+    if (
+      !skipPluginDisableConfirm &&
+      !isCustom &&
+      targetAgent === "claude" &&
+      isDeployed &&
+      scope === getClaudeScopeForPlugin(agent.pluginScope)
+    ) {
+      setPendingPluginDisable({ targetAgent, scope });
+      return;
     }
-  };
 
-  const handlePluginEnabledToggle = async () => {
-    if (!agent || isCustom) return;
-
-    setEnabledError(null);
-    setTogglingEnabled(true);
+    const key = `${targetAgent}-${scope}`;
+    setDeploying(key);
+    setDeploymentError(null);
 
     try {
-      if (isEnabled) {
-        await api.disableClaudePlugin(agent.pluginId, agent.pluginScope);
+      if (isCustom) {
+        if (isDeployed) {
+          await api.undeployCustomClaudeAgent(agent.id, targetAgent, scope);
+        } else {
+          await api.deployCustomClaudeAgent(agent.id, targetAgent, scope);
+        }
+      } else if (isDeployed) {
+        await api.undeployPluginClaudeAgent(agent.id, targetAgent, scope);
       } else {
-        await api.enableClaudePlugin(agent.pluginId, agent.pluginScope);
+        await api.deployPluginClaudeAgent(agent.id, targetAgent, scope);
       }
 
       await Promise.all([
@@ -216,40 +211,10 @@ export function AgentDetailPanel({ agentId, onMissing, onDeleted }: AgentDetailP
         queryClient.invalidateQueries({ queryKey: ["claudeAgent"] }),
       ]);
     } catch (err) {
-      setEnabledError(err instanceof Error ? err.message : "Failed to update plugin state");
+      setDeploymentError(err instanceof Error ? err.message : "Failed to update deployment");
     } finally {
-      setTogglingEnabled(false);
+      setDeploying(null);
     }
-  };
-
-  const handleEnabledToggle = () => {
-    if (!agent) return;
-    if (isCustom) {
-      void handleCustomEnabledToggle();
-      return;
-    }
-    setShowPluginToggleConfirm(true);
-  };
-
-  const handleDeployToggle = async (
-    targetAgent: string,
-    scope: "global" | "project",
-    isDeployed: boolean,
-  ) => {
-    if (!agent || !isCustom) return;
-
-    const key = `${targetAgent}-${scope}`;
-    setDeploying(key);
-
-    if (isDeployed) {
-      await api.undeployCustomClaudeAgent(agent.id, targetAgent, scope);
-    } else {
-      await api.deployCustomClaudeAgent(agent.id, targetAgent, scope);
-    }
-
-    setDeploying(null);
-    void queryClient.invalidateQueries({ queryKey: ["claudeAgents"] });
-    void queryClient.invalidateQueries({ queryKey: ["claudeAgent"] });
   };
 
   const handleSaveDescription = async (nextDescription: string): Promise<boolean> => {
@@ -262,11 +227,27 @@ export function AgentDetailPanel({ agentId, onMissing, onDeleted }: AgentDetailP
     return saveDefinition(contentWithDescription);
   };
 
-  if (isLoading || !agent) {
+  if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center gap-2">
         <Spinner size="sm" className={text.muted} />
         <p className={`${text.muted} text-sm`}>Loading agent...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className={`${text.error} text-sm`}>{error}</p>
+      </div>
+    );
+  }
+
+  if (!agent) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className={`${text.muted} text-sm`}>Select an agent to view details</p>
       </div>
     );
   }
@@ -370,71 +351,57 @@ export function AgentDetailPanel({ agentId, onMissing, onDeleted }: AgentDetailP
         </section>
 
         <section>
-          <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>Enabled</h3>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className={`text-xs ${text.secondary}`}>
-                {isEnabled ? "Enabled" : "Disabled"}
-              </span>
-              {togglingEnabled ? (
-                <Spinner size="xs" className={text.muted} />
-              ) : (
-                <ToggleSwitch checked={isEnabled} onToggle={handleEnabledToggle} />
-              )}
+          <h3 className={`text-[11px] font-medium ${text.muted} mb-3`}>Deployment</h3>
+          {!isCustom && (
+            <p className={`text-[10px] ${text.dimmed} mb-2`}>
+              This agent comes from a plugin. Disabling Claude deployment will disable the entire
+              plugin for the{" "}
+              <span className="font-medium">{getPluginScopeLabel(agent.pluginScope)}</span> scope.
+            </p>
+          )}
+          <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] overflow-hidden">
+            <div className={`grid grid-cols-[1fr_80px_80px] px-3 py-2 border-b ${border.subtle}`}>
+              <span className={`text-[10px] font-medium ${text.dimmed}`}>Agent</span>
+              <span className={`text-[10px] font-medium ${text.dimmed} text-center`}>Global</span>
+              <span className={`text-[10px] font-medium ${text.dimmed} text-center`}>Project</span>
             </div>
-            {!isCustom && (
-              <p className={`text-[10px] ${text.dimmed}`}>
-                This agent is provided by a plugin. Toggling this will enable or disable the entire
-                plugin.
-              </p>
-            )}
-            {enabledError && <p className={`text-[10px] ${text.error}`}>{enabledError}</p>}
+            {AGENTS.map((targetAgent) => {
+              const status = deploymentMap[targetAgent.id] ?? {};
+              return (
+                <div
+                  key={targetAgent.id}
+                  className={`grid grid-cols-[1fr_80px_80px] px-3 py-2 border-b last:border-b-0 ${border.subtle} hover:bg-white/[0.02]`}
+                >
+                  <span className={`text-xs ${text.secondary}`}>{targetAgent.label}</span>
+                  {SCOPES.map((scope) => {
+                    const isDeployed = !!status[scope];
+                    const isToggling = deploying === `${targetAgent.id}-${scope}`;
+                    const isDisabledForPluginClaude =
+                      !isCustom &&
+                      targetAgent.id === "claude" &&
+                      scope !== getClaudeScopeForPlugin(agent.pluginScope);
+                    return (
+                      <div key={scope} className="flex justify-center items-center">
+                        {isToggling ? (
+                          <Spinner size="xs" className={text.dimmed} />
+                        ) : (
+                          <ToggleSwitch
+                            checked={isDeployed}
+                            disabled={isDisabledForPluginClaude}
+                            onToggle={() =>
+                              void handleDeployToggle(targetAgent.id, scope, isDeployed)
+                            }
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
+          {deploymentError && <p className={`text-[10px] ${text.error} mt-2`}>{deploymentError}</p>}
         </section>
-
-        {isCustom && (
-          <section>
-            <h3 className={`text-[11px] font-medium ${text.muted} mb-3`}>Deployment</h3>
-            <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] overflow-hidden">
-              <div className={`grid grid-cols-[1fr_80px_80px] px-3 py-2 border-b ${border.subtle}`}>
-                <span className={`text-[10px] font-medium ${text.dimmed}`}>Agent</span>
-                <span className={`text-[10px] font-medium ${text.dimmed} text-center`}>Global</span>
-                <span className={`text-[10px] font-medium ${text.dimmed} text-center`}>
-                  Project
-                </span>
-              </div>
-              {AGENTS.map((targetAgent) => {
-                const status = deploymentMap[targetAgent.id] ?? {};
-                return (
-                  <div
-                    key={targetAgent.id}
-                    className={`grid grid-cols-[1fr_80px_80px] px-3 py-2 border-b last:border-b-0 ${border.subtle} hover:bg-white/[0.02]`}
-                  >
-                    <span className={`text-xs ${text.secondary}`}>{targetAgent.label}</span>
-                    {SCOPES.map((scope) => {
-                      const isDeployed = !!status[scope];
-                      const isToggling = deploying === `${targetAgent.id}-${scope}`;
-                      return (
-                        <div key={scope} className="flex justify-center items-center">
-                          {isToggling ? (
-                            <Spinner size="xs" className={text.dimmed} />
-                          ) : (
-                            <ToggleSwitch
-                              checked={isDeployed}
-                              onToggle={() =>
-                                void handleDeployToggle(targetAgent.id, scope, isDeployed)
-                              }
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
 
         <section>
           <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>Definition</h3>
@@ -468,20 +435,20 @@ export function AgentDetailPanel({ agentId, onMissing, onDeleted }: AgentDetailP
         </ConfirmDialog>
       )}
 
-      {showPluginToggleConfirm && (
+      {pendingPluginDisable && (
         <ConfirmDialog
-          title={`${isEnabled ? "Disable" : "Enable"} plugin "${agent.pluginName}"?`}
-          confirmLabel={isEnabled ? "Disable plugin" : "Enable plugin"}
+          title={`Disable plugin "${agent.pluginName}"?`}
+          confirmLabel="Disable plugin"
           onConfirm={() => {
-            setShowPluginToggleConfirm(false);
-            void handlePluginEnabledToggle();
+            const pending = pendingPluginDisable;
+            setPendingPluginDisable(null);
+            if (!pending) return;
+            void handleDeployToggle(pending.targetAgent, pending.scope, true, true);
           }}
-          onCancel={() => setShowPluginToggleConfirm(false)}
+          onCancel={() => setPendingPluginDisable(null)}
         >
           <p className={`text-xs ${text.secondary}`}>
-            This agent belongs to a Claude plugin. This action will{" "}
-            <span className="font-medium">{isEnabled ? "disable" : "enable"}</span> the entire
-            plugin in the{" "}
+            This agent belongs to a Claude plugin. This action will disable the entire plugin in the{" "}
             <span className="font-medium">{getPluginScopeLabel(agent.pluginScope)}</span> scope.
           </p>
         </ConfirmDialog>

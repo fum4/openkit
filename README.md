@@ -16,7 +16,7 @@ and ship pull requests with clear visibility.
   consistent flow.
 - **Isolated environments**: Each task runs independently on Git worktrees with automatic port
   conflict resolution.
-- **Agent tooling hub**: Manage custom markdown agents (deployed to Claude/Cursor/Gemini CLI/VS Code/Codex), plugin subagents, MCP servers, skills, plugins, and workflow hooks in one place, with cache-first agent loading and unified Scan & Import flows.
+- **Agent tooling hub**: Manage custom markdown agents (deployed to Claude/Cursor/Gemini CLI/VS Code/Codex), plugin subagents, MCP servers, skills, plugins, and workflow hooks in one place, with cache-first agent loading, unified Scan & Import flows, and MCP server creation via either form fields or pasted JSON config.
 - **Real-time visibility**: Track execution across agents with live activity and high-signal
   blocker/approval notifications.
 - **Desktop auto-updates**: Electron builds can check for new GitHub releases, show download/install state in-app, and install updates in one click.

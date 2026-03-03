@@ -246,8 +246,10 @@ export function useApi() {
         name: string;
         description?: string;
         tags?: string[];
-        command: string;
+        command?: string;
         args?: string[];
+        type?: "http" | "sse";
+        url?: string;
         env?: Record<string, string>;
       }) => api.createMcpServer(data, serverUrl),
 
@@ -390,6 +392,12 @@ export function useApi() {
 
       undeployCustomClaudeAgent: (id: string, agent: string, scope: "global" | "project") =>
         api.undeployCustomClaudeAgent(id, agent, scope, serverUrl),
+
+      deployPluginClaudeAgent: (id: string, agent: string, scope: "global" | "project") =>
+        api.deployPluginClaudeAgent(id, agent, scope, serverUrl),
+
+      undeployPluginClaudeAgent: (id: string, agent: string, scope: "global" | "project") =>
+        api.undeployPluginClaudeAgent(id, agent, scope, serverUrl),
 
       // Hooks
       fetchHooksConfig: () => api.fetchHooksConfig(serverUrl),

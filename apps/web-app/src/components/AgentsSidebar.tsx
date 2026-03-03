@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { FileCode, Filter, Plus, Server, Settings, Sparkles } from "lucide-react";
+import { Bot, FileCode, Filter, Plus, Server, Settings, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { ClaudeAgentSummary, McpServerSummary, SkillSummary, PluginSummary } from "../types";
@@ -8,7 +8,7 @@ import { useAgentRule } from "../hooks/useAgentRules";
 import { agentRule, border, surface, text } from "../theme";
 import { AgentItem } from "./AgentItem";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { DeployDialog } from "./DeployDialog";
+import { DeployMatrixDialog } from "./DeployMatrixDialog";
 import { McpServerItem } from "./McpServerItem";
 import { SkillItem } from "./SkillItem";
 import { PluginItem } from "./PluginItem";
@@ -24,6 +24,16 @@ type AgentSelection =
   | null;
 
 type AgentDeploymentState = { global?: boolean; project?: boolean };
+type DeploymentScope = "global" | "project";
+
+const AGENTS = [
+  { id: "claude", label: "Claude Code" },
+  { id: "cursor", label: "Cursor" },
+  { id: "gemini", label: "Gemini CLI" },
+  { id: "vscode", label: "VS Code" },
+  { id: "codex", label: "Codex" },
+] as const;
+const SCOPES: DeploymentScope[] = ["global", "project"];
 
 function getSearchValue(value: unknown): string {
   return typeof value === "string" ? value.toLowerCase() : "";
@@ -160,14 +170,14 @@ export function AgentsSidebar({
     confirmLabel: string;
     action: () => Promise<void>;
   } | null>(null);
-  const [pendingPluginToggle, setPendingPluginToggle] = useState<{
-    agent: ClaudeAgentSummary;
-    enable: boolean;
-  } | null>(null);
   const [deployDialog, setDeployDialog] = useState<{
-    type: "mcp" | "skill";
+    type: "mcp" | "skill" | "agent";
     id: string;
     name: string;
+  } | null>(null);
+  const [pendingAgentDisableConfirm, setPendingAgentDisableConfirm] = useState<{
+    agent: ClaudeAgentSummary;
+    apply: () => Promise<void>;
   } | null>(null);
 
   const [hiddenMarketplaces, setHiddenMarketplaces] = useState<Set<string>>(() => {
@@ -282,69 +292,19 @@ export function AgentsSidebar({
 
   const isAgentVisible = (agent: ClaudeAgentSummary) => {
     if (showGlobal && showProject) return true;
-    if (agent.isCustom) {
-      const hasGlobal = hasAgentDeploymentScope(agent.deployments, "global");
-      const hasProject = hasAgentDeploymentScope(agent.deployments, "project");
-      if (!hasGlobal && !hasProject) return true;
-      if (showGlobal && hasGlobal) return true;
-      if (showProject && hasProject) return true;
-      return false;
-    }
-    if (agent.pluginScope === "user") return showGlobal;
-    return showProject;
+    const hasGlobal = hasAgentDeploymentScope(agent.deployments, "global");
+    const hasProject = hasAgentDeploymentScope(agent.deployments, "project");
+    if (!hasGlobal && !hasProject) return true;
+    if (showGlobal && hasGlobal) return true;
+    if (showProject && hasProject) return true;
+    return false;
   };
 
-  const isCustomAgentEnabled = (agent: ClaudeAgentSummary) => {
-    if (!agent.isCustom) return agent.pluginEnabled;
-    return (
+  const isAgentEnabled = (agent: ClaudeAgentSummary) => {
+    const hasAnyDeployment =
       hasAgentDeploymentScope(agent.deployments, "global") ||
-      hasAgentDeploymentScope(agent.deployments, "project")
-    );
-  };
-
-  const setCustomAgentEnabled = async (agent: ClaudeAgentSummary, enabled: boolean) => {
-    if (!agent.isCustom) return;
-
-    if (!enabled) {
-      const deployments = agent.deployments;
-      if (deployments && typeof deployments === "object") {
-        for (const [agentId, value] of Object.entries(deployments)) {
-          if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-          const scopes = value as AgentDeploymentState;
-          if (scopes.global) {
-            await api.undeployCustomClaudeAgent(agent.id, agentId, "global");
-          }
-          if (scopes.project) {
-            await api.undeployCustomClaudeAgent(agent.id, agentId, "project");
-          }
-        }
-      }
-    } else {
-      await api.deployCustomClaudeAgent(agent.id, "claude", "project");
-    }
-
-    await queryClient.invalidateQueries({ queryKey: ["claudeAgents"] });
-    await queryClient.invalidateQueries({ queryKey: ["claudeAgent"] });
-  };
-
-  const setPluginAgentEnabled = async (agent: ClaudeAgentSummary, enabled: boolean) => {
-    if (agent.isCustom) return;
-
-    onPluginActingChange?.(true);
-    try {
-      if (enabled) {
-        await api.enableClaudePlugin(agent.pluginId, agent.pluginScope);
-      } else {
-        await api.disableClaudePlugin(agent.pluginId, agent.pluginScope);
-      }
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["claudePlugins"] }),
-        queryClient.invalidateQueries({ queryKey: ["claudeAgents"] }),
-        queryClient.invalidateQueries({ queryKey: ["claudeAgent"] }),
-      ]);
-    } finally {
-      onPluginActingChange?.(false);
-    }
+      hasAgentDeploymentScope(agent.deployments, "project");
+    return hasAnyDeployment || agent.pluginEnabled;
   };
 
   const isPluginVisible = (plugin: PluginSummary) => {
@@ -429,7 +389,7 @@ export function AgentsSidebar({
             <button
               type="button"
               onClick={() => setAgentsCollapsed(!agentsCollapsed)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] group-hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
             >
               <ChevronIcon collapsed={agentsCollapsed} />
               <span className={`text-[11px] font-medium ${text.secondary}`}>Agents</span>
@@ -448,7 +408,7 @@ export function AgentsSidebar({
             <button
               type="button"
               onClick={onAddAgent}
-              className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded ${text.dimmed} hover:${text.muted} hover:bg-white/[0.06] transition-colors z-10`}
+              className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded ${text.dimmed} hover:text-white transition-colors z-10`}
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -459,7 +419,9 @@ export function AgentsSidebar({
               {[...filteredAgents]
                 .filter((agent) => isAgentVisible(agent))
                 .sort((a, b) => {
-                  if (a.pluginEnabled !== b.pluginEnabled) return a.pluginEnabled ? -1 : 1;
+                  const aEnabled = isAgentEnabled(a);
+                  const bEnabled = isAgentEnabled(b);
+                  if (aEnabled !== bEnabled) return aEnabled ? -1 : 1;
                   const pluginCmp = a.pluginName.localeCompare(b.pluginName);
                   if (pluginCmp !== 0) return pluginCmp;
                   return a.name.localeCompare(b.name);
@@ -469,17 +431,15 @@ export function AgentsSidebar({
                     <AgentItem
                       key={agent.id}
                       agent={agent}
-                      isEnabled={isCustomAgentEnabled(agent)}
+                      isEnabled={isAgentEnabled(agent)}
                       isSelected={selection?.type === "agent" && selection.id === agent.id}
                       onSelect={() => onSelect({ type: "agent", id: agent.id })}
                       onToggleEnabled={() => {
-                        const nextEnabled = !isCustomAgentEnabled(agent);
-                        if (agent.isCustom) {
-                          void setCustomAgentEnabled(agent, nextEnabled);
-                          return;
-                        }
-                        if (pluginActing) return;
-                        setPendingPluginToggle({ agent, enable: nextEnabled });
+                        setDeployDialog({
+                          type: "agent",
+                          id: agent.id,
+                          name: agent.name,
+                        });
                       }}
                       onRemove={
                         agent.isCustom
@@ -520,7 +480,7 @@ export function AgentsSidebar({
             <button
               type="button"
               onClick={() => setMcpCollapsed(!mcpCollapsed)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] group-hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
             >
               <ChevronIcon collapsed={mcpCollapsed} />
               <span className={`text-[11px] font-medium ${text.secondary}`}>MCP Servers</span>
@@ -539,7 +499,7 @@ export function AgentsSidebar({
             <button
               type="button"
               onClick={onAddServer}
-              className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded ${text.dimmed} hover:${text.muted} hover:bg-white/[0.06] transition-colors z-10`}
+              className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded ${text.dimmed} hover:text-white transition-colors z-10`}
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -625,7 +585,7 @@ export function AgentsSidebar({
             <button
               type="button"
               onClick={() => setSkillsCollapsed(!skillsCollapsed)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] group-hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
             >
               <ChevronIcon collapsed={skillsCollapsed} />
               <span className={`text-[11px] font-medium ${text.secondary}`}>Skills</span>
@@ -644,7 +604,7 @@ export function AgentsSidebar({
             <button
               type="button"
               onClick={onAddSkill}
-              className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded ${text.dimmed} hover:${text.muted} hover:bg-white/[0.06] transition-colors z-10`}
+              className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded ${text.dimmed} hover:text-white transition-colors z-10`}
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -721,7 +681,7 @@ export function AgentsSidebar({
             <button
               type="button"
               onClick={() => setPluginsCollapsed(!pluginsCollapsed)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.03] group-hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
             >
               <ChevronIcon collapsed={pluginsCollapsed} />
               <span className={`text-[11px] font-medium ${text.secondary}`}>Claude Plugins</span>
@@ -768,7 +728,7 @@ export function AgentsSidebar({
               <button
                 type="button"
                 onClick={onAddPlugin}
-                className={`p-1 rounded ${text.dimmed} hover:${text.muted} hover:bg-white/[0.06] transition-colors`}
+                className={`p-1 rounded ${text.dimmed} hover:text-white transition-colors`}
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -924,25 +884,25 @@ export function AgentsSidebar({
         </ConfirmDialog>
       )}
 
-      {pendingPluginToggle && (
+      {pendingAgentDisableConfirm && (
         <ConfirmDialog
-          title={`${pendingPluginToggle.enable ? "Enable" : "Disable"} plugin "${pendingPluginToggle.agent.pluginName}"?`}
-          confirmLabel={pendingPluginToggle.enable ? "Enable plugin" : "Disable plugin"}
+          title={`Disable plugin "${pendingAgentDisableConfirm.agent.pluginName}"?`}
+          confirmLabel="Disable plugin"
           onConfirm={() => {
-            const target = pendingPluginToggle;
-            setPendingPluginToggle(null);
-            void setPluginAgentEnabled(target.agent, target.enable);
+            const pending = pendingAgentDisableConfirm;
+            setPendingAgentDisableConfirm(null);
+            if (!pending) return;
+            void pending.apply();
           }}
-          onCancel={() => setPendingPluginToggle(null)}
+          onCancel={() => setPendingAgentDisableConfirm(null)}
         >
           <p className={`text-xs ${text.secondary}`}>
-            This agent comes from a Claude plugin. This action will{" "}
-            <span className="font-medium">{pendingPluginToggle.enable ? "enable" : "disable"}</span>{" "}
-            the entire plugin for the{" "}
+            This agent is provided by a Claude plugin. Disabling Claude deployment will disable the
+            entire plugin for the{" "}
             <span className="font-medium">
-              {pendingPluginToggle.agent.pluginScope === "user"
+              {pendingAgentDisableConfirm.agent.pluginScope === "user"
                 ? "global"
-                : pendingPluginToggle.agent.pluginScope}
+                : pendingAgentDisableConfirm.agent.pluginScope}
             </span>{" "}
             scope.
           </p>
@@ -950,71 +910,121 @@ export function AgentsSidebar({
       )}
 
       {deployDialog && (
-        <DeployDialog
+        <DeployMatrixDialog
           title={`Deploy ${deployDialog.name}`}
           icon={
             deployDialog.type === "mcp" ? (
               <Server className="w-4 h-4 text-purple-400" />
-            ) : (
+            ) : deployDialog.type === "skill" ? (
               <Sparkles className="w-4 h-4 text-pink-400" />
+            ) : (
+              <Bot className="w-4 h-4 text-cyan-400" />
             )
           }
-          scopes={(() => {
+          agents={AGENTS.map((agent) => ({ id: agent.id, label: agent.label }))}
+          status={AGENTS.reduce<Record<string, AgentDeploymentState>>((acc, agent) => {
             if (deployDialog.type === "mcp") {
-              return [
-                {
-                  key: "global",
-                  label: "Global",
-                  active: !!deploymentStatus[deployDialog.id]?.claude?.global,
-                },
-                {
-                  key: "project",
-                  label: "Project",
-                  active: !!deploymentStatus[deployDialog.id]?.claude?.project,
-                },
-              ];
-            }
-            const claudeAgent = skillDeploymentStatus[deployDialog.id]?.agents?.claude ?? {};
-            return [
-              { key: "global", label: "Global", active: !!claudeAgent.global },
-              {
-                key: "project",
-                label: "Project",
-                active: !!claudeAgent.project,
-              },
-            ];
-          })()}
-          onApply={async (desired) => {
-            if (deployDialog.type === "mcp") {
-              const current = deploymentStatus[deployDialog.id]?.claude ?? {};
-              for (const scope of ["global", "project"] as const) {
-                if (current[scope] && !desired[scope]) {
-                  await api.undeployMcpServer(deployDialog.id, "claude", scope);
-                }
-              }
-              for (const scope of ["global", "project"] as const) {
-                if (!current[scope] && desired[scope]) {
-                  await api.deployMcpServer(deployDialog.id, "claude", scope);
-                }
-              }
-              await queryClient.invalidateQueries({
-                queryKey: ["mcpDeploymentStatus"],
-              });
+              acc[agent.id] = deploymentStatus[deployDialog.id]?.[agent.id] ?? {};
+            } else if (deployDialog.type === "skill") {
+              acc[agent.id] = skillDeploymentStatus[deployDialog.id]?.agents?.[agent.id] ?? {};
             } else {
-              const current = skillDeploymentStatus[deployDialog.id]?.agents?.claude ?? {};
-              for (const scope of ["global", "project"] as const) {
-                if (current[scope] && !desired[scope]) {
-                  await api.undeploySkill(deployDialog.id, "claude", scope);
+              const selectedAgent = agents.find((candidate) => candidate.id === deployDialog.id);
+              acc[agent.id] =
+                (selectedAgent?.deployments?.[agent.id] as AgentDeploymentState) ?? {};
+            }
+            return acc;
+          }, {})}
+          onApply={async (desired) => {
+            const targetAgent =
+              deployDialog.type === "agent"
+                ? (agents.find((candidate) => candidate.id === deployDialog.id) ?? null)
+                : null;
+            const currentByAgent = AGENTS.reduce<Record<string, AgentDeploymentState>>(
+              (acc, agent) => {
+                if (deployDialog.type === "mcp") {
+                  acc[agent.id] = deploymentStatus[deployDialog.id]?.[agent.id] ?? {};
+                } else if (deployDialog.type === "skill") {
+                  acc[agent.id] = skillDeploymentStatus[deployDialog.id]?.agents?.[agent.id] ?? {};
+                } else {
+                  acc[agent.id] =
+                    (targetAgent?.deployments?.[agent.id] as AgentDeploymentState) ?? {};
+                }
+                return acc;
+              },
+              {},
+            );
+
+            const runApply = async () => {
+              for (const agent of AGENTS) {
+                const current = currentByAgent[agent.id] ?? {};
+                const next = desired[agent.id] ?? {};
+                for (const scope of SCOPES) {
+                  const isCurrent = !!current[scope];
+                  const isNext = !!next[scope];
+                  if (isCurrent === isNext) continue;
+
+                  if (deployDialog.type === "mcp") {
+                    if (isNext) await api.deployMcpServer(deployDialog.id, agent.id, scope);
+                    else await api.undeployMcpServer(deployDialog.id, agent.id, scope);
+                  } else if (deployDialog.type === "skill") {
+                    if (isNext) await api.deploySkill(deployDialog.id, agent.id, scope);
+                    else await api.undeploySkill(deployDialog.id, agent.id, scope);
+                  } else if (targetAgent?.isCustom) {
+                    if (isNext) {
+                      await api.deployCustomClaudeAgent(deployDialog.id, agent.id, scope);
+                    } else {
+                      await api.undeployCustomClaudeAgent(deployDialog.id, agent.id, scope);
+                    }
+                  } else {
+                    if (isNext) {
+                      await api.deployPluginClaudeAgent(deployDialog.id, agent.id, scope);
+                    } else {
+                      await api.undeployPluginClaudeAgent(deployDialog.id, agent.id, scope);
+                    }
+                  }
                 }
               }
-              for (const scope of ["global", "project"] as const) {
-                if (!current[scope] && desired[scope]) {
-                  await api.deploySkill(deployDialog.id, "claude", scope);
-                }
+
+              if (deployDialog.type === "mcp") {
+                await queryClient.invalidateQueries({ queryKey: ["mcpDeploymentStatus"] });
+              } else if (deployDialog.type === "skill") {
+                await queryClient.invalidateQueries({ queryKey: ["skillDeploymentStatus"] });
+              } else {
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ["claudePlugins"] }),
+                  queryClient.invalidateQueries({ queryKey: ["claudeAgents"] }),
+                  queryClient.invalidateQueries({ queryKey: ["claudeAgent"] }),
+                ]);
               }
-              await queryClient.invalidateQueries({
-                queryKey: ["skillDeploymentStatus"],
+            };
+
+            if (
+              deployDialog.type === "agent" &&
+              targetAgent &&
+              !targetAgent.isCustom &&
+              currentByAgent.claude?.[targetAgent.pluginScope === "user" ? "global" : "project"] &&
+              !desired.claude?.[targetAgent.pluginScope === "user" ? "global" : "project"]
+            ) {
+              setPendingAgentDisableConfirm({
+                agent: targetAgent,
+                apply: async () => {
+                  onPluginActingChange?.(true);
+                  try {
+                    await runApply();
+                    setDeployDialog(null);
+                  } finally {
+                    onPluginActingChange?.(false);
+                  }
+                },
               });
+              return false;
+            }
+
+            onPluginActingChange?.(true);
+            try {
+              await runApply();
+            } finally {
+              onPluginActingChange?.(false);
             }
           }}
           onClose={() => setDeployDialog(null)}

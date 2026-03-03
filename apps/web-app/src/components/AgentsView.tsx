@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, Download, Radar, RefreshCw, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { APP_NAME } from "@openkit/shared/constants";
 import { useServer } from "../contexts/ServerContext";
@@ -43,6 +44,7 @@ const MAX_WIDTH = 500;
 export function AgentsView() {
   const { serverUrl } = useServer();
   const api = useApi();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selection, setSelectionState] = useState<AgentSelection>(() => {
     if (serverUrl) {
@@ -171,6 +173,9 @@ export function AgentsView() {
   };
 
   const handleImported = () => {
+    setSearch("");
+    void queryClient.invalidateQueries({ queryKey: ["mcpServers"] });
+    void queryClient.invalidateQueries({ queryKey: ["mcpDeploymentStatus"] });
     refetchServers();
     refetchDeployment();
     refetchSkills();
@@ -262,7 +267,12 @@ export function AgentsView() {
       api.scanClaudeAgents(options),
     ])
       .then(([mcpRes, skillRes, agentRes]) => {
-        const mcpResults = (mcpRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
+        const mcpResults = (mcpRes.discovered ?? []).filter((r) => {
+          if (r.alreadyInRegistry) return false;
+          const command = typeof r.command === "string" ? r.command.trim() : "";
+          const url = typeof r.url === "string" ? r.url.trim() : "";
+          return command.length > 0 || url.length > 0;
+        });
         const skillResults = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
         const agentResults = (agentRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
         setPersistedDiscoveryResults({ mcpResults, skillResults, agentResults });

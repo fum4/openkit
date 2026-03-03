@@ -539,9 +539,8 @@ The view uses a sidebar + detail panel layout:
 
 - Agent metadata (name, description, scope, source type)
 - Source locations (registry markdown path for custom agents, plus plugin install path for plugin-provided agents)
-- Enabled toggle for all agents
-- Plugin-agent toggle confirmation explicitly states the whole plugin is enabled/disabled
-- Deployment grid for custom agents: toggle deployment per tool and scope
+- Deployment grid for all agents: toggle deployment per tool and scope
+- Plugin-provided agents treat Claude deployment as plugin state; disabling Claude deployment confirms that the whole plugin will be disabled
 - Click-to-edit description and markdown definition with save-on-blur for custom agents
 - Delete action for custom agents
 
