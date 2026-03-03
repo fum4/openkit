@@ -16,6 +16,7 @@ files:
 icon: assets/icon.icns
 mac:
   icon: assets/icon.icns
+  artifactName: "${productName}-${version}-${arch}.${ext}"
   category: public.app-category.developer-tools
   hardenedRuntime: true
   gatekeeperAssess: false

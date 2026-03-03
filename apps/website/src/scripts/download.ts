@@ -150,15 +150,10 @@ function detectPlatformFromAssetName(name: string, hint: Platform): Platform {
   return hint;
 }
 
-function detectArchFromAssetName(name: string, platform: Platform, ext: string): Arch {
+function detectArchFromAssetName(name: string): Arch {
   if (/(arm64|aarch64|armv8|\barm\b)/.test(name)) return "arm64";
   if (/(x64|x86_64|amd64)/.test(name)) return "x64";
   if (/universal/.test(name)) return "universal";
-
-  if (platform === "mac" && ext === ".dmg") {
-    // Current macOS Intel DMGs do not include an architecture marker.
-    return "x64";
-  }
 
   return "other";
 }
@@ -339,7 +334,7 @@ function parseReleaseOptions(assets: ReleaseAsset[]): DownloadOption[] {
     if (!format) return;
 
     const platform = detectPlatformFromAssetName(assetName, format.platformHint);
-    const arch = detectArchFromAssetName(assetName, platform, format.suffix);
+    const arch = detectArchFromAssetName(assetName);
     const title = getOptionTitle(platform, arch);
 
     options.push({
