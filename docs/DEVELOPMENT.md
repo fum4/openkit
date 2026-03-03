@@ -130,10 +130,10 @@ npm publishing is currently paused.
   - `/package` packages both macOS and Linux desktop artifacts.
   - `/package:mac` packages only macOS desktop artifacts.
   - `/package:linux` packages only Linux desktop artifacts.
-    It reacts to the triggering comment, posts a status comment with queued targets, flips each target to in-progress when its packaging job starts, updates that same comment as each platform finishes, then posts a final summary with platform status and artifact download links. For macOS PR packaging, arm64 and x64 DMGs are uploaded as separate artifacts (no blockmaps), and the comment table includes separate `macOS (Apple Silicon)` and `macOS (Intel)` rows with independent download links. Comment rendering is shared via `.github/actions/package-update-comment`.
+    It reacts to the triggering comment, posts a status comment with queued targets, marks all requested targets as in-progress before platform jobs fan out, updates that same comment as each platform finishes, then posts a final summary with platform status and artifact download links. For macOS PR packaging, arm64 and x64 DMGs are uploaded as separate artifacts (no blockmaps), and the comment table includes separate `macOS (Apple Silicon)` and `macOS (Intel)` rows with independent download links. Comment rendering/state merging is shared via `.github/actions/package-update-comment`. Final title aggregation treats `cancelled` as dominant only when every requested platform job is cancelled; otherwise it derives the title from non-cancelled results (uniform status vs mixed `completed with issues`).
     macOS PR packaging uses the same shared build/sign/notarize action as release packaging (`.github/actions/package-desktop-macos`). Signing/notarization is enabled only when the PR head is in the same repository; fork PR heads are built unsigned to avoid exposing Apple secrets to untrusted code.
 - The release workflow still runs `pnpm check:all` and creates release tags plus the GitHub release.
-- Desktop release assets are built/uploaded in `.github/workflows/package-release.yml` on release tag pushes (`v*`).
+- Desktop release assets are built/uploaded in `.github/workflows/package-release.yml` on release tag pushes (`v*`), including updater metadata/assets (`latest*.yml`, macOS ZIPs, and blockmaps) required by `electron-updater`.
 - npm-specific publish steps are commented out in `.github/workflows/release.yml`.
 
 ## Dependency Updates
@@ -361,12 +361,12 @@ State is pushed from the server via Server-Sent Events. The `useWorktrees` hook 
 All colors and Tailwind utility classes are centralized in `apps/web-app/src/theme.ts`. This file exports named objects (`palette`, `surface`, `border`, `text`, `status`, `action`, `button`, etc.) containing Tailwind class fragments.
 
 ```typescript
-import { surface, text, border } from '../theme';
+import { surface, text, border } from "../theme";
 
 // In JSX:
 <div className={`${surface.panel} ${border.subtle} border rounded`}>
   <span className={text.primary}>Hello</span>
-</div>
+</div>;
 ```
 
 Never hardcode Tailwind color classes directly in components. Always import from `theme.ts`.

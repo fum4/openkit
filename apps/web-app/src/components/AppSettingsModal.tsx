@@ -3,6 +3,7 @@ import { Settings } from "lucide-react";
 
 import { DEFAULT_PORT } from "@openkit/shared/constants";
 import { Modal } from "./Modal";
+import { ToggleSwitch } from "./ToggleSwitch";
 import { button, input, settings, text } from "../theme";
 
 interface AppSettingsModalProps {
@@ -12,24 +13,31 @@ interface AppSettingsModalProps {
 export function AppSettingsModal({ onClose }: AppSettingsModalProps) {
   const [basePort, setBasePort] = useState(DEFAULT_PORT);
   const [setupPreference, setSetupPreference] = useState<"ask" | "auto" | "manual">("ask");
+  const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(true);
   const [initialBasePort, setInitialBasePort] = useState(DEFAULT_PORT);
   const [initialSetupPreference, setInitialSetupPreference] = useState<"ask" | "auto" | "manual">(
     "ask",
   );
+  const [initialAutoDownloadUpdates, setInitialAutoDownloadUpdates] = useState(true);
 
   useEffect(() => {
     window.electronAPI?.getPreferences().then((prefs) => {
       setBasePort(prefs.basePort);
       setSetupPreference(prefs.setupPreference);
+      setAutoDownloadUpdates(prefs.autoDownloadUpdates ?? true);
       setInitialBasePort(prefs.basePort);
       setInitialSetupPreference(prefs.setupPreference);
+      setInitialAutoDownloadUpdates(prefs.autoDownloadUpdates ?? true);
     });
   }, []);
 
-  const hasChanges = basePort !== initialBasePort || setupPreference !== initialSetupPreference;
+  const hasChanges =
+    basePort !== initialBasePort ||
+    setupPreference !== initialSetupPreference ||
+    autoDownloadUpdates !== initialAutoDownloadUpdates;
 
   const handleSave = () => {
-    window.electronAPI?.updatePreferences({ basePort, setupPreference });
+    window.electronAPI?.updatePreferences({ basePort, setupPreference, autoDownloadUpdates });
     onClose();
   };
 
@@ -92,6 +100,25 @@ export function AppSettingsModal({ onClose }: AppSettingsModalProps) {
             <option value="auto">Auto-detect settings</option>
             <option value="manual">Show setup form</option>
           </select>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <label className={`text-xs font-medium ${settings.label}`}>Auto-download Updates</label>
+            <span className={`text-[11px] ${settings.description}`}>
+              Download new app versions in the background when available
+            </span>
+          </div>
+          <ToggleSwitch
+            checked={autoDownloadUpdates}
+            onToggle={() => setAutoDownloadUpdates((prev) => !prev)}
+            ariaLabel="Auto-download updates"
+            size="md"
+            checkedTrackClassName="bg-accent/35"
+            uncheckedTrackClassName="bg-white/[0.08]"
+            checkedThumbClassName="bg-accent"
+            uncheckedThumbClassName="bg-white/40"
+          />
         </div>
       </div>
     </Modal>

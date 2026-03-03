@@ -105,7 +105,7 @@ export function TabBar({
       {/* Spacer */}
       <div className="ml-auto" />
 
-      {onOpenNgrokQr && (
+      {/* {onOpenNgrokQr && (
         <Tooltip text="Generate Pairing QR">
           <button
             onClick={onOpenNgrokQr}
@@ -135,7 +135,7 @@ export function TabBar({
             )}
           </button>
         </Tooltip>
-      )}
+      )} */}
 
       {onOpenSettings && (
         <Tooltip text="App Settings">

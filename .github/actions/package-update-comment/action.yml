@@ -86,6 +86,48 @@ runs:
           const buildMac = process.env.BUILD_MAC === "true";
           const buildLinux = process.env.BUILD_LINUX === "true";
 
+          const parseExistingRows = (body) => {
+            const parsed = new Map();
+            if (!body) return parsed;
+
+            const lines = body.split("\n");
+            for (const rawLine of lines) {
+              const line = rawLine.trim();
+              if (!line.startsWith("|")) continue;
+              const cells = line.split("|").map((part) => part.trim()).filter(Boolean);
+              if (cells.length < 2) continue;
+
+              const [target, statusCell, artifactCell] = cells;
+              if (
+                target === "Target" ||
+                target === "---" ||
+                !["macOS (Apple Silicon)", "macOS (Intel)", "Linux"].includes(target)
+              ) {
+                continue;
+              }
+
+              const lower = statusCell.toLowerCase();
+              let result = "";
+              let running = false;
+
+              if (lower.includes("in progress")) running = true;
+              else if (lower.includes("queued")) {
+                // Keep defaults (queued means no result and not running).
+              } else if (lower.includes("success")) result = "success";
+              else if (lower.includes("failed")) result = "failure";
+              else if (lower.includes("cancelled")) result = "cancelled";
+              else if (lower.includes("skipped")) result = "skipped";
+
+              parsed.set(target, {
+                result,
+                running,
+                artifact: artifactCell ?? "",
+              });
+            }
+
+            return parsed;
+          };
+
           const rowFor = (name, result, running, artifactValue) => {
             if (!result) {
               return `| ${name} | ${running ? "⚙️ In Progress" : "⏳ Queued"} | — |`;
@@ -106,23 +148,91 @@ runs:
           const linuxRunning = process.env.LINUX_RUNNING === "true";
           const macArmArtifact = process.env.MAC_ARM_ARTIFACT_URL || "";
           const macIntelArtifact = process.env.MAC_INTEL_ARTIFACT_URL || "";
+          const linuxArtifact = process.env.LINUX_ARTIFACT_URL || "";
+
+          const { data: currentComment } = await github.rest.issues.getComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: Number(process.env.COMMENT_ID),
+          });
+
+          const existingRows = parseExistingRows(currentComment.body || "");
+          const existingMacArm = existingRows.get("macOS (Apple Silicon)") ?? {};
+          const existingMacIntel = existingRows.get("macOS (Intel)") ?? {};
+          const existingLinux = existingRows.get("Linux") ?? {};
+
+          const resolveTargetState = ({
+            inputResult,
+            inputRunning,
+            inputArtifact,
+            existing,
+          }) => {
+            if (mode === "final") {
+              return {
+                result: inputResult,
+                running: false,
+                artifact: inputArtifact || existing.artifact || "",
+              };
+            }
+
+            if (inputResult) {
+              return {
+                result: inputResult,
+                running: false,
+                artifact: inputArtifact || existing.artifact || "",
+              };
+            }
+
+            if (inputRunning) {
+              return {
+                result: "",
+                running: true,
+                artifact: "",
+              };
+            }
+
+            return {
+              result: existing.result || "",
+              running: existing.running === true,
+              artifact: existing.artifact || "",
+            };
+          };
+
+          const macArmState = resolveTargetState({
+            inputResult: macResult,
+            inputRunning: macRunning,
+            inputArtifact: macArmArtifact ? `[Download](${macArmArtifact})` : "",
+            existing: existingMacArm,
+          });
+          const macIntelState = resolveTargetState({
+            inputResult: macResult,
+            inputRunning: macRunning,
+            inputArtifact: macIntelArtifact ? `[Download](${macIntelArtifact})` : "",
+            existing: existingMacIntel,
+          });
+          const linuxState = resolveTargetState({
+            inputResult: linuxResult,
+            inputRunning: linuxRunning,
+            inputArtifact: linuxArtifact ? `[Download](${linuxArtifact})` : "",
+            existing: existingLinux,
+          });
 
           const rows = [];
           if (buildMac) {
             rows.push(
               rowFor(
                 "macOS (Apple Silicon)",
-                macResult,
-                macRunning,
-                macArmArtifact ? `[Download](${macArmArtifact})` : ""
+                macArmState.result,
+                macArmState.running,
+                macArmState.artifact
               )
             );
             rows.push(
               rowFor(
                 "macOS (Intel)",
-                macResult,
-                macRunning,
-                macIntelArtifact ? `[Download](${macIntelArtifact})` : ""
+                macIntelState.result,
+                macIntelState.running,
+                macIntelState.artifact
               )
             );
           }
@@ -130,9 +240,9 @@ runs:
             rows.push(
               rowFor(
                 "Linux",
-                linuxResult,
-                linuxRunning,
-                process.env.LINUX_ARTIFACT_URL ? `[Download](${process.env.LINUX_ARTIFACT_URL})` : ""
+                linuxState.result,
+                linuxState.running,
+                linuxState.artifact
               )
             );
 
@@ -142,15 +252,26 @@ runs:
             if (buildMac) finalResults.push(macResult || "skipped");
             if (buildLinux) finalResults.push(linuxResult || "skipped");
 
-            const allSucceeded =
-              finalResults.length > 0 && finalResults.every((result) => result === "success");
-            const anyFailed = finalResults.some((result) => result === "failure");
-            const anyCancelled = finalResults.some((result) => result === "cancelled");
-
             title = "### ℹ️ Packaging finished";
-            if (allSucceeded) title = "### 📦 Packaging completed";
-            else if (anyFailed) title = "### ❌ Packaging failed";
-            else if (anyCancelled) title = "### 🚫 Packaging cancelled";
+            const allCancelled =
+              finalResults.length > 0 && finalResults.every((result) => result === "cancelled");
+            const nonCancelledResults = finalResults.filter((result) => result !== "cancelled");
+
+            if (allCancelled) {
+              title = "### 🚫 Packaging cancelled";
+            } else if (nonCancelledResults.length > 0) {
+              const first = nonCancelledResults[0];
+              const allSame = nonCancelledResults.every((result) => result === first);
+
+              if (allSame) {
+                if (first === "success") title = "### 📦 Packaging completed";
+                else if (first === "failure") title = "### ❌ Packaging failed";
+                else if (first === "skipped") title = "### ⚠️ Packaging skipped";
+                else title = "### ℹ️ Packaging finished";
+              } else {
+                title = "### ⚠️ Packaging completed with issues";
+              }
+            }
           }
 
           const body = `${title}\nTriggered with \`${process.env.COMMAND}\`\n\n[View workflow logs](${process.env.LOGS_URL})\n\n| Target | Status | Artifact |\n| --- | --- | --- |\n${rows.join("\n")}`;

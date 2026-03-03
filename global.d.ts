@@ -28,6 +28,7 @@ type SetupPreference = "auto" | "manual" | "ask";
 interface AppPreferences {
   basePort: number;
   setupPreference: SetupPreference;
+  autoDownloadUpdates: boolean;
   sidebarWidth: number;
   windowBounds: {
     x?: number;
@@ -35,6 +36,14 @@ interface AppPreferences {
     width: number;
     height: number;
   } | null;
+}
+
+interface AppUpdateState {
+  status: "idle" | "checking" | "available" | "downloading" | "downloaded" | "error";
+  version: string | null;
+  progress: number | null;
+  autoDownloadEnabled: boolean;
+  error: string | null;
 }
 
 interface ElectronAPI {
@@ -56,6 +65,13 @@ interface ElectronAPI {
   getSidebarWidth: () => Promise<number>;
   setSidebarWidth: (width: number) => Promise<void>;
   updatePreferences: (updates: Partial<AppPreferences>) => Promise<void>;
+
+  // App updates
+  getAppUpdateState: () => Promise<AppUpdateState>;
+  checkAppUpdates: () => Promise<AppUpdateState>;
+  downloadAppUpdate: () => Promise<AppUpdateState>;
+  installAppUpdate: () => Promise<boolean>;
+  onAppUpdateState: (callback: (state: AppUpdateState) => void) => () => void;
 }
 
 interface Window {

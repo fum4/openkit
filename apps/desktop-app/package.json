@@ -16,6 +16,9 @@
     "package:mac": "pnpm exec electron-builder --config electron-builder.yml --mac --publish never",
     "package:linux": "pnpm exec electron-builder --config electron-builder.yml --linux AppImage --publish never"
   },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  },
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
     "@types/node": "^25.3.0",

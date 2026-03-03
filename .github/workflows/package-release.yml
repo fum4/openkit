@@ -43,7 +43,9 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             apps/desktop-app/release/*.dmg
-            apps/desktop-app/release/*.dmg.blockmap
+            apps/desktop-app/release/*.zip
+            apps/desktop-app/release/*.blockmap
+            apps/desktop-app/release/latest*.yml
 
   linux:
     runs-on: ubuntu-latest
