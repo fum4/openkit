@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { GitBranch, Paperclip, Trash2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -12,6 +12,7 @@ import { ImageModal } from "../ImageModal";
 import { AttachmentThumbnail } from "../AttachmentThumbnail";
 import type { CustomTaskAttachment } from "../../types";
 import { CodeAgentSplitButton, type CodingAgent } from "./CodeAgentSplitButton";
+import { EditableTextareaCard } from "../EditableTextareaCard";
 
 interface CustomTaskDetailPanelProps {
   taskId: string;
@@ -87,8 +88,6 @@ export function CustomTaskDetailPanel({
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
-  const [editingDescription, setEditingDescription] = useState(false);
-  const [descriptionDraft, setDescriptionDraft] = useState("");
   const [labelInput, setLabelInput] = useState("");
   const [labelInputFocused, setLabelInputFocused] = useState(false);
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
@@ -191,35 +190,6 @@ export function CustomTaskDetailPanel({
     }
     setEditingTitle(false);
   };
-
-  const descriptionRef = useRef<HTMLDivElement>(null);
-  const [descriptionMinHeight, setDescriptionMinHeight] = useState(60);
-
-  const startEditDescription = () => {
-    if (!task) return;
-    if (descriptionRef.current) {
-      setDescriptionMinHeight(descriptionRef.current.offsetHeight);
-    }
-    setDescriptionDraft(task.description);
-    setEditingDescription(true);
-  };
-
-  const saveDescription = async () => {
-    if (descriptionDraft !== task?.description) {
-      await update({ description: descriptionDraft });
-    }
-    setEditingDescription(false);
-  };
-
-  const autoResize = useCallback(
-    (el: HTMLTextAreaElement | null) => {
-      if (!el) return;
-      el.style.height = "auto";
-      el.style.height = Math.max(el.scrollHeight, descriptionMinHeight) + "px";
-      el.focus();
-    },
-    [descriptionMinHeight],
-  );
 
   const handleUploadFiles = async (files: FileList | File[]) => {
     setIsUploading(true);
@@ -463,33 +433,13 @@ export function CustomTaskDetailPanel({
       <div className="flex-1 overflow-y-auto p-5 space-y-12">
         <section>
           <h3 className={`text-[11px] font-medium ${text.muted} mb-3`}>Description</h3>
-          {editingDescription ? (
-            <textarea
-              ref={autoResize}
-              value={descriptionDraft}
-              onChange={(e) => {
-                setDescriptionDraft(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height =
-                  Math.max(e.target.scrollHeight, descriptionMinHeight) + "px";
-              }}
-              onBlur={saveDescription}
-              className={`w-full px-4 py-3 bg-white/[0.02] border border-white/[0.08] rounded-lg text-xs ${text.primary} focus:outline-none resize-none`}
-              style={{ minHeight: descriptionMinHeight }}
-            />
-          ) : (
-            <div
-              ref={descriptionRef}
-              className="rounded-lg bg-white/[0.02] border border-white/[0.04] px-4 py-3 cursor-pointer hover:border-white/[0.08] transition-colors min-h-[60px]"
-              onClick={startEditDescription}
-            >
-              {task.description ? (
-                <MarkdownContent content={task.description} />
-              ) : (
-                <p className={`text-xs ${text.dimmed} italic`}>Click to add a description...</p>
-              )}
-            </div>
-          )}
+          <EditableTextareaCard
+            value={task.description}
+            onSave={(value) => update({ description: value })}
+            rows={4}
+            renderPreview={(value) => <MarkdownContent content={value} />}
+            contentPaddingClassName="px-4 py-3 min-h-[60px]"
+          />
         </section>
 
         {/* Attachments */}

@@ -8,6 +8,7 @@ directories:
 files:
   - apps/desktop-app/dist/**/*
   - apps/desktop-app/assets/**/*
+  - apps/desktop-app/node_modules/**/*
   - apps/cli/dist/**/*
   - apps/web-app/dist/**/*
   - apps/server/dist/runtime/**/*

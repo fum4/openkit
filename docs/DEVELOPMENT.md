@@ -67,7 +67,7 @@ App script contract: app packages expose a non-watch `preview` script for runnin
 OpenKit uses Nx for workspace orchestration and task caching while keeping app-level build tools (tsup, Vite, electron-builder).
 
 - Workspace config lives in `nx.json`
-- Nx `sharedGlobals` cache inputs include root package/lock metadata plus shared build config files (`tsconfig.base.json`, `tsconfig.apps.json`, `tsconfig.libs.json`, `tsconfig.json`, and core app build configs like tsup/vite/electron-builder) so cache invalidates correctly when shared defaults change.
+- Nx `sharedGlobals` cache inputs include root package/lock metadata plus shared build config files (`tsconfig.base.json`, `tsconfig.apps.json`, `tsconfig.libs.json`, `tsconfig.workspace.json`, and core app build configs like tsup/vite/electron-builder) so cache invalidates correctly when shared defaults change.
 - pnpm workspace config lives in `pnpm-workspace.yaml` (globs `apps/*`, `libs/*`, and `packages/*`; only directories with their own `package.json` are treated as pnpm packages)
 - Project configs are colocated as `project.json` in:
   - `apps/web-app` (`web-app`)
@@ -81,7 +81,7 @@ Package layout:
 
 - Root `package.json` is the workspace orchestration entrypoint (marked `private` to prevent accidental npm publish).
 - `apps/cli`, `apps/server`, `apps/web-app`, and `apps/desktop-app` own their direct scripts and dependencies.
-- Root TypeScript configs are split by role: `tsconfig.base.json` (shared compiler defaults), `tsconfig.apps.json` (app defaults), `tsconfig.libs.json` (library defaults), and `tsconfig.json` (workspace aggregate).
+- Root TypeScript configs are split by role: `tsconfig.base.json` (shared compiler defaults), `tsconfig.apps.json` (app defaults), `tsconfig.libs.json` (library defaults), and `tsconfig.workspace.json` (workspace aggregate).
 - `apps/website/package.json` and `apps/mobile-app/package.json` remain independently tooled ecosystems (Astro and Expo).
 
 Common commands:
@@ -134,6 +134,7 @@ npm publishing is currently paused.
   - `/package:linux` packages only Linux desktop artifacts.
     It reacts to the triggering comment, posts a status comment with queued targets, marks all requested targets as in-progress before platform jobs fan out, updates that same comment as each platform finishes, then posts a final summary with platform status and artifact download links. For macOS PR packaging, arm64 and x64 DMGs are uploaded as separate artifacts (no blockmaps), and the comment table includes separate `macOS (Apple Silicon)` and `macOS (Intel)` rows with independent download links. Comment rendering/state merging is shared via `.github/actions/package-update-comment`. Final title aggregation treats `cancelled` as dominant only when every requested platform job is cancelled; otherwise it derives the title from non-cancelled results (uniform status vs mixed `completed with issues`).
     macOS PR packaging uses the same shared build/sign/notarize action as release packaging (`.github/actions/package-desktop-macos`). Signing/notarization is enabled only when the PR head is in the same repository; fork PR heads are built unsigned to avoid exposing Apple secrets to untrusted code.
+    The shared macOS packaging flow accepts either `APPLE_ID`/`APPLE_TEAM_ID`/`APPLE_APP_SPECIFIC_PASSWORD` or legacy `APPLE_NOTARIZATION_APPLE_ID`/`APPLE_NOTARIZATION_TEAM_ID`/`APPLE_NOTARIZATION_PASSWORD` secrets.
 - The release workflow still runs `pnpm check:all` and creates release tags plus the GitHub release.
 - Desktop release assets are built/uploaded in `.github/workflows/package-release.yml` on release tag pushes (`v*`), including updater metadata/assets (`latest*.yml`, macOS ZIPs, and blockmaps) required by `electron-updater`.
 - npm-specific publish steps are commented out in `.github/workflows/release.yml`.
@@ -276,8 +277,8 @@ The web app uses Tailwind v4 through CSS-first configuration in `apps/web-app/sr
 TypeScript uses a layered setup:
 
 - Root `tsconfig.base.json` defines shared compiler defaults (emit-neutral).
-- Root `tsconfig.apps.json` / `tsconfig.libs.json` define app/library defaults.
-- Root `tsconfig.json` is the workspace aggregate config.
+- Root `tsconfig.apps.json` / `tsconfig.libs.json` define app/library defaults (including the shared `@openkit/shared/*` path alias).
+- Root `tsconfig.workspace.json` is the workspace aggregate config.
 - Each app owns `apps/<app>/tsconfig.json` and can override as needed (for example `apps/desktop-app` uses NodeNext emit settings, `apps/web-app` adds `vite/client` types).
 
 - **Target/Module:** ES2022 / ESNext with Bundler resolution

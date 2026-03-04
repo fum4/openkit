@@ -13,46 +13,6 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
       <div class="download-main">
         <DownloadSplitButton buttonId="download-btn" className="section-download glow-pulse" />
       </div>
-      <div class="cli-section">
-        <span class="cli-label">Or install via CLI</span>
-        <div class="cli-row">
-          <span class="cli-dollar">$</span>
-          <code>npm install -g openkit</code>
-          <button
-            class="copy-btn"
-            data-copy="npm install -g openkit"
-            aria-label="Copy install command"
-          >
-            <svg
-              class="copy-icon"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            <svg
-              class="check-icon"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-          </button>
-        </div>
-      </div>
       <a
         href="https://github.com/fum4/OpenKit/releases"
         target="_blank"
@@ -89,11 +49,11 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
   }
 
   .download-card {
-    max-width: 440px;
+    max-width: 420px;
     margin: 0 auto;
     background: var(--bg-panel);
     border: 1px solid var(--border-subtle);
-    border-radius: 16px;
+    border-radius: 24px;
     padding: 32px;
     text-align: center;
   }
@@ -114,93 +74,16 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
     width: calc(100% - 44px);
   }
 
-  .download-hint {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin: -8px 0 20px;
-  }
-
-  .cli-section {
-    padding-top: 24px;
-    border-top: 1px solid var(--border-subtle);
-  }
-
-  .cli-label {
-    display: block;
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-bottom: 12px;
-    letter-spacing: 0.02em;
-  }
-
-  .cli-row {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 12px 9px 14px;
-    background: var(--bg-raised);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    font-size: 13px;
-    transition: border-color 0.2s var(--ease-out-quart);
-  }
-
-  .cli-row:hover {
-    border-color: var(--border-medium);
-  }
-
-  .cli-dollar {
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    user-select: none;
-  }
-
-  .cli-row code {
-    color: var(--text-secondary);
-    font-size: 13px;
-  }
-
-  .copy-btn {
-    position: relative;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    transition: color 0.2s var(--ease-out-quart);
-    border-radius: 4px;
-  }
-
-  .copy-btn:hover {
-    color: var(--accent);
-    background: rgba(45, 212, 191, 0.08);
-  }
-
-  .copy-btn .check-icon {
-    display: none;
-    color: var(--accent);
-  }
-
-  .copy-btn.copied .copy-icon {
-    display: none;
-  }
-
-  .copy-btn.copied .check-icon {
-    display: block;
-  }
-
   .releases-link {
     display: inline-block;
-    margin-top: 20px;
+    margin-top: 4px;
     font-size: 13px;
     color: var(--text-muted) !important;
     transition: color 0.2s var(--ease-out-quart) !important;
   }
 
   .releases-link:hover {
-    color: var(--accent) !important;
+    color: #fff !important;
   }
 
   @media (max-width: 768px) {

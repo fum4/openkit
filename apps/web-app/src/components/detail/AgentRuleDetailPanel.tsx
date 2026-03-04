@@ -124,7 +124,7 @@ export function AgentRuleDetailPanel({ fileId }: Props) {
             <button
               type="button"
               onClick={handleCreate}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg ${agentRule.accentBg} ${agentRule.accent} hover:bg-cyan-400/20 transition-colors`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg ${agentRule.accentBg} ${agentRule.accent} hover:bg-white/20 transition-colors`}
             >
               <Plus className="w-3.5 h-3.5" />
               Create {meta.name}

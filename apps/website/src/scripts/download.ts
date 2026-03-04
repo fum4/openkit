@@ -48,7 +48,7 @@ interface NavigatorWithUAData extends Navigator {
   };
 }
 
-const CACHE_KEY = "OpenKit-release-info-v3";
+const CACHE_KEY = "OpenKit-release-info";
 const RELEASES_API = "https://api.github.com/repos/fum4/OpenKit/releases/latest";
 const RELEASES_PAGE = "https://github.com/fum4/OpenKit/releases";
 const LATEST_DOWNLOAD_BASE = "https://github.com/fum4/OpenKit/releases/latest/download";
@@ -80,6 +80,49 @@ const ARCH_ORDER: Record<Arch, number> = {
   universal: 2,
   other: 3,
 };
+
+const LINUX_ARCH_ORDER: Record<Arch, number> = {
+  x64: 0,
+  arm64: 1,
+  universal: 2,
+  other: 3,
+};
+
+interface CanonicalOptionSlot {
+  id: string;
+  fallbackId: string;
+  platform: Platform;
+  arch: Arch;
+  title: string;
+  matches: (option: DownloadOption) => boolean;
+}
+
+const CANONICAL_OPTION_SLOTS: CanonicalOptionSlot[] = [
+  {
+    id: "download-mac-arm64",
+    fallbackId: "fallback-mac-arm64",
+    platform: "mac",
+    arch: "arm64",
+    title: "macOS (Apple Silicon)",
+    matches: (option) => option.platform === "mac" && option.arch === "arm64",
+  },
+  {
+    id: "download-mac-x64",
+    fallbackId: "fallback-mac-x64",
+    platform: "mac",
+    arch: "x64",
+    title: "macOS (Intel)",
+    matches: (option) => option.platform === "mac" && option.arch === "x64",
+  },
+  {
+    id: "download-linux",
+    fallbackId: "fallback-linux-x64",
+    platform: "linux",
+    arch: "x64",
+    title: "Linux",
+    matches: (option) => option.platform === "linux",
+  },
+];
 
 interface ManifestData {
   version: string;
@@ -130,15 +173,19 @@ function detectUserPlatform(): Platform {
 
 function detectUserArch(): Arch {
   const nav = navigator as NavigatorWithUAData;
-  const hints = [
-    nav.userAgentData?.architecture || "",
-    nav.userAgentData?.platform || "",
-    navigator.userAgent || "",
-  ]
+  const platform = detectUserPlatform();
+  const uaArchitecture = (nav.userAgentData?.architecture || "").toLowerCase();
+  const hints = [uaArchitecture, nav.userAgentData?.platform || "", navigator.userAgent || ""]
     .join(" ")
     .toLowerCase();
 
   if (/(arm64|aarch64|armv8|\barm\b)/.test(hints)) return "arm64";
+
+  // `userAgent` on macOS can include Intel-compatible tokens even on Apple Silicon.
+  // Only treat macOS x64 as reliable when provided by UA Client Hints architecture.
+  if (/\b(x86_64|x64|amd64|x86)\b/.test(uaArchitecture)) return "x64";
+  if (platform === "mac") return "other";
+
   if (/(x64|x86_64|amd64|intel|win64|x86)/.test(hints)) return "x64";
   return "other";
 }
@@ -314,6 +361,49 @@ function optionsFromWorkflowManifests(
   return options;
 }
 
+function comparePreferredOptions(a: DownloadOption, b: DownloadOption): number {
+  if (a.extOrder !== b.extOrder) return a.extOrder - b.extOrder;
+
+  const aArchOrder = a.platform === "linux" ? LINUX_ARCH_ORDER[a.arch] : ARCH_ORDER[a.arch];
+  const bArchOrder = b.platform === "linux" ? LINUX_ARCH_ORDER[b.arch] : ARCH_ORDER[b.arch];
+  if (aArchOrder !== bArchOrder) return aArchOrder - bArchOrder;
+
+  return a.title.localeCompare(b.title);
+}
+
+function canonicalizeOptions(rawOptions: DownloadOption[]): DownloadOption[] {
+  const fallbackOptions = getFallbackOptions();
+  const fallbackById = new Map(fallbackOptions.map((option) => [option.id, option]));
+
+  return CANONICAL_OPTION_SLOTS.map((slot) => {
+    const preferred = rawOptions
+      .filter((option) => slot.matches(option))
+      .sort(comparePreferredOptions)[0];
+    const fallback = fallbackById.get(slot.fallbackId);
+    const selected = preferred || fallback;
+
+    if (!selected) {
+      return {
+        id: slot.id,
+        platform: slot.platform,
+        arch: slot.arch,
+        ext: "",
+        extOrder: 99,
+        title: slot.title,
+        url: RELEASES_PAGE,
+      };
+    }
+
+    return {
+      ...selected,
+      id: slot.id,
+      platform: slot.platform,
+      arch: slot.arch,
+      title: slot.title,
+    };
+  });
+}
+
 function parseReleaseOptions(assets: ReleaseAsset[]): DownloadOption[] {
   const options: DownloadOption[] = [];
 
@@ -375,7 +465,7 @@ function parseReleaseOptions(assets: ReleaseAsset[]): DownloadOption[] {
     }
   });
 
-  return Array.from(bestByTarget.values()).sort((a, b) => {
+  const bestOptions = Array.from(bestByTarget.values()).sort((a, b) => {
     if (PLATFORM_ORDER[a.platform] !== PLATFORM_ORDER[b.platform]) {
       return PLATFORM_ORDER[a.platform] - PLATFORM_ORDER[b.platform];
     }
@@ -384,6 +474,8 @@ function parseReleaseOptions(assets: ReleaseAsset[]): DownloadOption[] {
     }
     return a.title.localeCompare(b.title);
   });
+
+  return canonicalizeOptions(bestOptions);
 }
 
 function getCached(): DownloadInfo | null {
@@ -409,47 +501,49 @@ async function fetchRelease(): Promise<DownloadInfo> {
   if (cached) return cached;
 
   try {
-    const [macManifestRes, linuxManifestRes] = await Promise.allSettled([
-      fetch(LATEST_MAC_MANIFEST),
-      fetch(LATEST_LINUX_MANIFEST),
-    ]);
-
-    const macManifestText =
-      macManifestRes.status === "fulfilled" && macManifestRes.value.ok
-        ? await macManifestRes.value.text()
-        : "";
-    const linuxManifestText =
-      linuxManifestRes.status === "fulfilled" && linuxManifestRes.value.ok
-        ? await linuxManifestRes.value.text()
-        : "";
-
-    const macManifest = macManifestText ? parseManifest(macManifestText) : null;
-    const linuxManifest = linuxManifestText ? parseManifest(linuxManifestText) : null;
-    const manifestOptions = optionsFromWorkflowManifests(macManifest, linuxManifest);
-    const manifestVersion = macManifest?.version || linuxManifest?.version || "";
-
-    if (manifestOptions.length > 0) {
-      const info: DownloadInfo = {
-        version: manifestVersion,
-        options: manifestOptions,
-      };
-      setCache(info);
-      return info;
-    }
-
     const res = await fetch(RELEASES_API);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data: ReleaseData = await res.json();
-    const parsedOptions = parseReleaseOptions(data.assets || []);
+    const parsedOptions = parseReleaseOptions(data.assets ?? []);
     const info: DownloadInfo = {
       version: normalizeVersion(data.tag_name),
-      options: parsedOptions.length > 0 ? parsedOptions : getFallbackOptions(),
+      options: parsedOptions,
     };
 
     setCache(info);
     return info;
   } catch {
-    return { version: "", options: getFallbackOptions() };
+    try {
+      const [macManifestRes, linuxManifestRes] = await Promise.allSettled([
+        fetch(LATEST_MAC_MANIFEST),
+        fetch(LATEST_LINUX_MANIFEST),
+      ]);
+
+      const macManifestText =
+        macManifestRes.status === "fulfilled" && macManifestRes.value.ok
+          ? await macManifestRes.value.text()
+          : "";
+      const linuxManifestText =
+        linuxManifestRes.status === "fulfilled" && linuxManifestRes.value.ok
+          ? await linuxManifestRes.value.text()
+          : "";
+
+      const macManifest = macManifestText ? parseManifest(macManifestText) : null;
+      const linuxManifest = linuxManifestText ? parseManifest(linuxManifestText) : null;
+      const manifestOptions = canonicalizeOptions(
+        optionsFromWorkflowManifests(macManifest, linuxManifest),
+      );
+      const manifestVersion = macManifest?.version || linuxManifest?.version || "";
+      const info: DownloadInfo = {
+        version: manifestVersion,
+        options: manifestOptions,
+      };
+
+      setCache(info);
+      return info;
+    } catch {
+      return { version: "", options: canonicalizeOptions([]) };
+    }
   }
 }
 
@@ -461,7 +555,9 @@ function selectDefaultOption(options: DownloadOption[]): DownloadOption | null {
 
   if (userPlatform === "mac") {
     return (
+      options.find((o) => o.platform === "mac" && o.arch === userArch) ||
       options.find((o) => o.platform === "mac" && o.arch === "arm64") ||
+      options.find((o) => o.platform === "mac" && o.arch === "x64") ||
       options.find((o) => o.platform === "mac" && o.arch === "universal") ||
       options.find((o) => o.platform === "mac") ||
       options[0]
@@ -582,22 +678,8 @@ function bindDropdowns(widgets: DownloadWidget[]) {
   });
 }
 
-function bindCopyButtons() {
-  document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const text = btn.dataset.copy || "";
-      try {
-        await navigator.clipboard.writeText(text);
-        btn.classList.add("copied");
-        setTimeout(() => btn.classList.remove("copied"), 1500);
-      } catch {}
-    });
-  });
-}
-
 async function init() {
   const widgets = getWidgets();
-  bindCopyButtons();
   if (widgets.length === 0) return;
 
   bindDropdowns(widgets);

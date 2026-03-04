@@ -18,7 +18,7 @@
       "{workspaceRoot}/tsconfig.base.json",
       "{workspaceRoot}/tsconfig.apps.json",
       "{workspaceRoot}/tsconfig.libs.json",
-      "{workspaceRoot}/tsconfig.json",
+      "{workspaceRoot}/tsconfig.workspace.json",
       "{workspaceRoot}/apps/cli/tsup.config.ts",
       "{workspaceRoot}/apps/web-app/vite.config.ts",
       "{workspaceRoot}/apps/desktop-app/electron-builder.yml"

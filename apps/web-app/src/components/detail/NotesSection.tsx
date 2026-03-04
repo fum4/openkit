@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CircleCheck,
   Copy,
@@ -14,6 +14,7 @@ import {
 import { useNotes } from "../../hooks/useNotes";
 import { useHooksConfig } from "../../hooks/useHooks";
 import { notes as notesTheme, text } from "../../theme";
+import { EditableTextareaCard } from "../EditableTextareaCard";
 import { MarkdownContent } from "../MarkdownContent";
 import { Tooltip } from "../Tooltip";
 import { TodoList } from "./TodoList";
@@ -45,7 +46,6 @@ export function PersonalNotesSection({ source, issueId }: SectionProps) {
         }}
         onAddTodo={addTodo}
         placeholder="Personal notes about this issue..."
-        emptyText="Click to add personal notes..."
         accentBg={notesTheme.personalAccent}
         accentBorder={notesTheme.personalBorder}
       />
@@ -393,96 +393,19 @@ function DirectionsPane({
   content: string;
   updateSection: (section: "personal" | "aiContext", content: string) => Promise<unknown>;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaved = useRef("");
-
-  const flushSave = useCallback(
-    (value: string) => {
-      if (value !== lastSaved.current) {
-        lastSaved.current = value;
-        updateSection("aiContext", value);
-      }
-    },
-    [updateSection],
-  );
-
-  const scheduleSave = useCallback(
-    (value: string) => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => flushSave(value), 600);
-    },
-    [flushSave],
-  );
-
-  const finishEditing = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    flushSave(draft);
-    setEditing(false);
-  }, [draft, flushSave]);
-
-  useEffect(() => {
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-  }, []);
-
-  const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
-    textareaRef.current = el;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = Math.max(el.scrollHeight, 80) + "px";
-    el.focus();
-  }, []);
-
-  const startEdit = () => {
-    setDraft(content);
-    lastSaved.current = content;
-    setEditing(true);
-  };
-
-  if (editing) {
-    return (
-      <div className="px-4 pb-3 pt-2">
-        <textarea
-          ref={autoResize}
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            scheduleSave(e.target.value);
-            if (textareaRef.current) {
-              textareaRef.current.style.height = "auto";
-              textareaRef.current.style.height =
-                Math.max(textareaRef.current.scrollHeight, 80) + "px";
-            }
-          }}
-          onBlur={finishEditing}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") finishEditing();
-          }}
-          placeholder="Directions for AI agents..."
-          className={`w-full bg-transparent text-xs ${text.primary} focus:outline-none resize-none placeholder-[#3b4049] leading-relaxed`}
-          style={{ minHeight: 80 }}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div
-      className="px-4 pb-3 pt-2 cursor-pointer hover:bg-white/[0.01] transition-colors min-h-[80px]"
-      onClick={startEdit}
-    >
-      {content ? (
-        <MarkdownContent content={content} />
-      ) : (
-        <p className={`text-xs ${notesTheme.emptyText} italic`}>
-          Click to add directions for AI agents...
-        </p>
-      )}
-    </div>
+    <EditableTextareaCard
+      value={content}
+      onSave={(value) => updateSection("aiContext", value)}
+      rows={6}
+      debounceMs={600}
+      placeholder="Directions for AI agents..."
+      renderPreview={(value) => <MarkdownContent content={value} />}
+      containerClassName="rounded-none bg-transparent border-0 overflow-hidden"
+      contentPaddingClassName="px-4 pb-3 pt-2 min-h-[80px]"
+      hintClassName={notesTheme.emptyText}
+      textareaClassName="placeholder-[#3b4049] leading-relaxed"
+    />
   );
 }
 
@@ -553,7 +476,6 @@ function NotePane({
   onMoveToAiContext,
   onAddTodo,
   placeholder,
-  emptyText,
   accentBg,
   accentBorder,
 }: {
@@ -563,49 +485,13 @@ function NotePane({
   onMoveToAiContext?: (selectedText: string) => void;
   onAddTodo?: (text: string) => void;
   placeholder: string;
-  emptyText: string;
   accentBg: string;
   accentBorder: string;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaved = useRef("");
   const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string } | null>(
     null,
   );
-
-  const flushSave = useCallback(
-    (value: string) => {
-      if (value !== lastSaved.current) {
-        lastSaved.current = value;
-        updateSection(section, value);
-      }
-    },
-    [updateSection, section],
-  );
-
-  const scheduleSave = useCallback(
-    (value: string) => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => flushSave(value), 600);
-    },
-    [flushSave],
-  );
-
-  const finishEditing = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    flushSave(draft);
-    setEditing(false);
-  }, [draft, flushSave]);
-
-  useEffect(() => {
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-  }, []);
 
   // Detect text selection inside the note pane
   useEffect(() => {
@@ -646,81 +532,24 @@ function NotePane({
     setSelectionMenu(null);
   };
 
-  const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
-    textareaRef.current = el;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = Math.max(el.scrollHeight, 80) + "px";
-    el.focus();
-  }, []);
-
-  const startEdit = () => {
-    setDraft(content);
-    lastSaved.current = content;
-    setEditing(true);
-  };
-
-  if (editing) {
-    return (
-      <div ref={containerRef}>
-        <textarea
-          ref={autoResize}
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            scheduleSave(e.target.value);
-            if (textareaRef.current) {
-              textareaRef.current.style.height = "auto";
-              textareaRef.current.style.height =
-                Math.max(textareaRef.current.scrollHeight, 80) + "px";
-            }
-          }}
-          onBlur={finishEditing}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") finishEditing();
-          }}
-          placeholder={placeholder}
-          className={`w-full px-4 py-3 ${accentBg} border ${accentBorder} rounded-lg text-xs ${text.primary} focus:outline-none resize-none placeholder-[#4b5563]`}
-          style={{ minHeight: 80 }}
-        />
-
-        {selectionMenu && (onMoveToAiContext || onAddTodo) && (
-          <SelectionMenu
-            position={selectionMenu}
-            onCopy={() => {
-              navigator.clipboard.writeText(selectionMenu.text);
-              clearSelection();
-            }}
-            onMoveToAiContext={() => {
-              onMoveToAiContext?.(selectionMenu.text);
-              clearSelection();
-            }}
-            onAddTodo={() => {
-              onAddTodo?.(selectionMenu.text);
-              clearSelection();
-            }}
-          />
-        )}
-      </div>
-    );
-  }
-
   return (
     <div ref={containerRef}>
-      <div
-        className={`rounded-lg ${accentBg} border ${accentBorder} px-4 py-3 cursor-pointer hover:border-white/[0.08] transition-colors min-h-[60px]`}
-        onClick={() => {
+      <EditableTextareaCard
+        value={content}
+        onSave={(value) => updateSection(section, value)}
+        rows={6}
+        debounceMs={600}
+        placeholder={placeholder}
+        renderPreview={(value) => <MarkdownContent content={value} />}
+        containerClassName={`rounded-lg ${accentBg} border ${accentBorder} overflow-hidden`}
+        contentPaddingClassName="px-4 py-3 min-h-[60px]"
+        hintClassName={notesTheme.emptyText}
+        textareaClassName="placeholder-[#4b5563]"
+        onStartEditing={() => {
           const sel = window.getSelection();
-          if (sel && !sel.isCollapsed) return;
-          startEdit();
+          return !sel || sel.isCollapsed;
         }}
-      >
-        {content ? (
-          <MarkdownContent content={content} />
-        ) : (
-          <p className={`text-xs ${notesTheme.emptyText} italic`}>{emptyText}</p>
-        )}
-      </div>
+      />
 
       {selectionMenu && (onMoveToAiContext || onAddTodo) && (
         <SelectionMenu

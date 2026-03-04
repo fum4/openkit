@@ -9,6 +9,7 @@ import { border, mcpServer, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Spinner } from "../Spinner";
 import { ToggleSwitch } from "../ToggleSwitch";
+import { EditableTextareaCard } from "../EditableTextareaCard";
 
 interface McpServerDetailPanelProps {
   serverId: string;
@@ -46,12 +47,12 @@ export function McpServerDetailPanel({
 
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
-  const [editingDescription, setEditingDescription] = useState(false);
-  const [descriptionDraft, setDescriptionDraft] = useState("");
   const [editingCommand, setEditingCommand] = useState(false);
   const [commandDraft, setCommandDraft] = useState("");
   const [editingArgs, setEditingArgs] = useState(false);
   const [argsDraft, setArgsDraft] = useState("");
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [urlDraft, setUrlDraft] = useState("");
   const [showEnv, setShowEnv] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteUndeploy, setDeleteUndeploy] = useState(true);
@@ -172,6 +173,9 @@ export function McpServerDetailPanel({
   const isDeployedAnywhere = Object.values(serverDeployment).some(
     (scopes) => scopes.global || scopes.project,
   );
+  const isRemoteServer = !!server.url;
+  const serverCommand = server.command ?? "";
+  const serverArgs = server.args ?? [];
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -251,128 +255,154 @@ export function McpServerDetailPanel({
         {/* Description */}
         <section>
           <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>Description</h3>
-          {!isBuiltIn && editingDescription ? (
-            <textarea
-              value={descriptionDraft}
-              onChange={(e) => setDescriptionDraft(e.target.value)}
-              onBlur={async () => {
-                if (descriptionDraft !== server.description) {
-                  await update({ description: descriptionDraft });
-                }
-                setEditingDescription(false);
-              }}
-              className={`w-full px-3 py-2 bg-white/[0.02] border border-white/[0.08] rounded-lg text-xs ${text.primary} focus:outline-none resize-none`}
-              rows={3}
-              autoFocus
-            />
-          ) : (
-            <div
-              className={`rounded-lg bg-white/[0.02] border border-white/[0.04] px-3 py-2 ${!isBuiltIn ? "cursor-pointer hover:border-white/[0.08]" : ""} transition-colors min-h-[40px]`}
-              onClick={
-                !isBuiltIn
-                  ? () => {
-                      setDescriptionDraft(server.description);
-                      setEditingDescription(true);
-                    }
-                  : undefined
-              }
-              title={!isBuiltIn ? "Click to edit" : undefined}
-            >
-              {server.description ? (
-                <p className={`text-xs ${text.secondary}`}>{server.description}</p>
-              ) : (
-                <p className={`text-xs ${text.dimmed} italic`}>
-                  {isBuiltIn ? "No description" : "Click to add a description..."}
-                </p>
-              )}
-            </div>
-          )}
+          <EditableTextareaCard
+            value={server.description ?? ""}
+            onSave={(value) => update({ description: value })}
+            editable={!isBuiltIn}
+            rows={3}
+            renderPreview={(value) => <p className={`text-xs ${text.secondary}`}>{value}</p>}
+            emptyPlaceholder={
+              isBuiltIn ? (
+                <p className={`text-xs ${text.dimmed} italic`}>No description</p>
+              ) : undefined
+            }
+            showClickHint={!isBuiltIn}
+            contentPaddingClassName="px-3 py-2 min-h-[40px]"
+          />
         </section>
 
-        {/* Command & Args */}
+        {/* Transport Configuration */}
         <section>
           <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>Configuration</h3>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className={`text-[10px] ${text.dimmed} w-16`}>Command</span>
-              {!isBuiltIn && editingCommand ? (
-                <input
-                  type="text"
-                  value={commandDraft}
-                  onChange={(e) => setCommandDraft(e.target.value)}
-                  onBlur={async () => {
-                    if (commandDraft.trim() && commandDraft.trim() !== server.command) {
-                      await update({ command: commandDraft.trim() });
-                    }
-                    setEditingCommand(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                    if (e.key === "Escape") setEditingCommand(false);
-                  }}
-                  className={`flex-1 px-2 py-1 bg-white/[0.04] border border-white/[0.08] rounded text-xs font-mono ${text.primary} focus:outline-none`}
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className={`text-xs font-mono ${text.primary} ${!isBuiltIn ? "cursor-pointer hover:bg-white/[0.04]" : ""} px-2 py-1 -mx-2 rounded transition-colors`}
-                  onClick={
-                    !isBuiltIn
-                      ? () => {
-                          setCommandDraft(server.command);
-                          setEditingCommand(true);
-                        }
-                      : undefined
-                  }
-                  title={!isBuiltIn ? "Click to edit" : undefined}
-                >
-                  {server.command}
+          {isRemoteServer ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] ${text.dimmed} w-16`}>Type</span>
+                <span className={`text-xs font-mono ${text.secondary}`}>
+                  {server.type ?? "http"}
                 </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-[10px] ${text.dimmed} w-16`}>Args</span>
-              {!isBuiltIn && editingArgs ? (
-                <input
-                  type="text"
-                  value={argsDraft}
-                  onChange={(e) => setArgsDraft(e.target.value)}
-                  onBlur={async () => {
-                    const newArgs = argsDraft.trim() ? argsDraft.split(/\s+/) : [];
-                    if (JSON.stringify(newArgs) !== JSON.stringify(server.args)) {
-                      await update({ args: newArgs });
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] ${text.dimmed} w-16`}>URL</span>
+                {!isBuiltIn && editingUrl ? (
+                  <input
+                    type="text"
+                    value={urlDraft}
+                    onChange={(e) => setUrlDraft(e.target.value)}
+                    onBlur={async () => {
+                      if (urlDraft.trim() && urlDraft.trim() !== server.url) {
+                        await update({ url: urlDraft.trim() });
+                      }
+                      setEditingUrl(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      if (e.key === "Escape") setEditingUrl(false);
+                    }}
+                    className={`flex-1 px-2 py-1 bg-white/[0.04] border border-white/[0.08] rounded text-xs font-mono ${text.primary} focus:outline-none`}
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className={`text-xs font-mono ${text.primary} ${!isBuiltIn ? "cursor-pointer hover:bg-white/[0.04]" : ""} px-2 py-1 -mx-2 rounded transition-colors truncate`}
+                    onClick={
+                      !isBuiltIn
+                        ? () => {
+                            setUrlDraft(server.url ?? "");
+                            setEditingUrl(true);
+                          }
+                        : undefined
                     }
-                    setEditingArgs(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                    if (e.key === "Escape") setEditingArgs(false);
-                  }}
-                  className={`flex-1 px-2 py-1 bg-white/[0.04] border border-white/[0.08] rounded text-xs font-mono ${text.primary} focus:outline-none`}
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className={`text-xs font-mono ${text.secondary} ${!isBuiltIn ? "cursor-pointer hover:bg-white/[0.04]" : ""} px-2 py-1 -mx-2 rounded transition-colors`}
-                  onClick={
-                    !isBuiltIn
-                      ? () => {
-                          setArgsDraft(server.args.join(" "));
-                          setEditingArgs(true);
-                        }
-                      : undefined
-                  }
-                  title={!isBuiltIn ? "Click to edit" : undefined}
-                >
-                  {server.args.length > 0 ? (
-                    server.args.join(" ")
-                  ) : (
-                    <span className={text.dimmed}>none</span>
-                  )}
-                </span>
-              )}
+                    title={!isBuiltIn ? "Click to edit" : undefined}
+                  >
+                    {server.url}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] ${text.dimmed} w-16`}>Command</span>
+                {!isBuiltIn && editingCommand ? (
+                  <input
+                    type="text"
+                    value={commandDraft}
+                    onChange={(e) => setCommandDraft(e.target.value)}
+                    onBlur={async () => {
+                      if (commandDraft.trim() && commandDraft.trim() !== serverCommand) {
+                        await update({ command: commandDraft.trim() });
+                      }
+                      setEditingCommand(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      if (e.key === "Escape") setEditingCommand(false);
+                    }}
+                    className={`flex-1 px-2 py-1 bg-white/[0.04] border border-white/[0.08] rounded text-xs font-mono ${text.primary} focus:outline-none`}
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className={`text-xs font-mono ${text.primary} ${!isBuiltIn ? "cursor-pointer hover:bg-white/[0.04]" : ""} px-2 py-1 -mx-2 rounded transition-colors`}
+                    onClick={
+                      !isBuiltIn
+                        ? () => {
+                            setCommandDraft(serverCommand);
+                            setEditingCommand(true);
+                          }
+                        : undefined
+                    }
+                    title={!isBuiltIn ? "Click to edit" : undefined}
+                  >
+                    {serverCommand}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] ${text.dimmed} w-16`}>Args</span>
+                {!isBuiltIn && editingArgs ? (
+                  <input
+                    type="text"
+                    value={argsDraft}
+                    onChange={(e) => setArgsDraft(e.target.value)}
+                    onBlur={async () => {
+                      const newArgs = argsDraft.trim() ? argsDraft.split(/\s+/) : [];
+                      if (JSON.stringify(newArgs) !== JSON.stringify(serverArgs)) {
+                        await update({ args: newArgs });
+                      }
+                      setEditingArgs(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      if (e.key === "Escape") setEditingArgs(false);
+                    }}
+                    className={`flex-1 px-2 py-1 bg-white/[0.04] border border-white/[0.08] rounded text-xs font-mono ${text.primary} focus:outline-none`}
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className={`text-xs font-mono ${text.secondary} ${!isBuiltIn ? "cursor-pointer hover:bg-white/[0.04]" : ""} px-2 py-1 -mx-2 rounded transition-colors`}
+                    onClick={
+                      !isBuiltIn
+                        ? () => {
+                            setArgsDraft(serverArgs.join(" "));
+                            setEditingArgs(true);
+                          }
+                        : undefined
+                    }
+                    title={!isBuiltIn ? "Click to edit" : undefined}
+                  >
+                    {serverArgs.length > 0 ? (
+                      serverArgs.join(" ")
+                    ) : (
+                      <span className={text.dimmed}>none</span>
+                    )}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Environment Variables (per-project) */}

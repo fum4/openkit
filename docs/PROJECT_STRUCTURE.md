@@ -21,7 +21,7 @@ OpenKit/
 ├── pnpm-workspace.yaml  pnpm workspace package map
 ├── vercel.json          Root Vercel build/install/output config
 ├── package.json
-├── tsconfig.json
+├── tsconfig.workspace.json
 └── ...
 ```
 
@@ -133,7 +133,7 @@ libs/
 - `apps/website/package.json` is isolated for Astro website tooling.
 - `apps/mobile-app/package.json` is isolated for Expo/React Native tooling.
 - Shared runtime code in `libs/*` uses Nx `project.json` and TypeScript path aliases.
-- Shared build/typecheck configuration is centralized in root `tsconfig.base.json` + `tsconfig.json`.
+- Shared build/typecheck configuration is centralized in root `tsconfig.base.json` + `tsconfig.workspace.json`.
 - `pnpm-workspace.yaml` uses broad globs (`apps/*`, `libs/*`, `packages/*`) so future package-based subprojects can be added without changing workspace config.
 
 ## Generated Artifacts

@@ -78,7 +78,7 @@ runs:
           const statusLabel = {
             success: "Success",
             failure: "Failed",
-            cancelled: "Cancelled",
+            cancelled: "Canceled",
             skipped: "Skipped",
           };
 
@@ -258,7 +258,7 @@ runs:
             const nonCancelledResults = finalResults.filter((result) => result !== "cancelled");
 
             if (allCancelled) {
-              title = "### 🚫 Packaging cancelled";
+              title = "### 🚫 Packaging canceled";
             } else if (nonCancelledResults.length > 0) {
               const first = nonCancelledResults[0];
               const allSame = nonCancelledResults.every((result) => result === first);

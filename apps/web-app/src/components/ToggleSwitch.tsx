@@ -58,8 +58,26 @@ export function ToggleSwitch({
   const cursorStyle = {
     cursor: interactive ? (disabled ? "not-allowed" : "pointer") : "default",
   } as const;
-  const trackClassName = `relative ${sizeClasses.track} rounded-full transition-colors duration-200 flex-shrink-0 ${cursorClass} ${checked ? checkedTrackClassName : uncheckedTrackClassName} ${className}`;
-  const thumbClassName = `absolute ${sizeClasses.thumb} rounded-full transition-all duration-200 ${checked ? `${sizeClasses.thumbOn} ${checkedThumbClassName}` : `${sizeClasses.thumbOff} ${uncheckedThumbClassName}`}`;
+  const hoverTrackClass =
+    interactive && !disabled
+      ? checked
+        ? "hover:brightness-125 hover:saturate-150"
+        : "hover:bg-white/[0.14]"
+      : "";
+  const hoverThumbClass =
+    interactive && !disabled
+      ? checked
+        ? "group-hover:brightness-110"
+        : "group-hover:bg-white/60"
+      : "";
+  const disabledTrackClass = disabled
+    ? checked
+      ? "brightness-135 saturate-75"
+      : "bg-white/[0.24]"
+    : "";
+  const disabledThumbClass = disabled ? (checked ? "brightness-135" : "bg-white/85") : "";
+  const trackClassName = `group relative ${sizeClasses.track} rounded-full transition-colors duration-200 flex-shrink-0 ${cursorClass} ${hoverTrackClass} ${checked ? checkedTrackClassName : uncheckedTrackClassName} ${disabledTrackClass} ${className}`;
+  const thumbClassName = `absolute ${sizeClasses.thumb} rounded-full transition-all duration-200 ${hoverThumbClass} ${checked ? `${sizeClasses.thumbOn} ${checkedThumbClassName}` : `${sizeClasses.thumbOff} ${uncheckedThumbClassName}`} ${disabledThumbClass}`;
 
   if (!interactive) {
     return (

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { DiffEditor } from "@monaco-editor/react";
 
@@ -12,6 +12,7 @@ import { ConfirmDialog } from "../ConfirmDialog";
 import { MarkdownContent } from "../MarkdownContent";
 import { Spinner } from "../Spinner";
 import { ToggleSwitch } from "../ToggleSwitch";
+import { EditableTextareaCard } from "../EditableTextareaCard";
 
 const AGENTS = [
   { id: "claude", label: "Claude Code" },
@@ -43,8 +44,6 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
 
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
-  const [editingRef, setEditingRef] = useState(false);
-  const [editingExamples, setEditingExamples] = useState(false);
   const [editingConfig, setEditingConfig] = useState<string | null>(null);
   const [configDraft, setConfigDraft] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -53,8 +52,6 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
 
   useEffect(() => {
     setEditingName(false);
-    setEditingRef(false);
-    setEditingExamples(false);
     setEditingConfig(null);
     setShowOriginalDiff(false);
   }, [skillName]);
@@ -178,14 +175,17 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto p-5 space-y-12">
         {/* Description — auto-save */}
-        <AutoSaveTextSection
-          key={`desc-${skillName}`}
-          title="Description"
-          content={fm.description || ""}
-          emptyText="Click to add description..."
-          rows={3}
-          onSave={(v) => saveUpdate({ frontmatter: { description: v } })}
-        />
+        <section>
+          <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>Description</h3>
+          <EditableTextareaCard
+            key={`desc-${skillName}`}
+            value={fm.description || ""}
+            onSave={(v) => saveUpdate({ frontmatter: { description: v } })}
+            rows={3}
+            debounceMs={600}
+            renderPreview={(value) => <MarkdownContent content={value} />}
+          />
+        </section>
 
         {/* Deployment Matrix */}
         <section>
@@ -375,27 +375,34 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
         </section>
 
         {/* SKILL.md */}
-        <AutoSaveFileSection
+        <EditableTextareaCard
           key={`md-${skillName}`}
-          title="SKILL.md"
-          content={skill.skillMd}
-          rows={16}
+          value={skill.skillMd}
           onSave={(v) => saveUpdate({ skillMd: v })}
-          headerActions={
-            skill.builtIn && skill.originalSkillMd ? (
-              <button
-                type="button"
-                onClick={() => setShowOriginalDiff((v) => !v)}
-                className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                  showOriginalDiff
-                    ? "bg-teal-500/[0.15] text-teal-300"
-                    : `bg-white/[0.06] ${text.dimmed} hover:${text.muted}`
-                }`}
-              >
-                {showOriginalDiff ? "Hide original diff" : "Compare with original"}
-              </button>
-            ) : null
-          }
+          rows={16}
+          debounceMs={600}
+          monospace
+          pathAnnotation={{
+            text: `SKILL.md: ${skill.path}/SKILL.md`,
+            title: `${skill.path}/SKILL.md`,
+            actions:
+              skill.builtIn && skill.originalSkillMd ? (
+                <button
+                  type="button"
+                  onClick={() => setShowOriginalDiff((v) => !v)}
+                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                    showOriginalDiff
+                      ? "bg-teal-500/[0.15] text-teal-300"
+                      : `bg-white/[0.06] ${text.dimmed} hover:${text.muted}`
+                  }`}
+                >
+                  {showOriginalDiff ? "Hide original diff" : "Compare with original"}
+                </button>
+              ) : null,
+          }}
+          renderPreview={(value) => (
+            <pre className={`text-xs font-mono ${text.secondary} whitespace-pre-wrap`}>{value}</pre>
+          )}
         />
         {showOriginalDiff && skill.builtIn && skill.originalSkillMd && (
           <section>
@@ -421,60 +428,56 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
         )}
 
         {/* reference.md */}
-        {skill.hasReference || editingRef ? (
-          <AutoSaveFileSection
-            key={`ref-${skillName}`}
-            title="reference.md"
-            content={skill.referenceMd ?? ""}
-            rows={12}
-            onSave={(v) => saveUpdate({ referenceMd: v })}
-            onDelete={async () => {
-              await saveUpdate({ referenceMd: "" });
-              setEditingRef(false);
-            }}
-            startEditing={!skill.hasReference}
-          />
-        ) : (
-          <section>
-            <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>reference.md</h3>
-            <button
-              type="button"
-              onClick={() => setEditingRef(true)}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] ${text.dimmed} hover:${text.muted} hover:bg-white/[0.04] transition-colors`}
-            >
-              <Plus className="w-3 h-3" />
-              Add reference
-            </button>
-          </section>
-        )}
+        <EditableTextareaCard
+          key={`ref-${skillName}`}
+          value={skill.referenceMd ?? ""}
+          onSave={(v) => saveUpdate({ referenceMd: v })}
+          rows={12}
+          debounceMs={600}
+          monospace
+          pathAnnotation={{
+            text: `reference.md: ${skill.path}/reference.md`,
+            title: `${skill.path}/reference.md`,
+            actions: skill.hasReference ? (
+              <button
+                type="button"
+                onClick={() => void saveUpdate({ referenceMd: "" })}
+                className={`p-0.5 rounded ${text.dimmed} hover:text-red-400 transition-colors`}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            ) : null,
+          }}
+          renderPreview={(value) => (
+            <pre className={`text-xs font-mono ${text.secondary} whitespace-pre-wrap`}>{value}</pre>
+          )}
+        />
 
         {/* examples.md */}
-        {skill.hasExamples || editingExamples ? (
-          <AutoSaveFileSection
-            key={`ex-${skillName}`}
-            title="examples.md"
-            content={skill.examplesMd ?? ""}
-            rows={12}
-            onSave={(v) => saveUpdate({ examplesMd: v })}
-            onDelete={async () => {
-              await saveUpdate({ examplesMd: "" });
-              setEditingExamples(false);
-            }}
-            startEditing={!skill.hasExamples}
-          />
-        ) : (
-          <section>
-            <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>examples.md</h3>
-            <button
-              type="button"
-              onClick={() => setEditingExamples(true)}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] ${text.dimmed} hover:${text.muted} hover:bg-white/[0.04] transition-colors`}
-            >
-              <Plus className="w-3 h-3" />
-              Add examples
-            </button>
-          </section>
-        )}
+        <EditableTextareaCard
+          key={`ex-${skillName}`}
+          value={skill.examplesMd ?? ""}
+          onSave={(v) => saveUpdate({ examplesMd: v })}
+          rows={12}
+          debounceMs={600}
+          monospace
+          pathAnnotation={{
+            text: `examples.md: ${skill.path}/examples.md`,
+            title: `${skill.path}/examples.md`,
+            actions: skill.hasExamples ? (
+              <button
+                type="button"
+                onClick={() => void saveUpdate({ examplesMd: "" })}
+                className={`p-0.5 rounded ${text.dimmed} hover:text-red-400 transition-colors`}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            ) : null,
+          }}
+          renderPreview={(value) => (
+            <pre className={`text-xs font-mono ${text.secondary} whitespace-pre-wrap`}>{value}</pre>
+          )}
+        />
       </div>
 
       {/* Delete confirmation */}
@@ -614,197 +617,5 @@ function EditableConfigRow({
         {hasValue ? value : (fallback ?? "—")}
       </span>
     </div>
-  );
-}
-
-// ─── Auto-save text section (description) ────────────────────
-
-function AutoSaveTextSection({
-  title,
-  content,
-  emptyText,
-  rows,
-  onSave,
-}: {
-  title: string;
-  content: string;
-  emptyText: string;
-  rows: number;
-  onSave: (value: string) => Promise<unknown>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaved = useRef("");
-
-  const flush = useCallback(
-    (v: string) => {
-      if (v !== lastSaved.current) {
-        lastSaved.current = v;
-        onSave(v);
-      }
-    },
-    [onSave],
-  );
-
-  const schedule = useCallback(
-    (v: string) => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => flush(v), 600);
-    },
-    [flush],
-  );
-
-  const finish = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    flush(draft);
-    setEditing(false);
-  }, [draft, flush]);
-
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  return (
-    <section>
-      <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>{title}</h3>
-      {editing ? (
-        <textarea
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            schedule(e.target.value);
-          }}
-          onBlur={finish}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") finish();
-          }}
-          className={`w-full px-3 py-2 bg-white/[0.02] border border-white/[0.08] rounded-lg text-xs ${text.primary} focus:outline-none resize-none`}
-          rows={rows}
-          autoFocus
-        />
-      ) : (
-        <div
-          className="rounded-lg bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] px-3 py-2 cursor-pointer transition-colors"
-          onClick={() => {
-            setDraft(content);
-            lastSaved.current = content;
-            setEditing(true);
-          }}
-        >
-          {content ? (
-            <MarkdownContent content={content} />
-          ) : (
-            <p className={`text-xs ${text.dimmed}`}>{emptyText}</p>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ─── Auto-save file section (SKILL.md / reference / examples) ─
-
-function AutoSaveFileSection({
-  title,
-  content,
-  rows,
-  onSave,
-  onDelete,
-  startEditing,
-  headerActions,
-}: {
-  title: string;
-  content: string;
-  rows: number;
-  onSave: (value: string) => Promise<unknown>;
-  onDelete?: () => void;
-  startEditing?: boolean;
-  headerActions?: React.ReactNode;
-}) {
-  const [editing, setEditing] = useState(!!startEditing);
-  const [draft, setDraft] = useState(startEditing ? content : "");
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaved = useRef(content);
-
-  const flush = useCallback(
-    (v: string) => {
-      if (v !== lastSaved.current) {
-        lastSaved.current = v;
-        onSave(v);
-      }
-    },
-    [onSave],
-  );
-
-  const schedule = useCallback(
-    (v: string) => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => flush(v), 600);
-    },
-    [flush],
-  );
-
-  const finish = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    flush(draft);
-    setEditing(false);
-  }, [draft, flush]);
-
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  return (
-    <section>
-      <div className="flex items-center justify-between mb-2">
-        <h3 className={`text-[11px] font-medium ${text.muted}`}>{title}</h3>
-        <div className="flex items-center gap-2">
-          {headerActions}
-          {onDelete && !startEditing && (
-            <button
-              type="button"
-              onClick={onDelete}
-              className={`p-0.5 rounded ${text.dimmed} hover:text-red-400 transition-colors`}
-            >
-              <Trash2 className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-      </div>
-      {editing ? (
-        <textarea
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            schedule(e.target.value);
-          }}
-          onBlur={finish}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") finish();
-          }}
-          className={`w-full px-3 py-2 bg-white/[0.02] border border-white/[0.08] rounded-lg text-xs font-mono ${text.primary} focus:outline-none resize-none`}
-          rows={rows}
-          autoFocus
-        />
-      ) : content ? (
-        <div
-          className="rounded-lg bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] px-3 py-2 max-h-80 overflow-y-auto cursor-pointer transition-colors"
-          onClick={() => {
-            setDraft(content);
-            lastSaved.current = content;
-            setEditing(true);
-          }}
-        >
-          <pre className={`text-xs font-mono ${text.secondary} whitespace-pre-wrap`}>{content}</pre>
-        </div>
-      ) : null}
-    </section>
   );
 }

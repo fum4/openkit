@@ -2,9 +2,9 @@
 
 ## Misc
 
-- Rename .openkit to .ok
+- Clean up CLI & corresponding website docs
 
-- assets vs public/assets? clean up
+- Rename .openkit to .ok
 
 - 🚧 After authenticating GitHub the UI does not automatically refresh
 

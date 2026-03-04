@@ -25,8 +25,10 @@ interface McpServerDefinition {
   name: string;
   description: string;
   tags: string[];
-  command: string;
-  args: string[];
+  command?: string;
+  args?: string[];
+  type?: "http" | "sse";
+  url?: string;
   env: Record<string, string>;
   source?: string;
   createdAt: string;
@@ -117,7 +119,8 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
           s.name.toLowerCase().includes(q) ||
           s.id.toLowerCase().includes(q) ||
           s.description.toLowerCase().includes(q) ||
-          s.command.toLowerCase().includes(q),
+          (s.command ?? "").toLowerCase().includes(q) ||
+          (s.url ?? "").toLowerCase().includes(q),
       );
     }
 
@@ -215,11 +218,15 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
       tags?: string[];
       command?: string;
       args?: string[];
+      type?: "http" | "sse";
+      url?: string;
       env?: Record<string, string>;
     }>();
 
-    if (!body.name?.trim() || !body.command?.trim()) {
-      return c.json({ success: false, error: "Name and command are required" }, 400);
+    const command = body.command?.trim();
+    const url = body.url?.trim();
+    if (!body.name?.trim() || (!command && !url)) {
+      return c.json({ success: false, error: "Name and either command or URL are required" }, 400);
     }
 
     const registry = loadRegistry();
@@ -235,8 +242,10 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
       name: body.name.trim(),
       description: body.description?.trim() ?? "",
       tags: Array.isArray(body.tags) ? body.tags.map((t) => String(t).trim()).filter(Boolean) : [],
-      command: body.command.trim(),
-      args: Array.isArray(body.args) ? body.args.map(String) : [],
+      ...(command ? { command } : {}),
+      ...(Array.isArray(body.args) ? { args: body.args.map(String) } : {}),
+      ...(url ? { url } : {}),
+      ...(body.type ? { type: body.type } : {}),
       env: body.env && typeof body.env === "object" ? body.env : {},
       createdAt: now,
       updatedAt: now,
@@ -297,8 +306,10 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
 
     const discovered: Array<{
       key: string;
-      command: string;
+      command?: string;
       args: string[];
+      type?: "http" | "sse";
+      url?: string;
       env: Record<string, string>;
       foundIn: Array<{ configPath: string }>;
       alreadyInRegistry: boolean;
@@ -306,8 +317,10 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
     for (const [key, { entry, foundIn }] of serverMap) {
       discovered.push({
         key,
-        command: entry.command ?? "",
+        command: entry.command,
         args: entry.args ?? [],
+        type: entry.type,
+        url: entry.url,
         env: entry.env ?? {},
         foundIn,
         alreadyInRegistry: !!registry.servers[key],
@@ -326,8 +339,10 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
         name?: string;
         description?: string;
         tags?: string[];
-        command: string;
-        args: string[];
+        command?: string;
+        args?: string[];
+        type?: "http" | "sse";
+        url?: string;
         env?: Record<string, string>;
         source?: string;
       }>;
@@ -342,7 +357,9 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
     const imported: string[] = [];
 
     for (const s of body.servers) {
-      if (!s.key || !s.command) continue;
+      const command = s.command?.trim();
+      const url = s.url?.trim();
+      if (!s.key || (!command && !url)) continue;
       if (registry.servers[s.key]) continue;
 
       registry.servers[s.key] = {
@@ -350,8 +367,10 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
         name: s.name?.trim() || s.key,
         description: s.description?.trim() ?? "",
         tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t).trim()).filter(Boolean) : [],
-        command: s.command,
-        args: Array.isArray(s.args) ? s.args.map(String) : [],
+        ...(command ? { command } : {}),
+        ...(Array.isArray(s.args) ? { args: s.args.map(String) } : {}),
+        ...(url ? { url } : {}),
+        ...(s.type ? { type: s.type } : {}),
         env: s.env && typeof s.env === "object" ? s.env : {},
         source: s.source,
         createdAt: now,
@@ -380,6 +399,8 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
         tags: string[];
         command: string;
         args: string[];
+        type: "http" | "sse";
+        url: string;
         env: Record<string, string>;
       }>
     >();
@@ -388,8 +409,16 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
     if (body.description !== undefined) server.description = body.description.trim();
     if (body.tags !== undefined)
       server.tags = body.tags.map((t) => String(t).trim()).filter(Boolean);
-    if (body.command !== undefined) server.command = body.command.trim();
+    if (body.command !== undefined) {
+      const trimmed = body.command.trim();
+      server.command = trimmed || undefined;
+    }
     if (body.args !== undefined) server.args = body.args.map(String);
+    if (body.type !== undefined) server.type = body.type;
+    if (body.url !== undefined) {
+      const trimmed = body.url.trim();
+      server.url = trimmed || undefined;
+    }
     if (body.env !== undefined) server.env = body.env;
 
     server.updatedAt = new Date().toISOString();
@@ -429,11 +458,20 @@ export function registerMcpServerRoutes(app: Hono, _manager: WorktreeManager) {
     const projectEnvStore = loadProjectEnv(projectDir);
     const projectEnv = projectEnvStore[id] ?? {};
     const mergedEnv = { ...server.env, ...projectEnv };
-    const entry: McpServerEntry = {
-      command: server.command,
-      args: server.args,
-      ...(Object.keys(mergedEnv).length > 0 ? { env: mergedEnv } : {}),
-    };
+    if (!server.url && !server.command) {
+      return c.json({ success: false, error: "Server has neither URL nor command" }, 400);
+    }
+    const entry: McpServerEntry = server.url
+      ? {
+          type: server.type ?? "http",
+          url: server.url,
+          ...(Object.keys(mergedEnv).length > 0 ? { env: mergedEnv } : {}),
+        }
+      : {
+          command: server.command ?? "",
+          args: server.args ?? [],
+          ...(Object.keys(mergedEnv).length > 0 ? { env: mergedEnv } : {}),
+        };
 
     const result = writeServerToConfig(filePath, spec, id, entry);
     return c.json(result, result.success ? 200 : 500);

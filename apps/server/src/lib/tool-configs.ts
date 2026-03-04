@@ -129,6 +129,29 @@ export function resolveSkillDeployDir(
   return path.join(projectDir, template);
 }
 
+export const CUSTOM_AGENT_SPECS: Record<AgentId, SkillDirSpec> = {
+  claude: { global: "~/.claude/agents", project: ".claude/agents" },
+  cursor: { global: "~/.cursor/agents", project: ".cursor/agents" },
+  gemini: { global: "~/.gemini/agents", project: ".gemini/agents" },
+  codex: { global: "~/.codex/agents", project: ".codex/agents" },
+  vscode: { global: "~/.vscode/agents", project: ".vscode/agents" },
+};
+
+export function resolveAgentDeployDir(
+  agent: AgentId,
+  scope: Scope,
+  projectDir: string,
+): string | null {
+  const spec = CUSTOM_AGENT_SPECS[agent];
+  if (!spec) return null;
+  const template = scope === "global" ? spec.global : spec.project;
+  if (!template) return null;
+  if (template.startsWith("~")) {
+    return path.join(os.homedir(), template.slice(2));
+  }
+  return path.join(projectDir, template);
+}
+
 // ─── Utility functions ──────────────────────────────────────────
 
 export function stripJsonComments(text: string): string {
@@ -587,7 +610,7 @@ function extractServersFromFile(filePath: string): Record<string, McpServerEntry
     }
 
     // Try each known JSON path where MCP servers might live
-    const jsonPaths = [["mcpServers"], ["mcp", "servers"], ["servers"]];
+    const jsonPaths = [["mcpServers"], ["mcp", "servers"]];
 
     for (const jsonPath of jsonPaths) {
       let obj: unknown = data;
@@ -598,6 +621,13 @@ function extractServersFromFile(filePath: string): Record<string, McpServerEntry
         const entries = extractServerEntries(obj as Record<string, unknown>);
         if (Object.keys(entries).length > 0) return entries;
       }
+    }
+
+    // .mcp.json and mcp.json may use flat `{ serverName: { ... } }` format.
+    const base = path.basename(filePath);
+    if (base === ".mcp.json" || base === "mcp.json") {
+      const entries = extractServerEntries(data);
+      if (Object.keys(entries).length > 0) return entries;
     }
 
     return {};

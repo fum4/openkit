@@ -42,7 +42,11 @@ export function PluginDetailPanel({
 
   const isDisabled = !!acting || !!pluginActing;
 
-  const invalidatePlugins = () => queryClient.invalidateQueries({ queryKey: ["claudePlugins"] });
+  const invalidatePlugins = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["claudePlugins"] }),
+      queryClient.invalidateQueries({ queryKey: ["claudeAgents"] }),
+    ]);
 
   const withActing = async (key: string, fn: () => Promise<void>) => {
     setActing(key);
@@ -88,7 +92,7 @@ export function PluginDetailPanel({
       if (!plugin) return;
       setShowUninstallConfirm(false);
       await api.uninstallClaudePlugin(plugin.id, plugin.scope);
-      await queryClient.invalidateQueries({ queryKey: ["claudePlugins"] });
+      await invalidatePlugins();
       // Only redirect if still viewing the plugin that was deleted
       if (currentPluginIdRef.current === plugin.id) {
         onDeleted();
@@ -228,7 +232,9 @@ export function PluginDetailPanel({
               Description
             </h3>
             <div
-              className={`rounded-lg bg-white/[0.02] border border-white/[0.04] px-3 py-2 overflow-y-auto ${plugin.readme ? "" : "flex-1"}`}
+              className={`rounded-lg bg-white/[0.02] border border-white/[0.04] px-3 py-2 overflow-y-auto ${
+                plugin.readme ? "" : "flex-1"
+              }`}
             >
               <MarkdownContent content={plugin.description} />
             </div>
@@ -481,7 +487,7 @@ function hasComponents(components: {
 
 const typeColors: Record<string, string> = {
   Command: "text-blue-300 bg-blue-900/30",
-  Agent: "text-emerald-300 bg-emerald-900/30",
+  Agent: "text-cyan-300 bg-cyan-900/30",
   Skill: "text-amber-300 bg-amber-900/30",
   "MCP Server": "text-purple-300 bg-purple-900/30",
   Hooks: "text-rose-300 bg-rose-900/30",

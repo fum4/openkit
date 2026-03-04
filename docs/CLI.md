@@ -9,14 +9,6 @@ openkit [command] [options]
 ok [command] [options]
 ```
 
-## Install
-
-```bash
-npm install -g openkit
-openkit --help
-ok --help
-```
-
 ## Command Inventory
 
 | Command                                                    | Description                                                              |
@@ -26,7 +18,7 @@ ok --help
 | `openkit init`                                             | Run setup wizard and create `.openkit/config.json`.                      |
 | `openkit add [github\|linear\|jira]`                       | Connect or configure an integration.                                     |
 | `openkit ui [status\|install ...]`                         | Manage optional UI components (web bundle and desktop app).              |
-| `openkit mcp`                                              | Run OpenKit as an MCP server for agents.                                 |
+| `openkit mcp`                                              | Legacy MCP server mode for agents (deprecated).                          |
 | `openkit activity await-input ...`                         | Emit an "agent awaiting user input" activity event for the UI.           |
 | `openkit activity phase ...`                               | Emit a canonical workflow phase checkpoint event for a worktree.         |
 | `openkit activity check-flow ...`                          | Validate whether required workflow phases/hooks were completed.          |
@@ -90,6 +82,7 @@ openkit ui status
 openkit ui install web
 openkit ui install desktop
 openkit ui install both
+openkit ui install all
 ```
 
 Behavior:
@@ -213,6 +206,8 @@ Start as an MCP (Model Context Protocol) server for AI coding agents.
 ```bash
 openkit mcp
 ```
+
+> Deprecated: MCP is legacy in this repository and is not used for current workflows.
 
 Uses stdio for JSON-RPC communication. All `console.log` output is redirected to stderr because stdout is reserved for JSON-RPC messages.
 
@@ -432,6 +427,7 @@ Commands:
   (default)     Start the server and open the UI
   init          Interactive setup wizard to create .openkit/config.json
   add [name]    Set up an integration (github, linear, jira)
+  ui            Manage optional UI components (web/desktop)
   mcp           Start as an MCP server (for AI coding agents)
   activity      Emit workflow activity events (for agent/user coordination)
   task [source|resolve] [ID...] Manage task resolution and worktree creation

@@ -7,6 +7,7 @@ interface ModalProps {
   icon?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  contentClassName?: string;
   onClose: () => void;
   onSubmit?: (e: React.FormEvent) => void;
   width?: "sm" | "md" | "lg";
@@ -19,6 +20,7 @@ export function Modal({
   icon,
   children,
   footer,
+  contentClassName,
   onClose,
   onSubmit,
   width = "md",
@@ -43,7 +45,7 @@ export function Modal({
       </div>
 
       {/* Content */}
-      <div className="px-5 py-4">{children}</div>
+      <div className={contentClassName ?? "px-5 py-4"}>{children}</div>
 
       {/* Footer */}
       {footer && (

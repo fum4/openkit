@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, ScanSearch, Search, Server, Sparkles } from "lucide-react";
+import { Bot, Plus, ScanSearch, Search, Server, Sparkles } from "lucide-react";
 
 import { ClaudeIcon } from "../icons";
 import { skill, input, integration, surface, text } from "../theme";
@@ -7,6 +7,7 @@ import { skill, input, integration, surface, text } from "../theme";
 interface AgentsToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
+  onAddAgent: () => void;
   onAddServer: () => void;
   onAddSkill: () => void;
   onAddPlugin: () => void;
@@ -17,6 +18,7 @@ interface AgentsToolbarProps {
 export function AgentsToolbar({
   search,
   onSearchChange,
+  onAddAgent,
   onAddServer,
   onAddSkill,
   onAddPlugin,
@@ -88,6 +90,17 @@ export function AgentsToolbar({
             type="button"
             onClick={() => {
               setShowAddMenu(false);
+              onAddAgent();
+            }}
+            className={menuItemClass}
+          >
+            <Bot className="w-4 h-4 text-cyan-400" />
+            Agent
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowAddMenu(false);
               onAddSkill();
             }}
             className={menuItemClass}
@@ -130,7 +143,7 @@ export function AgentsToolbar({
             type="text"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Filter servers, skills, plugins..."
+            placeholder="Filter agents, servers, skills, plugins..."
             className={`w-full pl-8 pr-2.5 py-1.5 bg-white/[0.04] border border-white/[0.06] rounded-md ${input.text} placeholder-[#4b5563] text-xs focus:outline-none focus:bg-white/[0.06] focus:border-white/[0.15] transition-all duration-150`}
           />
         </div>

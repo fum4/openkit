@@ -26,7 +26,6 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
           <nav class="toc" id="toc">
             <span class="toc-label">On this page</span>
             <a href="#install" class="toc-link active" data-section="install">Install</a>
-            <a href="#cli-setup" class="toc-link" data-section="cli-setup">CLI Setup</a>
             <a href="#agents" class="toc-link" data-section="agents">Agent Setup</a>
             <a href="#cli" class="toc-link" data-section="cli">CLI Reference</a>
             <a href="#cli-default" class="toc-link toc-sub" data-section="cli-default">openkit</a>
@@ -34,6 +33,7 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
             <a href="#cli-add" class="toc-link toc-sub" data-section="cli-add">openkit add</a>
             <a href="#cli-task" class="toc-link toc-sub" data-section="cli-task">openkit task</a>
             <a href="#cli-activity" class="toc-link toc-sub" data-section="cli-activity">openkit activity</a>
+            <a href="#cli-mcp" class="toc-link toc-sub" data-section="cli-mcp">openkit mcp (legacy)</a>
           </nav>
         </aside>
 
@@ -48,56 +48,14 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
             <p>Open the app, point it at your project, and the wizard handles config, port discovery, and integrations. That's it — you're ready to go.</p>
           </section>
 
-          <!-- ─── CLI Setup ──────────────────────────────────────── -->
-          <section id="cli-setup" class="docs-section fade-in">
-            <h2>CLI Setup</h2>
-            <div class="callout">
-              <span class="callout-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              </span>
-              <span>If you installed the desktop app, skip this section — the setup wizard already took care of everything.</span>
-            </div>
-            <p>Install the CLI globally:</p>
-            <div class="cli-block">
-              <div class="cli-lines">
-                <div class="cli-line"><span class="cli-prompt">$ </span>npm install -g openkit</div>
-              </div>
-              <button class="copy-btn" data-copy="npm install -g openkit" aria-label="Copy">
-                <Fragment set:html={copySvg} />
-                <Fragment set:html={checkSvg} />
-              </button>
-            </div>
-            <p>Navigate to your project root and run the setup wizard:</p>
-            <div class="cli-block">
-              <div class="cli-lines">
-                <div class="cli-line"><span class="cli-prompt">$ </span>openkit init</div>
-              </div>
-              <button class="copy-btn" data-copy="openkit init" aria-label="Copy">
-                <Fragment set:html={copySvg} />
-                <Fragment set:html={checkSvg} />
-              </button>
-            </div>
-            <p>
-              The wizard auto-detects your package manager, dev start command, and base branch.
-              It creates a <code>.openkit/config.json</code> that you can commit to share settings with your team.
-            </p>
-            <p>Once the server is running, click <strong>Discover Ports</strong> in the UI to detect which ports your dev server binds. OpenKit uses these to auto-offset ports per worktree so you can run multiple environments in parallel.</p>
-            <div class="callout">
-              <span class="callout-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              </span>
-              <span>OpenKit integrates with <strong>Jira</strong>, <strong>Linear</strong>, and <strong>GitHub</strong>. Connect them from the UI or via <code>openkit add</code>.</span>
-            </div>
-          </section>
-
           <!-- ─── Agent Setup ──────────────────────────────────── -->
           <section id="agents" class="docs-section fade-in">
             <h2>Agent Setup</h2>
-            <p>OpenKit’s agent workflow is driven by Skills. During <code>openkit init</code> (or setup flow), OpenKit enables the bundled <code>work-on-task</code> skill in project skill directories so agents know the expected flow automatically.</p>
+            <p>OpenKit’s agent workflow is driven by Skills. During setup flow, OpenKit enables the bundled <code>work-on-task</code> skill in project skill directories so agents know the expected flow automatically.</p>
             <p>Recommended flow:</p>
             <ul>
-              <li>Initialize the project with <code>openkit init</code></li>
-              <li>Create a task/worktree from OpenKit (<code>openkit task ...</code> or UI)</li>
+              <li>Initialize your project</li>
+              <li>Integrate your issue tracker</li>
               <li>Let agents run with OpenKit-provided task context and skills</li>
               <li>Use hooks for checks and review steps before shipping</li>
             </ul>
@@ -108,9 +66,19 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
           <!-- ─── CLI Reference ────────────────────────────────── -->
           <section id="cli" class="docs-section fade-in">
             <h2>CLI Reference</h2>
+            <p>
+              OpenKit includes an underlying CLI that powers agent workflows and local automation.
+              The bundled <code>work-on-task</code> skill instructs agents to use these CLI commands
+              for deterministic task resolution, setup, and activity tracking.
+            </p>
+            <p>
+              The short alias <code>ok</code> is also available and accepts the same commands/options
+              as <code>openkit</code>.
+            </p>
             <div class="cli-block">
               <div class="cli-lines">
                 <div class="cli-line"><span class="cli-prompt">$ </span>openkit [command] [options]</div>
+                <div class="cli-line"><span class="cli-prompt">$ </span>ok [command] [options]</div>
               </div>
             </div>
 
@@ -231,6 +199,27 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
                 </button>
               </div>
             </article>
+
+            <!-- openkit mcp -->
+            <!-- <article id="cli-mcp" class="cli-entry">
+              <h3><code>openkit mcp</code></h3>
+              <p>Legacy MCP mode.</p>
+              <div class="callout">
+                <span class="callout-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                </span>
+                <span><strong>Deprecated:</strong> MCP is legacy in this repository and is not used for current workflows.</span>
+              </div>
+              <div class="cli-block">
+                <div class="cli-lines">
+                  <div class="cli-line"><span class="cli-prompt">$ </span>openkit mcp</div>
+                </div>
+                <button class="copy-btn" data-copy="openkit mcp" aria-label="Copy">
+                  <Fragment set:html={copySvg} />
+                  <Fragment set:html={checkSvg} />
+                </button>
+              </div>
+            </article> -->
           </section>
         </div>
       </div>

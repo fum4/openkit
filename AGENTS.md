@@ -1,10 +1,6 @@
-# AGENTS.md
+# CLAUDE.md
 
-This file provides guidance to coding agents when working with code in this repository.
-
-## What This Is
-
-OpenKit is a CLI tool + web UI (with optional Electron app) for managing multiple git worktrees with automatic port offsetting and Jira/Linear/GitHub integrations.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## MCP Status (Legacy)
 
@@ -39,13 +35,6 @@ MCP is legacy in this repository.
 ## Quick Reference
 
 **Package manager**: pnpm
-
-```bash
-pnpm build         # Full build (tsup backend + vite frontend)
-pnpm dev           # Dev mode (concurrent watchers)
-pnpm check:types   # TypeScript type check
-pnpm check:lint    # Lint
-```
 
 There is no test runner configured.
 

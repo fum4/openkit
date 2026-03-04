@@ -177,7 +177,7 @@ OpenKit can scan the filesystem to discover existing MCP server configurations. 
 - **Folder** -- Scans a specified directory (depth 8)
 - **Device** -- Scans the home directory (depth 5)
 
-The scanner looks for files named `.mcp.json`, `mcp.json`, `settings.json`, and `config.toml`, then extracts server definitions from known JSON paths (`mcpServers`, `mcp.servers`, `servers`) and TOML sections (`[mcp_servers.*]`).
+The scanner looks for files named `.mcp.json`, `mcp.json`, `settings.json`, and `config.toml`, then extracts server definitions from known JSON paths (`mcpServers`, `mcp.servers`) and TOML sections (`[mcp_servers.*]`). Flat `.mcp.json` maps (`{ "serverName": { ... } }`) are also supported.
 
 Discovered servers can be bulk-imported into the registry.
 
@@ -493,12 +493,14 @@ The Agents view in the web UI provides a unified interface for managing all agen
 
 The view uses a sidebar + detail panel layout:
 
-- **Sidebar** (resizable, 200-500px): Lists MCP servers, skills, and Claude plugins in collapsible sections.
+- **Sidebar** (resizable, 200-500px): Lists rules, custom/plugin agents, MCP servers, skills, and Claude plugins in collapsible sections.
 - **Detail panel**: Shows configuration and management options for the selected item.
 
 ### Sidebar Sections
 
 **Rules**: Static items for editing project-level agent instruction files (CLAUDE.md, AGENTS.md). Each item shows an active status dot when the file exists on disk, with a toggle on hover to create or delete the file (deletion requires confirmation). Selecting one opens a detail panel with full-height markdown preview and click-to-edit editing with debounced auto-save.
+
+**Agents**: Lists custom markdown agents from the OpenKit registry (`~/.openkit/agents/*.md`) plus Claude plugin agent definitions discovered from installed plugins (`agents/*.md`). Custom agents can be created directly from the `+` button, then deployed to any supported tool (Claude/Cursor/Gemini CLI/VS Code/Codex) at global or project scope.
 
 **MCP Servers**: Lists servers from the registry. Each item shows deployment status indicators for each agent.
 
@@ -512,7 +514,7 @@ The view uses a sidebar + detail panel layout:
 
 **MCP Server Detail** (`McpServerDetailPanel`):
 
-- Server metadata (name, description, command, args, tags)
+- Server metadata (name, description, command/args or type/url, tags)
 - Per-project environment variable overrides
 - Deployment grid: toggle deployment to each agent at global or project scope
 - Delete server from registry
@@ -533,6 +535,15 @@ The view uses a sidebar + detail panel layout:
 - Empty state with "Create" button when the file doesn't exist
 - Delete confirmation dialog
 
+**Agent Detail** (`AgentDetailPanel`):
+
+- Agent metadata (name, description, scope, source type)
+- Source locations (registry markdown path for custom agents, plus plugin install path for plugin-provided agents)
+- Deployment grid for all agents: toggle deployment per tool and scope
+- Plugin-provided agents treat Claude deployment as plugin state; disabling Claude deployment confirms that the whole plugin will be disabled
+- Click-to-edit description and markdown definition with save-on-blur for custom agents
+- Delete action for custom agents
+
 **Plugin Detail** (`PluginDetailPanel`):
 
 - Plugin metadata (name, version, marketplace, scope)
@@ -546,14 +557,15 @@ The view uses a sidebar + detail panel layout:
 The toolbar at the top of the sidebar provides:
 
 - Search filter across all items
+- Add Custom Agent (opens create modal backed by `~/.openkit/agents/*.md`, with multi-tool deployment selection)
 - Add MCP Server (opens create modal)
 - Add Skill (opens create/install modal)
 - Add Plugin (opens install modal)
-- Scan and Import (opens scan modal for discovering servers and skills on the filesystem)
+- Scan and Import (opens scan modal for discovering servers, skills, and custom agents on the filesystem)
 
 ### Auto-Discovery Banner
 
-On first visit, the Agents view automatically runs a device-wide scan for MCP servers and skills. If new items are found, a banner appears offering to import them. This helps users quickly populate the registry with their existing tooling.
+On first visit, the Agents view automatically runs a device-wide scan for MCP servers, skills, and custom agents. If new items are found, a banner appears offering to import them. This helps users quickly populate the registry with their existing tooling.
 
 ---
 
@@ -602,6 +614,20 @@ Valid `fileId` values: `claude-md` (CLAUDE.md), `agents-md` (AGENTS.md).
 | `POST`   | `/api/skills/import`            | Import scanned skills into registry          |
 | `POST`   | `/api/skills/install`           | Install from GitHub via `npx skills add`     |
 | `GET`    | `/api/skills/npx-available`     | Check if `npx skills` CLI is available       |
+
+### Custom Agents
+
+| Method   | Endpoint                                 | Description                                                                                            |
+| -------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `GET`    | `/api/claude/custom-agents`              | List registry agents + per-tool deployment status                                                      |
+| `GET`    | `/api/claude/custom-agents/:id`          | Get custom agent detail                                                                                |
+| `POST`   | `/api/claude/custom-agents`              | Create registry markdown (`deployAgents`, `scope`)                                                     |
+| `PATCH`  | `/api/claude/custom-agents/:id`          | Update registry markdown content                                                                       |
+| `DELETE` | `/api/claude/custom-agents/:id`          | Delete registry markdown + undeploy from all tools                                                     |
+| `POST`   | `/api/claude/custom-agents/:id/deploy`   | Deploy to tool (`{ agent, scope }`)                                                                    |
+| `POST`   | `/api/claude/custom-agents/:id/undeploy` | Undeploy from tool (`{ agent, scope }`)                                                                |
+| `POST`   | `/api/claude/custom-agents/scan`         | Scan filesystem for custom agent markdown                                                              |
+| `POST`   | `/api/claude/custom-agents/import`       | Import into registry and apply per-agent detected deployment defaults (or optional explicit overrides) |
 
 ### Claude Plugins
 

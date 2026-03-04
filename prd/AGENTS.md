@@ -12,6 +12,10 @@ Having commits/push/pr disabled will not 100% stop claude from commiting (especi
 
 Make sure the out of the box configuration for agent behavior is solid and well refined (e.g. use code-review plugin from anthropic instead of custom one?)
 
-## Clean up MCP
+## ✅ Clean up MCP
 
 Get rid of built-in MCP & make sure MCPs can be installed & enabled
+
+## Integrate with Spec-Driven Development workflows
+
+GSD, Spec-Kit, OpenSpec, Ralph Loops

@@ -1,18 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, Download, Radar, RefreshCw, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { APP_NAME } from "@openkit/shared/constants";
 import { useServer } from "../contexts/ServerContext";
 import { reportPersistentErrorToast } from "../errorToasts";
 import { useApi } from "../hooks/useApi";
 import { useConfig } from "../hooks/useConfig";
+import { useErrorToast } from "../hooks/useErrorToast";
 import { useMcpServers, useMcpDeploymentStatus } from "../hooks/useMcpServers";
-import { useSkills, useSkillDeploymentStatus, useClaudePlugins } from "../hooks/useSkills";
-import type { McpScanResult, SkillScanResult } from "../types";
+import {
+  useSkills,
+  useSkillDeploymentStatus,
+  useClaudeAgents,
+  useClaudePlugins,
+} from "../hooks/useSkills";
+import type { ClaudeAgentScanResult, McpScanResult, SkillScanResult } from "../types";
 import { surface } from "../theme";
 import { AgentsSidebar, type AgentSelection } from "./AgentsSidebar";
 import { AgentsToolbar } from "./AgentsToolbar";
 import { AgentRuleDetailPanel } from "./detail/AgentRuleDetailPanel";
+import { AgentDetailPanel } from "./detail/AgentDetailPanel";
 import { McpServerDetailPanel } from "./detail/McpServerDetailPanel";
 import { SkillDetailPanel } from "./detail/SkillDetailPanel";
 import { PluginDetailPanel } from "./detail/PluginDetailPanel";
@@ -20,7 +28,9 @@ import { McpServerCreateModal } from "./McpServerCreateModal";
 import { McpServerScanModal } from "./McpServerScanModal";
 import { SkillCreateModal } from "./SkillCreateModal";
 import { PluginInstallModal } from "./PluginInstallModal";
+import { AgentCreateModal } from "./AgentCreateModal";
 import { ResizableHandle } from "./ResizableHandle";
+import { PanelErrorBoundary } from "./PanelErrorBoundary";
 import { text } from "../theme";
 
 const BANNER_DISMISSED_KEY = `${APP_NAME}:agentsBannerDismissed`;
@@ -35,6 +45,8 @@ const MAX_WIDTH = 500;
 
 export function AgentsView() {
   const { serverUrl } = useServer();
+  const api = useApi();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selection, setSelectionState] = useState<AgentSelection>(() => {
     if (serverUrl) {
@@ -55,6 +67,7 @@ export function AgentsView() {
     }
   };
   const [showCreateServerModal, setShowCreateServerModal] = useState(false);
+  const [showCreateAgentModal, setShowCreateAgentModal] = useState(false);
   const [showCreateSkillModal, setShowCreateSkillModal] = useState(false);
   const [showInstallPluginModal, setShowInstallPluginModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -62,6 +75,7 @@ export function AgentsView() {
   const [scanModalPrefillResults, setScanModalPrefillResults] = useState<{
     mcpResults: McpScanResult[];
     skillResults: SkillScanResult[];
+    agentResults: ClaudeAgentScanResult[];
   } | null>(null);
 
   const { config, refetch: refetchConfig } = useConfig();
@@ -82,6 +96,14 @@ export function AgentsView() {
   const { skills, isLoading: skillsLoading, refetch: refetchSkills } = useSkills();
   const { status: skillDeploymentStatus, refetch: refetchSkillDeployment } =
     useSkillDeploymentStatus();
+  const {
+    agents,
+    isLoading: agentsLoading,
+    isFetching: agentsFetching,
+    error: agentsError,
+    refetch: refetchAgents,
+  } = useClaudeAgents();
+  useErrorToast(agentsError, "agents-view:agents-fetch");
   const { plugins, isLoading: pluginsLoading, refetch: refetchPlugins } = useClaudePlugins();
   const [pluginActing, setPluginActing] = useState(false);
 
@@ -114,6 +136,17 @@ export function AgentsView() {
     }
   }, [servers, serversLoading, selection]);
 
+  // Clear stale selection when selected agent no longer exists
+  useEffect(() => {
+    if (
+      selection?.type === "agent" &&
+      !agentsLoading &&
+      !agents.find((agent) => agent.id === selection.id)
+    ) {
+      setSelection(null);
+    }
+  }, [agents, agentsLoading, selection]);
+
   const handleCreated = () => {
     refetchServers();
     refetchDeployment();
@@ -135,17 +168,27 @@ export function AgentsView() {
 
   const handlePluginInstalled = () => {
     refetchPlugins();
+    refetchAgents();
+  };
+
+  const handleAgentCreated = (agentId: string) => {
+    refetchAgents();
+    setSelection({ type: "agent", id: agentId });
   };
 
   const handleImported = () => {
+    setSearch("");
+    void queryClient.invalidateQueries({ queryKey: ["mcpServers"] });
+    void queryClient.invalidateQueries({ queryKey: ["mcpDeploymentStatus"] });
     refetchServers();
     refetchDeployment();
     refetchSkills();
     refetchSkillDeployment();
+    refetchAgents();
     dismissDiscovery();
   };
 
-  const hasItems = servers.length > 0 || skills.length > 0;
+  const hasItems = servers.length > 0 || skills.length > 0 || agents.length > 0;
 
   const [infoBannerDismissed, setInfoBannerDismissed] = useState(
     () => localStorage.getItem(BANNER_DISMISSED_KEY) === "1",
@@ -156,13 +199,13 @@ export function AgentsView() {
   };
 
   // Discovery banner: always scan on mount, re-scan on revisit
-  const api = useApi();
   const [discoveryDismissed, setDiscoveryDismissed] = useState(
     () => localStorage.getItem(DISCOVERY_DISMISSED_KEY) === "1",
   );
   const [discoveryCounts, setDiscoveryCountsRaw] = useState<{
     servers: number;
     skills: number;
+    agents: number;
   } | null>(() => {
     try {
       const saved = localStorage.getItem(DISCOVERY_COUNTS_KEY);
@@ -171,7 +214,9 @@ export function AgentsView() {
       return null;
     }
   });
-  const setDiscoveryCounts = (counts: { servers: number; skills: number } | null) => {
+  const setDiscoveryCounts = (
+    counts: { servers: number; skills: number; agents: number } | null,
+  ) => {
     setDiscoveryCountsRaw(counts);
     if (counts) {
       localStorage.setItem(DISCOVERY_COUNTS_KEY, JSON.stringify(counts));
@@ -183,10 +228,21 @@ export function AgentsView() {
   const [discoveryScanResults, setDiscoveryScanResults] = useState<{
     mcpResults: McpScanResult[];
     skillResults: SkillScanResult[];
+    agentResults: ClaudeAgentScanResult[];
   } | null>(() => {
     try {
       const saved = localStorage.getItem(DISCOVERY_RESULTS_KEY);
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved) as {
+        mcpResults?: McpScanResult[];
+        skillResults?: SkillScanResult[];
+        agentResults?: ClaudeAgentScanResult[];
+      };
+      return {
+        mcpResults: Array.isArray(parsed.mcpResults) ? parsed.mcpResults : [],
+        skillResults: Array.isArray(parsed.skillResults) ? parsed.skillResults : [],
+        agentResults: Array.isArray(parsed.agentResults) ? parsed.agentResults : [],
+      };
     } catch {
       return null;
     }
@@ -195,6 +251,7 @@ export function AgentsView() {
     results: {
       mcpResults: McpScanResult[];
       skillResults: SkillScanResult[];
+      agentResults: ClaudeAgentScanResult[];
     } | null,
   ) => {
     setDiscoveryScanResults(results);
@@ -208,12 +265,26 @@ export function AgentsView() {
   const runDiscoveryScan = useCallback(() => {
     setDiscoveryScanning(true);
     const options = { mode: "device" as const };
-    Promise.all([api.scanMcpServers(options), api.scanSkills(options)])
-      .then(([mcpRes, skillRes]) => {
-        const mcpResults = (mcpRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
+    Promise.all([
+      api.scanMcpServers(options),
+      api.scanSkills(options),
+      api.scanClaudeAgents(options),
+    ])
+      .then(([mcpRes, skillRes, agentRes]) => {
+        const mcpResults = (mcpRes.discovered ?? []).filter((r) => {
+          if (r.alreadyInRegistry) return false;
+          const command = typeof r.command === "string" ? r.command.trim() : "";
+          const url = typeof r.url === "string" ? r.url.trim() : "";
+          return command.length > 0 || url.length > 0;
+        });
         const skillResults = (skillRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
-        setPersistedDiscoveryResults({ mcpResults, skillResults });
-        setDiscoveryCounts({ servers: mcpResults.length, skills: skillResults.length });
+        const agentResults = (agentRes.discovered ?? []).filter((r) => !r.alreadyInRegistry);
+        setPersistedDiscoveryResults({ mcpResults, skillResults, agentResults });
+        setDiscoveryCounts({
+          servers: mcpResults.length,
+          skills: skillResults.length,
+          agents: agentResults.length,
+        });
       })
       .catch((error) => {
         reportPersistentErrorToast(error, "Discovery scan failed", {
@@ -239,8 +310,30 @@ export function AgentsView() {
   };
 
   const hasDiscoveryResults =
-    discoveryCounts !== null && (discoveryCounts.servers > 0 || discoveryCounts.skills > 0);
-  const displayDiscoveryCounts = discoveryCounts ?? { servers: 0, skills: 0 };
+    discoveryCounts !== null &&
+    (discoveryCounts.servers > 0 || discoveryCounts.skills > 0 || discoveryCounts.agents > 0);
+  const displayDiscoveryCounts = discoveryCounts ?? {
+    servers: 0,
+    skills: 0,
+    agents: 0,
+  };
+  const normalizedDiscoveryCounts = {
+    servers: displayDiscoveryCounts.servers ?? 0,
+    skills: displayDiscoveryCounts.skills ?? 0,
+    agents: displayDiscoveryCounts.agents ?? 0,
+  };
+  const selectionKey =
+    selection?.type === "agent-rule"
+      ? `agent-rule:${selection.fileId}`
+      : selection?.type === "agent"
+        ? `agent:${selection.id}`
+        : selection?.type === "mcp-server"
+          ? `mcp:${selection.id}`
+          : selection?.type === "skill"
+            ? `skill:${selection.name}`
+            : selection?.type === "plugin"
+              ? `plugin:${selection.id}`
+              : "none";
   const showDiscoveryBanner = discoveryScanning || hasDiscoveryResults || !discoveryDismissed;
 
   return (
@@ -253,6 +346,7 @@ export function AgentsView() {
         <AgentsToolbar
           search={search}
           onSearchChange={setSearch}
+          onAddAgent={() => setShowCreateAgentModal(true)}
           onAddServer={() => setShowCreateServerModal(true)}
           onAddSkill={() => setShowCreateSkillModal(true)}
           onAddPlugin={() => setShowInstallPluginModal(true)}
@@ -264,6 +358,9 @@ export function AgentsView() {
           hasItems={hasItems}
         />
         <AgentsSidebar
+          agents={agents}
+          agentsLoading={agentsLoading}
+          agentsFetching={agentsFetching}
           servers={servers}
           serversLoading={serversLoading}
           deploymentStatus={deploymentStatus}
@@ -275,6 +372,7 @@ export function AgentsView() {
           selection={selection}
           onSelect={setSelection}
           search={search}
+          onAddAgent={() => setShowCreateAgentModal(true)}
           onAddServer={() => setShowCreateServerModal(true)}
           onAddSkill={() => setShowCreateSkillModal(true)}
           onAddPlugin={() => setShowInstallPluginModal(true)}
@@ -301,28 +399,45 @@ export function AgentsView() {
               {hasDiscoveryResults ? (
                 <>
                   Found
-                  {displayDiscoveryCounts.servers > 0
-                    ? ` ${displayDiscoveryCounts.servers} MCP server${displayDiscoveryCounts.servers !== 1 ? "s" : ""}`
+                  {normalizedDiscoveryCounts.servers > 0
+                    ? ` ${normalizedDiscoveryCounts.servers} MCP server${
+                        normalizedDiscoveryCounts.servers !== 1 ? "s" : ""
+                      }`
                     : ""}
-                  {displayDiscoveryCounts.servers > 0 && displayDiscoveryCounts.skills > 0
-                    ? " and"
+                  {normalizedDiscoveryCounts.servers > 0 &&
+                  (normalizedDiscoveryCounts.skills > 0 || normalizedDiscoveryCounts.agents > 0)
+                    ? ","
                     : ""}
-                  {displayDiscoveryCounts.skills > 0
-                    ? ` ${displayDiscoveryCounts.skills} skill${displayDiscoveryCounts.skills !== 1 ? "s" : ""}`
+                  {normalizedDiscoveryCounts.skills > 0
+                    ? ` ${normalizedDiscoveryCounts.skills} skill${
+                        normalizedDiscoveryCounts.skills !== 1 ? "s" : ""
+                      }`
+                    : ""}{" "}
+                  {normalizedDiscoveryCounts.skills > 0 && normalizedDiscoveryCounts.agents > 0
+                    ? "and"
+                    : ""}
+                  {normalizedDiscoveryCounts.agents > 0
+                    ? ` ${normalizedDiscoveryCounts.agents} custom agent${
+                        normalizedDiscoveryCounts.agents !== 1 ? "s" : ""
+                      }`
                     : ""}{" "}
                   on this device.
                 </>
               ) : discoveryScanning ? (
-                "Scanning for MCP servers and skills on this device..."
+                "Scanning for MCP servers, skills, and custom agents on this device..."
               ) : (
-                "No new MCP servers or skills found on this device."
+                "No new MCP servers, skills, or custom agents found on this device."
               )}
             </p>
             <button
               type="button"
               onClick={runDiscoveryScan}
               disabled={discoveryScanning}
-              className={`text-[11px] font-medium transition-colors flex-shrink-0 flex items-center gap-1 ${discoveryScanning ? "text-purple-300/30 cursor-not-allowed" : "text-purple-300/60 hover:text-purple-300"}`}
+              className={`text-[11px] font-medium transition-colors flex-shrink-0 flex items-center gap-1 ${
+                discoveryScanning
+                  ? "text-purple-300/30 cursor-not-allowed"
+                  : "text-purple-300/60 hover:text-purple-300"
+              }`}
             >
               <RefreshCw className={`w-3 h-3 ${discoveryScanning ? "animate-spin" : ""}`} />
               Scan again
@@ -358,8 +473,9 @@ export function AgentsView() {
           <div className="flex-shrink-0 h-14 flex items-center gap-3 px-4 border-b border-purple-400/20 bg-purple-400/[0.04]">
             <Bot className="w-4 h-4 text-purple-400 flex-shrink-0" />
             <p className={`text-[11px] ${text.secondary} leading-relaxed flex-1`}>
-              Manage all your agent tooling in one place. Import your MCP servers, skills and Claude
-              plugins, then enable or disable them globally or per project.
+              Manage all your agent tooling in one place. Browse plugin subagents, create custom
+              agents, import MCP servers and skills, and manage Claude plugins globally or per
+              project.
             </p>
             <button
               type="button"
@@ -370,41 +486,52 @@ export function AgentsView() {
             </button>
           </div>
         ) : null}
-        {selection?.type === "agent-rule" ? (
-          <AgentRuleDetailPanel fileId={selection.fileId} />
-        ) : selection?.type === "mcp-server" ? (
-          <McpServerDetailPanel
-            serverId={selection.id}
-            onDeleted={() => {
-              setSelection(null);
-              refetchServers();
-              refetchDeployment();
-            }}
-          />
-        ) : selection?.type === "skill" ? (
-          <SkillDetailPanel
-            skillName={selection.name}
-            onDeleted={() => {
-              setSelection(null);
-              refetchSkills();
-              refetchSkillDeployment();
-            }}
-          />
-        ) : selection?.type === "plugin" ? (
-          <PluginDetailPanel
-            pluginId={selection.id}
-            pluginActing={pluginActing}
-            onPluginActingChange={setPluginActing}
-            onDeleted={() => {
-              setSelection(null);
-              refetchPlugins();
-            }}
-          />
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <p className={`text-xs ${text.dimmed}`}>Select an agent to view details</p>
-          </div>
-        )}
+        <PanelErrorBoundary resetKey={selectionKey} label="agents detail">
+          {selection?.type === "agent-rule" ? (
+            <AgentRuleDetailPanel fileId={selection.fileId} />
+          ) : selection?.type === "agent" ? (
+            <AgentDetailPanel
+              agentId={selection.id}
+              onMissing={() => setSelection(null)}
+              onDeleted={() => {
+                setSelection(null);
+                refetchAgents();
+              }}
+            />
+          ) : selection?.type === "mcp-server" ? (
+            <McpServerDetailPanel
+              serverId={selection.id}
+              onDeleted={() => {
+                setSelection(null);
+                refetchServers();
+                refetchDeployment();
+              }}
+            />
+          ) : selection?.type === "skill" ? (
+            <SkillDetailPanel
+              skillName={selection.name}
+              onDeleted={() => {
+                setSelection(null);
+                refetchSkills();
+                refetchSkillDeployment();
+              }}
+            />
+          ) : selection?.type === "plugin" ? (
+            <PluginDetailPanel
+              pluginId={selection.id}
+              pluginActing={pluginActing}
+              onPluginActingChange={setPluginActing}
+              onDeleted={() => {
+                setSelection(null);
+                refetchPlugins();
+              }}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <p className={`text-xs ${text.dimmed}`}>Select an agent to view details</p>
+            </div>
+          )}
+        </PanelErrorBoundary>
       </main>
 
       {/* Modals */}
@@ -412,6 +539,12 @@ export function AgentsView() {
         <McpServerCreateModal
           onCreated={handleCreated}
           onClose={() => setShowCreateServerModal(false)}
+        />
+      )}
+      {showCreateAgentModal && (
+        <AgentCreateModal
+          onCreated={handleAgentCreated}
+          onClose={() => setShowCreateAgentModal(false)}
         />
       )}
       {showCreateSkillModal && (
