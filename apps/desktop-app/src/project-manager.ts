@@ -16,6 +16,7 @@ export interface Project {
 
 interface ProjectInternal extends Project {
   serverProcess: ChildProcess | null;
+  recentServerErrors: string[];
 }
 
 interface AppState {
@@ -142,6 +143,7 @@ export class ProjectManager {
       name,
       status: "starting",
       serverProcess: null,
+      recentServerErrors: [],
     };
 
     this.projects.set(id, project);
@@ -152,6 +154,20 @@ export class ProjectManager {
     try {
       const serverProcess = spawnServer(normalizedDir, port);
       project.serverProcess = serverProcess;
+      const pushServerError = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        project.recentServerErrors.push(trimmed);
+        if (project.recentServerErrors.length > 8) {
+          project.recentServerErrors = project.recentServerErrors.slice(-8);
+        }
+      };
+      serverProcess.stderr?.on("data", (data: Buffer) => {
+        const text = data.toString();
+        for (const line of text.split("\n")) {
+          pushServerError(line);
+        }
+      });
 
       serverProcess.on("error", (err: Error) => {
         project.status = "error";
@@ -163,7 +179,10 @@ export class ProjectManager {
         if (project.status !== "stopped") {
           project.status = code === 0 ? "stopped" : "error";
           if (code !== 0) {
-            project.error = `Server exited with code ${code}`;
+            const detail = project.recentServerErrors.join(" | ");
+            project.error = detail
+              ? `Server exited with code ${code}: ${detail}`
+              : `Server exited with code ${code}`;
           }
           this.notifyChange();
         }
