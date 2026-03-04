@@ -7,7 +7,7 @@ export default defineConfig({
   },
   outDir: "dist",
   format: "esm",
-  external: ["node-pty", "electron", "ws"],
+  external: ["node-pty", "ws"],
   esbuildOptions(options) {
     options.loader = {
       ...options.loader,
