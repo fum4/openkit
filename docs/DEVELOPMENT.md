@@ -25,36 +25,36 @@ pnpm dev
 
 ## Build Commands
 
-| Command                      | Description                                                                                              |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `pnpm build`                 | Run Nx `build` target across workspace projects that define it                                           |
-| `pnpm build:cli`             | Build CLI app (`cli`)                                                                                    |
-| `pnpm build:server`          | Build backend server app (`server`)                                                                      |
-| `pnpm build:web-app`         | Build web app (`web-app`)                                                                                |
-| `pnpm build:desktop-app`     | Build desktop app runtime (without packaging) (`desktop-app`)                                            |
-| `pnpm build:website`         | Build Astro marketing site (`website`)                                                                   |
-| `pnpm build:mobile-app`      | Build mobile app export (`mobile-app`)                                                                   |
-| `pnpm package:desktop`       | Package desktop app artifacts for all supported desktop targets (`desktop-app`)                          |
-| `pnpm package:desktop:mac`   | Package macOS desktop app artifacts (`desktop-app`)                                                      |
-| `pnpm package:desktop:linux` | Package Linux desktop app artifacts (`desktop-app`)                                                      |
-| `pnpm run setup`             | Create `.env.local` from `.env.example` if missing                                                       |
-| `pnpm dev`                   | Start all first-class app dev flows (`cli`, `server`, `web-app`, `desktop-app`, `website`, `mobile-app`) |
-| `pnpm dev:cli`               | Start CLI dev watch flow (`cli`)                                                                         |
-| `pnpm dev:server`            | Start backend server watch flow (`server`)                                                               |
-| `pnpm dev:web-app`           | Start web app + backend together (`web-app`, `server`)                                                   |
-| `pnpm dev:desktop-app`       | Start desktop app with required deps (`desktop-app`, `web-app`, `cli`)                                   |
-| `pnpm dev:website`           | Start Astro website dev server (`website`)                                                               |
-| `pnpm dev:mobile-app`        | Start Expo mobile dev server (`mobile-app`)                                                              |
-| `pnpm nx run cli:start`      | Build and run CLI from app scripts (`apps/cli`)                                                          |
-| `pnpm check:affected`        | Format + Nx affected lint/typecheck/build (`NX_BASE`/`NX_HEAD` override supported)                       |
-| `pnpm check:types`           | Nx typecheck across projects that define `typecheck` (apps + libs)                                       |
-| `pnpm check:format`          | Run oxfmt in check mode                                                                                  |
-| `pnpm check:lint`            | Nx lint across projects that define `lint` (apps + libs)                                                 |
-| `pnpm lint-staged`           | Run formatter/linter checks only for currently staged files                                              |
-| `pnpm check:all`             | Run format + Nx run-many lint/typecheck/build                                                            |
-| `pnpm fix:format`            | Run oxfmt to apply formatting                                                                            |
-| `pnpm fix:lint`              | Run oxlint with `--fix`                                                                                  |
-| `pnpm fix:all`               | Run format + lint auto-fixes                                                                             |
+| Command                  | Description                                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `pnpm build`             | Run Nx `build` target across workspace projects that define it                                           |
+| `pnpm build:cli`         | Build CLI app (`cli`)                                                                                    |
+| `pnpm build:server`      | Build backend server app (`server`)                                                                      |
+| `pnpm build:web-app`     | Build web app (`web-app`)                                                                                |
+| `pnpm build:desktop-app` | Build desktop app runtime (without packaging) (`desktop-app`)                                            |
+| `pnpm build:website`     | Build Astro marketing site (`website`)                                                                   |
+| `pnpm build:mobile-app`  | Build mobile app export (`mobile-app`)                                                                   |
+| `pnpm package`           | Package desktop app artifacts for all supported desktop targets (`desktop-app`)                          |
+| `pnpm package:mac`       | Package macOS desktop app artifacts (`desktop-app`)                                                      |
+| `pnpm package:linux`     | Package Linux desktop app artifacts (`desktop-app`)                                                      |
+| `pnpm run setup`         | Create `.env.local` from `.env.example` if missing                                                       |
+| `pnpm dev`               | Start all first-class app dev flows (`cli`, `server`, `web-app`, `desktop-app`, `website`, `mobile-app`) |
+| `pnpm dev:cli`           | Start CLI dev watch flow (`cli`)                                                                         |
+| `pnpm dev:server`        | Start backend server watch flow (`server`)                                                               |
+| `pnpm dev:web-app`       | Start web app + backend together (`web-app`, `server`)                                                   |
+| `pnpm dev:desktop-app`   | Start desktop app with required deps (`desktop-app`, `web-app`, `cli`)                                   |
+| `pnpm dev:website`       | Start Astro website dev server (`website`)                                                               |
+| `pnpm dev:mobile-app`    | Start Expo mobile dev server (`mobile-app`)                                                              |
+| `pnpm nx run cli:start`  | Build and run CLI from app scripts (`apps/cli`)                                                          |
+| `pnpm check:affected`    | Format + Nx affected lint/typecheck/build (`NX_BASE`/`NX_HEAD` override supported)                       |
+| `pnpm check:types`       | Nx typecheck across projects that define `typecheck` (apps + libs)                                       |
+| `pnpm check:format`      | Run oxfmt in check mode                                                                                  |
+| `pnpm check:lint`        | Nx lint across projects that define `lint` (apps + libs)                                                 |
+| `pnpm lint-staged`       | Run formatter/linter checks only for currently staged files                                              |
+| `pnpm check:all`         | Run format + Nx run-many lint/typecheck/build                                                            |
+| `pnpm fix:format`        | Run oxfmt to apply formatting                                                                            |
+| `pnpm fix:lint`          | Run oxlint with `--fix`                                                                                  |
+| `pnpm fix:all`           | Run format + lint auto-fixes                                                                             |
 
 There is no test runner configured.
 
@@ -107,7 +107,7 @@ The workspace includes script-oriented launch configurations in `.vscode/launch.
 
 - App development (`dev`, `dev:cli`, `dev:server`, `dev:web-app`, `dev:desktop-app`, `dev:website`, `dev:mobile-app`)
 - App builds (`build` plus app-specific `build:*`)
-- Desktop packaging (`package:desktop`, `package:desktop:mac`, `package:desktop:linux`)
+- Desktop packaging (`package`, `package:mac`, `package:linux`)
 - Quality helpers (`check:all`, `check:affected`, `fix:all`)
 
 ## Dev Port Environment Variables

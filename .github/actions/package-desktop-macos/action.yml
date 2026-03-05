@@ -5,7 +5,7 @@ inputs:
   package-command:
     description: Command used to build macOS desktop artifacts.
     required: false
-    default: pnpm package:desktop:mac
+    default: pnpm package:mac
   sign-and-notarize:
     description: Whether to sign and notarize the build (true/false).
     required: false

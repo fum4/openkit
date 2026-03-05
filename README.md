@@ -99,7 +99,6 @@ $ pnpm build:web-app
 $ pnpm build:desktop-app
 $ pnpm build:website
 $ pnpm build:mobile-app
-$ pnpm package:desktop
 ```
 
 Environment variables:
@@ -117,6 +116,16 @@ Everything is released from `master`.
 - On push/merge to `master`, the release workflow creates the release commit/tag and GitHub release automatically.
 - A dedicated package workflow runs on release tag pushes (`v*`) and attaches macOS/Linux artifacts to that tag.
 - The website Vercel project uses an `ignoreCommand` to skip deploys when commits do not change files under `apps/website/`.
+
+<br /><br />
+
+## 📦 Package
+
+```bash
+$ pnpm package
+$ pnpm package:mac
+$ pnpm package:linux
+```
 
 <br /><br />
 
