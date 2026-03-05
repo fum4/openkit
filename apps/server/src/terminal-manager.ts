@@ -5,20 +5,31 @@ import type { IPty } from "node-pty";
 
 const require = createRequire(import.meta.url);
 
-function getPtyModule(): { spawn: (typeof import("node-pty"))["spawn"] } {
-  try {
-    const loaded = require("node-pty") as
-      | { spawn?: (typeof import("node-pty"))["spawn"] }
-      | { default?: { spawn?: (typeof import("node-pty"))["spawn"] } };
-    const pty = ("default" in loaded ? loaded.default : loaded) ?? loaded;
-    if (!pty?.spawn) {
-      throw new Error('node-pty does not expose a "spawn" function');
-    }
-    return pty as { spawn: (typeof import("node-pty"))["spawn"] };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`node-pty is unavailable (${message})`);
+type NodePtyModule = { spawn: (typeof import("node-pty"))["spawn"] };
+
+function hasSpawn(value: unknown): value is NodePtyModule {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { spawn?: unknown }).spawn === "function"
+  );
+}
+
+function resolveNodePtyModule(): NodePtyModule {
+  const loaded: unknown = require("node-pty");
+
+  if (hasSpawn(loaded)) {
+    return loaded;
   }
+
+  if (typeof loaded === "object" && loaded !== null && "default" in loaded) {
+    const defaultExport = (loaded as { default?: unknown }).default;
+    if (hasSpawn(defaultExport)) {
+      return defaultExport;
+    }
+  }
+
+  throw new Error("node-pty module is missing a spawn() export");
 }
 
 interface TerminalSession {
@@ -59,10 +70,10 @@ export class TerminalManager {
   private spawnSessionPty(sessionId: string, session: TerminalSession): boolean {
     if (session.pty) return true;
 
-    const pty = getPtyModule();
     const shell = process.env.SHELL || "/bin/zsh";
     let ptyProcess: IPty;
     try {
+      const pty = resolveNodePtyModule();
       const shellArgs = session.startupCommand ? ["-lc", session.startupCommand] : [];
       ptyProcess = pty.spawn(shell, shellArgs, {
         name: "xterm-256color",

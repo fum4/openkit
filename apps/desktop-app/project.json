@@ -44,7 +44,7 @@
         "command": "pnpm package"
       }
     },
-    "package-mac": {
+    "package:mac": {
       "executor": "nx:run-commands",
       "dependsOn": ["build"],
       "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
@@ -53,7 +53,7 @@
         "command": "pnpm package:mac"
       }
     },
-    "package-linux": {
+    "package:linux": {
       "executor": "nx:run-commands",
       "dependsOn": ["build"],
       "outputs": ["{workspaceRoot}/apps/desktop-app/release"],

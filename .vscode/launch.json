@@ -103,21 +103,21 @@
       "type": "node-terminal",
       "request": "launch",
       "name": "📦 Package (mac)",
-      "command": "pnpm package:desktop:mac",
+      "command": "pnpm package:mac",
       "cwd": "${workspaceFolder}"
     },
     {
       "type": "node-terminal",
       "request": "launch",
       "name": "📦 Package (linux)",
-      "command": "pnpm package:desktop:linux",
+      "command": "pnpm package:linux",
       "cwd": "${workspaceFolder}"
     },
     {
       "type": "node-terminal",
       "request": "launch",
       "name": "📦 Package (mac + linux)",
-      "command": "pnpm package:desktop",
+      "command": "pnpm package",
       "cwd": "${workspaceFolder}"
     },
     {
