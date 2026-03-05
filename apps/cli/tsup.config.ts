@@ -9,8 +9,14 @@ export default defineConfig({
   clean: true,
   format: "esm",
   external: ["node-pty"],
-  noExternal: ["ws"],
+  noExternal: ["ws", "picocolors"],
   esbuildOptions(options) {
+    options.banner = {
+      ...options.banner,
+      js: `${options.banner?.js ?? ""}
+import { createRequire as __createRequire } from "module";
+const require = __createRequire(import.meta.url);`,
+    };
     options.loader = {
       ...options.loader,
       ".md": "text",

@@ -17,6 +17,7 @@ export interface Project {
 interface ProjectInternal extends Project {
   serverProcess: ChildProcess | null;
   recentServerErrors: string[];
+  moduleResolveError: string | null;
 }
 
 interface AppState {
@@ -144,6 +145,7 @@ export class ProjectManager {
       status: "starting",
       serverProcess: null,
       recentServerErrors: [],
+      moduleResolveError: null,
     };
 
     this.projects.set(id, project);
@@ -157,9 +159,16 @@ export class ProjectManager {
       const pushServerError = (line: string) => {
         const trimmed = line.trim();
         if (!trimmed) return;
+        if (
+          trimmed.includes("Cannot find package") ||
+          trimmed.includes("Cannot find module") ||
+          trimmed.includes("ERR_MODULE_NOT_FOUND")
+        ) {
+          project.moduleResolveError = trimmed;
+        }
         project.recentServerErrors.push(trimmed);
-        if (project.recentServerErrors.length > 8) {
-          project.recentServerErrors = project.recentServerErrors.slice(-8);
+        if (project.recentServerErrors.length > 20) {
+          project.recentServerErrors = project.recentServerErrors.slice(-20);
         }
       };
       serverProcess.stderr?.on("data", (data: Buffer) => {
@@ -180,8 +189,11 @@ export class ProjectManager {
           project.status = code === 0 ? "stopped" : "error";
           if (code !== 0) {
             const detail = project.recentServerErrors.join(" | ");
-            project.error = detail
-              ? `Server exited with code ${code}: ${detail}`
+            const reason = project.moduleResolveError
+              ? `${project.moduleResolveError} | ${detail}`
+              : detail;
+            project.error = reason
+              ? `Server exited with code ${code}: ${reason}`
               : `Server exited with code ${code}`;
           }
           this.notifyChange();
@@ -193,8 +205,15 @@ export class ProjectManager {
       if (ready) {
         project.status = "running";
       } else {
-        project.status = "error";
-        project.error = "Server failed to start";
+        if (project.status !== "error") {
+          project.status = "error";
+          const detail = project.recentServerErrors.join(" | ");
+          project.error = project.moduleResolveError
+            ? `Server failed to start: ${project.moduleResolveError}${detail ? ` | ${detail}` : ""}`
+            : detail
+              ? `Server failed to start: ${detail}`
+              : "Server failed to start";
+        }
       }
       this.notifyChange();
 
