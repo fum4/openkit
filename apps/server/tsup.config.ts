@@ -9,7 +9,8 @@ export default defineConfig({
   platform: "node",
   target: "node18",
   clean: true,
-  external: ["node-pty", "ws"],
+  external: ["node-pty"],
+  noExternal: ["ws"],
   esbuildOptions(options) {
     options.loader = {
       ...options.loader,

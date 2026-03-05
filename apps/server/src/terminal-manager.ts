@@ -1,10 +1,25 @@
 import { existsSync } from "fs";
+import { createRequire } from "module";
 import type { WebSocket } from "ws";
 import type { IPty } from "node-pty";
-import nodePty from "node-pty";
 
-// Handle CJS/ESM interop: when externalized, default import may be nested
-const pty: { spawn: typeof nodePty.spawn } = (nodePty as any).default ?? nodePty;
+const require = createRequire(import.meta.url);
+
+function getPtyModule(): { spawn: (typeof import("node-pty"))["spawn"] } {
+  try {
+    const loaded = require("node-pty") as
+      | { spawn?: (typeof import("node-pty"))["spawn"] }
+      | { default?: { spawn?: (typeof import("node-pty"))["spawn"] } };
+    const pty = ("default" in loaded ? loaded.default : loaded) ?? loaded;
+    if (!pty?.spawn) {
+      throw new Error('node-pty does not expose a "spawn" function');
+    }
+    return pty as { spawn: (typeof import("node-pty"))["spawn"] };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`node-pty is unavailable (${message})`);
+  }
+}
 
 interface TerminalSession {
   id: string;
@@ -44,6 +59,7 @@ export class TerminalManager {
   private spawnSessionPty(sessionId: string, session: TerminalSession): boolean {
     if (session.pty) return true;
 
+    const pty = getPtyModule();
     const shell = process.env.SHELL || "/bin/zsh";
     let ptyProcess: IPty;
     try {

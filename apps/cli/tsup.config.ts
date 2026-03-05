@@ -6,8 +6,10 @@ export default defineConfig({
     "electron-entry": "src/electron-entry.ts",
   },
   outDir: "dist",
+  clean: true,
   format: "esm",
-  external: ["node-pty", "ws"],
+  external: ["node-pty"],
+  noExternal: ["ws"],
   esbuildOptions(options) {
     options.loader = {
       ...options.loader,
