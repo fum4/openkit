@@ -74,6 +74,7 @@ flowchart TB
 Key responsibilities:
 
 - **Worktree CRUD**: `createWorktree()`, `removeWorktree()`, `renameWorktree()`, `recoverWorktree()`
+- **Transactional delete orchestration**: `removeWorktree()` runs scoped phases (validate, graceful stop, scoped terminal teardown callback, filesystem/git removal, link cleanup, lifecycle hooks, listener notification) and returns structured delete metadata.
 - **Process management**: `startWorktree()` spawns the dev command with port-offset env vars; `stopWorktree()` sends SIGTERM
 - **Canonical ID resolution**: worktree IDs are resolved exact-first, then case-insensitive; ambiguous case-insensitive matches return an explicit error
 - **SSE notification**: Maintains a set of event listeners and calls `notifyListeners()` on every state change

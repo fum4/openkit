@@ -1,4 +1,5 @@
 import { execFile as execFileCb } from "child_process";
+import { randomUUID } from "crypto";
 import type { Hono } from "hono";
 import { promisify } from "util";
 
@@ -516,14 +517,24 @@ export function registerWorktreeRoutes(
   app.delete("/api/worktrees/:id", async (c) => {
     const id = c.req.param("id");
     const resolved = manager.resolveWorktreeId(id);
-    if (!resolved.success && resolved.code === "WORKTREE_ID_AMBIGUOUS") {
-      return c.json({ success: false, error: resolved.error }, 409);
+    if (!resolved.success) {
+      return c.json(
+        { success: false, error: resolved.error, code: resolved.code },
+        toResolutionStatus(resolved.code),
+      );
     }
-    const canonicalWorktreeId = resolved.success ? resolved.worktreeId : null;
-    const result = await manager.removeWorktree(id);
-    if (result.success && canonicalWorktreeId) {
-      terminalManager?.destroyAllForWorktree(canonicalWorktreeId);
-    }
+    const canonicalWorktreeId = resolved.worktreeId;
+    const deleteOpId = randomUUID();
+    console.info("[delete][TEMP] delete request received", {
+      deleteOpId,
+      requestedWorktreeId: id,
+      canonicalWorktreeId,
+    });
+    const result = await manager.removeWorktree(canonicalWorktreeId, {
+      deleteOpId,
+      destroyTerminalsForWorktree: (worktreeId) =>
+        terminalManager?.destroyAllForWorktree(worktreeId) ?? 0,
+    });
     return c.json(result, result.success ? 200 : 400);
   });
 

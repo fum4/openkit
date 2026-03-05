@@ -92,8 +92,9 @@ export class NotesManager {
     this.saveNotes(source, id, notes);
   }
 
-  clearLinkedWorktreeId(worktreeId: string): void {
+  clearLinkedWorktreeId(worktreeId: string): number {
     const issuesDir = path.join(this.configDir, CONFIG_DIR_NAME, "issues");
+    let cleared = 0;
 
     for (const source of ["jira", "linear", "local"] as IssueSource[]) {
       const sourceDir = path.join(issuesDir, source);
@@ -105,8 +106,10 @@ export class NotesManager {
         if (notes.linkedWorktreeId !== worktreeId) continue;
         notes.linkedWorktreeId = null;
         this.saveNotes(source, entry.name, notes);
+        cleared += 1;
       }
     }
+    return cleared;
   }
 
   addTodo(source: IssueSource, id: string, text: string): IssueNotes {

@@ -214,7 +214,16 @@ export async function fetchOpenProjectTargets(
 export async function removeWorktree(
   id: string,
   serverUrl: string | null = null,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  code?: string;
+  worktreeId?: string;
+  removedTerminalSessions?: number;
+  removedRunningProcess?: boolean;
+  clearedLinks?: number;
+  deleteOpId?: string;
+}> {
   try {
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(id)}`, {
       method: "DELETE",

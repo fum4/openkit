@@ -1,4 +1,5 @@
 import { execFile as execFileCb, execFileSync, spawn } from "child_process";
+import { randomUUID } from "crypto";
 import {
   existsSync,
   mkdirSync,
@@ -144,6 +145,27 @@ type WorktreeResolutionCode = "WORKTREE_NOT_FOUND" | "WORKTREE_ID_AMBIGUOUS";
 type WorktreeIdResolutionResult =
   | { success: true; worktreeId: string }
   | { success: false; code: WorktreeResolutionCode; error: string; matches?: string[] };
+
+type RemoveWorktreeErrorCode =
+  | WorktreeResolutionCode
+  | "INVALID_WORKTREE_ID"
+  | "WORKTREE_REMOVE_FAILED";
+
+interface RemoveWorktreeOptions {
+  deleteOpId?: string;
+  destroyTerminalsForWorktree?: (worktreeId: string) => number;
+}
+
+interface RemoveWorktreeResult {
+  success: boolean;
+  error?: string;
+  code?: RemoveWorktreeErrorCode;
+  worktreeId?: string;
+  removedTerminalSessions?: number;
+  removedRunningProcess?: boolean;
+  clearedLinks?: number;
+  deleteOpId?: string;
+}
 
 export class WorktreeManager {
   private config: WorktreeConfig;
@@ -1189,34 +1211,110 @@ export class WorktreeManager {
     }
   }
 
-  async removeWorktree(id: string): Promise<{ success: boolean; error?: string }> {
+  async removeWorktree(
+    id: string,
+    options: RemoveWorktreeOptions = {},
+  ): Promise<RemoveWorktreeResult> {
+    const deleteOpId = options.deleteOpId ?? randomUUID();
+    const startedAt = Date.now();
+    const logDeletePhase = (
+      phase: string,
+      result: "start" | "success" | "failure",
+      extra: Record<string, unknown> = {},
+    ) => {
+      console.info("[delete][TEMP]", {
+        deleteOpId,
+        phase,
+        result,
+        targetId: id,
+        ...extra,
+      });
+    };
+    const finalize = (result: RemoveWorktreeResult): RemoveWorktreeResult => {
+      console.info("[delete][TEMP]", {
+        deleteOpId,
+        phase: "complete",
+        result: result.success ? "success" : "failure",
+        durationMs: Date.now() - startedAt,
+        worktreeId: result.worktreeId ?? null,
+        code: result.code ?? null,
+      });
+      return { ...result, deleteOpId };
+    };
+
+    logDeletePhase("validate", "start");
     if (!/^[a-zA-Z0-9][a-zA-Z0-9 -]*$/.test(id)) {
-      return {
+      return finalize({
         success: false,
+        code: "INVALID_WORKTREE_ID",
         error:
           "Worktree name must start with a letter or number and contain only letters, numbers, spaces, and hyphens",
-      };
+      });
     }
 
     const resolved = this.resolveWorktreeId(id);
-    if (!resolved.success && resolved.code === "WORKTREE_ID_AMBIGUOUS") {
-      return { success: false, error: resolved.error };
+    if (!resolved.success) {
+      logDeletePhase("validate", "failure", { code: resolved.code, error: resolved.error });
+      return finalize({
+        success: false,
+        code: resolved.code,
+        error: resolved.error,
+      });
     }
-    const worktreeId = resolved.success ? resolved.worktreeId : id;
+    const worktreeId = resolved.worktreeId;
+    const removedRunningProcess = this.runningProcesses.has(worktreeId);
+    logDeletePhase("validate", "success", { canonicalWorktreeId: worktreeId });
 
+    logDeletePhase("graceful-stop-worktree-process", "start", { worktreeId });
     await this.stopWorktree(worktreeId);
+    logDeletePhase("graceful-stop-worktree-process", "success", {
+      worktreeId,
+      removedRunningProcess,
+    });
+
+    let removedTerminalSessions = 0;
+    if (options.destroyTerminalsForWorktree) {
+      logDeletePhase("destroy-terminals-for-target-worktree-only", "start", { worktreeId });
+      try {
+        removedTerminalSessions = options.destroyTerminalsForWorktree(worktreeId);
+      } catch (error) {
+        logDeletePhase("destroy-terminals-for-target-worktree-only", "failure", {
+          worktreeId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return finalize({
+          success: false,
+          code: "WORKTREE_REMOVE_FAILED",
+          error: error instanceof Error ? error.message : "Failed to destroy worktree terminals",
+          worktreeId,
+          removedRunningProcess,
+          removedTerminalSessions,
+        });
+      }
+      logDeletePhase("destroy-terminals-for-target-worktree-only", "success", {
+        worktreeId,
+        removedTerminalSessions,
+      });
+    }
 
     const worktreesPath = this.getWorktreesAbsolutePath();
     const worktreePath = path.join(worktreesPath, worktreeId);
     if (!existsSync(worktreePath)) {
-      this.notesManager.clearLinkedWorktreeId(worktreeId);
+      const clearedLinks = this.notesManager.clearLinkedWorktreeId(worktreeId);
       this.clearAwaitingInputForWorktree(worktreeId);
       this.notifyListeners();
-      return { success: true };
+      return finalize({
+        success: true,
+        worktreeId,
+        removedRunningProcess,
+        removedTerminalSessions,
+        clearedLinks,
+      });
     }
 
     try {
       const gitRoot = this.getGitRoot();
+      logDeletePhase("remove-worktree-from-git/filesystem", "start", { worktreeId, worktreePath });
 
       try {
         execFileSync("git", ["worktree", "remove", worktreePath, "--force"], {
@@ -1225,12 +1323,10 @@ export class WorktreeManager {
           stdio: "pipe",
         });
       } catch {
-        // Git doesn't recognize it as a worktree — remove the directory directly
         execFileSync("rm", ["-rf", worktreePath], {
           encoding: "utf-8",
           stdio: "pipe",
         });
-        // Clean up any stale worktree references
         try {
           execFileSync("git", ["worktree", "prune"], {
             cwd: gitRoot,
@@ -1238,20 +1334,50 @@ export class WorktreeManager {
             stdio: "pipe",
           });
         } catch {
-          // Ignore prune failures
+          // Ignore prune failures.
         }
       }
+      logDeletePhase("remove-worktree-from-git/filesystem", "success", {
+        worktreeId,
+        worktreePath,
+      });
 
-      this.notesManager.clearLinkedWorktreeId(worktreeId);
-      this.notifyListeners();
+      logDeletePhase("clear-links-for-target-worktree-only", "start", { worktreeId });
+      const clearedLinks = this.notesManager.clearLinkedWorktreeId(worktreeId);
+      logDeletePhase("clear-links-for-target-worktree-only", "success", {
+        worktreeId,
+        clearedLinks,
+      });
+
       this.clearAwaitingInputForWorktree(worktreeId);
+      logDeletePhase("run worktree-removed hooks", "start", { worktreeId });
       await this.runWorktreeLifecycleHooks("worktree-removed", worktreeId, worktreePath);
-      return { success: true };
+      logDeletePhase("run worktree-removed hooks", "success", { worktreeId });
+
+      logDeletePhase("notifyListeners", "start", { worktreeId });
+      this.notifyListeners();
+      logDeletePhase("notifyListeners", "success", { worktreeId });
+
+      return finalize({
+        success: true,
+        worktreeId,
+        removedRunningProcess,
+        removedTerminalSessions,
+        clearedLinks,
+      });
     } catch (error) {
-      return {
+      logDeletePhase("remove-worktree-from-git/filesystem", "failure", {
+        worktreeId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return finalize({
         success: false,
+        code: "WORKTREE_REMOVE_FAILED",
         error: error instanceof Error ? error.message : "Failed to remove worktree",
-      };
+        worktreeId,
+        removedRunningProcess,
+        removedTerminalSessions,
+      });
     }
   }
 

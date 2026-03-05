@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useServerUrlOptional } from "../contexts/ServerContext";
+import { useServer, useServerUrlOptional } from "../contexts/ServerContext";
 import { showPersistentErrorToast } from "../errorToasts";
 import {
   createTerminalSession,
@@ -57,19 +57,15 @@ const RAPID_CLOSE_WINDOW_MS = 1_500;
 const RAPID_CLOSE_THRESHOLD = 2;
 const VISIBLE_RECONNECT_STUCK_MS = 8_000;
 
-function cacheKey(
-  worktreeId: string,
-  serverUrl: string | null,
-  sessionScope: TerminalSessionScope,
-) {
-  return `${serverUrl ?? "__relative__"}::${worktreeId}::${sessionScope}`;
+function cacheKey(runtimeScopeKey: string, worktreeId: string, sessionScope: TerminalSessionScope) {
+  return `${runtimeScopeKey}::${worktreeId}::${sessionScope}`;
 }
 
-export function clearTerminalSessionCacheForWorktree(
+export function clearTerminalSessionCacheForRuntimeWorktree(
+  runtimeScopeKey: string,
   worktreeId: string,
-  serverUrl: string | null,
 ): number {
-  const prefix = `${serverUrl ?? "__relative__"}::${worktreeId}::`;
+  const prefix = `${runtimeScopeKey}::${worktreeId}::`;
   let removed = 0;
   const keysToRemove: string[] = [];
   for (const key of terminalSessionCache.keys()) {
@@ -83,6 +79,16 @@ export function clearTerminalSessionCacheForWorktree(
   return removed;
 }
 
+export function clearTerminalSessionCacheForWorktree(
+  worktreeId: string,
+  serverUrl: string | null,
+): number {
+  return clearTerminalSessionCacheForRuntimeWorktree(
+    `server:${serverUrl ?? "__relative__"}`,
+    worktreeId,
+  );
+}
+
 export function useTerminal({
   worktreeId,
   sessionScope = "terminal",
@@ -92,7 +98,11 @@ export function useTerminal({
   onExit,
   getSize,
 }: UseTerminalOptions): UseTerminalReturn {
+  const { activeProject, isElectron } = useServer();
   const serverUrl = useServerUrlOptional();
+  const runtimeScopeKey = isElectron
+    ? `project:${activeProject?.id ?? "__none__"}`
+    : `server:${serverUrl ?? "__relative__"}`;
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -201,7 +211,7 @@ export function useTerminal({
           try {
             const msg = JSON.parse(event.data);
             if (msg.type === "exit") {
-              const key = cacheKey(worktreeId, serverUrl, sessionScope);
+              const key = cacheKey(runtimeScopeKey, worktreeId, sessionScope);
               terminalSessionCache.delete(key);
               sessionIdRef.current = null;
               setSessionId(null);
@@ -218,7 +228,7 @@ export function useTerminal({
         };
 
         ws.onclose = (event) => {
-          const key = cacheKey(worktreeId, serverUrl, sessionScope);
+          const key = cacheKey(runtimeScopeKey, worktreeId, sessionScope);
           if (wsRef.current === ws) {
             wsRef.current = null;
           }
@@ -286,7 +296,7 @@ export function useTerminal({
           setError("WebSocket connection failed");
         };
       }),
-    [serverUrl, sessionScope, worktreeId],
+    [runtimeScopeKey, serverUrl, sessionScope, worktreeId],
   );
 
   const destroyScopedSessionIfPresent = useCallback(
@@ -370,7 +380,7 @@ export function useTerminal({
         const size = getSizeRef.current?.();
         lastSizeRef.current = size ?? null;
 
-        const key = cacheKey(worktreeId, serverUrl, sessionScope);
+        const key = cacheKey(runtimeScopeKey, worktreeId, sessionScope);
         const explicitLaunch = reason === "explicit-launch";
         const forceFreshSession = forceFreshSessionRef.current;
         if (forceFreshSession) {
@@ -663,6 +673,7 @@ export function useTerminal({
       createSessionStartupCommand,
       disconnect,
       destroyScopedSessionIfPresent,
+      runtimeScopeKey,
       serverUrl,
       openSessionWebSocket,
     ],
@@ -686,7 +697,7 @@ export function useTerminal({
   const destroy = useCallback(async () => {
     connectGenRef.current += 1;
 
-    const key = cacheKey(worktreeId, serverUrl, sessionScope);
+    const key = cacheKey(runtimeScopeKey, worktreeId, sessionScope);
     const sid = sessionIdRef.current ?? terminalSessionCache.get(key) ?? null;
 
     disconnect();
@@ -696,7 +707,7 @@ export function useTerminal({
 
     if (!sid) return;
     await destroyTerminalSession(sid, serverUrl);
-  }, [disconnect, serverUrl, sessionScope, worktreeId]);
+  }, [disconnect, runtimeScopeKey, serverUrl, sessionScope, worktreeId]);
 
   useEffect(() => {
     return () => {
@@ -710,7 +721,7 @@ export function useTerminal({
       setIsConnected(false);
       setConnectionSource(null);
     };
-  }, [serverUrl, sessionScope]);
+  }, [runtimeScopeKey, serverUrl, sessionScope]);
 
   useEffect(() => {
     if (!visible || serverUrl === null) {
@@ -722,7 +733,7 @@ export function useTerminal({
       return;
     }
 
-    const key = cacheKey(worktreeId, serverUrl, sessionScope);
+    const key = cacheKey(runtimeScopeKey, worktreeId, sessionScope);
     const timeoutId = window.setTimeout(() => {
       if (visibleReconnectWatchdogTriggeredRef.current) return;
       visibleReconnectWatchdogTriggeredRef.current = true;
@@ -737,7 +748,7 @@ export function useTerminal({
     }, VISIBLE_RECONNECT_STUCK_MS);
 
     return () => window.clearTimeout(timeoutId);
-  }, [connect, isConnected, serverUrl, sessionScope, visible, worktreeId]);
+  }, [connect, isConnected, runtimeScopeKey, serverUrl, sessionScope, visible, worktreeId]);
 
   useEffect(() => {
     if (!error) return;

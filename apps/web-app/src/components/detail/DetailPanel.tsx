@@ -5,7 +5,7 @@ import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api
 import type { WorktreeInfo } from "../../types";
 import { useErrorToast } from "../../hooks/useErrorToast";
 import { useApi } from "../../hooks/useApi";
-import { clearTerminalSessionCacheForWorktree } from "../../hooks/useTerminal";
+import { clearTerminalSessionCacheForRuntimeWorktree } from "../../hooks/useTerminal";
 import { useServer, useServerUrlOptional } from "../../contexts/ServerContext";
 import { action, border, detailTab, errorBanner, input, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -151,6 +151,7 @@ export function DetailPanel({
   const [isRecoveringLocalTask, setIsRecoveringLocalTask] = useState(false);
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [isDeletingWorktree, setIsDeletingWorktree] = useState(false);
   const [openTargetOptions, setOpenTargetOptions] = useState<OpenProjectTargetOption[]>([]);
   const [selectedOpenTarget, setSelectedOpenTarget] = useState<OpenProjectTarget | null>(null);
   const [tabPerWorktree, setTabPerWorktree] = useState<Record<string, WorktreeTab>>(() => ({
@@ -946,6 +947,7 @@ export function DetailPanel({
     worktree,
   ]);
 
+  // Keep all hooks above this guard; adding hooks below it breaks hook ordering between renders.
   if (!worktree) {
     return (
       <div className={`flex-1 flex items-center justify-center ${text.dimmed} text-sm`}>
@@ -982,17 +984,17 @@ export function DetailPanel({
 
   const handleRemove = () => setShowRemoveModal(true);
 
-  const handleConfirmRemove = async () => {
-    setShowRemoveModal(false);
-    setError(null);
-    const deletedId = worktree.id;
+  const pruneDeletedWorktreeUiState = (deletedId: string) => {
     const scopeCache = getScopeCache();
-    const clearedTerminalCaches = clearTerminalSessionCacheForWorktree(deletedId, serverUrl);
-    console.info("[terminal][TEMP] cleared terminal cache entries for deleted worktree", {
+    const clearedTerminalCaches = clearTerminalSessionCacheForRuntimeWorktree(
+      detailScopeKey,
+      deletedId,
+    );
+    console.info("[delete][TEMP] applied scoped delete cleanup", {
       scopeKey: detailScopeKey,
       worktreeId: deletedId,
-      serverUrl: serverUrl ?? "__relative__",
       clearedTerminalCaches,
+      cleanupApplied: true,
     });
 
     // Clean up state for this worktree
@@ -1098,17 +1100,42 @@ export function DetailPanel({
       delete next[deletedId];
       return next;
     });
+  };
 
-    // Switch away immediately so user isn't stuck on "deleting" screen
-    onDeleted();
+  const handleConfirmRemove = async () => {
+    if (isDeletingWorktree) return;
+    setShowRemoveModal(false);
+    setError(null);
+    setIsDeletingWorktree(true);
+    const deletedId = worktree.id;
+    try {
+      const result = await api.removeWorktree(deletedId);
+      if (!result.success) {
+        console.info("[delete][TEMP] delete failed; rollback preserved local state", {
+          worktreeId: deletedId,
+          deleteOpId: result.deleteOpId ?? null,
+          code: result.code ?? null,
+          error: result.error ?? "unknown",
+          cleanupRolledBack: true,
+        });
+        setError(result.error || "Failed to remove worktree");
+        return;
+      }
 
-    // Delete in background - worktree will disappear from list via SSE update
-    const result = await api.removeWorktree(deletedId);
-    if (!result.success) {
-      // Show error somewhere? For now just log it
-      console.error("Failed to remove worktree:", result.error);
+      console.info("[delete][TEMP] delete succeeded", {
+        requestedWorktreeId: deletedId,
+        removedWorktreeId: result.worktreeId ?? deletedId,
+        deleteOpId: result.deleteOpId ?? null,
+        removedTerminalSessions: result.removedTerminalSessions ?? null,
+        removedRunningProcess: result.removedRunningProcess ?? null,
+        clearedLinks: result.clearedLinks ?? null,
+      });
+      pruneDeletedWorktreeUiState(result.worktreeId ?? deletedId);
+      onDeleted();
+      onUpdate();
+    } finally {
+      setIsDeletingWorktree(false);
     }
-    onUpdate();
   };
 
   const handleRename = async (changes: { name?: string; branch?: string }): Promise<boolean> => {

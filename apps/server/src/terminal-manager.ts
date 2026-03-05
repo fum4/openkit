@@ -356,12 +356,16 @@ export class TerminalManager {
     return true;
   }
 
-  destroyAllForWorktree(worktreeId: string): void {
+  destroyAllForWorktree(worktreeId: string): number {
+    let removed = 0;
     for (const [id, session] of this.sessions) {
       if (session.worktreeId === worktreeId) {
-        this.destroySession(id);
+        if (this.destroySession(id)) {
+          removed += 1;
+        }
       }
     }
+    return removed;
   }
 
   destroyAll(): void {

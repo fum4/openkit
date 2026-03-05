@@ -1117,6 +1117,39 @@ export default function App() {
     [worktrees],
   );
 
+  useEffect(() => {
+    const dropMissingLaunches = <T extends { worktreeId: string }>(pending: T[]): T[] => {
+      const filtered = pending.filter((intent) => activeWorktreeIds.has(intent.worktreeId));
+      return filtered.length === pending.length ? pending : filtered;
+    };
+
+    setPendingClaudeLaunches((prev) => dropMissingLaunches(prev));
+    setPendingCodexLaunches((prev) => dropMissingLaunches(prev));
+    setPendingGeminiLaunches((prev) => dropMissingLaunches(prev));
+    setPendingOpenCodeLaunches((prev) => dropMissingLaunches(prev));
+
+    setClaudeLaunchRequest((prev) =>
+      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
+    );
+    setCodexLaunchRequest((prev) =>
+      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
+    );
+    setGeminiLaunchRequest((prev) =>
+      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
+    );
+    setOpenCodeLaunchRequest((prev) =>
+      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
+    );
+
+    for (const waitKey of launchMissingTargetSinceRef.current.keys()) {
+      if (!waitKey.startsWith(`${runtimeScopeKey}:`)) continue;
+      const parts = waitKey.split(":");
+      const worktreeId = parts[parts.length - 1];
+      if (activeWorktreeIds.has(worktreeId)) continue;
+      launchMissingTargetSinceRef.current.delete(waitKey);
+    }
+  }, [activeWorktreeIds, runtimeScopeKey]);
+
   const startAgentSessionInBackground = useCallback(
     async (
       agent: CodingAgent,

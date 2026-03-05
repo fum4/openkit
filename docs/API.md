@@ -111,10 +111,24 @@ Rename a worktree (directory name and/or branch).
 
 #### `DELETE /api/worktrees/:id`
 
-Remove a worktree. Also destroys any associated terminal sessions.
+Remove a worktree transactionally (graceful stop, scoped terminal teardown, filesystem removal, link cleanup, lifecycle hooks, then notify).
 
-- **Response**: `{ success: true, ... }`
-- **Error** (400): `{ success: false, error: "..." }`
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "worktreeId": "LOCAL-3",
+    "removedTerminalSessions": 2,
+    "removedRunningProcess": true,
+    "clearedLinks": 1,
+    "deleteOpId": "c3b4..."
+  }
+  ```
+- **Error** (404/409): canonical resolution failure with code
+  - `{ success: false, code: "WORKTREE_NOT_FOUND", error: "..." }`
+  - `{ success: false, code: "WORKTREE_ID_AMBIGUOUS", error: "..." }`
+- **Error** (400): validation/delete failure
+  - `{ success: false, code: "INVALID_WORKTREE_ID" | "WORKTREE_REMOVE_FAILED", error: "...", deleteOpId: "..." }`
 
 #### `GET /api/worktrees/:id/logs`
 
