@@ -92,6 +92,10 @@ function formatHookTriggerLabel(trigger: HookTrigger): string {
   }
 }
 
+function formatHookTriggerContext(trigger: HookTrigger): string {
+  return formatHookTriggerLabel(trigger).toLowerCase();
+}
+
 const USER_ACTION_HINT =
   /\b(approve|approval|confirm|confirmation|yes\/no|y\/n|permission|authorize|authorise|need your|need you|waiting for (your )?(input|confirmation|approval|answer|response|reply)|user input|blocked|respond|reply)\b/i;
 
@@ -790,6 +794,7 @@ export const actions: Action[] = [
 
       const projectName = ctx.manager.getProjectName() ?? undefined;
       const groupKey = `hooks:${worktreeId}:${trigger}`;
+      const triggerContext = formatHookTriggerContext(trigger);
 
       const runnableSteps = hooksConfig.steps
         .filter(
@@ -801,7 +806,7 @@ export const actions: Action[] = [
         category: "agent",
         type: "hooks_started",
         severity: "info",
-        title: `${formatHookTriggerLabel(trigger)} hooks started`,
+        title: `Hooks started (${triggerContext})`,
         worktreeId,
         projectName,
         groupKey,
@@ -827,7 +832,7 @@ export const actions: Action[] = [
         category: "agent",
         type: "hooks_ran",
         severity,
-        title: `${formatHookTriggerLabel(trigger)} hooks completed`,
+        title: `Hooks completed (${triggerContext})`,
         detail,
         worktreeId,
         projectName,

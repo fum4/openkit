@@ -920,7 +920,7 @@ export class WorktreeManager {
         category: "worktree",
         type: "creation_completed",
         severity: "success",
-        title: `Worktree "${worktreeId}" created`,
+        title: "Worktree created",
         worktreeId,
         projectName: this.activityProjectName(),
         groupKey: `worktree-creation:${worktreeId}`,

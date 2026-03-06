@@ -219,6 +219,8 @@ This decouples the activity feed from the SSE connection hook.
 - **Event list** — up to 200 events, strictly sorted newest-first.
 - **Group-key upserts** — events with the same `groupKey` replace prior events (e.g. creation started → creation completed).
 - **Hook group aggregation** — hook-related events (`hooks_started`, `hooks_ran`, `skill_*`) with `groupKey` `hooks:{worktreeId}:{trigger}` are merged into a single expandable feed entry with live child statuses for commands/skills.
+- **Hook title format** — aggregated hook entries are titled as `Hooks started|running|completed (<trigger>)` (for example `Hooks started (worktree created)`).
+- **Worktree creation title format** — `creation_completed` uses the generic title `Worktree created` (worktree id stays in metadata/link context, not in the title).
 - **Unread count** — increments on each new event, resets on `markAllRead()`.
 - **Feed-only workflow routing** — workflow/agent/live updates stay in the activity timeline.
 - **Per-event suppression** — events listed in `activity.disabledEvents` are filtered out.

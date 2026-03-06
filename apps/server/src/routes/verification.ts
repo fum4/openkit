@@ -80,6 +80,10 @@ function formatHookTriggerLabel(trigger: HookTrigger): string {
   }
 }
 
+function formatHookTriggerContext(trigger: HookTrigger): string {
+  return formatHookTriggerLabel(trigger).toLowerCase();
+}
+
 const WORKFLOW_PHASES = [
   "task-started",
   "pre-hooks-started",
@@ -445,6 +449,7 @@ export function registerHooksRoutes(
       log.info(`[hooks] API run requested (worktree=${worktreeId}, trigger=${trigger})`);
       const projectName = manager.getProjectName() ?? undefined;
       const groupKey = `hooks:${worktreeId}:${trigger}`;
+      const triggerContext = formatHookTriggerContext(trigger);
       const runnableSteps = hooksConfig.steps
         .filter(
           (step) =>
@@ -456,7 +461,7 @@ export function registerHooksRoutes(
         category: "agent",
         type: "hooks_started",
         severity: "info",
-        title: `${formatHookTriggerLabel(trigger)} hooks started`,
+        title: `Hooks started (${triggerContext})`,
         worktreeId,
         projectName,
         groupKey,
@@ -482,7 +487,7 @@ export function registerHooksRoutes(
         category: "agent",
         type: "hooks_ran",
         severity,
-        title: `${formatHookTriggerLabel(trigger)} hooks completed`,
+        title: `Hooks completed (${triggerContext})`,
         detail,
         worktreeId,
         projectName,
@@ -514,6 +519,7 @@ export function registerHooksRoutes(
     try {
       const step = hooksManager.getConfig().steps.find((s) => s.id === stepId);
       const trigger = normalizeHookTrigger(step?.trigger);
+      const triggerContext = formatHookTriggerContext(trigger);
       const projectName = manager.getProjectName() ?? undefined;
       const groupKey = `hooks:${worktreeId}:${trigger}`;
 
@@ -522,7 +528,7 @@ export function registerHooksRoutes(
           category: "agent",
           type: "hooks_started",
           severity: "info",
-          title: `${formatHookTriggerLabel(trigger)} hooks started`,
+          title: `Hooks started (${triggerContext})`,
           worktreeId,
           projectName,
           groupKey,
@@ -550,7 +556,7 @@ export function registerHooksRoutes(
         category: "agent",
         type: "hooks_ran",
         severity,
-        title: `${formatHookTriggerLabel(trigger)} hooks completed`,
+        title: `Hooks completed (${triggerContext})`,
         detail,
         worktreeId,
         projectName,

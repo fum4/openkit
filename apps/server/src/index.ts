@@ -67,8 +67,10 @@ function resolveProjectRoot(startDir: string): string {
 
 const projectRoot = resolveProjectRoot(currentDir);
 
-function formatHookTriggerLabel(trigger: "worktree-created" | "worktree-removed"): string {
-  return trigger === "worktree-created" ? "Worktree Created" : "Worktree Removed";
+function formatLifecycleHookTriggerContext(
+  trigger: "worktree-created" | "worktree-removed",
+): string {
+  return trigger === "worktree-created" ? "worktree created" : "worktree removed";
 }
 
 function findAvailablePort(startPort: number): Promise<number> {
@@ -101,13 +103,13 @@ export function createWorktreeServer(manager: WorktreeManager) {
   manager.setWorktreeLifecycleHookRunner(async (trigger, worktreeId, worktreePath) => {
     const activityLog = manager.getActivityLog();
     const groupKey = `hooks:${worktreeId}:${trigger}`;
-    const label = formatHookTriggerLabel(trigger);
+    const triggerContext = formatLifecycleHookTriggerContext(trigger);
 
     activityLog.addEvent({
       category: "agent",
       type: ACTIVITY_TYPES.HOOKS_STARTED,
       severity: "info",
-      title: `${label} hooks started`,
+      title: `Hooks started (${triggerContext})`,
       detail: "Executing command hooks...",
       worktreeId,
       projectName: manager.getProjectName() ?? undefined,
@@ -134,7 +136,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
       category: "agent",
       type: ACTIVITY_TYPES.HOOKS_RAN,
       severity: failedCount > 0 ? "error" : "success",
-      title: `${label} hooks completed`,
+      title: `Hooks completed (${triggerContext})`,
       detail,
       worktreeId,
       projectName: manager.getProjectName() ?? undefined,

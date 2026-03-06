@@ -1632,7 +1632,7 @@ export default function App() {
         category: "agent",
         type: "task_detected",
         severity: "info",
-        title: "New task found",
+        title: "New task",
         detail: formatTaskNotificationDetail(task.issueId, task.title),
         groupKey: `task-detected:${task.source}:${task.issueId}`,
         metadata: {
