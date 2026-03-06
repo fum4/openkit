@@ -35,15 +35,54 @@ function ensureTasksDir(configDir: string): string {
   return dir;
 }
 
-function getNextIdentifier(configDir: string, prefix = "LOCAL"): string {
+function getNextIdentifier(
+  configDir: string,
+  prefix = "LOCAL",
+): {
+  identifier: string;
+  counterBefore: number;
+  counterAfter: number;
+  collisionsSkipped: number;
+} {
   const counterFile = path.join(ensureTasksDir(configDir), ".counter");
   let counter = 0;
   if (existsSync(counterFile)) {
     counter = parseInt(readFileSync(counterFile, "utf-8").trim(), 10) || 0;
   }
-  counter++;
+  const counterBefore = counter;
+  let collisionsSkipped = 0;
+  let identifier = "";
+  while (true) {
+    counter++;
+    identifier = prefix ? `${prefix}-${counter}` : String(counter);
+    const taskDir = path.join(getTasksDir(configDir), identifier);
+    if (!existsSync(taskDir)) break;
+    collisionsSkipped++;
+  }
   writeFileSync(counterFile, String(counter));
-  return prefix ? `${prefix}-${counter}` : String(counter);
+  return {
+    identifier,
+    counterBefore,
+    counterAfter: counter,
+    collisionsSkipped,
+  };
+}
+
+function readCounterValue(configDir: string): number {
+  const counterFile = path.join(ensureTasksDir(configDir), ".counter");
+  if (!existsSync(counterFile)) return 0;
+  return parseInt(readFileSync(counterFile, "utf-8").trim(), 10) || 0;
+}
+
+function writeCounterValue(configDir: string, value: number): void {
+  const counterFile = path.join(ensureTasksDir(configDir), ".counter");
+  writeFileSync(counterFile, String(value));
+}
+
+function ensureCounterAtLeast(configDir: string, minimumValue: number): void {
+  const current = readCounterValue(configDir);
+  if (current >= minimumValue) return;
+  writeCounterValue(configDir, minimumValue);
 }
 
 function loadTask(configDir: string, id: string): CustomTask | null {
@@ -148,13 +187,18 @@ export function registerTaskRoutes(
   notesManager: NotesManager,
 ) {
   const configDir = manager.getConfigDir();
+  const toResolutionStatus = (code: "WORKTREE_NOT_FOUND" | "WORKTREE_ID_AMBIGUOUS"): 404 | 409 =>
+    code === "WORKTREE_ID_AMBIGUOUS" ? 409 : 404;
   const resolveActiveLinkedWorktreeId = (taskId: string): string | null => {
     const notes = notesManager.loadNotes("local", taskId);
     if (!notes.linkedWorktreeId) return null;
-    const exists = manager
-      .getWorktrees()
-      .some((worktree) => worktree.id === notes.linkedWorktreeId);
-    if (exists) return notes.linkedWorktreeId;
+    const resolved = manager.resolveWorktreeId(notes.linkedWorktreeId);
+    if (resolved.success) {
+      if (resolved.worktreeId !== notes.linkedWorktreeId) {
+        notesManager.setLinkedWorktreeId("local", taskId, resolved.worktreeId);
+      }
+      return resolved.worktreeId;
+    }
     notesManager.setLinkedWorktreeId("local", taskId, null);
     return null;
   };
@@ -202,7 +246,8 @@ export function registerTaskRoutes(
     }
 
     const now = new Date().toISOString();
-    const identifier = getNextIdentifier(configDir, manager.getConfig().localIssuePrefix);
+    const nextIdentifier = getNextIdentifier(configDir, manager.getConfig().localIssuePrefix);
+    const identifier = nextIdentifier.identifier;
     const task: CustomTask = {
       id: identifier,
       title: body.title.trim(),
@@ -220,6 +265,15 @@ export function registerTaskRoutes(
 
     const linkedWorktreeId = body.linkedWorktreeId ?? null;
 
+    console.info("[tasks][TEMP] create task", {
+      configDir,
+      taskId: identifier,
+      counterBefore: nextIdentifier.counterBefore,
+      counterAfter: nextIdentifier.counterAfter,
+      collisionsSkipped: nextIdentifier.collisionsSkipped,
+      linkedWorktreeId,
+    });
+
     saveTask(configDir, task);
     // Create notes.json alongside (optionally linking to a worktree)
     notesManager.saveNotes("local", task.id, {
@@ -230,6 +284,92 @@ export function registerTaskRoutes(
     });
 
     return c.json({ success: true, task: { ...task, linkedWorktreeId } });
+  });
+
+  app.post("/api/tasks/recover-local", async (c) => {
+    const body = await c.req.json<{
+      taskId?: string;
+      title?: string;
+      description?: string;
+      priority?: string;
+      labels?: string[];
+    }>();
+
+    const rawTaskId = body.taskId?.trim() ?? "";
+    if (!rawTaskId) {
+      return c.json({ success: false, error: "taskId is required" }, 400);
+    }
+
+    const prefix = manager.getConfig().localIssuePrefix?.trim() || "LOCAL";
+    const prefixUpper = `${prefix.toUpperCase()}-`;
+    const upperTaskId = rawTaskId.toUpperCase();
+    if (!upperTaskId.startsWith(prefixUpper)) {
+      return c.json(
+        {
+          success: false,
+          error: `taskId must start with "${prefix}-"`,
+        },
+        400,
+      );
+    }
+
+    const numericPartRaw = rawTaskId.slice(prefix.length + 1).trim();
+    if (!/^\d+$/.test(numericPartRaw)) {
+      return c.json({ success: false, error: "taskId must end with a numeric suffix" }, 400);
+    }
+    const numericPart = parseInt(numericPartRaw, 10);
+    if (!Number.isFinite(numericPart) || numericPart <= 0) {
+      return c.json({ success: false, error: "taskId suffix must be a positive number" }, 400);
+    }
+
+    const canonicalTaskId = `${prefix}-${numericPart}`;
+    const taskDir = path.join(getTasksDir(configDir), canonicalTaskId);
+    if (existsSync(taskDir)) {
+      return c.json({ success: false, error: `Task "${canonicalTaskId}" already exists` }, 409);
+    }
+
+    const resolved = manager.resolveWorktreeId(canonicalTaskId);
+    if (!resolved.success) {
+      return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+    }
+
+    const now = new Date().toISOString();
+    const task: CustomTask = {
+      id: canonicalTaskId,
+      title: body.title?.trim() || `Recovered task ${canonicalTaskId}`,
+      description: body.description?.trim() ?? "",
+      status: "todo",
+      priority: (["high", "medium", "low"].includes(body.priority ?? "")
+        ? body.priority
+        : "medium") as CustomTask["priority"],
+      labels: Array.isArray(body.labels)
+        ? body.labels.map((label) => String(label).trim()).filter(Boolean)
+        : [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    saveTask(configDir, task);
+    notesManager.saveNotes("local", task.id, {
+      linkedWorktreeId: resolved.worktreeId,
+      personal: null,
+      aiContext: null,
+      todos: [],
+    });
+    ensureCounterAtLeast(configDir, numericPart);
+
+    console.info("[tasks][TEMP] recover-local created task metadata", {
+      configDir,
+      taskId: canonicalTaskId,
+      linkedWorktreeId: resolved.worktreeId,
+      counterAfter: readCounterValue(configDir),
+    });
+
+    return c.json({
+      success: true,
+      task: { ...task, linkedWorktreeId: resolved.worktreeId },
+      linkedWorktreeId: resolved.worktreeId,
+    });
   });
 
   // Update task
@@ -290,6 +430,12 @@ export function registerTaskRoutes(
       body.branch ||
       (await generateBranchName(configDir, { issueId: task.id, name: task.title, type: "local" }));
 
+    console.info("[tasks][TEMP] create-worktree requested", {
+      taskId: task.id,
+      branchName,
+      hasCustomBranchOverride: Boolean(body.branch),
+    });
+
     // Load AI context notes
     const notes = notesManager.loadNotes("local", task.id);
     const aiContext = notes.aiContext?.content ?? null;
@@ -324,20 +470,57 @@ export function registerTaskRoutes(
       const result = await manager.createWorktree(
         { branch: branchName, name: taskId },
         {
-          onSuccess: () => {
+          onSuccess: (createdWorktreeId) => {
             // Link worktree via notes.json only after async creation actually succeeds
-            notesManager.setLinkedWorktreeId("local", taskId, taskId);
+            notesManager.setLinkedWorktreeId("local", taskId, createdWorktreeId);
           },
         },
       );
 
       if (!result.success) {
         manager.clearPendingWorktreeContext(taskId);
+        if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
+          const canonicalWorktreeId = result.worktreeId;
+          console.info("[tasks][TEMP] create-worktree reused existing", {
+            taskId,
+            branchName,
+            code: result.code,
+            worktreeId: canonicalWorktreeId,
+          });
+          notesManager.setLinkedWorktreeId("local", taskId, canonicalWorktreeId);
+          return c.json({
+            success: true,
+            reusedExisting: true,
+            worktreeId: canonicalWorktreeId,
+            worktreePath: path.join(configDir, ".openkit", "worktrees", canonicalWorktreeId),
+          });
+        }
       }
 
+      if (result.success) {
+        console.info("[tasks][TEMP] create-worktree created", {
+          taskId,
+          branchName,
+          worktreeId: result.worktree?.id ?? null,
+          success: result.success,
+        });
+        return c.json({ ...result, reusedExisting: false });
+      }
+      console.info("[tasks][TEMP] create-worktree failed", {
+        taskId,
+        branchName,
+        code: result.code,
+        error: result.error,
+        worktreeId: result.worktreeId,
+      });
       return c.json(result);
     } catch (err) {
       manager.clearPendingWorktreeContext(task.id);
+      console.info("[tasks][TEMP] create-worktree exception", {
+        taskId: task.id,
+        branchName,
+        error: err instanceof Error ? err.message : "Failed to create worktree",
+      });
       return c.json({
         success: false,
         error: err instanceof Error ? err.message : "Failed to create worktree",

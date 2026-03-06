@@ -46,6 +46,12 @@ interface TerminalSession {
   rows: number;
 }
 
+export interface TerminalSessionCreateResult {
+  sessionId: string;
+  reusedScopedSession: boolean;
+  replacedScopedShellSession: boolean;
+}
+
 export class TerminalManager {
   private static readonly MAX_BUFFER_CHARS = 400_000;
   private sessions = new Map<string, TerminalSession>();
@@ -65,6 +71,24 @@ export class TerminalManager {
     if (this.sessionsByScope.get(key) === session.id) {
       this.sessionsByScope.delete(key);
     }
+  }
+
+  private isSessionProcessAlive(session: TerminalSession): boolean {
+    if (!session.pty) return false;
+    const pid = (session.pty as unknown as { pid?: number }).pid;
+    if (typeof pid !== "number" || !Number.isFinite(pid) || pid <= 0) return false;
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private isScopedSessionHealthy(session: TerminalSession): boolean {
+    // Scoped shell sessions can be lazily spawned on websocket attach.
+    if (session.startupCommand === null) return true;
+    return this.isSessionProcessAlive(session);
   }
 
   private spawnSessionPty(sessionId: string, session: TerminalSession): boolean {
@@ -139,7 +163,7 @@ export class TerminalManager {
     rows = 24,
     startupCommand: string | null = null,
     scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null = null,
-  ): string {
+  ): TerminalSessionCreateResult {
     if (!existsSync(worktreePath)) {
       throw new Error(`Worktree path does not exist: ${worktreePath}`);
     }
@@ -149,13 +173,74 @@ export class TerminalManager {
       throw new Error(`Shell not found: ${shell}`);
     }
 
+    let replacedScopedShellSession = false;
     if (scope) {
-      const existingSessionId = this.sessionsByScope.get(this.scopeKey(worktreeId, scope));
-      if (existingSessionId && this.sessions.has(existingSessionId)) {
-        return existingSessionId;
-      }
+      const scopeKey = this.scopeKey(worktreeId, scope);
+      const existingSessionId = this.sessionsByScope.get(scopeKey);
       if (existingSessionId) {
-        this.sessionsByScope.delete(this.scopeKey(worktreeId, scope));
+        const existingSession = this.sessions.get(existingSessionId);
+        if (!existingSession) {
+          this.sessionsByScope.delete(scopeKey);
+        } else {
+          const existingSessionHealthy = this.isScopedSessionHealthy(existingSession);
+          if (!existingSessionHealthy) {
+            console.info("[terminal][TEMP] createSession scope decision", {
+              worktreeId,
+              scope,
+              sessionId: existingSessionId,
+              decision: "replaced-unhealthy-scope",
+              reason:
+                existingSession.startupCommand === null
+                  ? "existing-scoped-shell-session-unhealthy"
+                  : "existing-scoped-agent-session-unhealthy",
+            });
+            this.destroySession(existingSessionId);
+            if (existingSession.startupCommand === null) {
+              replacedScopedShellSession = true;
+            }
+          } else {
+            const hasStartupCommand = Boolean(startupCommand);
+            const existingIsAgentSession = existingSession.startupCommand !== null;
+            if (!hasStartupCommand) {
+              console.info("[terminal][TEMP] createSession scope decision", {
+                worktreeId,
+                scope,
+                sessionId: existingSessionId,
+                decision: "reused-agent-scope",
+                reason: "no-startup-command",
+              });
+              return {
+                sessionId: existingSessionId,
+                reusedScopedSession: true,
+                replacedScopedShellSession: false,
+              };
+            }
+            if (existingIsAgentSession) {
+              console.info("[terminal][TEMP] createSession scope decision", {
+                worktreeId,
+                scope,
+                sessionId: existingSessionId,
+                decision: "reused-agent-scope",
+                reason: "existing-scoped-agent-session",
+              });
+              return {
+                sessionId: existingSessionId,
+                reusedScopedSession: true,
+                replacedScopedShellSession: false,
+              };
+            }
+
+            console.info("[terminal][TEMP] createSession scope decision", {
+              worktreeId,
+              scope,
+              sessionId: existingSessionId,
+              decision: "replaced-shell-scope",
+              reason: "startup-command-requested",
+            });
+            this.destroySession(existingSessionId);
+            replacedScopedShellSession = true;
+          }
+        }
       }
     }
 
@@ -184,7 +269,19 @@ export class TerminalManager {
       throw new Error("Failed to start terminal session");
     }
 
-    return sessionId;
+    console.info("[terminal][TEMP] createSession scope decision", {
+      worktreeId,
+      scope,
+      sessionId,
+      decision: "created-fresh",
+      hasStartupCommand: Boolean(startupCommand),
+      replacedScopedShellSession,
+    });
+    return {
+      sessionId,
+      reusedScopedSession: false,
+      replacedScopedShellSession,
+    };
   }
 
   attachWebSocket(sessionId: string, ws: WebSocket): boolean {
@@ -286,12 +383,16 @@ export class TerminalManager {
     return true;
   }
 
-  destroyAllForWorktree(worktreeId: string): void {
+  destroyAllForWorktree(worktreeId: string): number {
+    let removed = 0;
     for (const [id, session] of this.sessions) {
       if (session.worktreeId === worktreeId) {
-        this.destroySession(id);
+        if (this.destroySession(id)) {
+          removed += 1;
+        }
       }
     }
+    return removed;
   }
 
   destroyAll(): void {

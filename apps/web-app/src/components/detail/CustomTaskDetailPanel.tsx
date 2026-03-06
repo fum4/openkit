@@ -14,6 +14,8 @@ import type { CustomTaskAttachment } from "../../types";
 import { CodeAgentSplitButton, type CodingAgent } from "./CodeAgentSplitButton";
 import { EditableTextareaCard } from "../EditableTextareaCard";
 
+const TASK_DEBUG_PREFIX = "[tasks][TEMP]";
+
 interface CustomTaskDetailPanelProps {
   taskId: string;
   activeWorktreeIds: Set<string>;
@@ -159,20 +161,44 @@ export function CustomTaskDetailPanel({
 
   const handleCodeWithAgent = async (agent: CodingAgent) => {
     onSelectCodingAgent(agent);
+    console.info(`${TASK_DEBUG_PREFIX} code-with-agent requested`, {
+      taskId,
+      agent,
+      selectedCodingAgent,
+      activeLinkedWorktreeId,
+    });
     setIsCodingWithAgent(true);
     setCreateError(null);
     const result = await api.createWorktreeFromCustomTask(taskId);
+    console.info(`${TASK_DEBUG_PREFIX} create-worktree response for code-with-agent`, {
+      taskId,
+      agent,
+      success: result.success,
+      code: result.code,
+      reusedExisting: result.reusedExisting ?? false,
+      worktreeId: result.worktreeId ?? null,
+      error: result.error ?? null,
+    });
     setIsCodingWithAgent(false);
-    if (result.success) {
+    const reusingExistingWorktree =
+      (result.success && result.reusedExisting === true) ||
+      (!result.success && result.code === "WORKTREE_EXISTS" && !!result.worktreeId);
+    if (result.success || reusingExistingWorktree) {
       refetch();
       queryClient.invalidateQueries({ queryKey: ["customTasks"] });
       launchCodingAgent(agent, {
         worktreeId: result.worktreeId ?? taskId,
-        mode: "start",
-        prompt: `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`,
+        mode: reusingExistingWorktree ? "resume" : "start",
+        prompt: reusingExistingWorktree
+          ? undefined
+          : `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`,
       });
-    } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
-      launchCodingAgent(agent, { worktreeId: result.worktreeId, mode: "resume" });
+      console.info(`${TASK_DEBUG_PREFIX} launch intent dispatched`, {
+        taskId,
+        agent,
+        mode: reusingExistingWorktree ? "resume" : "start",
+        worktreeId: result.worktreeId ?? taskId,
+      });
     } else {
       setCreateError(result.error ?? "Failed to create worktree");
     }
@@ -380,6 +406,11 @@ export function CustomTaskDetailPanel({
           </div>
         </div>
         {createError && <p className={`${text.error} text-[10px] mt-2`}>{createError}</p>}
+        {activeLinkedWorktreeId && (
+          <p className={`${text.dimmed} text-[10px] mt-1.5`}>
+            This will use worktree <span className={text.secondary}>{activeLinkedWorktreeId}</span>.
+          </p>
+        )}
       </div>
 
       {/* Metadata bar */}

@@ -399,10 +399,12 @@ This command:
 4. Saves task data locally
 5. Downloads any attachments (Jira only)
 6. In single mode, prompts for an action:
-   - **Create a worktree** -- creates a new git worktree with the issue key as the branch name, copies `.env` files, runs the install command, then runs `worktree-created` command hooks (if configured)
+   - **Create a worktree** -- creates a new git worktree using the canonical issue/task ID as the worktree directory name (for example `PROJ-123`, `LOCAL-1`), uses the same key as the branch name, copies `.env` files, runs the install command, then runs `worktree-created` command hooks (if configured)
    - **Link to an existing worktree** -- associates the task with a worktree that already exists
    - **Just save the data** -- saves the task data without creating or linking a worktree
 7. In batch mode, automatically creates a worktree for each task and runs `worktree-created` command hooks per successful creation
+
+Task/worktree links are persisted in `.openkit/issues/<source>/<id>/notes.json` (`linkedWorktreeId`) so CLI, server, and UI resolve associations consistently.
 
 ---
 

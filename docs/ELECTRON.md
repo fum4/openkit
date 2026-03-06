@@ -117,6 +117,13 @@ The renderer receives project and active-project updates from the main process v
 
 Switching tabs changes the active project in the main process, which updates the `serverUrl` in the renderer, causing React Query to refetch against the new backend.
 
+Workspace persistence keys (`OpenKit:wsSel:*`, `OpenKit:wsTab:*`, `OpenKit:view:*`) are scoped by stable `project.id` in Electron mode, with a legacy read migration from old `serverUrl`-scoped keys.
+
+In the renderer, runtime launch/navigation queues are also scoped by `project.id` (`runtimeScopeKey`). Pending intents for inactive projects stay isolated and are only processed after switching back to that project, which prevents cross-project "worktree not found" behavior while keeping project switches non-interrupting.
+
+Terminal tabs in the worktree detail panel are project-scoped. Detail-panel tab/session caches for agent tabs are keyed by `project.id`, so same-named worktrees (for example `LOCAL-1`) in different projects do not share tab-open state. If you switch projects while a terminal tab is open, the visible terminal tab automatically reconnects to the active project's server context once it becomes available. Agent launch requests are one-shot and are consumed after first handling, so passive tab focus/switch reattaches instead of relaunching the agent process. Explicit `Code with ...` launches take precedence over passive reconnect, use scoped reconcile metadata from terminal create to reuse active agent sessions or replace shell-only scoped sessions, and retry briefly if a passive connect is already in flight.
+Terminal session cache keys in `useTerminal` also use runtime scope identity (`project:<id>` in Electron), so deleting or reconnecting in one project cannot evict session cache entries for another project even if ports are later reused.
+
 ### Session Persistence
 
 `ProjectManager` saves its state to `~/.openkit/app-state.json`:

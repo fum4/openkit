@@ -390,7 +390,8 @@ export function registerJiraRoutes(app: Hono, manager: WorktreeManager) {
         return c.json({ success: false, error: "Issue key is required" }, 400);
       }
       const result = await manager.createWorktreeFromJira(body.issueKey, body.branch);
-      return c.json(result, result.success ? 201 : 400);
+      const status = result.success ? (result.reusedExisting ? 200 : 201) : 400;
+      return c.json(result, status);
     } catch (error) {
       return c.json(
         {

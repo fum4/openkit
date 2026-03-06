@@ -1,4 +1,5 @@
 import { execFile as execFileCb, execFileSync, spawn } from "child_process";
+import { randomUUID } from "crypto";
 import {
   existsSync,
   mkdirSync,
@@ -137,6 +138,33 @@ function getWorktreeColor(id: string): (s: string) => string {
     worktreeColorMap.set(id, color);
   }
   return color;
+}
+
+type WorktreeResolutionCode = "WORKTREE_NOT_FOUND" | "WORKTREE_ID_AMBIGUOUS";
+
+type WorktreeIdResolutionResult =
+  | { success: true; worktreeId: string }
+  | { success: false; code: WorktreeResolutionCode; error: string; matches?: string[] };
+
+type RemoveWorktreeErrorCode =
+  | WorktreeResolutionCode
+  | "INVALID_WORKTREE_ID"
+  | "WORKTREE_REMOVE_FAILED";
+
+interface RemoveWorktreeOptions {
+  deleteOpId?: string;
+  destroyTerminalsForWorktree?: (worktreeId: string) => number;
+}
+
+interface RemoveWorktreeResult {
+  success: boolean;
+  error?: string;
+  code?: RemoveWorktreeErrorCode;
+  worktreeId?: string;
+  removedTerminalSessions?: number;
+  removedRunningProcess?: boolean;
+  clearedLinks?: number;
+  deleteOpId?: string;
 }
 
 export class WorktreeManager {
@@ -361,6 +389,119 @@ export class WorktreeManager {
     this.pendingWorktreeContext.delete(id);
   }
 
+  private listWorktreeDirectoryIds(): string[] {
+    const worktreesPath = this.getWorktreesAbsolutePath();
+    if (!existsSync(worktreesPath)) return [];
+
+    return readdirSync(worktreesPath, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  }
+
+  private resolveIdFromCandidates(
+    requestedId: string,
+    candidateIds: Iterable<string>,
+  ):
+    | { kind: "resolved"; id: string }
+    | { kind: "not-found" }
+    | { kind: "ambiguous"; ids: string[] } {
+    const uniqueIds = [...new Set([...candidateIds].filter(Boolean))];
+    if (uniqueIds.length === 0) return { kind: "not-found" };
+
+    const exact = uniqueIds.find((id) => id === requestedId);
+    if (exact) return { kind: "resolved", id: exact };
+
+    const requestedLower = requestedId.toLowerCase();
+    const caseInsensitiveMatches = uniqueIds.filter((id) => id.toLowerCase() === requestedLower);
+    if (caseInsensitiveMatches.length === 1) {
+      return { kind: "resolved", id: caseInsensitiveMatches[0] };
+    }
+    if (caseInsensitiveMatches.length > 1) {
+      return { kind: "ambiguous", ids: caseInsensitiveMatches.sort((a, b) => a.localeCompare(b)) };
+    }
+    return { kind: "not-found" };
+  }
+
+  private getWorktreeResolutionCandidates(): string[] {
+    const candidates = new Set<string>();
+    for (const id of this.listWorktreeDirectoryIds()) candidates.add(id);
+    for (const id of this.runningProcesses.keys()) candidates.add(id);
+    for (const id of this.creatingWorktrees.keys()) candidates.add(id);
+    for (const worktree of this.getWorktrees()) candidates.add(worktree.id);
+    return [...candidates];
+  }
+
+  resolveWorktreeId(requestedId: string): WorktreeIdResolutionResult {
+    const resolved = this.resolveIdFromCandidates(
+      requestedId,
+      this.getWorktreeResolutionCandidates(),
+    );
+    if (resolved.kind === "resolved") {
+      return { success: true, worktreeId: resolved.id };
+    }
+    if (resolved.kind === "ambiguous") {
+      return {
+        success: false,
+        code: "WORKTREE_ID_AMBIGUOUS",
+        error: `Worktree "${requestedId}" is ambiguous. Matches: ${resolved.ids.join(", ")}`,
+        matches: resolved.ids,
+      };
+    }
+    return {
+      success: false,
+      code: "WORKTREE_NOT_FOUND",
+      error: `Worktree "${requestedId}" not found`,
+    };
+  }
+
+  resolveWorktree(
+    requestedId: string,
+  ):
+    | { success: true; worktreeId: string; worktree: WorktreeInfo }
+    | { success: false; code: WorktreeResolutionCode; error: string; matches?: string[] } {
+    const idResolution = this.resolveWorktreeId(requestedId);
+    if (!idResolution.success) return idResolution;
+
+    const worktree = this.getWorktrees().find((item) => item.id === idResolution.worktreeId);
+    if (!worktree) {
+      return {
+        success: false,
+        code: "WORKTREE_NOT_FOUND",
+        error: `Worktree "${requestedId}" not found`,
+      };
+    }
+    return { success: true, worktreeId: idResolution.worktreeId, worktree };
+  }
+
+  private async listGitManagedWorktreeIds(): Promise<string[]> {
+    const gitRoot = this.getGitRoot();
+    const worktreesPath = path.resolve(this.getWorktreesAbsolutePath());
+    const worktreesPathLower = worktreesPath.toLowerCase();
+    const ids = new Set<string>();
+
+    try {
+      const { stdout } = await execFile("git", ["worktree", "list", "--porcelain"], {
+        cwd: gitRoot,
+        encoding: "utf-8",
+      });
+
+      for (const line of stdout.split("\n")) {
+        if (!line.startsWith("worktree ")) continue;
+        const listedPath = path.resolve(line.slice("worktree ".length).trim());
+        const parentDir = path.dirname(listedPath);
+        const matchesManagedRoot =
+          parentDir === worktreesPath || parentDir.toLowerCase() === worktreesPathLower;
+        if (!matchesManagedRoot) continue;
+        const id = path.basename(listedPath);
+        if (id) ids.add(id);
+      }
+    } catch {
+      // Ignore parse/list errors and rely on filesystem/running maps.
+    }
+
+    return [...ids];
+  }
+
   getWorktrees(): WorktreeInfo[] {
     const worktrees: WorktreeInfo[] = [];
     const worktreesPath = this.getWorktreesAbsolutePath();
@@ -481,15 +622,21 @@ export class WorktreeManager {
     pid?: number;
     error?: string;
   }> {
-    if (this.runningProcesses.has(id)) {
-      const info = this.runningProcesses.get(id)!;
+    const resolved = this.resolveWorktreeId(id);
+    if (!resolved.success) {
+      return { success: false, error: resolved.error };
+    }
+    const worktreeId = resolved.worktreeId;
+
+    if (this.runningProcesses.has(worktreeId)) {
+      const info = this.runningProcesses.get(worktreeId)!;
       return { success: true, ports: info.ports, pid: info.pid };
     }
 
     const worktreesPath = this.getWorktreesAbsolutePath();
-    const worktreePath = path.join(worktreesPath, id);
+    const worktreePath = path.join(worktreesPath, worktreeId);
     if (!existsSync(worktreePath)) {
-      return { success: false, error: `Worktree "${id}" not found` };
+      return { success: false, error: `Worktree "${worktreeId}" not found` };
     }
 
     const workingDir =
@@ -513,7 +660,7 @@ export class WorktreeManager {
       const ports = this.portManager.getPortsForOffset(offset);
 
       const portsDisplay = ports.length > 0 ? ports.join(", ") : `offset=${offset}`;
-      log.info(`Starting ${id} at ${workingDir} (ports: ${portsDisplay})`);
+      log.info(`Starting ${worktreeId} at ${workingDir} (ports: ${portsDisplay})`);
 
       const childProcess = spawn(cmd, args, {
         cwd: workingDir,
@@ -526,7 +673,7 @@ export class WorktreeManager {
       const pid = childProcess.pid!;
       const logs: string[] = [];
 
-      this.runningProcesses.set(id, {
+      this.runningProcesses.set(worktreeId, {
         pid,
         ports,
         offset,
@@ -536,12 +683,12 @@ export class WorktreeManager {
       });
 
       childProcess.on("exit", (code) => {
-        log.info(`Worktree "${id}" exited with code ${code}`);
-        const processInfo = this.runningProcesses.get(id);
+        log.info(`Worktree "${worktreeId}" exited with code ${code}`);
+        const processInfo = this.runningProcesses.get(worktreeId);
         if (processInfo) {
           this.portManager.releaseOffset(processInfo.offset);
         }
-        this.runningProcesses.delete(id);
+        this.runningProcesses.delete(worktreeId);
         this.notifyListeners();
 
         // Emit crashed event if exit was unexpected (non-zero and not user-initiated stop)
@@ -550,20 +697,20 @@ export class WorktreeManager {
             category: "worktree",
             type: "crashed",
             severity: "error",
-            title: `Worktree "${id}" crashed (exit code ${code})`,
-            worktreeId: id,
+            title: `Worktree "${worktreeId}" crashed (exit code ${code})`,
+            worktreeId,
             projectName: this.activityProjectName(),
             metadata: { exitCode: code },
           });
         }
       });
 
-      const wtColor = getWorktreeColor(id);
-      const coloredName = pc.bold(wtColor(id));
+      const wtColor = getWorktreeColor(worktreeId);
+      const coloredName = pc.bold(wtColor(worktreeId));
       const linePrefix = `${pc.dim("[")}${coloredName}${pc.dim("]")}`;
 
       const scheduleLogNotify = () => {
-        const info = this.runningProcesses.get(id);
+        const info = this.runningProcesses.get(worktreeId);
         if (info) {
           if (info.logNotifyTimer) clearTimeout(info.logNotifyTimer);
           info.logNotifyTimer = setTimeout(() => {
@@ -579,7 +726,7 @@ export class WorktreeManager {
           .split("\n")
           .filter((l: string) => l.trim());
         lines.forEach((line: string) => process.stdout.write(`${linePrefix} ${line}\n`));
-        const processInfo = this.runningProcesses.get(id);
+        const processInfo = this.runningProcesses.get(worktreeId);
         if (processInfo) {
           processInfo.logs.push(...lines);
           if (processInfo.logs.length > MAX_LOG_LINES) {
@@ -595,7 +742,7 @@ export class WorktreeManager {
           .split("\n")
           .filter((l: string) => l.trim());
         lines.forEach((line: string) => process.stderr.write(`${linePrefix} ${line}\n`));
-        const processInfo = this.runningProcesses.get(id);
+        const processInfo = this.runningProcesses.get(worktreeId);
         if (processInfo) {
           processInfo.logs.push(...lines);
           if (processInfo.logs.length > MAX_LOG_LINES) {
@@ -610,8 +757,8 @@ export class WorktreeManager {
         category: "worktree",
         type: "started",
         severity: "info",
-        title: `Worktree "${id}" started`,
-        worktreeId: id,
+        title: `Worktree "${worktreeId}" started`,
+        worktreeId,
         projectName: this.activityProjectName(),
         metadata: { ports, pid },
       });
@@ -625,7 +772,10 @@ export class WorktreeManager {
   }
 
   async stopWorktree(id: string): Promise<{ success: boolean; error?: string }> {
-    const processInfo = this.runningProcesses.get(id);
+    const resolved = this.resolveWorktreeId(id);
+    const worktreeId = resolved.success ? resolved.worktreeId : id;
+
+    const processInfo = this.runningProcesses.get(worktreeId);
     if (!processInfo) {
       return { success: true };
     }
@@ -642,14 +792,14 @@ export class WorktreeManager {
       }
     }
 
-    this.runningProcesses.delete(id);
+    this.runningProcesses.delete(worktreeId);
     this.notifyListeners();
     this.activityLog.addEvent({
       category: "worktree",
       type: "stopped",
       severity: "info",
-      title: `Worktree "${id}" stopped`,
-      worktreeId: id,
+      title: `Worktree "${worktreeId}" stopped`,
+      worktreeId,
       projectName: this.activityProjectName(),
     });
 
@@ -688,10 +838,6 @@ export class WorktreeManager {
       };
     }
 
-    const worktreesPath = this.getWorktreesAbsolutePath();
-    const worktreePath = path.join(worktreesPath, worktreeId);
-
-    // Check if worktree directory exists OR if git has a stale worktree entry
     const gitRoot = this.getGitRoot();
     try {
       execFileSync("git", ["worktree", "prune"], {
@@ -700,36 +846,33 @@ export class WorktreeManager {
         stdio: "pipe",
       });
     } catch {
-      // Ignore prune errors - existence checks below still provide guardrails.
-    }
-    const worktreeExistsOnDisk = existsSync(worktreePath);
-    let gitWorktreeExists = false;
-
-    try {
-      const { stdout } = await execFile("git", ["worktree", "list", "--porcelain"], {
-        cwd: gitRoot,
-        encoding: "utf-8",
-      });
-      gitWorktreeExists = stdout.includes(worktreePath);
-    } catch {
-      // Ignore - assume no conflict
+      // Ignore prune errors - conflict checks below still provide guardrails.
     }
 
-    if (worktreeExistsOnDisk || gitWorktreeExists) {
+    const gitManagedIds = await this.listGitManagedWorktreeIds();
+    const conflictCandidates = new Set<string>([
+      ...this.getWorktreeResolutionCandidates(),
+      ...gitManagedIds,
+    ]);
+    const conflict = this.resolveIdFromCandidates(worktreeId, conflictCandidates);
+    if (conflict.kind === "resolved") {
       return {
         success: false,
-        error: `Worktree "${worktreeId}" already exists`,
+        error: `Worktree "${conflict.id}" already exists`,
         code: "WORKTREE_EXISTS",
-        worktreeId,
+        worktreeId: conflict.id,
+      };
+    }
+    if (conflict.kind === "ambiguous") {
+      return {
+        success: false,
+        error: `Worktree "${worktreeId}" is ambiguous. Matches: ${conflict.ids.join(", ")}`,
+        code: "WORKTREE_ID_AMBIGUOUS",
       };
     }
 
-    if (this.creatingWorktrees.has(worktreeId)) {
-      return {
-        success: false,
-        error: `Worktree "${worktreeId}" is already being created`,
-      };
-    }
+    const worktreesPath = this.getWorktreesAbsolutePath();
+    const worktreePath = path.join(worktreesPath, worktreeId);
 
     // Check if repo has any commits BEFORE starting async creation
     // This allows the frontend to show the setup modal
@@ -981,7 +1124,13 @@ export class WorktreeManager {
     currentId: string,
     request: WorktreeRenameRequest,
   ): Promise<{ success: boolean; error?: string }> {
-    if (this.runningProcesses.has(currentId)) {
+    const resolved = this.resolveWorktreeId(currentId);
+    if (!resolved.success) {
+      return { success: false, error: resolved.error };
+    }
+    const canonicalId = resolved.worktreeId;
+
+    if (this.runningProcesses.has(canonicalId)) {
       return {
         success: false,
         error: "Cannot rename a running worktree. Stop it first.",
@@ -989,10 +1138,10 @@ export class WorktreeManager {
     }
 
     const worktreesPath = this.getWorktreesAbsolutePath();
-    const currentPath = path.join(worktreesPath, currentId);
+    const currentPath = path.join(worktreesPath, canonicalId);
 
     if (!existsSync(currentPath)) {
-      return { success: false, error: `Worktree "${currentId}" not found` };
+      return { success: false, error: `Worktree "${canonicalId}" not found` };
     }
 
     if (!request.name && !request.branch) {
@@ -1003,7 +1152,7 @@ export class WorktreeManager {
       const gitRoot = this.getGitRoot();
 
       // Rename directory (worktree name)
-      if (request.name && request.name !== currentId) {
+      if (request.name && request.name !== canonicalId) {
         if (!/^[a-zA-Z0-9][a-zA-Z0-9 -]*$/.test(request.name.trim())) {
           return {
             success: false,
@@ -1027,9 +1176,9 @@ export class WorktreeManager {
         });
 
         // Update color map
-        const color = worktreeColorMap.get(currentId);
+        const color = worktreeColorMap.get(canonicalId);
         if (color) {
-          worktreeColorMap.delete(currentId);
+          worktreeColorMap.delete(canonicalId);
           worktreeColorMap.set(request.name, color);
         }
       }
@@ -1062,28 +1211,110 @@ export class WorktreeManager {
     }
   }
 
-  async removeWorktree(id: string): Promise<{ success: boolean; error?: string }> {
+  async removeWorktree(
+    id: string,
+    options: RemoveWorktreeOptions = {},
+  ): Promise<RemoveWorktreeResult> {
+    const deleteOpId = options.deleteOpId ?? randomUUID();
+    const startedAt = Date.now();
+    const logDeletePhase = (
+      phase: string,
+      result: "start" | "success" | "failure",
+      extra: Record<string, unknown> = {},
+    ) => {
+      console.info("[delete][TEMP]", {
+        deleteOpId,
+        phase,
+        result,
+        targetId: id,
+        ...extra,
+      });
+    };
+    const finalize = (result: RemoveWorktreeResult): RemoveWorktreeResult => {
+      console.info("[delete][TEMP]", {
+        deleteOpId,
+        phase: "complete",
+        result: result.success ? "success" : "failure",
+        durationMs: Date.now() - startedAt,
+        worktreeId: result.worktreeId ?? null,
+        code: result.code ?? null,
+      });
+      return { ...result, deleteOpId };
+    };
+
+    logDeletePhase("validate", "start");
     if (!/^[a-zA-Z0-9][a-zA-Z0-9 -]*$/.test(id)) {
-      return {
+      return finalize({
         success: false,
+        code: "INVALID_WORKTREE_ID",
         error:
           "Worktree name must start with a letter or number and contain only letters, numbers, spaces, and hyphens",
-      };
+      });
     }
 
-    await this.stopWorktree(id);
+    const resolved = this.resolveWorktreeId(id);
+    if (!resolved.success) {
+      logDeletePhase("validate", "failure", { code: resolved.code, error: resolved.error });
+      return finalize({
+        success: false,
+        code: resolved.code,
+        error: resolved.error,
+      });
+    }
+    const worktreeId = resolved.worktreeId;
+    const removedRunningProcess = this.runningProcesses.has(worktreeId);
+    logDeletePhase("validate", "success", { canonicalWorktreeId: worktreeId });
+
+    logDeletePhase("graceful-stop-worktree-process", "start", { worktreeId });
+    await this.stopWorktree(worktreeId);
+    logDeletePhase("graceful-stop-worktree-process", "success", {
+      worktreeId,
+      removedRunningProcess,
+    });
+
+    let removedTerminalSessions = 0;
+    if (options.destroyTerminalsForWorktree) {
+      logDeletePhase("destroy-terminals-for-target-worktree-only", "start", { worktreeId });
+      try {
+        removedTerminalSessions = options.destroyTerminalsForWorktree(worktreeId);
+      } catch (error) {
+        logDeletePhase("destroy-terminals-for-target-worktree-only", "failure", {
+          worktreeId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return finalize({
+          success: false,
+          code: "WORKTREE_REMOVE_FAILED",
+          error: error instanceof Error ? error.message : "Failed to destroy worktree terminals",
+          worktreeId,
+          removedRunningProcess,
+          removedTerminalSessions,
+        });
+      }
+      logDeletePhase("destroy-terminals-for-target-worktree-only", "success", {
+        worktreeId,
+        removedTerminalSessions,
+      });
+    }
 
     const worktreesPath = this.getWorktreesAbsolutePath();
-    const worktreePath = path.join(worktreesPath, id);
+    const worktreePath = path.join(worktreesPath, worktreeId);
     if (!existsSync(worktreePath)) {
-      this.notesManager.clearLinkedWorktreeId(id);
-      this.clearAwaitingInputForWorktree(id);
+      const clearedLinks = this.notesManager.clearLinkedWorktreeId(worktreeId);
+      this.clearAwaitingInputForWorktree(worktreeId);
       this.notifyListeners();
-      return { success: true };
+      return finalize({
+        success: true,
+        worktreeId,
+        removedRunningProcess,
+        removedTerminalSessions,
+        clearedLinks,
+      });
     }
 
     try {
       const gitRoot = this.getGitRoot();
+      logDeletePhase("remove-worktree-from-git/filesystem", "start", { worktreeId, worktreePath });
 
       try {
         execFileSync("git", ["worktree", "remove", worktreePath, "--force"], {
@@ -1092,12 +1323,10 @@ export class WorktreeManager {
           stdio: "pipe",
         });
       } catch {
-        // Git doesn't recognize it as a worktree — remove the directory directly
         execFileSync("rm", ["-rf", worktreePath], {
           encoding: "utf-8",
           stdio: "pipe",
         });
-        // Clean up any stale worktree references
         try {
           execFileSync("git", ["worktree", "prune"], {
             cwd: gitRoot,
@@ -1105,20 +1334,50 @@ export class WorktreeManager {
             stdio: "pipe",
           });
         } catch {
-          // Ignore prune failures
+          // Ignore prune failures.
         }
       }
+      logDeletePhase("remove-worktree-from-git/filesystem", "success", {
+        worktreeId,
+        worktreePath,
+      });
 
-      this.notesManager.clearLinkedWorktreeId(id);
+      logDeletePhase("clear-links-for-target-worktree-only", "start", { worktreeId });
+      const clearedLinks = this.notesManager.clearLinkedWorktreeId(worktreeId);
+      logDeletePhase("clear-links-for-target-worktree-only", "success", {
+        worktreeId,
+        clearedLinks,
+      });
+
+      this.clearAwaitingInputForWorktree(worktreeId);
+      logDeletePhase("run worktree-removed hooks", "start", { worktreeId });
+      await this.runWorktreeLifecycleHooks("worktree-removed", worktreeId, worktreePath);
+      logDeletePhase("run worktree-removed hooks", "success", { worktreeId });
+
+      logDeletePhase("notifyListeners", "start", { worktreeId });
       this.notifyListeners();
-      this.clearAwaitingInputForWorktree(id);
-      await this.runWorktreeLifecycleHooks("worktree-removed", id, worktreePath);
-      return { success: true };
+      logDeletePhase("notifyListeners", "success", { worktreeId });
+
+      return finalize({
+        success: true,
+        worktreeId,
+        removedRunningProcess,
+        removedTerminalSessions,
+        clearedLinks,
+      });
     } catch (error) {
-      return {
+      logDeletePhase("remove-worktree-from-git/filesystem", "failure", {
+        worktreeId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return finalize({
         success: false,
+        code: "WORKTREE_REMOVE_FAILED",
         error: error instanceof Error ? error.message : "Failed to remove worktree",
-      };
+        worktreeId,
+        removedRunningProcess,
+        removedTerminalSessions,
+      });
     }
   }
 
@@ -1127,10 +1386,16 @@ export class WorktreeManager {
     action: "reuse" | "recreate",
     branch?: string,
   ): Promise<{ success: boolean; error?: string }> {
+    const resolved = this.resolveWorktreeId(worktreeId);
+    if (!resolved.success && resolved.code === "WORKTREE_ID_AMBIGUOUS") {
+      return { success: false, error: resolved.error };
+    }
+    const canonicalId = resolved.success ? resolved.worktreeId : worktreeId;
+
     const worktreesPath = this.getWorktreesAbsolutePath();
-    const worktreePath = path.join(worktreesPath, worktreeId);
+    const worktreePath = path.join(worktreesPath, canonicalId);
     const gitRoot = this.getGitRoot();
-    const branchName = branch || worktreeId;
+    const branchName = branch || canonicalId;
 
     try {
       if (action === "recreate") {
@@ -1176,7 +1441,7 @@ export class WorktreeManager {
         }
 
         // Now create the worktree fresh
-        return this.createWorktree({ branch: branchName, name: worktreeId });
+        return this.createWorktree({ branch: branchName, name: canonicalId });
       } else {
         // Reuse: preserve existing branch and its commits
 
@@ -1257,7 +1522,9 @@ export class WorktreeManager {
   }
 
   getLogs(id: string): string[] {
-    const processInfo = this.runningProcesses.get(id);
+    const resolved = this.resolveWorktreeId(id);
+    const worktreeId = resolved.success ? resolved.worktreeId : id;
+    const processInfo = this.runningProcesses.get(worktreeId);
     return processInfo?.logs ?? [];
   }
 
@@ -1637,6 +1904,7 @@ export class WorktreeManager {
     success: boolean;
     worktreeId?: string;
     worktreePath?: string;
+    reusedExisting?: boolean;
     task?: {
       key: string;
       summary: string;
@@ -1755,15 +2023,36 @@ export class WorktreeManager {
     const result = await this.createWorktree(
       { branch: worktreeBranch, name: resolvedKey },
       {
-        onSuccess: () => {
+        onSuccess: (createdWorktreeId) => {
           // Link the worktree to the issue only after async creation succeeds
-          this.notesManager.setLinkedWorktreeId("jira", resolvedKey, resolvedKey);
+          this.notesManager.setLinkedWorktreeId("jira", resolvedKey, createdWorktreeId);
         },
       },
     );
 
     if (!result.success) {
       this.clearPendingWorktreeContext(resolvedKey);
+      if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
+        const canonicalWorktreeId = result.worktreeId;
+        this.notesManager.setLinkedWorktreeId("jira", resolvedKey, canonicalWorktreeId);
+        return {
+          success: true,
+          worktreeId: canonicalWorktreeId,
+          worktreePath: path.join(worktreesPath, canonicalWorktreeId),
+          reusedExisting: true,
+          task: {
+            key: taskData.key,
+            summary: taskData.summary,
+            description: taskData.description,
+            status: taskData.status,
+            type: taskData.type,
+            url: taskData.url,
+            comments: taskData.comments.slice(0, 10),
+          },
+          aiContext,
+          instructions: `Reused existing worktree at ${path.join(worktreesPath, canonicalWorktreeId)}.`,
+        };
+      }
       return {
         success: false,
         error: result.error,
@@ -1776,6 +2065,7 @@ export class WorktreeManager {
       success: true,
       worktreeId: resolvedKey,
       worktreePath,
+      reusedExisting: false,
       task: {
         key: taskData.key,
         summary: taskData.summary,
@@ -1797,6 +2087,7 @@ export class WorktreeManager {
     success: boolean;
     worktreeId?: string;
     worktreePath?: string;
+    reusedExisting?: boolean;
     task?: {
       identifier: string;
       title: string;
@@ -1907,9 +2198,9 @@ export class WorktreeManager {
     const result = await this.createWorktree(
       { branch: worktreeBranch, name: resolvedId },
       {
-        onSuccess: () => {
+        onSuccess: (createdWorktreeId) => {
           // Link the worktree to the issue only after async creation succeeds
-          this.notesManager.setLinkedWorktreeId("linear", resolvedId, resolvedId);
+          this.notesManager.setLinkedWorktreeId("linear", resolvedId, createdWorktreeId);
         },
       },
     );
@@ -1919,6 +2210,26 @@ export class WorktreeManager {
 
     if (!result.success) {
       this.clearPendingWorktreeContext(resolvedId);
+      if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
+        const canonicalWorktreeId = result.worktreeId;
+        this.notesManager.setLinkedWorktreeId("linear", resolvedId, canonicalWorktreeId);
+        return {
+          success: true,
+          worktreeId: canonicalWorktreeId,
+          worktreePath: path.join(worktreesPath, canonicalWorktreeId),
+          reusedExisting: true,
+          task: {
+            identifier: issueDetail.identifier,
+            title: issueDetail.title,
+            description: issueDetail.description ?? "",
+            status: issueDetail.state.name,
+            url: issueDetail.url,
+            comments: linearComments,
+          },
+          aiContext,
+          instructions: `Reused existing worktree at ${path.join(worktreesPath, canonicalWorktreeId)}.`,
+        };
+      }
       return {
         success: false,
         error: result.error,
@@ -1931,6 +2242,7 @@ export class WorktreeManager {
       success: true,
       worktreeId: resolvedId,
       worktreePath,
+      reusedExisting: false,
       task: {
         identifier: issueDetail.identifier,
         title: issueDetail.title,

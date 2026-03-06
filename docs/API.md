@@ -16,6 +16,8 @@ All endpoints return JSON unless otherwise noted. Standard response patterns:
 
 Core CRUD and lifecycle operations for git worktrees.
 
+All `:id` worktree route params are resolved canonically: exact match first, then case-insensitive fallback (for example `AVO-241` resolves to `avo-241` when unique). If case-insensitive lookup is ambiguous, the API returns an explicit ambiguity error instead of guessing.
+
 #### `GET /api/worktrees`
 
 List all managed worktrees with their current status.
@@ -39,6 +41,7 @@ Create a new worktree.
   Only `branch` is required.
 - **Response** (201): `{ success: true, worktree: WorktreeInfo, ports?: number[], pid?: number }`
 - **Error** (400): `{ success: false, error: "..." }`
+- If a conflicting worktree already exists, response includes `code: "WORKTREE_EXISTS"` and canonical `worktreeId`.
 
 #### `POST /api/worktrees/:id/start`
 
@@ -73,6 +76,7 @@ Detect supported local apps for opening the selected worktree path and return th
 - `targets` contains only autodetected, currently available options on this machine.
 - `selectedTarget` is derived from persisted config (`openProjectTarget`) when that value is available; otherwise it falls back to the server's priority order.
 - **Error** (404): `{ success: false, error: "Worktree \"...\" not found" }`
+- **Error** (409): `{ success: false, error: "Worktree \"...\" is ambiguous. Matches: ..." }`
 
 #### `POST /api/worktrees/:id/open`
 
@@ -88,6 +92,7 @@ Open a worktree in a specific app target (IDE/file manager/terminal).
 - On success, the selected `target` is persisted to project config as `openProjectTarget`.
 - **Error** (400): invalid target or open failure, `{ success: false, error: "..." }`
 - **Error** (404): `{ success: false, error: "Worktree \"...\" not found" }`
+- **Error** (409): `{ success: false, error: "Worktree \"...\" is ambiguous. Matches: ..." }`
 
 #### `PATCH /api/worktrees/:id`
 
@@ -106,10 +111,24 @@ Rename a worktree (directory name and/or branch).
 
 #### `DELETE /api/worktrees/:id`
 
-Remove a worktree. Also destroys any associated terminal sessions.
+Remove a worktree transactionally (graceful stop, scoped terminal teardown, filesystem removal, link cleanup, lifecycle hooks, then notify).
 
-- **Response**: `{ success: true, ... }`
-- **Error** (400): `{ success: false, error: "..." }`
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "worktreeId": "LOCAL-3",
+    "removedTerminalSessions": 2,
+    "removedRunningProcess": true,
+    "clearedLinks": 1,
+    "deleteOpId": "c3b4..."
+  }
+  ```
+- **Error** (404/409): canonical resolution failure with code
+  - `{ success: false, code: "WORKTREE_NOT_FOUND", error: "..." }`
+  - `{ success: false, code: "WORKTREE_ID_AMBIGUOUS", error: "..." }`
+- **Error** (400): validation/delete failure
+  - `{ success: false, code: "INVALID_WORKTREE_ID" | "WORKTREE_REMOVE_FAILED", error: "...", deleteOpId: "..." }`
 
 #### `GET /api/worktrees/:id/logs`
 
@@ -315,6 +334,7 @@ Check which per-integration commit message rule overrides exist.
 ## GitHub Integration
 
 GitHub operations via the `gh` CLI. Requires `gh` to be installed and authenticated.
+Worktree IDs in GitHub worktree routes (`commit`/`push`/`create-pr`) use canonical resolution (exact, then case-insensitive fallback).
 
 #### `GET /api/github/status`
 
@@ -367,6 +387,7 @@ Commit all changes in a worktree.
   ```
 - **Response**: `{ success: true, ... }`
 - **Error** (400/404): `{ success: false, error: "..." }`
+- **Error** (409): `{ success: false, error: "Worktree \"...\" is ambiguous. Matches: ..." }`
 
 #### `POST /api/worktrees/:id/push`
 
@@ -374,6 +395,7 @@ Push a worktree's branch to the remote.
 
 - **Response**: `{ success: true, ... }`
 - **Error** (400/404): `{ success: false, error: "..." }`
+- **Error** (409): `{ success: false, error: "Worktree \"...\" is ambiguous. Matches: ..." }`
 
 #### `POST /api/worktrees/:id/create-pr`
 
@@ -388,6 +410,7 @@ Create a GitHub pull request for a worktree's branch.
   ```
 - **Response** (201): `{ success: true, ... }`
 - **Error** (400/404): `{ success: false, error: "..." }`
+- **Error** (409): `{ success: false, error: "Worktree \"...\" is ambiguous. Matches: ..." }`
 
 ---
 
@@ -535,8 +558,17 @@ Create a worktree from a Jira issue. Fetches the issue, generates a branch name,
     "branch": "optional-custom-branch"
   }
   ```
-- **Response** (201): `{ success: true, worktree: WorktreeInfo }`
+- **Response** (201, created):
+  ```json
+  { "success": true, "worktreeId": "PROJ-123", "worktreePath": "...", "reusedExisting": false }
+  ```
+- **Response** (200, reused existing):
+  ```json
+  { "success": true, "worktreeId": "proj-123", "worktreePath": "...", "reusedExisting": true }
+  ```
 - **Error** (400): `{ success: false, error: "..." }`
+
+If a matching worktree already exists (including case-insensitive matches), the endpoint reuses it by default, links the Jira issue to that canonical worktree ID, and returns `success: true`.
 
 ---
 
@@ -632,8 +664,17 @@ Create a worktree from a Linear issue.
     "branch": "optional-custom-branch"
   }
   ```
-- **Response** (201): `{ success: true, worktree: WorktreeInfo }`
+- **Response** (201, created):
+  ```json
+  { "success": true, "worktreeId": "TEAM-123", "worktreePath": "...", "reusedExisting": false }
+  ```
+- **Response** (200, reused existing):
+  ```json
+  { "success": true, "worktreeId": "team-123", "worktreePath": "...", "reusedExisting": true }
+  ```
 - **Error** (400): `{ success: false, error: "..." }`
+
+If a matching worktree already exists (including case-insensitive matches), the endpoint reuses it by default, links the Linear issue to that canonical worktree ID, and returns `success: true`.
 
 ---
 
@@ -1625,6 +1666,41 @@ Create a new local task.
   Only `title` is required. `priority` defaults to `"medium"`.
 - **Response**: `{ success: true, task: { ... } }`
 
+IDs remain monotonic (`LOCAL-1`, `LOCAL-2`, ...). Missing IDs are not automatically reused.
+
+#### `POST /api/tasks/recover-local`
+
+Recover missing local task metadata for an existing local-pattern worktree while preserving monotonic ID allocation.
+
+- **Request**:
+  ```json
+  {
+    "taskId": "LOCAL-1",
+    "title": "Recovered task LOCAL-1",
+    "description": "Optional details",
+    "priority": "medium",
+    "labels": ["bugfix"]
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "task": {
+      "id": "LOCAL-1",
+      "title": "Recovered task LOCAL-1",
+      "status": "todo"
+    },
+    "linkedWorktreeId": "LOCAL-1"
+  }
+  ```
+- **Errors**:
+  - `400` invalid `taskId` format
+  - `404` canonical worktree not found
+  - `409` task metadata already exists
+
+On success, this recreates task metadata and notes linked to the canonical worktree ID and bumps `.openkit/issues/local/.counter` to at least the recovered numeric suffix.
+
 #### `PATCH /api/tasks/:id`
 
 Update a task.
@@ -1648,7 +1724,13 @@ Create a worktree from a local task. Generates a branch name, writes a `TASK.md`
   ```json
   { "branch": "custom-branch-name" }
   ```
-- **Response**: `{ success: true, worktree: WorktreeInfo }`
+- **Response** (created): `{ success: true, worktree: WorktreeInfo, reusedExisting: false }`
+- **Response** (reused existing):
+  ```json
+  { "success": true, "worktreeId": "local-1", "worktreePath": "...", "reusedExisting": true }
+  ```
+
+If an existing worktree matches the task ID (case-insensitive), this endpoint reuses and links it instead of failing with `WORKTREE_EXISTS`.
 
 #### `POST /api/tasks/:id/attachments`
 
@@ -1703,8 +1785,20 @@ Create a new terminal session for a worktree.
   }
   ```
   Defaults to 80 columns and 24 rows. `startupCommand` (optional) runs via shell startup (`$SHELL -lc <command>`). `scope` (optional: `"terminal"`, `"claude"`, `"codex"`, `"gemini"`, or `"opencode"`) reuses a single session per worktree+scope when present.
-- **Response**: `{ success: true, sessionId: "string" }`
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "sessionId": "string",
+    "reusedScopedSession": false,
+    "replacedScopedShellSession": true
+  }
+  ```
+  `reusedScopedSession` and `replacedScopedShellSession` are additive reconcile flags for scoped sessions:
+  - `reusedScopedSession = true` when an existing scoped session was reused.
+  - `replacedScopedShellSession = true` when a shell-only scoped session was replaced by an explicit startup-command launch.
 - **Error** (404): `{ success: false, error: "Worktree not found" }`
+- **Error** (409): `{ success: false, error: "Worktree \"...\" is ambiguous. Matches: ..." }`
 
 #### `DELETE /api/terminals/:sessionId`
 
@@ -1719,6 +1813,7 @@ Look up the currently active scoped terminal session for a worktree (used to rea
 
 - **Response**: `{ success: true, sessionId: "string" | null }`
 - **Error** (400): `{ success: false, error: "scope is required (\"terminal\", \"claude\", \"codex\", \"gemini\", or \"opencode\")" }`
+- **Error** (404/409): canonical worktree resolution failure (not found or ambiguous)
 
 #### `GET /api/terminals/:sessionId/ws` (WebSocket)
 

@@ -234,6 +234,14 @@ export function useApi() {
         labels?: string[];
       }) => api.createCustomTask(data, serverUrl),
 
+      recoverLocalTask: (data: {
+        taskId: string;
+        title?: string;
+        description?: string;
+        priority?: "high" | "medium" | "low";
+        labels?: string[];
+      }) => api.recoverLocalTask(data, serverUrl),
+
       updateCustomTask: (id: string, updates: Record<string, unknown>) =>
         api.updateCustomTask(id, updates, serverUrl),
 

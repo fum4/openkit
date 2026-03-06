@@ -188,16 +188,19 @@ export function LinearDetailPanel({
     setCreateError(null);
     const result = await api.createFromLinear(identifier);
     setIsCodingWithAgent(false);
-    if (result.success) {
+    const reusingExistingWorktree =
+      (result.success && result.reusedExisting === true) ||
+      (!result.success && result.code === "WORKTREE_EXISTS" && !!result.worktreeId);
+    if (result.success || reusingExistingWorktree) {
       const worktreeId = result.worktreeId ?? identifier;
       launchCodingAgent(agent, {
         worktreeId,
-        mode: "start",
+        mode: reusingExistingWorktree ? "resume" : "start",
         tabLabel: identifier,
-        prompt: `Implement Linear issue ${identifier}${issue?.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`,
+        prompt: reusingExistingWorktree
+          ? undefined
+          : `Implement Linear issue ${identifier}${issue?.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`,
       });
-    } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
-      launchCodingAgent(agent, { worktreeId: result.worktreeId, mode: "resume" });
     } else {
       const errorMsg = result.error || "Failed to create worktree";
       if (errorMsg.includes("no commits") || errorMsg.includes("invalid reference")) {

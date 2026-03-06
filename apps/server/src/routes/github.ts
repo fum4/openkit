@@ -146,6 +146,10 @@ function startGhAuthLogin(manager: WorktreeManager): Promise<{ code: string; url
 }
 
 export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
+  const toResolutionStatus = (code: string): 404 | 409 => {
+    return code === "WORKTREE_ID_AMBIGUOUS" ? 409 : 404;
+  };
+
   app.post("/api/github/install", async (c) => {
     try {
       const ghInstalled = await isCommandOnPath("gh");
@@ -256,12 +260,15 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!body.message) {
         return c.json({ success: false, error: "Commit message is required" }, 400);
       }
-      const worktrees = manager.getWorktrees();
-      const wt = worktrees.find((w) => w.id === id);
-      if (!wt) {
-        return c.json({ success: false, error: `Worktree "${id}" not found` }, 404);
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
       }
-      const result = await ghManager.commitAll(wt.path, id, body.message);
+      const result = await ghManager.commitAll(
+        resolved.worktree.path,
+        resolved.worktreeId,
+        body.message,
+      );
       return c.json(result, result.success ? 200 : 400);
     } catch (error) {
       return c.json(
@@ -277,12 +284,11 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       return c.json({ success: false, error: "GitHub integration not available" }, 400);
     }
     const id = c.req.param("id");
-    const worktrees = manager.getWorktrees();
-    const wt = worktrees.find((w) => w.id === id);
-    if (!wt) {
-      return c.json({ success: false, error: `Worktree "${id}" not found` }, 404);
+    const resolved = manager.resolveWorktree(id);
+    if (!resolved.success) {
+      return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
     }
-    const result = await ghManager.pushBranch(wt.path, id);
+    const result = await ghManager.pushBranch(resolved.worktree.path, resolved.worktreeId);
     return c.json(result, result.success ? 200 : 400);
   });
 
@@ -297,12 +303,16 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!body.title) {
         return c.json({ success: false, error: "PR title is required" }, 400);
       }
-      const worktrees = manager.getWorktrees();
-      const wt = worktrees.find((w) => w.id === id);
-      if (!wt) {
-        return c.json({ success: false, error: `Worktree "${id}" not found` }, 404);
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
       }
-      const result = await ghManager.createPR(wt.path, id, body.title, body.body);
+      const result = await ghManager.createPR(
+        resolved.worktree.path,
+        resolved.worktreeId,
+        body.title,
+        body.body,
+      );
       return c.json(result, result.success ? 201 : 400);
     } catch (error) {
       return c.json(

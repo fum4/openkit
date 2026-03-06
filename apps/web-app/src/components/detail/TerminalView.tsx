@@ -16,6 +16,8 @@ interface TerminalLaunchRequest {
   requestId: number;
 }
 
+type LaunchRequestOutcome = "reattached" | "started" | "failed";
+
 interface TerminalViewProps {
   worktreeId: string;
   visible: boolean;
@@ -23,11 +25,14 @@ interface TerminalViewProps {
   launchRequest?: TerminalLaunchRequest | null;
   closeRequestId?: number | null;
   onAgentExit?: (exitCode?: number) => void;
+  onLaunchRequestHandled?: (requestId: number, outcome: LaunchRequestOutcome) => void;
 }
 
 const DEFAULT_AGENT_START_PROMPT =
   "You are already in the correct worktree. Read TASK.md first, then implement the task. Treat AI context and todo checklist as highest-priority instructions.";
 const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
+const LAUNCH_CONNECT_MAX_ATTEMPTS = 3;
+const LAUNCH_CONNECT_RETRY_DELAY_MS = 150;
 
 function shellQuoteSingle(value: string): string {
   if (!value) return "''";
@@ -99,6 +104,7 @@ export function TerminalView({
   launchRequest,
   closeRequestId,
   onAgentExit,
+  onLaunchRequestHandled,
 }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -107,9 +113,14 @@ export function TerminalView({
   const agentExitNotifiedRef = useRef(false);
   const lastCloseRequestIdRef = useRef<number | null>(null);
   const activeRequestIdRef = useRef<number | null>(null);
+  const launchConnectAttemptedRequestIdRef = useRef<number | null>(null);
+  const handledLaunchRequestIdsRef = useRef(new Set<number>());
   const hasOutputForRequestRef = useRef(false);
   const awaitingOutputRef = useRef(false);
   const [isAgentBooting, setIsAgentBooting] = useState(false);
+  const [pendingLaunchRequest, setPendingLaunchRequest] = useState<TerminalLaunchRequest | null>(
+    null,
+  );
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
     if (extra) {
       console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
@@ -128,47 +139,69 @@ export function TerminalView({
           : variant === "opencode"
             ? "OpenCode"
             : "Terminal";
+  const launchRequestId = launchRequest?.requestId ?? null;
+  const hasUnconsumedLaunchIntent =
+    isAgentVariant &&
+    launchRequestId !== null &&
+    !handledLaunchRequestIdsRef.current.has(launchRequestId);
 
   const createSessionStartupCommand = useMemo(() => {
-    if (!isAgentVariant || !launchRequest) return null;
+    if (!isAgentVariant || !pendingLaunchRequest) return null;
 
     if (variant === "claude") {
-      const commandOptions = { skipPermissions: launchRequest.skipPermissions };
-      if (launchRequest.mode === "start") {
-        const prompt = launchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
+      const commandOptions = { skipPermissions: pendingLaunchRequest.skipPermissions };
+      if (pendingLaunchRequest.mode === "start") {
+        const prompt = pendingLaunchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
         return buildClaudeCommand(prompt, commandOptions);
       }
       return buildClaudeCommand(undefined, commandOptions);
     }
 
     if (variant === "codex") {
-      const commandOptions = { skipPermissions: launchRequest.skipPermissions };
-      if (launchRequest.mode === "start") {
-        const prompt = launchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
+      const commandOptions = { skipPermissions: pendingLaunchRequest.skipPermissions };
+      if (pendingLaunchRequest.mode === "start") {
+        const prompt = pendingLaunchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
         return buildCodexCommandWithOptions(prompt, commandOptions);
       }
       return buildCodexCommandWithOptions(undefined, commandOptions);
     }
 
     if (variant === "gemini") {
-      const commandOptions = { skipPermissions: launchRequest.skipPermissions };
-      if (launchRequest.mode === "start") {
-        const prompt = launchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
+      const commandOptions = { skipPermissions: pendingLaunchRequest.skipPermissions };
+      if (pendingLaunchRequest.mode === "start") {
+        const prompt = pendingLaunchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
         return buildGeminiCommand(prompt, commandOptions);
       }
       return buildGeminiCommand(undefined, commandOptions);
     }
 
-    const commandOptions = { skipPermissions: launchRequest.skipPermissions };
-    if (launchRequest.mode === "start") {
-      const prompt = launchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
+    const commandOptions = { skipPermissions: pendingLaunchRequest.skipPermissions };
+    if (pendingLaunchRequest.mode === "start") {
+      const prompt = pendingLaunchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
       return buildOpenCodeCommand(prompt, commandOptions);
     }
     return buildOpenCodeCommand(undefined, commandOptions);
-  }, [isAgentVariant, launchRequest, variant]);
+  }, [isAgentVariant, pendingLaunchRequest, variant]);
 
   useEffect(() => {
-    if (!isAgentVariant || !launchRequest) return;
+    if (!isAgentVariant) {
+      setPendingLaunchRequest(null);
+      launchConnectAttemptedRequestIdRef.current = null;
+      handledLaunchRequestIdsRef.current.clear();
+      return;
+    }
+    if (!launchRequest) return;
+    if (handledLaunchRequestIdsRef.current.has(launchRequest.requestId)) return;
+    setPendingLaunchRequest((prev) => {
+      if (prev?.requestId === launchRequest.requestId) return prev;
+      console.info("[terminal][TEMP] launch request pending", {
+        worktreeId,
+        variant,
+        requestId: launchRequest.requestId,
+        mode: launchRequest.mode,
+      });
+      return launchRequest;
+    });
     logAutoClaude(`${agentLabel} terminal launch request received`, {
       worktreeId,
       requestId: launchRequest.requestId,
@@ -176,13 +209,29 @@ export function TerminalView({
       hasPrompt: Boolean(launchRequest.prompt?.trim()),
       skipPermissions: launchRequest.skipPermissions ?? false,
     });
-  }, [agentLabel, isAgentVariant, launchRequest, logAutoClaude, worktreeId]);
+  }, [agentLabel, isAgentVariant, launchRequest, logAutoClaude, variant, worktreeId]);
+
+  const markLaunchRequestHandled = useCallback(
+    (requestId: number, outcome: LaunchRequestOutcome) => {
+      if (handledLaunchRequestIdsRef.current.has(requestId)) return;
+      handledLaunchRequestIdsRef.current.add(requestId);
+      setPendingLaunchRequest((prev) => (prev?.requestId === requestId ? null : prev));
+      console.info("[terminal][TEMP] launch request handled", {
+        worktreeId,
+        variant,
+        requestId,
+        outcome,
+      });
+      onLaunchRequestHandled?.(requestId, outcome);
+    },
+    [onLaunchRequestHandled, variant, worktreeId],
+  );
 
   const handleData = useCallback(
     (data: string) => {
-      if (isAgentVariant && launchRequest) {
-        if (activeRequestIdRef.current !== launchRequest.requestId) {
-          activeRequestIdRef.current = launchRequest.requestId;
+      if (isAgentVariant && pendingLaunchRequest) {
+        if (activeRequestIdRef.current !== pendingLaunchRequest.requestId) {
+          activeRequestIdRef.current = pendingLaunchRequest.requestId;
         }
         hasOutputForRequestRef.current = true;
         if (awaitingOutputRef.current || isAgentBooting) {
@@ -193,7 +242,7 @@ export function TerminalView({
 
       terminalRef.current?.write(data);
     },
-    [isAgentBooting, isAgentVariant, launchRequest],
+    [isAgentBooting, isAgentVariant, pendingLaunchRequest],
   );
 
   const handleExit = useCallback(
@@ -219,6 +268,7 @@ export function TerminalView({
     worktreeId,
     sessionScope: variant,
     createSessionStartupCommand,
+    visible,
     onData: handleData,
     onExit: handleExit,
     getSize,
@@ -267,7 +317,15 @@ export function TerminalView({
     if (containerRef.current) {
       terminal.open(containerRef.current);
       fitAddon.fit();
-      connect();
+      if (!(isAgentVariant && hasUnconsumedLaunchIntent)) {
+        void connect({ reason: "visible-reconnect" });
+      } else {
+        console.info("[terminal][TEMP] skipping initial passive connect due to launch intent", {
+          worktreeId,
+          variant,
+          requestId: launchRequest?.requestId ?? null,
+        });
+      }
     }
 
     terminal.onData((data) => {
@@ -319,6 +377,81 @@ export function TerminalView({
   }, [visible, sendResize]);
 
   useEffect(() => {
+    if (!visible) return;
+    if (isConnected) return;
+    if (isAgentVariant && hasUnconsumedLaunchIntent) return;
+    void connect({ reason: "visible-reconnect" });
+  }, [connect, hasUnconsumedLaunchIntent, isAgentVariant, isConnected, visible]);
+
+  useEffect(() => {
+    if (!isAgentVariant) {
+      launchConnectAttemptedRequestIdRef.current = null;
+      return;
+    }
+    if (!pendingLaunchRequest) {
+      launchConnectAttemptedRequestIdRef.current = null;
+      return;
+    }
+    if (launchConnectAttemptedRequestIdRef.current === pendingLaunchRequest.requestId) return;
+
+    launchConnectAttemptedRequestIdRef.current = pendingLaunchRequest.requestId;
+    const request = pendingLaunchRequest;
+    let cancelled = false;
+    void (async () => {
+      console.info("[terminal][TEMP] explicit launch connect requested", {
+        worktreeId,
+        variant,
+        requestId: request.requestId,
+        mode: request.mode,
+      });
+      let attempt = 0;
+      let result = await connect({ reason: "explicit-launch", bypassClientCache: true });
+      while (
+        !cancelled &&
+        !result.success &&
+        result.error === "connect already in progress" &&
+        attempt < LAUNCH_CONNECT_MAX_ATTEMPTS - 1
+      ) {
+        attempt += 1;
+        console.info("[terminal][TEMP] explicit launch waiting for in-flight connect", {
+          worktreeId,
+          variant,
+          requestId: request.requestId,
+          mode: request.mode,
+          attempt: attempt + 1,
+          maxAttempts: LAUNCH_CONNECT_MAX_ATTEMPTS,
+        });
+        await new Promise<void>((resolve) =>
+          window.setTimeout(resolve, LAUNCH_CONNECT_RETRY_DELAY_MS),
+        );
+        if (cancelled) return;
+        result = await connect({ reason: "explicit-launch", bypassClientCache: true });
+      }
+      if (cancelled) return;
+      if (!result.success) {
+        markLaunchRequestHandled(request.requestId, "failed");
+        return;
+      }
+      const outcome: LaunchRequestOutcome =
+        result.reusedScopedSession === true || result.source === "reused"
+          ? "reattached"
+          : "started";
+      markLaunchRequestHandled(request.requestId, outcome);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    connect,
+    isAgentVariant,
+    markLaunchRequestHandled,
+    pendingLaunchRequest,
+    variant,
+    worktreeId,
+  ]);
+
+  useEffect(() => {
     if (!isAgentVariant) {
       activeRequestIdRef.current = null;
       hasOutputForRequestRef.current = false;
@@ -326,7 +459,7 @@ export function TerminalView({
       setIsAgentBooting(false);
       return;
     }
-    if (!launchRequest) {
+    if (!pendingLaunchRequest) {
       activeRequestIdRef.current = null;
       hasOutputForRequestRef.current = false;
       awaitingOutputRef.current = false;
@@ -334,8 +467,14 @@ export function TerminalView({
       return;
     }
 
-    if (activeRequestIdRef.current !== launchRequest.requestId) {
-      activeRequestIdRef.current = launchRequest.requestId;
+    if (pendingLaunchRequest.mode === "resume" && isConnected) {
+      awaitingOutputRef.current = false;
+      setIsAgentBooting(false);
+      return;
+    }
+
+    if (activeRequestIdRef.current !== pendingLaunchRequest.requestId) {
+      activeRequestIdRef.current = pendingLaunchRequest.requestId;
       hasOutputForRequestRef.current = false;
     }
 
@@ -348,7 +487,7 @@ export function TerminalView({
 
     awaitingOutputRef.current = false;
     setIsAgentBooting(false);
-  }, [isAgentVariant, launchRequest]);
+  }, [isAgentVariant, isConnected, pendingLaunchRequest]);
 
   useEffect(() => {
     if (!isAgentVariant) return;
