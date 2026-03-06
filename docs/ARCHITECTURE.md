@@ -211,7 +211,7 @@ MCP agents communicate with OpenKit through two modes:
 
 **Standalone mode** (fallback): If no server is running, `openkit mcp` creates its own `WorktreeManager` instance and serves MCP tools directly over stdio.
 
-The tool definitions live in `libs/agent/src/actions.ts` as a flat array of `Action` objects. Each action has a name, description, parameter schema, and async handler function. The `MCP Server Factory` (`apps/server/src/mcp-server-factory.ts`) converts these into MCP tools with Zod schemas. The same actions are used for both the Streamable HTTP MCP transport (exposed at `/mcp` on the server) and the standalone stdio MCP server.
+The tool definitions live in `libs/agents/src/actions.ts` as a flat array of `Action` objects. Each action has a name, description, parameter schema, and async handler function. The `MCP Server Factory` (`apps/server/src/mcp-server-factory.ts`) converts these into MCP tools with Zod schemas. The same actions are used for both the Streamable HTTP MCP transport (exposed at `/mcp` on the server) and the standalone stdio MCP server.
 
 ### 3. Terminal Sessions
 
@@ -269,7 +269,7 @@ This bundles two entry points:
 
 Both are output as ESM. `node-pty` and `electron` are externalized since they contain native bindings that cannot be bundled.
 
-The `.md` text loader inlines markdown files as strings at build time. This is used by the `libs/instructions/src/` directory to keep agent instruction text in standalone `.md` files rather than embedded template literals. See the [Instructions section](#agent-instructions) below.
+The `.md` text loader inlines markdown files as strings at build time. This is used by the `libs/agents/src/` directory to keep agent instruction text in standalone `.md` files rather than embedded template literals. See the [Instructions section](#agent-instructions) below.
 
 ### Frontend: Vite (React SPA)
 
@@ -324,12 +324,12 @@ Architecture-level discussion in this document focuses on responsibilities and r
 
 ## Agent Instructions
 
-Agent instruction text (MCP instructions, IDE skill/rule files, hook skill definitions) lives in `libs/instructions/src/` as standalone `.md` files. The tsup esbuild text loader (`{ '.md': 'text' }`) inlines them as strings at build time.
+Agent instruction text (MCP instructions, IDE skill/rule files, hook skill definitions) lives in `libs/agents/src/` as standalone `.md` files. The tsup esbuild text loader (`{ '.md': 'text' }`) inlines them as strings at build time.
 
 ### How it works
 
-1. Each instruction is a `.md` file under `libs/instructions/src/` (or subdirectories `mcp/`, `skills/`)
-2. `libs/instructions/src/index.ts` imports all `.md` files, resolves placeholders, and exports typed constants
+1. Each instruction is a `.md` file under `libs/agents/src/` (or subdirectories `mcp/`, `skills/`)
+2. `libs/agents/src/instructions.ts` imports all `.md` files, resolves placeholders, and exports typed constants
 3. Consumer files (`actions.ts`, `mcp-server-factory.ts`, `builtin-instructions.ts`, `verification-skills.ts`) import from the barrel
 4. `md.d.ts` provides TypeScript declarations for `*.md` imports
 

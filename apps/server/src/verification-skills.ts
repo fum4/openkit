@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
 
-import { BUNDLED_SKILLS } from "@openkit/instructions";
+import { BUNDLED_SKILLS } from "@openkit/agents";
 
 function getRegistryDir(): string {
   return path.join(os.homedir(), ".openkit", "skills");

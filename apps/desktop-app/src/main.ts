@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
 import electronUpdater from "electron-updater";
 import type { AppUpdater } from "electron-updater";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { ProjectManager, type Project } from "./project-manager.js";
@@ -15,19 +15,40 @@ import {
 const { autoUpdater } = electronUpdater as { autoUpdater: AppUpdater };
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const isPackagedApp = app.isPackaged;
+const devWorkspaceRoot = path.resolve(currentDir, "..", "..", "..");
+const workspaceRoot = isPackagedApp ? process.resourcesPath : devWorkspaceRoot;
 
-function resolveWorkspaceRoot(dir: string): string {
-  if (
-    dir.includes(path.join("apps", "desktop-app", "src")) ||
-    dir.includes(path.join("apps", "desktop-app", "dist"))
-  ) {
-    return path.resolve(dir, "..", "..", "..");
-  }
-  // Legacy fallback for older dist/electron layout.
-  return path.resolve(dir, "..", "..");
+function resolveDevPath(relativePath: string): string {
+  return path.join(devWorkspaceRoot, relativePath);
 }
 
-const workspaceRoot = resolveWorkspaceRoot(currentDir);
+function getDisplayAppVersion(): string {
+  if (isPackagedApp) {
+    return app.getVersion();
+  }
+
+  const devVersionSources = [
+    path.join(devWorkspaceRoot, "apps", "desktop-app", "package.json"),
+    path.join(devWorkspaceRoot, "package.json"),
+  ];
+
+  for (const packageJsonPath of devVersionSources) {
+    if (!existsSync(packageJsonPath)) {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(readFileSync(packageJsonPath, "utf-8")) as { version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version.trim().length > 0) {
+        return parsed.version;
+      }
+    } catch {
+      // Best-effort: fall through to next source.
+    }
+  }
+
+  return app.getVersion();
+}
 
 // Set app name (shows in dock, menu bar, etc.)
 app.setName("OpenKit");
@@ -38,6 +59,9 @@ const PROTOCOL = "OpenKit";
 // Single main window and project manager
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let isAppQuitting = false;
+let suppressAutoUpdaterErrorState = false;
+let activeUpdateDownloadPromise: Promise<boolean> | null = null;
 const projectManager = new ProjectManager();
 const notificationManager = new NotificationManager(() => mainWindow, projectManager);
 
@@ -58,6 +82,9 @@ let appUpdateState: AppUpdateState = {
   error: null,
 };
 
+const UPDATE_DOWNLOAD_MAX_ATTEMPTS = 5;
+const UPDATE_DOWNLOAD_RETRY_DELAY_MS = 1200;
+
 function emitAppUpdateState() {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -70,14 +97,101 @@ function setAppUpdateState(updates: Partial<AppUpdateState>) {
   emitAppUpdateState();
 }
 
-function getUiPath(): string {
-  const appLocalUi = path.join(workspaceRoot, "apps", "web-app", "dist", "index.html");
-  if (existsSync(appLocalUi)) {
-    return appLocalUi;
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function toErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function isTransientUpdateMetadataNotReadyError(error: unknown): boolean {
+  const message = toErrorMessage(error, "").toLowerCase();
+  if (!message) return false;
+
+  const referencesMacMetadata =
+    message.includes("latest-mac.yml") || message.includes("/latest/download/latest");
+  const indicatesMissingMetadata =
+    message.includes("cannot find channel") ||
+    message.includes("channel") ||
+    message.includes("404") ||
+    message.includes("not found");
+
+  return referencesMacMetadata && indicatesMissingMetadata;
+}
+
+function handleUpdateCheckError(error: unknown, context: string): { transient: boolean } {
+  if (isTransientUpdateMetadataNotReadyError(error)) {
+    console.info(
+      `[auto-updater] ${context}: update metadata not ready yet (release assets still propagating); will retry later`,
+      error,
+    );
+    setAppUpdateState({
+      status: "idle",
+      error: null,
+      progress: null,
+    });
+    return { transient: true };
   }
 
-  // Legacy fallback for older root dist/ui layout.
-  return path.join(workspaceRoot, "dist", "ui", "index.html");
+  console.error(`[auto-updater] ${context} failed`, error);
+  setAppUpdateState({
+    status: "error",
+    error: toErrorMessage(error, "Failed to check for updates"),
+    progress: null,
+  });
+  return { transient: false };
+}
+
+async function downloadUpdateWithRetry(): Promise<boolean> {
+  if (activeUpdateDownloadPromise) {
+    return activeUpdateDownloadPromise;
+  }
+
+  activeUpdateDownloadPromise = (async () => {
+    suppressAutoUpdaterErrorState = true;
+    try {
+      for (let attempt = 1; attempt <= UPDATE_DOWNLOAD_MAX_ATTEMPTS; attempt++) {
+        try {
+          await autoUpdater.downloadUpdate();
+          return true;
+        } catch (error) {
+          const isLastAttempt = attempt === UPDATE_DOWNLOAD_MAX_ATTEMPTS;
+          if (isLastAttempt) {
+            setAppUpdateState({
+              status: "error",
+              error: toErrorMessage(error, "Failed to download update"),
+              progress: null,
+            });
+            return false;
+          }
+
+          console.warn(
+            `[auto-updater] download attempt ${attempt}/${UPDATE_DOWNLOAD_MAX_ATTEMPTS} failed; retrying...`,
+            error,
+          );
+          await wait(UPDATE_DOWNLOAD_RETRY_DELAY_MS);
+        }
+      }
+      return false;
+    } finally {
+      suppressAutoUpdaterErrorState = false;
+    }
+  })();
+
+  try {
+    return await activeUpdateDownloadPromise;
+  } finally {
+    activeUpdateDownloadPromise = null;
+  }
+}
+
+function getUiPath(): string {
+  if (isPackagedApp) {
+    return path.join(process.resourcesPath, "web", "index.html");
+  }
+
+  return resolveDevPath(path.join("apps", "web-app", "dist", "index.html"));
 }
 
 function createMainWindow(): BrowserWindow {
@@ -86,6 +200,12 @@ function createMainWindow(): BrowserWindow {
     mainWindow.focus();
     return mainWindow;
   }
+
+  const iconCandidates = [
+    resolveDevPath(path.join("apps", "desktop-app", "assets", "icon.png")),
+    path.join(workspaceRoot, "assets", "icon.png"),
+  ];
+  const iconPath = iconCandidates.find((candidate) => existsSync(candidate));
 
   // Get saved window bounds or use defaults
   const savedBounds = preferencesManager.getWindowBounds();
@@ -100,7 +220,7 @@ function createMainWindow(): BrowserWindow {
     title: "OpenKit",
     titleBarStyle: "hiddenInset" as const,
     trafficLightPosition: { x: 12, y: 12 },
-    icon: path.join(workspaceRoot, "apps", "desktop-app", "assets", "icon.png"),
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(currentDir, "preload.cjs"),
       nodeIntegration: false,
@@ -132,7 +252,7 @@ function createMainWindow(): BrowserWindow {
   mainWindow.on("move", saveBounds);
 
   mainWindow.on("close", (event) => {
-    if (tray) {
+    if (tray && !isAppQuitting) {
       // Hide to tray instead of closing
       event.preventDefault();
       mainWindow?.hide();
@@ -249,12 +369,7 @@ function setupIpcHandlers() {
         autoUpdater.autoDownload = updates.autoDownloadUpdates;
         if (updates.autoDownloadUpdates && appUpdateState.status === "available") {
           setAppUpdateState({ status: "downloading", progress: 0, error: null });
-          void autoUpdater.downloadUpdate().catch((error: unknown) => {
-            setAppUpdateState({
-              status: "error",
-              error: error instanceof Error ? error.message : "Failed to download update",
-            });
-          });
+          void downloadUpdateWithRetry();
         } else {
           emitAppUpdateState();
         }
@@ -268,9 +383,20 @@ function setupIpcHandlers() {
     return appUpdateState;
   });
 
+  ipcMain.handle("get-app-version", () => {
+    return getDisplayAppVersion();
+  });
+
   ipcMain.handle("check-app-updates", async () => {
     if (!app.isPackaged) return appUpdateState;
-    await autoUpdater.checkForUpdates();
+    try {
+      await autoUpdater.checkForUpdates();
+    } catch (error) {
+      const handled = handleUpdateCheckError(error, "manual update check");
+      if (!handled.transient) {
+        throw error;
+      }
+    }
     return appUpdateState;
   });
 
@@ -278,13 +404,14 @@ function setupIpcHandlers() {
     if (!app.isPackaged) return appUpdateState;
     if (appUpdateState.status !== "available") return appUpdateState;
     setAppUpdateState({ status: "downloading", progress: 0, error: null });
-    await autoUpdater.downloadUpdate();
+    await downloadUpdateWithRetry();
     return appUpdateState;
   });
 
   ipcMain.handle("install-app-update", async () => {
     if (!app.isPackaged) return false;
     if (appUpdateState.status !== "downloaded") return false;
+    isAppQuitting = true;
     setImmediate(() => autoUpdater.quitAndInstall());
     return true;
   });
@@ -395,12 +522,7 @@ function setupAutoUpdater() {
     });
 
     if (shouldAutoDownload) {
-      void autoUpdater.downloadUpdate().catch((error: unknown) => {
-        setAppUpdateState({
-          status: "error",
-          error: error instanceof Error ? error.message : "Failed to download update",
-        });
-      });
+      void downloadUpdateWithRetry();
     }
   });
 
@@ -422,30 +544,20 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on("error", (error) => {
-    console.error("[auto-updater] update check failed", error);
-    setAppUpdateState({
-      status: "error",
-      error: error.message,
-      progress: null,
-    });
+    if (suppressAutoUpdaterErrorState) {
+      return;
+    }
+    handleUpdateCheckError(error, "update check");
   });
 
   autoUpdater.checkForUpdates().catch((error: unknown) => {
-    console.error("[auto-updater] initial update check failed", error);
-    setAppUpdateState({
-      status: "error",
-      error: error instanceof Error ? error.message : "Failed to check for updates",
-    });
+    handleUpdateCheckError(error, "initial update check");
   });
 
   const periodicCheck = setInterval(
     () => {
       autoUpdater.checkForUpdates().catch((error: unknown) => {
-        console.error("[auto-updater] periodic update check failed", error);
-        setAppUpdateState({
-          status: "error",
-          error: error instanceof Error ? error.message : "Failed to check for updates",
-        });
+        handleUpdateCheckError(error, "periodic update check");
       });
     },
     1000 * 60 * 10,
@@ -560,6 +672,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", async () => {
+  isAppQuitting = true;
   tray = null;
   notificationManager.dispose();
   await projectManager.closeAllProjects();

@@ -4,7 +4,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import type { WorktreeManager } from "../manager";
 import type { NotesManager } from "../notes-manager";
 import type { HooksManager } from "../verification-manager";
-import type { ActionContext } from "@openkit/agent/actions";
+import type { ActionContext } from "@openkit/agents/actions";
 import { createMcpServer } from "../mcp-server-factory";
 import { log } from "@openkit/shared/logger";
 

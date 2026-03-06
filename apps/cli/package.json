@@ -1,5 +1,6 @@
 {
   "name": "cli",
+  "version": "0.0.40",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +14,8 @@
   "dependencies": {
     "@inquirer/prompts": "^8.3.0",
     "node-pty": "1.2.0-beta.10",
-    "picocolors": "^1.1.1"
+    "picocolors": "^1.1.1",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",

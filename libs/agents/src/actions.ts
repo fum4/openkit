@@ -3,7 +3,7 @@ import path from "path";
 
 import { APP_NAME, CONFIG_DIR_NAME } from "@openkit/shared/constants";
 
-export { MCP_INSTRUCTIONS } from "@openkit/instructions";
+export { MCP_INSTRUCTIONS } from "./instructions";
 import { formatCommitMessage } from "@openkit/server/commit-message";
 import { resolveGitPolicy } from "@openkit/server/git-policy";
 import type { WorktreeManager } from "@openkit/server/manager";
@@ -90,6 +90,10 @@ function formatHookTriggerLabel(trigger: HookTrigger): string {
     case "worktree-removed":
       return "Worktree Removed";
   }
+}
+
+function formatHookTriggerContext(trigger: HookTrigger): string {
+  return formatHookTriggerLabel(trigger).toLowerCase();
 }
 
 const USER_ACTION_HINT =
@@ -790,6 +794,7 @@ export const actions: Action[] = [
 
       const projectName = ctx.manager.getProjectName() ?? undefined;
       const groupKey = `hooks:${worktreeId}:${trigger}`;
+      const triggerContext = formatHookTriggerContext(trigger);
 
       const runnableSteps = hooksConfig.steps
         .filter(
@@ -801,7 +806,7 @@ export const actions: Action[] = [
         category: "agent",
         type: "hooks_started",
         severity: "info",
-        title: `${formatHookTriggerLabel(trigger)} hooks started`,
+        title: `Hooks started (${triggerContext})`,
         worktreeId,
         projectName,
         groupKey,
@@ -827,7 +832,7 @@ export const actions: Action[] = [
         category: "agent",
         type: "hooks_ran",
         severity,
-        title: `${formatHookTriggerLabel(trigger)} hooks completed`,
+        title: `Hooks completed (${triggerContext})`,
         detail,
         worktreeId,
         projectName,

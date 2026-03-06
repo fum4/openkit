@@ -3,6 +3,11 @@ import { randomUUID } from "crypto";
 import type { Hono } from "hono";
 import { promisify } from "util";
 
+import {
+  isCommandOnPath,
+  resolveCommandPath,
+  withAugmentedPathEnv,
+} from "@openkit/shared/command-path";
 import type { WorktreeManager } from "../manager";
 import type { TerminalManager } from "../terminal-manager";
 import type { WorktreeCreateRequest, WorktreeRenameRequest } from "../types";
@@ -99,24 +104,13 @@ function getOpenTargetLabel(target: OpenProjectTarget): string {
   }
 }
 
-async function commandExists(command: string): Promise<boolean> {
-  try {
-    await execFile("which", [command], {
-      encoding: "utf-8",
-      timeout: 2_500,
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function macAppExists(appName: string): Promise<boolean> {
   if (process.platform !== "darwin") return false;
   try {
-    await execFile("open", ["-Ra", appName], {
+    await execFile(resolveCommandPath("open"), ["-Ra", appName], {
       encoding: "utf-8",
       timeout: 2_500,
+      env: withAugmentedPathEnv(),
     });
     return true;
   } catch {
@@ -126,7 +120,7 @@ async function macAppExists(appName: string): Promise<boolean> {
 
 async function linuxHasTerminalCommand(): Promise<boolean> {
   for (const command of LINUX_TERMINAL_COMMANDS) {
-    if (await commandExists(command)) return true;
+    if (await isCommandOnPath(command)) return true;
   }
   return false;
 }
@@ -277,31 +271,31 @@ async function isTargetAvailable(target: OpenProjectTarget): Promise<boolean> {
       case "file-manager":
         return true;
       case "cursor":
-        return (await macAppExists("Cursor")) || (await commandExists("cursor"));
+        return (await macAppExists("Cursor")) || (await isCommandOnPath("cursor"));
       case "vscode":
         return (
           (await macAppExists("Visual Studio Code")) ||
           (await macAppExists("Code")) ||
-          (await commandExists("code"))
+          (await isCommandOnPath("code"))
         );
       case "zed":
-        return (await macAppExists("Zed")) || (await commandExists("zed"));
+        return (await macAppExists("Zed")) || (await isCommandOnPath("zed"));
       case "intellij":
         return (
           (await macAppExists("IntelliJ IDEA")) ||
           (await macAppExists("IntelliJ IDEA CE")) ||
-          (await commandExists("idea"))
+          (await isCommandOnPath("idea"))
         );
       case "webstorm":
-        return (await macAppExists("WebStorm")) || (await commandExists("webstorm"));
+        return (await macAppExists("WebStorm")) || (await isCommandOnPath("webstorm"));
       case "terminal":
         return await macAppExists("Terminal");
       case "warp":
-        return (await macAppExists("Warp")) || (await commandExists("warp"));
+        return (await macAppExists("Warp")) || (await isCommandOnPath("warp"));
       case "ghostty":
-        return (await macAppExists("Ghostty")) || (await commandExists("ghostty"));
+        return (await macAppExists("Ghostty")) || (await isCommandOnPath("ghostty"));
       case "neovim":
-        return (await commandExists("nvim")) && (await macAppExists("Terminal"));
+        return (await isCommandOnPath("nvim")) && (await macAppExists("Terminal"));
       default:
         return false;
     }
@@ -309,25 +303,25 @@ async function isTargetAvailable(target: OpenProjectTarget): Promise<boolean> {
 
   switch (target) {
     case "file-manager":
-      return await commandExists("xdg-open");
+      return await isCommandOnPath("xdg-open");
     case "cursor":
-      return await commandExists("cursor");
+      return await isCommandOnPath("cursor");
     case "vscode":
-      return (await commandExists("code")) || (await commandExists("code-insiders"));
+      return (await isCommandOnPath("code")) || (await isCommandOnPath("code-insiders"));
     case "zed":
-      return await commandExists("zed");
+      return await isCommandOnPath("zed");
     case "intellij":
-      return (await commandExists("idea")) || (await commandExists("idea.sh"));
+      return (await isCommandOnPath("idea")) || (await isCommandOnPath("idea.sh"));
     case "webstorm":
-      return (await commandExists("webstorm")) || (await commandExists("webstorm.sh"));
+      return (await isCommandOnPath("webstorm")) || (await isCommandOnPath("webstorm.sh"));
     case "terminal":
       return await linuxHasTerminalCommand();
     case "warp":
-      return (await commandExists("warp-terminal")) || (await commandExists("warp"));
+      return (await isCommandOnPath("warp-terminal")) || (await isCommandOnPath("warp"));
     case "ghostty":
-      return await commandExists("ghostty");
+      return await isCommandOnPath("ghostty");
     case "neovim":
-      return (await commandExists("nvim")) && (await linuxHasTerminalCommand());
+      return (await isCommandOnPath("nvim")) && (await linuxHasTerminalCommand());
     default:
       return false;
   }
@@ -373,9 +367,10 @@ async function tryOpenProject(
 
   for (const { cmd, args } of candidates) {
     try {
-      await execFile(cmd, args, {
+      await execFile(resolveCommandPath(cmd), args, {
         encoding: "utf-8",
         timeout: 10_000,
+        env: withAugmentedPathEnv(),
       });
       return { success: true };
     } catch (error) {

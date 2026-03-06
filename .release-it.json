@@ -12,5 +12,8 @@
   "github": {
     "release": true,
     "releaseName": "v${version}"
+  },
+  "hooks": {
+    "after:bump": "node ./scripts/bump-affected-app-versions.mjs"
   }
 }

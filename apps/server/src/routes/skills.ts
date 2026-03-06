@@ -17,7 +17,7 @@ import type { Hono } from "hono";
 
 import type { WorktreeManager } from "../manager";
 import { type AgentId, SKILL_AGENT_SPECS, resolveSkillDeployDir } from "../lib/tool-configs";
-import { BUNDLED_SKILLS } from "@openkit/instructions";
+import { BUNDLED_SKILLS } from "@openkit/agents";
 
 // ─── SKILL.md parsing ───────────────────────────────────────────
 

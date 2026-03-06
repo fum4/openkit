@@ -26,7 +26,7 @@ type WorktreeNavigationTarget = {
 };
 
 type IssueNavigationTarget = {
-  source: "jira" | "linear";
+  source: "jira" | "linear" | "local";
   issueId: string;
   projectName?: string;
   sourceServerUrl?: string;

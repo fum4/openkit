@@ -2,9 +2,8 @@
   "extends": "../../tsconfig.libs.json",
   "compilerOptions": {
     "paths": {
-      "@openkit/agent/*": ["./src/*"],
-      "@openkit/core/*": ["../core/src/*"],
-      "@openkit/instructions": ["../instructions/src/index.ts"],
+      "@openkit/agents/*": ["./src/*"],
+      "@openkit/agents": ["./src/index.ts"],
       "@openkit/integrations/*": ["../integrations/src/*"],
       "@openkit/server/*": ["../../apps/server/src/*"],
       "@openkit/shared/*": ["../shared/src/*"]

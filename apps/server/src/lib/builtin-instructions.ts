@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
 
-import { CLAUDE_SKILL, CURSOR_RULE, VSCODE_PROMPT } from "@openkit/instructions";
+import { CLAUDE_SKILL, CURSOR_RULE, VSCODE_PROMPT } from "@openkit/agents";
 import type { AgentId, Scope } from "./tool-configs";
 
 // ─── Deploy/remove per agent ─────────────────────────────────────

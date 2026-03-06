@@ -27,20 +27,20 @@ function normalizeHookTrigger(value: unknown): HookTrigger {
   return "post-implementation";
 }
 
-function formatHookTriggerLabel(trigger: HookTrigger): string {
+function formatHookTriggerContext(trigger: HookTrigger): string {
   switch (trigger) {
     case "pre-implementation":
-      return "Pre-Implementation";
+      return "pre-implementation";
     case "post-implementation":
-      return "Post-Implementation";
+      return "post-implementation";
     case "custom":
-      return "Custom";
+      return "custom";
     case "on-demand":
-      return "On-Demand";
+      return "on-demand";
     case "worktree-created":
-      return "Worktree Created";
+      return "worktree created";
     case "worktree-removed":
-      return "Worktree Removed";
+      return "worktree removed";
   }
 }
 
@@ -147,13 +147,15 @@ function updateHookGroup(
   const failed = items.filter((item) => item.status === "failed").length;
   const running = items.filter((item) => item.status === "running").length;
   const completed = passed + failed;
+  const triggerContext = formatHookTriggerContext(trigger);
 
   const title =
     running > 0
-      ? `${formatHookTriggerLabel(trigger)} hooks running (${completed}/${total})`
+      ? `Hooks running - ${completed}/${total} (${triggerContext})`
       : failed > 0
-        ? `${formatHookTriggerLabel(trigger)} hooks completed (${failed} failed)`
-        : `${formatHookTriggerLabel(trigger)} hooks completed`;
+        ? `Hooks completed - ${failed} failed (${triggerContext})`
+        : `Hooks completed (${triggerContext})`;
+
   const detail =
     total === 0
       ? "No runnable command hooks configured."

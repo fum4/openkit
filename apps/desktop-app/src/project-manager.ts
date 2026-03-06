@@ -16,6 +16,8 @@ export interface Project {
 
 interface ProjectInternal extends Project {
   serverProcess: ChildProcess | null;
+  recentServerErrors: string[];
+  moduleResolveError: string | null;
 }
 
 interface AppState {
@@ -142,6 +144,8 @@ export class ProjectManager {
       name,
       status: "starting",
       serverProcess: null,
+      recentServerErrors: [],
+      moduleResolveError: null,
     };
 
     this.projects.set(id, project);
@@ -152,6 +156,27 @@ export class ProjectManager {
     try {
       const serverProcess = spawnServer(normalizedDir, port);
       project.serverProcess = serverProcess;
+      const pushServerError = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        if (
+          trimmed.includes("Cannot find package") ||
+          trimmed.includes("Cannot find module") ||
+          trimmed.includes("ERR_MODULE_NOT_FOUND")
+        ) {
+          project.moduleResolveError = trimmed;
+        }
+        project.recentServerErrors.push(trimmed);
+        if (project.recentServerErrors.length > 20) {
+          project.recentServerErrors = project.recentServerErrors.slice(-20);
+        }
+      };
+      serverProcess.stderr?.on("data", (data: Buffer) => {
+        const text = data.toString();
+        for (const line of text.split("\n")) {
+          pushServerError(line);
+        }
+      });
 
       serverProcess.on("error", (err: Error) => {
         project.status = "error";
@@ -163,7 +188,13 @@ export class ProjectManager {
         if (project.status !== "stopped") {
           project.status = code === 0 ? "stopped" : "error";
           if (code !== 0) {
-            project.error = `Server exited with code ${code}`;
+            const detail = project.recentServerErrors.join(" | ");
+            const reason = project.moduleResolveError
+              ? `${project.moduleResolveError} | ${detail}`
+              : detail;
+            project.error = reason
+              ? `Server exited with code ${code}: ${reason}`
+              : `Server exited with code ${code}`;
           }
           this.notifyChange();
         }
@@ -174,8 +205,15 @@ export class ProjectManager {
       if (ready) {
         project.status = "running";
       } else {
-        project.status = "error";
-        project.error = "Server failed to start";
+        if (project.status !== "error") {
+          project.status = "error";
+          const detail = project.recentServerErrors.join(" | ");
+          project.error = project.moduleResolveError
+            ? `Server failed to start: ${project.moduleResolveError}${detail ? ` | ${detail}` : ""}`
+            : detail
+              ? `Server failed to start: ${detail}`
+              : "Server failed to start";
+        }
       }
       this.notifyChange();
 

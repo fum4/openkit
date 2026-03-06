@@ -1,0 +1,8 @@
+{
+  "name": "@openkit/shared",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "picocolors": "^1.1.1"
+  }
+}

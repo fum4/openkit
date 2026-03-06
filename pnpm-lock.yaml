@@ -7,22 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      '@inquirer/prompts':
-        specifier: ^8.3.0
-        version: 8.3.0(@types/node@25.3.2)
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.27.1
-        version: 1.27.1(zod@4.3.6)
-      node-pty:
-        specifier: 1.2.0-beta.10
-        version: 1.2.0-beta.10
-      picocolors:
-        specifier: ^1.1.1
-        version: 1.1.1
-      ws:
-        specifier: ^8.19.0
-        version: 8.19.0
     devDependencies:
       '@types/node':
         specifier: ^25.3.0
@@ -60,6 +44,9 @@ importers:
       picocolors:
         specifier: ^1.1.1
         version: 1.1.1
+      ws:
+        specifier: ^8.19.0
+        version: 8.19.0
     devDependencies:
       '@types/node':
         specifier: ^25.3.0
@@ -79,6 +66,12 @@ importers:
       electron-updater:
         specifier: ^6.8.3
         version: 6.8.3
+      node-pty:
+        specifier: 1.2.0-beta.10
+        version: 1.2.0-beta.10
+      ws:
+        specifier: ^8.19.0
+        version: 8.19.0
     devDependencies:
       '@electron/notarize':
         specifier: ^3.1.1
@@ -282,6 +275,18 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  libs/agents:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.27.1
+        version: 1.27.1(zod@4.3.6)
+
+  libs/shared:
+    dependencies:
+      picocolors:
+        specifier: ^1.1.1
+        version: 1.1.1
 
 packages:
 

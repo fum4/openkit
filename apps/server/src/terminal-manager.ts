@@ -1,10 +1,36 @@
 import { existsSync } from "fs";
+import { createRequire } from "module";
 import type { WebSocket } from "ws";
 import type { IPty } from "node-pty";
-import nodePty from "node-pty";
 
-// Handle CJS/ESM interop: when externalized, default import may be nested
-const pty: { spawn: typeof nodePty.spawn } = (nodePty as any).default ?? nodePty;
+const require = createRequire(import.meta.url);
+
+type NodePtyModule = { spawn: (typeof import("node-pty"))["spawn"] };
+
+function hasSpawn(value: unknown): value is NodePtyModule {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { spawn?: unknown }).spawn === "function"
+  );
+}
+
+function resolveNodePtyModule(): NodePtyModule {
+  const loaded: unknown = require("node-pty");
+
+  if (hasSpawn(loaded)) {
+    return loaded;
+  }
+
+  if (typeof loaded === "object" && loaded !== null && "default" in loaded) {
+    const defaultExport = (loaded as { default?: unknown }).default;
+    if (hasSpawn(defaultExport)) {
+      return defaultExport;
+    }
+  }
+
+  throw new Error("node-pty module is missing a spawn() export");
+}
 
 interface TerminalSession {
   id: string;
@@ -71,6 +97,7 @@ export class TerminalManager {
     const shell = process.env.SHELL || "/bin/zsh";
     let ptyProcess: IPty;
     try {
+      const pty = resolveNodePtyModule();
       const shellArgs = session.startupCommand ? ["-lc", session.startupCommand] : [];
       ptyProcess = pty.spawn(shell, shellArgs, {
         name: "xterm-256color",

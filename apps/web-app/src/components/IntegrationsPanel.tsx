@@ -377,9 +377,7 @@ function GitHubCard({
   const [settingUp, setSettingUp] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [waitingForAuth, setWaitingForAuth] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
-    null,
-  );
+  const [feedback, setFeedback] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleAutoSetup = async (options: { commitMessage: string; repoPrivate: boolean }) => {
@@ -390,10 +388,13 @@ function GitHubCard({
     try {
       // Step 1: Create initial commit if needed
       if (needsCommit) {
-        setFeedback({ type: "success", message: "Creating initial commit..." });
+        setFeedback("Creating initial commit...");
         const commitResult = await api.createInitialCommit();
         if (!commitResult.success) {
-          setFeedback({ type: "error", message: commitResult.error ?? "Failed to create commit" });
+          reportPersistentErrorToast(commitResult.error, "Failed to create commit", {
+            scope: "integrations:github-setup-commit",
+          });
+          setFeedback(null);
           setSettingUp(false);
           return;
         }
@@ -401,18 +402,18 @@ function GitHubCard({
 
       // Step 2: Create repo if needed
       if (needsRepo || needsCommit) {
-        setFeedback({ type: "success", message: "Creating GitHub repository..." });
+        setFeedback("Creating GitHub repository...");
         const repoResult = await api.createGitHubRepo(options.repoPrivate);
         if (!repoResult.success) {
-          setFeedback({
-            type: "error",
-            message: repoResult.error ?? "Failed to create repository",
+          reportPersistentErrorToast(repoResult.error, "Failed to create GitHub repository", {
+            scope: "integrations:github-setup-repo",
           });
+          setFeedback(null);
           setSettingUp(false);
           onStatusChange();
           return;
         }
-        setFeedback({ type: "success", message: `Created ${repoResult.repo}` });
+        setFeedback(`Created ${repoResult.repo}`);
       }
 
       onStatusChange();
@@ -421,7 +422,7 @@ function GitHubCard({
       reportPersistentErrorToast(error, "GitHub setup failed unexpectedly", {
         scope: "integrations:github-setup",
       });
-      setFeedback({ type: "error", message: "Setup failed unexpectedly" });
+      setFeedback(null);
     }
     setSettingUp(false);
   };
@@ -471,22 +472,18 @@ function GitHubCard({
     if (result.success) {
       if (result.code) {
         await copyToClipboard(result.code);
-        setFeedback({
-          type: "success",
-          message: `Code ${result.code} copied! Paste it in your browser.`,
-        });
+        setFeedback(`Code ${result.code} copied! Paste it in your browser.`);
       } else {
-        setFeedback({
-          type: "success",
-          message: "Continue authentication in your browser if prompted.",
-        });
+        setFeedback("Continue authentication in your browser if prompted.");
       }
       const data = await fetchGitHubStatus(serverUrl);
       onStatusChange(data ?? undefined);
       setWaitingForAuth(!(data?.authenticated ?? false));
     } else {
-      setFeedback({ type: "error", message: result.error ?? "Failed to install gh" });
-      setTimeout(() => setFeedback(null), 4000);
+      reportPersistentErrorToast(result.error, "Failed to install GitHub CLI", {
+        scope: "integrations:github-install",
+      });
+      setFeedback(null);
     }
   };
 
@@ -496,22 +493,18 @@ function GitHubCard({
     if (result.success) {
       if (result.code) {
         await copyToClipboard(result.code);
-        setFeedback({
-          type: "success",
-          message: `Code ${result.code} copied! Paste it in your browser.`,
-        });
+        setFeedback(`Code ${result.code} copied! Paste it in your browser.`);
       } else {
-        setFeedback({
-          type: "success",
-          message: "Authentication started. Finish sign-in in your browser.",
-        });
+        setFeedback("Authentication started. Finish sign-in in your browser.");
       }
       const data = await fetchGitHubStatus(serverUrl);
       onStatusChange(data ?? undefined);
       setWaitingForAuth(!(data?.authenticated ?? false));
     } else {
-      setFeedback({ type: "error", message: result.error ?? "Failed to start login" });
-      setTimeout(() => setFeedback(null), 4000);
+      reportPersistentErrorToast(result.error, "Failed to start GitHub authentication", {
+        scope: "integrations:github-login",
+      });
+      setFeedback(null);
     }
   };
 
@@ -596,11 +589,7 @@ function GitHubCard({
         </div>
       )}
 
-      {feedback && (
-        <span className={`text-[11px] ${feedback.type === "success" ? "text-accent" : text.error}`}>
-          {feedback.message}
-        </span>
-      )}
+      {feedback && <span className="text-[11px] text-accent">{feedback}</span>}
 
       {/* Actions */}
       {status && !status.installed && !waitingForAuth && (
@@ -641,8 +630,10 @@ function GitHubCard({
             if (result.success) {
               onStatusChange();
             } else {
-              setFeedback({ type: "error", message: result.error ?? "Failed to logout" });
-              setTimeout(() => setFeedback(null), 4000);
+              reportPersistentErrorToast(result.error, "Failed to logout from GitHub", {
+                scope: "integrations:github-logout",
+              });
+              setFeedback(null);
             }
           }}
           disabled={loading}

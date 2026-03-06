@@ -25,36 +25,36 @@ pnpm dev
 
 ## Build Commands
 
-| Command                      | Description                                                                                              |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `pnpm build`                 | Run Nx `build` target across workspace projects that define it                                           |
-| `pnpm build:cli`             | Build CLI app (`cli`)                                                                                    |
-| `pnpm build:server`          | Build backend server app (`server`)                                                                      |
-| `pnpm build:web-app`         | Build web app (`web-app`)                                                                                |
-| `pnpm build:desktop-app`     | Build desktop app runtime (without packaging) (`desktop-app`)                                            |
-| `pnpm build:website`         | Build Astro marketing site (`website`)                                                                   |
-| `pnpm build:mobile-app`      | Build mobile app export (`mobile-app`)                                                                   |
-| `pnpm package:desktop`       | Package desktop app artifacts for all supported desktop targets (`desktop-app`)                          |
-| `pnpm package:desktop:mac`   | Package macOS desktop app artifacts (`desktop-app`)                                                      |
-| `pnpm package:desktop:linux` | Package Linux desktop app artifacts (`desktop-app`)                                                      |
-| `pnpm run setup`             | Create `.env.local` from `.env.example` if missing                                                       |
-| `pnpm dev`                   | Start all first-class app dev flows (`cli`, `server`, `web-app`, `desktop-app`, `website`, `mobile-app`) |
-| `pnpm dev:cli`               | Start CLI dev watch flow (`cli`)                                                                         |
-| `pnpm dev:server`            | Start backend server watch flow (`server`)                                                               |
-| `pnpm dev:web-app`           | Start web app + backend together (`web-app`, `server`)                                                   |
-| `pnpm dev:desktop-app`       | Start desktop app with required deps (`desktop-app`, `web-app`, `cli`)                                   |
-| `pnpm dev:website`           | Start Astro website dev server (`website`)                                                               |
-| `pnpm dev:mobile-app`        | Start Expo mobile dev server (`mobile-app`)                                                              |
-| `pnpm nx run cli:start`      | Build and run CLI from app scripts (`apps/cli`)                                                          |
-| `pnpm check:affected`        | Format + Nx affected lint/typecheck/build (`NX_BASE`/`NX_HEAD` override supported)                       |
-| `pnpm check:types`           | Nx typecheck across projects that define `typecheck` (apps + libs)                                       |
-| `pnpm check:format`          | Run oxfmt in check mode                                                                                  |
-| `pnpm check:lint`            | Nx lint across projects that define `lint` (apps + libs)                                                 |
-| `pnpm lint-staged`           | Run formatter/linter checks only for currently staged files                                              |
-| `pnpm check:all`             | Run format + Nx run-many lint/typecheck/build                                                            |
-| `pnpm fix:format`            | Run oxfmt to apply formatting                                                                            |
-| `pnpm fix:lint`              | Run oxlint with `--fix`                                                                                  |
-| `pnpm fix:all`               | Run format + lint auto-fixes                                                                             |
+| Command                  | Description                                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `pnpm build`             | Run Nx `build` target across workspace projects that define it                                           |
+| `pnpm build:cli`         | Build CLI app (`cli`)                                                                                    |
+| `pnpm build:server`      | Build backend server app (`server`)                                                                      |
+| `pnpm build:web-app`     | Build web app (`web-app`)                                                                                |
+| `pnpm build:desktop-app` | Build desktop app runtime (without packaging) (`desktop-app`)                                            |
+| `pnpm build:website`     | Build Astro marketing site (`website`)                                                                   |
+| `pnpm build:mobile-app`  | Build mobile app export (`mobile-app`)                                                                   |
+| `pnpm package`           | Package desktop app artifacts for all supported desktop targets (`desktop-app`)                          |
+| `pnpm package:mac`       | Package macOS desktop app artifacts (`desktop-app`)                                                      |
+| `pnpm package:linux`     | Package Linux desktop app artifacts (`desktop-app`)                                                      |
+| `pnpm run setup`         | Create `.env.local` from `.env.example` if missing                                                       |
+| `pnpm dev`               | Start all first-class app dev flows (`cli`, `server`, `web-app`, `desktop-app`, `website`, `mobile-app`) |
+| `pnpm dev:cli`           | Start CLI dev watch flow (`cli`)                                                                         |
+| `pnpm dev:server`        | Start backend server watch flow (`server`)                                                               |
+| `pnpm dev:web-app`       | Start web app + backend together (`web-app`, `server`)                                                   |
+| `pnpm dev:desktop-app`   | Start desktop app with required deps (`desktop-app`, `web-app`, `cli`)                                   |
+| `pnpm dev:website`       | Start Astro website dev server (`website`)                                                               |
+| `pnpm dev:mobile-app`    | Start Expo mobile dev server (`mobile-app`)                                                              |
+| `pnpm nx run cli:start`  | Build and run CLI from app scripts (`apps/cli`)                                                          |
+| `pnpm check:affected`    | Format + Nx affected lint/typecheck/build (`NX_BASE`/`NX_HEAD` override supported)                       |
+| `pnpm check:types`       | Nx typecheck across projects that define `typecheck` (apps + libs)                                       |
+| `pnpm check:format`      | Run oxfmt in check mode                                                                                  |
+| `pnpm check:lint`        | Nx lint across projects that define `lint` (apps + libs)                                                 |
+| `pnpm lint-staged`       | Run formatter/linter checks only for currently staged files                                              |
+| `pnpm check:all`         | Run format + Nx run-many lint/typecheck/build                                                            |
+| `pnpm fix:format`        | Run oxfmt to apply formatting                                                                            |
+| `pnpm fix:lint`          | Run oxlint with `--fix`                                                                                  |
+| `pnpm fix:all`           | Run format + lint auto-fixes                                                                             |
 
 There is no test runner configured.
 
@@ -81,6 +81,7 @@ Package layout:
 
 - Root `package.json` is the workspace orchestration entrypoint (marked `private` to prevent accidental npm publish).
 - `apps/cli`, `apps/server`, `apps/web-app`, and `apps/desktop-app` own their direct scripts and dependencies.
+- `libs/shared/package.json` owns shared runtime dependencies used by shared helpers.
 - Root TypeScript configs are split by role: `tsconfig.base.json` (shared compiler defaults), `tsconfig.apps.json` (app defaults), `tsconfig.libs.json` (library defaults), and `tsconfig.workspace.json` (workspace aggregate).
 - `apps/website/package.json` and `apps/mobile-app/package.json` remain independently tooled ecosystems (Astro and Expo).
 
@@ -106,7 +107,7 @@ The workspace includes script-oriented launch configurations in `.vscode/launch.
 
 - App development (`dev`, `dev:cli`, `dev:server`, `dev:web-app`, `dev:desktop-app`, `dev:website`, `dev:mobile-app`)
 - App builds (`build` plus app-specific `build:*`)
-- Desktop packaging (`package:desktop`, `package:desktop:mac`, `package:desktop:linux`)
+- Desktop packaging (`package`, `package:mac`, `package:linux`)
 - Quality helpers (`check:all`, `check:affected`, `fix:all`)
 
 ## Dev Port Environment Variables
@@ -136,7 +137,9 @@ npm publishing is currently paused.
     macOS PR packaging uses the same shared build/sign/notarize action as release packaging (`.github/actions/package-desktop-macos`). Signing/notarization is enabled only when the PR head is in the same repository; fork PR heads are built unsigned to avoid exposing Apple secrets to untrusted code.
     The shared macOS packaging flow accepts either `APPLE_ID`/`APPLE_TEAM_ID`/`APPLE_APP_SPECIFIC_PASSWORD` or legacy `APPLE_NOTARIZATION_APPLE_ID`/`APPLE_NOTARIZATION_TEAM_ID`/`APPLE_NOTARIZATION_PASSWORD` secrets.
 - The release workflow still runs `pnpm check:all` and creates release tags plus the GitHub release.
+- `release-it` bumps the root version and then runs `node ./scripts/bump-affected-app-versions.mjs` (`after:bump`) to patch-bump only affected apps since the previous release tag (`v*`) (via Nx affected apps, with git-path fallback), excluding `apps/mobile-app`.
 - Desktop release assets are built/uploaded in `.github/workflows/package-release.yml` on release tag pushes (`v*`), including updater metadata/assets (`latest*.yml`, macOS ZIPs, and blockmaps) required by `electron-updater`.
+- Shared macOS packaging action (`.github/actions/package-desktop-macos`) retries the packaging command up to 3 times to reduce transient Electron download failures that can otherwise prevent updater metadata from being uploaded.
 - npm-specific publish steps are commented out in `.github/workflows/release.yml`.
 
 ## Dependency Updates
@@ -229,7 +232,7 @@ Both `cli` and `server` use tsup for production build output:
   - **Entry points:** `apps/cli/src/index.ts` (CLI), `apps/cli/src/electron-entry.ts` (Electron bridge export)
   - **Format:** ESM (`"type": "module"` in package.json)
   - **Externals:** `node-pty` (native module) and `electron`
-  - **esbuild loader:** `.md` files are inlined as text strings (used by `libs/instructions/src/`)
+  - **esbuild loader:** `.md` files are inlined as text strings (used by `libs/agents/src/`)
   - **Output:** `apps/cli/dist/`
 - `apps/server/tsup.config.ts`
   - **Entry point:** `apps/server/src/standalone.ts`
@@ -453,7 +456,7 @@ This follows an established pattern. You will need:
 - **Hono for HTTP.** The backend uses Hono with `@hono/node-server`, not Express.
 - **React 18 + React Query.** State management is via React Query for server state and `useState`/`useContext` for UI state. No Redux or Zustand.
 - **Motion (Framer Motion v12+).** Animations use the `motion/react` import path.
-- **Keep agent instructions in sync with MCP changes.** When modifying MCP tools, workflows, or hooks behavior, update the relevant `.md` files in `libs/instructions/src/` (MCP instructions, agent skills/rules, hook skill definitions). All instruction text is centralized there — consumer files import from the barrel at `libs/instructions/src/index.ts`. Also update the inline instructions block in `docs/MCP.md`.
+- **Keep agent instructions in sync with MCP changes.** When modifying MCP tools, workflows, or hooks behavior, update the relevant `.md` files in `libs/agents/src/` (MCP instructions, agent skills/rules, hook skill definitions). All instruction text is centralized there — consumer files import from the barrel at `libs/agents/src/instructions.ts`. Also update the inline instructions block in `docs/MCP.md`.
 
 ## Platform Constraints
 

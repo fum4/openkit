@@ -16,10 +16,10 @@ const execFile = promisify(execFileCb);
 
 import pc from "picocolors";
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
-import { copyEnvFiles } from "@openkit/core/env-files";
+import { copyEnvFiles } from "@openkit/shared/env-files";
 import { log } from "@openkit/shared/logger";
 import { generateBranchName } from "./branch-name";
-import { getGitRoot, getWorktreeBranch, validateBranchName } from "@openkit/core/git";
+import { getGitRoot, getWorktreeBranch, validateBranchName } from "@openkit/shared/git";
 import { GitHubManager } from "@openkit/integrations/github/github-manager";
 import { loadJiraCredentials, loadJiraProjectConfig } from "@openkit/integrations/jira/credentials";
 import {
@@ -1063,7 +1063,7 @@ export class WorktreeManager {
         category: "worktree",
         type: "creation_completed",
         severity: "success",
-        title: `Worktree "${worktreeId}" created`,
+        title: "Worktree created",
         worktreeId,
         projectName: this.activityProjectName(),
         groupKey: `worktree-creation:${worktreeId}`,

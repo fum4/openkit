@@ -1,18 +1,14 @@
 appId: com.openkit.app
 productName: OpenKit
 publish:
-  provider: github
+  provider: generic
+  url: https://github.com/fum4/openkit/releases/latest/download
 directories:
-  app: ../..
+  app: .
   output: release
 files:
-  - apps/desktop-app/dist/**/*
-  - apps/desktop-app/assets/**/*
-  - apps/desktop-app/node_modules/**/*
-  - apps/cli/dist/**/*
-  - apps/web-app/dist/**/*
-  - apps/server/dist/runtime/**/*
-  - node_modules/**/*
+  - dist/**/*
+  - assets/**/*
   - package.json
 icon: assets/icon.icns
 mac:
@@ -49,11 +45,13 @@ dmg:
 afterSign: ./electron-builder-notarize.cjs
 asar: true
 extraMetadata:
-  main: apps/desktop-app/dist/main.js
+  main: dist/main.js
 asarUnpack:
-  - apps/desktop-app/dist/**
-  - apps/cli/dist/**
   - node_modules/node-pty/**
 extraResources:
-  - from: ../../apps/server/dist/runtime
+  - from: ../cli/dist
+    to: cli
+  - from: ../web-app/dist
+    to: web
+  - from: ../server/dist/runtime
     to: runtime

@@ -22,6 +22,8 @@
 
 - ✅ Update website download link to use latest release from the new repo
 
+- Release hardening: publish GitHub release as draft first, upload all platform assets (`latest-mac.yml`, mac zips/dmgs, Linux AppImage), then publish release to avoid transient updater failures while assets are still uploading
+
 - ✅ Remove colored border from setup screen integration cards
 
 - ✅ I connected to linear through the setup screen and the Issues tab did not show up in the workspace until i visited Integrations page (integrations loaded up) and then go back to workspace and refresh. this is the first issue, we should load everything from all pages in the background when app initializes, should not wait to visit corresponding pages. and second of all, the Issues tab should appear even if no jira/linear integration is setup, as users can create local issues without any integration

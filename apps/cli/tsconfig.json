@@ -3,9 +3,8 @@
   "compilerOptions": {
     "types": ["node"],
     "paths": {
-      "@openkit/agent/*": ["../../libs/agent/src/*"],
-      "@openkit/core/*": ["../../libs/core/src/*"],
-      "@openkit/instructions": ["../../libs/instructions/src/index.ts"],
+      "@openkit/agents/*": ["../../libs/agents/src/*"],
+      "@openkit/agents": ["../../libs/agents/src/index.ts"],
       "@openkit/integrations/*": ["../../libs/integrations/src/*"],
       "@openkit/server/*": ["../../apps/server/src/*"],
       "@openkit/shared/*": ["../../libs/shared/src/*"]

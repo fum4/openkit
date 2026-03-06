@@ -216,7 +216,7 @@ async function main() {
     console.log = console.error;
 
     const { config, configPath } = loadConfig();
-    const { startMcpServer } = await import("@openkit/agent/mcp");
+    const { startMcpServer } = await import("@openkit/agents/mcp");
     await startMcpServer(config, configPath);
     return;
   }

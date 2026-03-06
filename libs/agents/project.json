@@ -1,20 +1,20 @@
 {
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "name": "core",
+  "name": "agents",
   "projectType": "library",
-  "sourceRoot": "libs/core/src",
+  "sourceRoot": "libs/agents/src",
   "implicitDependencies": ["shared"],
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm exec tsgo --noEmit -p libs/core/tsconfig.json"
+        "command": "pnpm exec tsgo --noEmit -p libs/agents/tsconfig.json"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm exec oxlint libs/core/src"
+        "command": "pnpm exec oxlint libs/agents/src"
       }
     }
   }

@@ -276,8 +276,10 @@ GitHub integration requires the [GitHub CLI (`gh`)](https://cli.github.com/) to 
 
 OpenKit checks for `gh` availability in two steps:
 
-1. `which gh` -- Is the CLI installed?
+1. `gh --version` -- Is the CLI installed?
 2. `gh auth status` -- Is the user authenticated?
+
+For packaged desktop runs (where `PATH` is often minimal), OpenKit augments command lookup with common macOS bin directories (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, `/bin`, `/opt/local/bin`) before checking/running `gh`.
 
 If both pass, OpenKit queries repo info via `gh repo view --json nameWithOwner,defaultBranchRef` to determine the owner, repo name, and default branch.
 
@@ -285,7 +287,7 @@ If both pass, OpenKit queries repo info via `gh repo view --json nameWithOwner,d
 
 **Via the web UI:**
 
-The Integrations panel can install `gh` automatically using `brew install gh` (macOS only). After installation, it initiates the GitHub device flow (`gh auth login --web`) with the `user` scope, parses the one-time code from stderr, opens the browser, and copies the code to the clipboard.
+The Integrations panel first checks whether `gh` is already available. If missing, it attempts to install with `brew install gh` (macOS). Afterward, it initiates the GitHub device flow (`gh auth login --web`) with the `user` scope, parses the one-time code from stderr, opens the browser, and copies the code to the clipboard.
 
 After successful authentication, OpenKit automatically:
 
@@ -498,14 +500,14 @@ When creating a worktree from an issue (`POST /api/jira/task` or `POST /api/line
 
 ### GitHub Endpoints
 
-| Method | Path                           | Description                                        |
-| ------ | ------------------------------ | -------------------------------------------------- |
-| `GET`  | `/api/github/status`           | CLI installation, auth, and repo status            |
-| `POST` | `/api/github/install`          | Install `gh` via Homebrew and start login          |
-| `POST` | `/api/github/login`            | Start GitHub device flow login                     |
-| `POST` | `/api/github/logout`           | Logout from GitHub                                 |
-| `POST` | `/api/github/initial-commit`   | Create initial git commit                          |
-| `POST` | `/api/github/create-repo`      | Create GitHub repository (`{ private?: boolean }`) |
-| `POST` | `/api/worktrees/:id/commit`    | Commit all changes (`{ message }`)                 |
-| `POST` | `/api/worktrees/:id/push`      | Push branch to origin                              |
-| `POST` | `/api/worktrees/:id/create-pr` | Create pull request (`{ title, body? }`)           |
+| Method | Path                           | Description                                                                |
+| ------ | ------------------------------ | -------------------------------------------------------------------------- |
+| `GET`  | `/api/github/status`           | CLI installation, auth, and repo status                                    |
+| `POST` | `/api/github/install`          | Ensure `gh` is available (install via Homebrew if missing) and start login |
+| `POST` | `/api/github/login`            | Start GitHub device flow login                                             |
+| `POST` | `/api/github/logout`           | Logout from GitHub                                                         |
+| `POST` | `/api/github/initial-commit`   | Create initial git commit                                                  |
+| `POST` | `/api/github/create-repo`      | Create GitHub repository (`{ private?: boolean }`)                         |
+| `POST` | `/api/worktrees/:id/commit`    | Commit all changes (`{ message }`)                                         |
+| `POST` | `/api/worktrees/:id/push`      | Push branch to origin                                                      |
+| `POST` | `/api/worktrees/:id/create-pr` | Create pull request (`{ title, body? }`)                                   |

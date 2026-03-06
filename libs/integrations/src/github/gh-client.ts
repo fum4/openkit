@@ -1,17 +1,24 @@
 import { execFile as execFileCb } from "child_process";
 import { promisify } from "util";
 
+import {
+  isCommandOnPath,
+  resolveCommandPath,
+  withAugmentedPathEnv,
+} from "@openkit/shared/command-path";
 import type { GitHubConfig, GitStatusInfo, PRInfo } from "./types";
 
-const execFile = promisify(execFileCb);
+const execFileRaw = promisify(execFileCb);
+const execFile: typeof execFileRaw = ((cmd: string, args: string[], options?: unknown) => {
+  const opts = (options ?? {}) as { env?: NodeJS.ProcessEnv };
+  return execFileRaw(resolveCommandPath(cmd), args, {
+    ...opts,
+    env: withAugmentedPathEnv(opts.env ?? process.env),
+  });
+}) as typeof execFileRaw;
 
 export async function checkGhInstalled(): Promise<boolean> {
-  try {
-    await execFile("which", ["gh"]);
-    return true;
-  } catch {
-    return false;
-  }
+  return isCommandOnPath("gh");
 }
 
 export async function checkGhAuth(): Promise<boolean> {

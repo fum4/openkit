@@ -324,7 +324,7 @@ export default function App() {
   } = useServer();
   const [hookUpdateKey, setHookUpdateKey] = useState(0);
   const { worktrees, isConnected, error, refetch } = useWorktrees(
-    useCallback((message, level) => {
+    useCallback((message: string, level: "error" | "info") => {
       if (level === "error") {
         showPersistentErrorToast(message, { scope: "sse:notification" });
       }
@@ -732,7 +732,9 @@ export default function App() {
     const sel: Selection =
       pendingIssueNotificationNav.source === "jira"
         ? { type: "issue", key: pendingIssueNotificationNav.issueId }
-        : { type: "linear-issue", identifier: pendingIssueNotificationNav.issueId };
+        : pendingIssueNotificationNav.source === "linear"
+          ? { type: "linear-issue", identifier: pendingIssueNotificationNav.issueId }
+          : { type: "custom-task", id: pendingIssueNotificationNav.issueId };
     setActiveCreateTabState("issues");
     const tabKey = workspaceStorageKey("wsTab");
     if (tabKey) {
@@ -2051,7 +2053,7 @@ export default function App() {
         category: "agent",
         type: "task_detected",
         severity: "info",
-        title: "New task found",
+        title: "New task",
         detail: formatTaskNotificationDetail(task.issueId, task.title),
         groupKey: `task-detected:${task.source}:${task.issueId}`,
         metadata: {
@@ -2604,7 +2606,7 @@ export default function App() {
     projectName: navProjectName,
     sourceServerUrl,
   }: {
-    source: "jira" | "linear";
+    source: "jira" | "linear" | "local";
     issueId: string;
     projectName?: string;
     sourceServerUrl?: string;
@@ -2631,7 +2633,11 @@ export default function App() {
       setSelection({ type: "issue", key: issueId });
       return;
     }
-    setSelection({ type: "linear-issue", identifier: issueId });
+    if (source === "linear") {
+      setSelection({ type: "linear-issue", identifier: issueId });
+      return;
+    }
+    setSelection({ type: "custom-task", id: issueId });
   };
 
   return (

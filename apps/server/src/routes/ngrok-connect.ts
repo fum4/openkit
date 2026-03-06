@@ -3,6 +3,7 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import type { Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 
+import { resolveCommandPath, withAugmentedPathEnv } from "@openkit/shared/command-path";
 import type { WorktreeManager } from "../manager";
 
 const LOCAL_SESSION_COOKIE = "ok_session";
@@ -365,9 +366,14 @@ export function registerNgrokConnectRoutes(app: Hono, manager: WorktreeManager) 
     tunnel.error = null;
     tunnel.manualStop = false;
 
-    const proc = spawn("ngrok", ["http", String(localPort), "--log", "stdout"], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const proc = spawn(
+      resolveCommandPath("ngrok"),
+      ["http", String(localPort), "--log", "stdout"],
+      {
+        env: withAugmentedPathEnv(),
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
 
     tunnel.process = proc;
 

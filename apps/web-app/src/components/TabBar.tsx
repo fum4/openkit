@@ -28,6 +28,7 @@ export function TabBar({ onOpenSettings, onOverlapChange }: TabBarProps) {
   } = useServer();
   const tabsRef = useRef<HTMLDivElement>(null);
   const [overlaps, setOverlaps] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
 
   const checkOverlap = useCallback(() => {
     if (!tabsRef.current) return;
@@ -55,6 +56,24 @@ export function TabBar({ onOpenSettings, onOverlapChange }: TabBarProps) {
       observer?.disconnect();
     };
   }, [isElectron, projects.length, checkOverlap]);
+
+  useEffect(() => {
+    if (
+      !isElectron ||
+      !window.electronAPI ||
+      typeof window.electronAPI.getAppVersion !== "function"
+    ) {
+      setAppVersion(null);
+      return;
+    }
+
+    window.electronAPI
+      .getAppVersion()
+      .then((version) => setAppVersion(version))
+      .catch(() => {
+        setAppVersion(null);
+      });
+  }, [isElectron]);
 
   // Only show in Electron mode with at least one project
   if (!isElectron || projects.length === 0) {
@@ -129,15 +148,19 @@ export function TabBar({ onOpenSettings, onOverlapChange }: TabBarProps) {
         </Tooltip>
       )} */}
 
+      {onOpenSettings && appVersion && (
+        <div className="mr-2 h-7 inline-flex items-center justify-center text-[10px] text-[#8f97a6]">
+          v{appVersion}
+        </div>
+      )}
+
       {onOpenSettings && (
-        <Tooltip text="App Settings">
-          <button
-            onClick={onOpenSettings}
-            className="flex items-center justify-center w-7 h-7 rounded-md text-[#6b7280] hover:text-[#e5e7eb] hover:bg-white/[0.06] transition-colors duration-150"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </Tooltip>
+        <button
+          onClick={onOpenSettings}
+          className="flex items-center justify-center w-7 h-7 rounded-md text-[#6b7280] hover:text-[#e5e7eb] hover:bg-white/[0.06] transition-colors duration-150"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
       )}
     </div>
   );

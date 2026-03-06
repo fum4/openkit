@@ -67,6 +67,7 @@ interface ElectronAPI {
   updatePreferences: (updates: Partial<AppPreferences>) => Promise<void>;
 
   // App updates
+  getAppVersion: () => Promise<string>;
   getAppUpdateState: () => Promise<AppUpdateState>;
   checkAppUpdates: () => Promise<AppUpdateState>;
   downloadAppUpdate: () => Promise<AppUpdateState>;

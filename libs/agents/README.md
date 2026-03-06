@@ -1,17 +1,25 @@
-# Instructions Directory
+# Agents Library
 
-Agent instruction text extracted from TypeScript source into standalone markdown files. These are inlined as strings at build time via tsup's esbuild text loader (`{ '.md': 'text' }`).
+Agent tooling and MCP integration for OpenKit.
+
+## What Lives Here
+
+- `src/actions.ts`: MCP tool/action definitions.
+- `src/mcp.ts`: stdio MCP server bootstrap/proxy logic.
+- `src/instructions.ts`: instruction/skill markdown barrel with placeholder resolution.
+- `src/mcp/`: MCP instruction markdown sources.
+- `src/skills/`: bundled skill markdown sources.
 
 ## How It Works
 
-1. **Build**: tsup loads `.md` files as text strings via the esbuild loader configured in `apps/cli/tsup.config.ts`
-2. **Barrel**: `index.ts` imports all `.md` files, resolves placeholders (`{{APP_NAME}}`, `{{WORKFLOW}}`), and exports typed constants
-3. **Consumers**: Source files import from this barrel — no raw `.md` imports scattered across the codebase
-4. **TypeScript**: `md.d.ts` (repo root) declares `*.md` modules so TS accepts the imports
+1. **Build**: tsup loads `.md` files as text strings via the esbuild loader configured in `apps/cli/tsup.config.ts`.
+2. **Barrel**: `src/instructions.ts` imports all `.md` files, resolves placeholders (`{{APP_NAME}}`, `{{WORKFLOW}}`), and exports typed constants.
+3. **Consumers**: Source files import from this barrel; no raw `.md` imports are scattered across the codebase.
+4. **TypeScript**: `md.d.ts` (repo root) declares `*.md` modules so TypeScript accepts the imports.
 
 ## File Map
 
-### MCP (`libs/instructions/src/mcp/`)
+### MCP (`libs/agents/src/mcp/`) -- DEPRECATED, DO NOT USE
 
 | File                  | Export                    | Deployed To                      | Purpose                                                                             |
 | --------------------- | ------------------------- | -------------------------------- | ----------------------------------------------------------------------------------- |
@@ -22,7 +30,7 @@ Agent instruction text extracted from TypeScript source into standalone markdown
 | `cursor-rule.md`      | `CURSOR_RULE`             | `.cursor/rules/OpenKit.mdc`      | Cursor rule                                                                         |
 | `vscode-prompt.md`    | `VSCODE_PROMPT`           | `.github/prompts/work.prompt.md` | VS Code Copilot prompt                                                              |
 
-### Skills (`libs/instructions/src/skills/`)
+### Skills (`libs/agents/src/skills/`)
 
 | File Path                          | Deployed To                                          | Purpose                     |
 | ---------------------------------- | ---------------------------------------------------- | --------------------------- |
@@ -39,8 +47,8 @@ Agent instruction text extracted from TypeScript source into standalone markdown
 
 ## Placeholder Conventions
 
-| Placeholder    | Resolved                     | Value                               |
-| -------------- | ---------------------------- | ----------------------------------- |
-| `{{APP_NAME}}` | At import time in `index.ts` | `APP_NAME` constant ("OpenKit")     |
-| `{{WORKFLOW}}` | At import time in `index.ts` | Content of `instructions.md`        |
-| `{{ISSUE_ID}}` | At runtime by caller         | Function argument (e.g. "PROJ-123") |
+| Placeholder    | Resolved                            | Value                               |
+| -------------- | ----------------------------------- | ----------------------------------- |
+| `{{APP_NAME}}` | At import time in `instructions.ts` | `APP_NAME` constant ("OpenKit")     |
+| `{{WORKFLOW}}` | At import time in `instructions.ts` | Content of `instructions.md`        |
+| `{{ISSUE_ID}}` | At runtime by caller                | Function argument (e.g. "PROJ-123") |

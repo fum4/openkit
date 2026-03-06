@@ -3,7 +3,7 @@
   "name": "server",
   "projectType": "application",
   "sourceRoot": "apps/server/src",
-  "implicitDependencies": ["core", "integrations", "instructions", "shared"],
+  "implicitDependencies": ["agents", "integrations", "shared"],
   "targets": {
     "dev": {
       "executor": "nx:run-commands",

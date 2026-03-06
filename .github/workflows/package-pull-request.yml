@@ -231,7 +231,7 @@ jobs:
         uses: ./.github/actions/setup-pnpm-node
 
       - name: Build desktop artifacts (Linux)
-        run: pnpm package:desktop:linux
+        run: pnpm package:linux
 
       - name: Upload Linux artifacts
         id: upload

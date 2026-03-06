@@ -61,7 +61,7 @@ jobs:
         uses: ./.github/actions/setup-pnpm-node
 
       - name: Build desktop artifacts
-        run: pnpm package:desktop:linux
+        run: pnpm package:linux
 
       - name: Upload assets to release
         uses: softprops/action-gh-release@v2

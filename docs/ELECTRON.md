@@ -96,7 +96,7 @@ Each project gets:
 
 - A unique ID derived from a hash of its absolute directory path
 - An allocated port (incrementing from the base port)
-- A spawned OpenKit server process (`<runtime> apps/cli/dist/cli/index.js --no-open`)
+- A spawned OpenKit server process (`<runtime> <bundled-cli-path> --no-open`; in packaged builds this resolves to `Resources/cli/cli/index.js`)
 - A status lifecycle: `starting` -> `running` | `error` -> `stopped`
 
 The project name is resolved from the project's `package.json` name field, falling back to the directory name.
@@ -213,6 +213,7 @@ The preload script exposes the following methods:
 
 **App updates:**
 
+- `getAppVersion(): Promise<string>` -- returns desktop app version (packaged: `app.getVersion()`, dev: desktop-app/root package version fallback)
 - `getAppUpdateState(): Promise<AppUpdateState>` -- returns current updater status/progress
 - `checkAppUpdates(): Promise<AppUpdateState>` -- triggers a manual update check
 - `downloadAppUpdate(): Promise<AppUpdateState>` -- starts update download when available
@@ -284,12 +285,15 @@ productName: OpenKit
 ### Packaging Details
 
 - **App icons**: Electron Builder uses desktop-app scoped assets (`apps/desktop-app/assets/icon.icns` for macOS, `apps/desktop-app/assets/icon.png` for Linux).
-- **Auto-update publish config**: `apps/desktop-app/electron-builder.yml` sets `publish.provider: github` and builds both `dmg` and `zip` targets for macOS so update metadata can be generated.
+- **Auto-update publish config**: `apps/desktop-app/electron-builder.yml` sets `publish.provider: generic` with `https://github.com/fum4/openkit/releases/latest/download`, and builds both `dmg` and `zip` targets for macOS so update metadata can be generated without relying on GitHub's `releases.atom` feed.
+- **Packaging app root**: `directories.app` is `apps/desktop-app` (configured as `.` relative to `apps/desktop-app/electron-builder.yml`), so runtime dependencies are resolved from `apps/desktop-app/package.json`.
+- **Version source of truth**: root `package.json` still drives release tags. During releases, `release-it` runs `scripts/bump-affected-app-versions.mjs` (`after:bump`) to patch-bump only affected app package versions since the previous release tag (except `apps/mobile-app`) before creating the release commit/tag.
 - **asar**: Enabled. The app is bundled into an asar archive for faster loading.
-- **Main entry override**: `extraMetadata.main` is set to `apps/desktop-app/dist/main.js` so the packaged `app.asar` resolves the Electron main process entry correctly.
-- **asarUnpack**: Only `node_modules/node-pty/**` is unpacked from the asar archive (configured in `apps/desktop-app/electron-builder.yml`) so the Electron main entry (`apps/desktop-app/dist/main.js`) remains inside `app.asar` for electron-builder entry validation.
-- **extraResources**: `apps/server/dist/runtime` (containing `port-hook.cjs`) is copied to the `runtime` resource directory.
-- **Included files**: `apps/desktop-app/dist/**/*`, `apps/desktop-app/assets/**/*`, `apps/desktop-app/node_modules/**/*`, `apps/cli/dist/**/*`, `apps/web-app/dist/**/*`, `apps/server/dist/runtime/**/*`, `node_modules/**/*`, `package.json`
+- **Main entry override**: `extraMetadata.main` is set to `dist/main.js` so the packaged `app.asar` resolves the Electron main process entry correctly.
+- **asarUnpack**: Only `node_modules/node-pty/**` is unpacked from the asar archive.
+- **extraResources**: `apps/cli/dist`, `apps/web-app/dist`, and `apps/server/dist/runtime` are copied into `Resources/cli`, `Resources/web`, and `Resources/runtime` respectively for deterministic packaged runtime paths.
+- **Included files**: `dist/**/*`, `assets/**/*`, `package.json` (plus production dependencies from `apps/desktop-app/package.json`)
+- **Packaged CLI lookup**: server-side command checks/launches used by integrations and "Open In..." flows augment `PATH` with common macOS bin paths (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, `/bin`, `/opt/local/bin`) so installed CLIs/editors can be detected reliably in packaged app environments.
 - **macOS notarization hook**: `afterSign` runs `apps/desktop-app/electron-builder-notarize.cjs`. The hook notarizes only macOS builds and skips gracefully when signing credentials are not present.
 - **Output directory**: `apps/desktop-app/release/`
 
@@ -308,14 +312,18 @@ The desktop app uses `electron-updater` in `apps/desktop-app/src/main.ts` for pr
 - checks for updates on startup
 - checks again every 10 minutes
 - supports user-controlled background downloads via App Settings (`autoDownloadUpdates`)
-- shows an update chip in the header (left of the activity bell) with download progress and install action
+- retries update downloads up to 5 times silently before surfacing a failure state
+- treats transient `latest-mac.yml` not-found errors during release-asset propagation as "not ready yet" (keeps updater in idle state and retries on the next check)
+- shows app version in the top tab bar (left of the settings button) and update controls in the header (left of the activity bell)
 
 Release packaging must upload the updater files generated by Electron Builder (ZIP artifacts and `latest*.yml`) in addition to DMGs so update checks can resolve metadata and downloads.
 
 ### Build Command
 
 ```bash
-pnpm package:desktop   # Runs app-local desktop packaging scripts
+pnpm package         # Runs app-local desktop packaging scripts for all supported platforms
+pnpm package:mac     # Runs app-local desktop packaging scripts for macOS
+pnpm package:linux   # Runs app-local desktop packaging scripts for Linux
 ```
 
 This first builds required app artifacts via Nx, then packages with electron-builder using `apps/desktop-app/electron-builder.yml`.

@@ -2,6 +2,12 @@ import { execFile as execFileCb } from "child_process";
 import { promisify } from "util";
 import type { Hono } from "hono";
 
+import {
+  isCommandOnPath,
+  resolveCommandPath,
+  withAugmentedPathEnv,
+} from "@openkit/shared/command-path";
+
 const execFile = promisify(execFileCb);
 
 type CodingAgent = "claude" | "codex" | "gemini" | "opencode";
@@ -45,17 +51,15 @@ function resolveAgentConfig(raw: string): AgentCliConfig | null {
 }
 
 async function commandExists(command: string): Promise<boolean> {
-  try {
-    await execFile("which", [command], { timeout: 5_000 });
-    return true;
-  } catch {
-    return false;
-  }
+  return isCommandOnPath(command);
 }
 
 async function runBrewInstall(formula: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await execFile("brew", ["install", formula], { timeout: 10 * 60_000 });
+    await execFile(resolveCommandPath("brew"), ["install", formula], {
+      timeout: 10 * 60_000,
+      env: withAugmentedPathEnv(),
+    });
     return { success: true };
   } catch (error) {
     const err = error as { stderr?: string; stdout?: string; message?: string };

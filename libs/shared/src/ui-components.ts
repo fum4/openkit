@@ -20,8 +20,8 @@ export function getBundledWebUiPath(projectRoot: string): string {
   return path.join(projectRoot, "apps", "web-app", "dist");
 }
 
-function getLegacyBundledWebUiPath(projectRoot: string): string {
-  return path.join(projectRoot, "dist", "ui");
+function getPackagedWebUiPath(projectRoot: string): string {
+  return path.join(projectRoot, "web");
 }
 
 function hasIndexHtml(dir: string): boolean {
@@ -37,7 +37,7 @@ function isDir(pathname: string): boolean {
 }
 
 export function resolveAvailableWebUiPath(projectRoot: string): string | null {
-  const bundledPaths = [getBundledWebUiPath(projectRoot), getLegacyBundledWebUiPath(projectRoot)];
+  const bundledPaths = [getBundledWebUiPath(projectRoot), getPackagedWebUiPath(projectRoot)];
   for (const bundledPath of bundledPaths) {
     if (isDir(bundledPath) && hasIndexHtml(bundledPath)) {
       return bundledPath;

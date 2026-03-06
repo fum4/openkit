@@ -5,6 +5,11 @@ import path from "path";
 import { promisify } from "util";
 import type { Hono } from "hono";
 
+import {
+  isCommandOnPath,
+  resolveCommandPath,
+  withAugmentedPathEnv,
+} from "@openkit/shared/command-path";
 import type { WorktreeManager } from "../manager";
 import { CUSTOM_AGENT_SPECS, type AgentId, resolveAgentDeployDir } from "../lib/tool-configs";
 
@@ -20,9 +25,10 @@ interface CliResult {
 
 async function runClaude(args: string[], timeout = 15_000): Promise<CliResult> {
   try {
-    const { stdout, stderr } = await execFile("claude", args, {
+    const { stdout, stderr } = await execFile(resolveCommandPath("claude"), args, {
       encoding: "utf-8",
       timeout,
+      env: withAugmentedPathEnv(),
     });
     return { success: true, stdout: stdout.trim(), stderr: stderr.trim() };
   } catch (err: unknown) {
@@ -383,12 +389,7 @@ function parseMcpConfig(installPath: string): Record<string, McpServerConfig> {
 
 /** Check if a command exists on the system */
 async function commandExists(cmd: string): Promise<boolean> {
-  try {
-    await execFile("which", [cmd], { encoding: "utf-8", timeout: 3_000 });
-    return true;
-  } catch {
-    return false;
-  }
+  return isCommandOnPath(cmd);
 }
 
 interface HealthCheckResult {

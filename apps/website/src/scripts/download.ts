@@ -49,9 +49,9 @@ interface NavigatorWithUAData extends Navigator {
 }
 
 const CACHE_KEY = "OpenKit-release-info";
-const RELEASES_API = "https://api.github.com/repos/fum4/OpenKit/releases/latest";
-const RELEASES_PAGE = "https://github.com/fum4/OpenKit/releases";
-const LATEST_DOWNLOAD_BASE = "https://github.com/fum4/OpenKit/releases/latest/download";
+const RELEASES_API = "https://api.github.com/repos/fum4/openkit/releases/latest";
+const RELEASES_PAGE = "https://github.com/fum4/openkit/releases";
+const LATEST_DOWNLOAD_BASE = "https://github.com/fum4/openkit/releases/latest/download";
 const LATEST_MAC_MANIFEST = `${LATEST_DOWNLOAD_BASE}/latest-mac.yml`;
 const LATEST_LINUX_MANIFEST = `${LATEST_DOWNLOAD_BASE}/latest-linux.yml`;
 

@@ -1,10 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { actions } from "@openkit/agent/actions";
-import type { ActionContext, ActionParam } from "@openkit/agent/actions";
+import { actions } from "@openkit/agents/actions";
+import type { ActionContext, ActionParam } from "@openkit/agents/actions";
 import { APP_NAME } from "@openkit/shared/constants";
-import { MCP_INSTRUCTIONS, MCP_WORK_ON_TASK_PROMPT } from "@openkit/instructions";
+import { MCP_INSTRUCTIONS, MCP_WORK_ON_TASK_PROMPT } from "@openkit/agents";
 import { APP_VERSION } from "@openkit/shared/version";
 import type { ActivityCategory, ActivitySeverity } from "./activity-event";
 

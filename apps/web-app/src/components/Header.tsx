@@ -1,5 +1,5 @@
 import { AnimatePresence } from "motion/react";
-import { Download } from "lucide-react";
+import { Download, Rocket, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ACTIVITY_TYPES } from "@openkit/shared/activity-event";
@@ -42,7 +42,7 @@ interface HeaderProps {
     openHooksTab?: boolean;
   }) => void;
   onNavigateToIssue?: (target: {
-    source: "jira" | "linear";
+    source: "jira" | "linear" | "local";
     issueId: string;
     projectName?: string;
     sourceServerUrl?: string;
@@ -80,7 +80,6 @@ export function Header({
   const api = useApi();
   const { activeProject, serverUrl } = useServer();
   const [appUpdate, setAppUpdate] = useState<AppUpdateState | null>(null);
-  const [isUpdateHovered, setIsUpdateHovered] = useState(false);
   const [feedOpen, setFeedOpen] = useState(false);
   const [showAllProjects, setShowAllProjects] = useState(true);
   const [selectedFilterGroups, setSelectedFilterGroups] = useState<ActivityFilterGroup[]>([]);
@@ -311,9 +310,7 @@ export function Header({
 
   const shouldShowUpdateChip = useMemo(() => {
     if (!appUpdate) return false;
-    return ["checking", "available", "downloading", "downloaded", "error"].includes(
-      appUpdate.status,
-    );
+    return ["available", "downloading", "downloaded", "error"].includes(appUpdate.status);
   }, [appUpdate]);
 
   const updateBaseText = useMemo(() => {
@@ -321,24 +318,6 @@ export function Header({
     switch (appUpdate.status) {
       case "checking":
         return "Checking updates";
-      case "available":
-        return "Update available";
-      case "downloading":
-        return appUpdate.progress != null
-          ? `Downloading ${Math.round(appUpdate.progress)}%`
-          : "Downloading update";
-      case "downloaded":
-        return "Update available";
-      case "error":
-        return "Update failed";
-      default:
-        return "";
-    }
-  }, [appUpdate]);
-
-  const updateHoverText = useMemo(() => {
-    if (!appUpdate) return "";
-    switch (appUpdate.status) {
       case "available":
         return "Download update";
       case "downloading":
@@ -349,15 +328,19 @@ export function Header({
         return "Install update";
       case "error":
         return "Retry update";
-      case "checking":
-        return "Checking for updates";
       default:
         return "";
     }
   }, [appUpdate]);
 
   const updateIcon = useMemo(() => {
-    if (appUpdate?.status === "downloading" || appUpdate?.status === "checking") {
+    if (appUpdate?.status === "downloaded") {
+      return <Rocket className="w-3 h-3 flex-shrink-0" />;
+    }
+    if (appUpdate?.status === "error") {
+      return <RotateCcw className="w-3 h-3 flex-shrink-0" />;
+    }
+    if (appUpdate?.status === "downloading") {
       return <Download className="w-3 h-3 flex-shrink-0 animate-pulse" />;
     }
     return <Download className="w-3 h-3 flex-shrink-0" />;
@@ -490,15 +473,15 @@ export function Header({
             <button
               type="button"
               onClick={handleUpdateChipClick}
-              onMouseEnter={() => setIsUpdateHovered(true)}
-              onMouseLeave={() => setIsUpdateHovered(false)}
-              className="relative h-7 w-[124px] px-2.5 rounded-md text-[10px] text-amber-100 hover:bg-[#1f2937] transition-colors duration-150 overflow-hidden inline-flex items-center justify-center gap-1.5"
-              title={updateHoverText || updateBaseText}
+              className={`relative h-7 px-2.5 rounded-md text-[10px] text-amber-100/75 transition-colors duration-150 overflow-hidden inline-flex items-center justify-center gap-1.5 ${
+                appUpdate.status === "downloading"
+                  ? "bg-transparent hover:bg-transparent"
+                  : "bg-amber-300/10 hover:bg-amber-300/14"
+              }`}
+              title={updateBaseText}
             >
               {updateIcon}
-              <span className="truncate text-center">
-                {isUpdateHovered ? updateHoverText || updateBaseText : updateBaseText}
-              </span>
+              <span className="truncate text-center">{updateBaseText}</span>
               {appUpdate.status === "downloading" && (
                 <span
                   className="absolute bottom-0 left-0 h-[1.5px] bg-amber-300 transition-[width] duration-200"
@@ -508,7 +491,7 @@ export function Header({
             </button>
           )}
 
-          <div className="relative">
+          <div className="relative ml-1.5">
             <ActivityBell unreadCount={unreadCount} isOpen={feedOpen} onClick={handleToggleFeed} />
             <AnimatePresence>
               {feedOpen && (

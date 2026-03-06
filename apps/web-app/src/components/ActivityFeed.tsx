@@ -161,7 +161,7 @@ interface ActivityNavigationProps {
     openHooksTab?: boolean;
   }) => void;
   onNavigateToIssue?: (target: {
-    source: "jira" | "linear";
+    source: "jira" | "linear" | "local";
     issueId: string;
     projectName?: string;
     sourceServerUrl?: string;
@@ -449,8 +449,10 @@ function ActivityRow({
   const actionRequired = isActionRequiredEvent(event);
   const hookEvent = isHookEvent(event);
   const issueSource =
-    event.metadata?.source === "jira" || event.metadata?.source === "linear"
-      ? (event.metadata.source as "jira" | "linear")
+    event.metadata?.source === "jira" ||
+    event.metadata?.source === "linear" ||
+    event.metadata?.source === "local"
+      ? (event.metadata.source as "jira" | "linear" | "local")
       : null;
   const claudeRelated = event.type === "auto_task_claimed" || event.metadata?.autoClaimed === true;
   const issueId =

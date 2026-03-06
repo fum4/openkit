@@ -105,11 +105,7 @@ packages/                Reserved for future reusable workspace packages
 
 ```text
 libs/
-├── agent/               MCP action/transport library
-│   ├── project.json
-│   └── src/
-│
-├── core/                Core runtime helpers (git/env/process)
+├── agents/              MCP action/transport library + bundled instructions
 │   ├── project.json
 │   └── src/
 │
@@ -117,11 +113,7 @@ libs/
 │   ├── project.json
 │   └── src/
 │
-├── instructions/        MCP and skill markdown instructions
-│   ├── project.json
-│   └── src/
-│
-└── shared/              Shared constants, contracts/types, logger, preferences
+└── shared/              Shared constants, contracts/types, logger, preferences, git/env helpers
     ├── project.json
     └── src/
 ```
@@ -130,6 +122,7 @@ libs/
 
 - `package.json` at the repo root is the workspace orchestration package (marked `private` while npm publishing is paused).
 - App-level `package.json` files exist for `apps/cli`, `apps/server`, `apps/web-app`, and `apps/desktop-app` so each app is directly runnable from its own directory.
+- `libs/shared/package.json` provides direct dependencies for shared runtime helpers (for example logger formatting).
 - `apps/website/package.json` is isolated for Astro website tooling.
 - `apps/mobile-app/package.json` is isolated for Expo/React Native tooling.
 - Shared runtime code in `libs/*` uses Nx `project.json` and TypeScript path aliases.

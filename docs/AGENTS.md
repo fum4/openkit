@@ -76,7 +76,7 @@ Deploying/removing Claude instruction files does not mutate `.claude/settings.js
 
 ### Exposed Tools
 
-The MCP server exposes the following tools (defined in `libs/agent/src/actions.ts`):
+The MCP server exposes the following tools (defined in `libs/agents/src/actions.ts`):
 
 **Issue browsing:**
 

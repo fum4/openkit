@@ -2,6 +2,11 @@ import { execFile, spawn } from "child_process";
 
 import type { Hono } from "hono";
 
+import {
+  isCommandOnPath,
+  resolveCommandPath,
+  withAugmentedPathEnv,
+} from "@openkit/shared/command-path";
 import { configureGitUser } from "@openkit/integrations/github/gh-client";
 import type { WorktreeManager } from "../manager";
 
@@ -9,7 +14,7 @@ const DEVICE_LOGIN_URL = "https://github.com/login/device";
 
 function runExecFile(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, (error) => {
+    execFile(resolveCommandPath(cmd), args, { env: withAugmentedPathEnv() }, (error) => {
       if (error) reject(error);
       else resolve();
     });
@@ -44,10 +49,12 @@ function parseGhLoginOutput(output: string): { code: string; url: string } {
 function startGhAuthLogin(manager: WorktreeManager): Promise<{ code: string; url: string }> {
   return new Promise((resolve, reject) => {
     // Include 'user' scope to allow fetching the user's email for git config
+    const ghCommand = resolveCommandPath("gh");
     const child = spawn(
-      "gh",
+      ghCommand,
       ["auth", "login", "--web", "-h", "github.com", "-p", "https", "-s", "user"],
       {
+        env: withAugmentedPathEnv(),
         stdio: ["pipe", "pipe", "pipe"],
       },
     );
@@ -71,7 +78,7 @@ function startGhAuthLogin(manager: WorktreeManager): Promise<{ code: string; url
       const parsed = parseGhLoginOutput(output);
       if (!parsed.code && !parsed.url) return;
       if (parsed.url) {
-        execFile("open", [parsed.url], () => {
+        execFile(resolveCommandPath("open"), [parsed.url], { env: withAugmentedPathEnv() }, () => {
           // Best effort only.
         });
       }
@@ -145,7 +152,21 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
 
   app.post("/api/github/install", async (c) => {
     try {
-      await runExecFile("brew", ["install", "gh"]);
+      const ghInstalled = await isCommandOnPath("gh");
+      if (!ghInstalled) {
+        const brewInstalled = await isCommandOnPath("brew");
+        if (!brewInstalled) {
+          return c.json(
+            {
+              success: false,
+              error:
+                "GitHub CLI is not installed and Homebrew is unavailable. Install gh manually.",
+            },
+            400,
+          );
+        }
+        await runExecFile("brew", ["install", "gh"]);
+      }
       await manager.initGitHub();
     } catch (error) {
       return c.json(
