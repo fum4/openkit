@@ -31,7 +31,7 @@ const chapters = [
       {
         title: "AI-targeted context and todos come first.",
         context:
-          "You can add local instructions and task-specific todos for agents, and that guidance is prioritized during execution so work stays aligned with your team’s real implementation expectations.",
+          "You can add local instructions and task-specific todos for agents, and that guidance is prioritized during execution so work stays aligned with your real implementation expectations.",
       },
     ],
   },
@@ -60,7 +60,7 @@ const chapters = [
       {
         title: "Independent runtime with automatic port conflict resolution.",
         context:
-          "Each environment can run on its own, with port offsets applied automatically so parallel servers do not conflict and each task remains runnable without manual port debugging.",
+          "Each environment can run on its own, with port offsets applied automatically so parallel servers do not conflict and each task remains runnable without manual port debugging (currently limited to Node.js).",
       },
     ],
   },
@@ -69,7 +69,7 @@ const chapters = [
     icon: `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`,
     color: "#818cf8",
     intro:
-      "Bring your AI stack under one roof with a centralized way to manage tooling across all projects.",
+      "Bring your AI stack under one roof with a centralized way to manage tooling across your projects and models.",
     details: [
       {
         title: "Centralized AI tooling across projects.",
@@ -113,7 +113,7 @@ const chapters = [
       {
         title: "Readable progress at high concurrency.",
         context:
-          "Even with many active agents, activity remains understandable so teams can make quick decisions with confidence.",
+          "Even with many active agents, activity remains understandable so you can make quick decisions with confidence.",
       },
     ],
   },
@@ -131,9 +131,9 @@ const chapters = [
         <path d="M15 5H6.5a3.5 3.5 0 0 0 0 7H9"></path>
       </svg>
     </div>
-    <h2 class="section-title fade-in">From ticket to pull request. Autonomous.</h2>
+    <h2 class="section-title fade-in">From ticket to pull request. Confidently.</h2>
     <p class="section-sub fade-in" data-delay="80">
-      A continuous story: capture work, execute in isolation, coordinate tooling, and ship with visibility and confidence.
+      A continuous story: capture work, execute in isolation, coordinate tooling, and ship with visibility and confidence. Set up your <span class="highlight">own workflow</span> based on your <span class="highlight">actual needs</span>.
     </p>
     <div class="flow-strip fade-in" data-delay="120" aria-label="Issue tracker to deployment flow">
       <ol class="flow-steps">
@@ -180,6 +180,24 @@ const chapters = [
         </li>
       </ol>
     </div>
+    <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
+      • Integrate your favorite issue tracker, or use the one your team already setup.
+    </p>
+      <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
+      • Add your own context to issues and let your best-in-class agent pick them up.
+    </p>
+      <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
+      • Empower your agents with skills, plugins, MCPs, and hooks — easily.
+    </p>
+    <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
+      • Visualize and adapt your workflow until you are confident in it.
+    </p>
+    <h3 class="flow-bridge-subtitle fade-in" data-delay="280">
+      <strong>It's your workflow.</strong>
+    </h3>
+    <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
+      OpenKit just provides an easy way to manage it.
+    </p>
     <div class="flow-bridge">
       <div class="flow-bridge-icon fade-in" data-delay="140" aria-hidden="true">
         <svg
@@ -202,12 +220,16 @@ const chapters = [
         One Workflow. Many Surfaces.
       </h2>
       <p class="flow-bridge-body fade-in" data-delay="220">
-        OpenKit gives you a UI for setup, visibility, and day-to-day management, while the same workflow
+        OpenKit provides its own UI for setup, visibility, and day-to-day management, while the same workflow
         can run quietly in the background through one shared skill your agents already follow.
       </p>
       <h3 class="flow-bridge-subtitle fade-in" data-delay="280">
-        Work from any terminal or agent interface without changing how you or your team operates.
+        Set up your workflow once, then use any agent interface you like.
       </h3>
+      <p class="flow-bridge-body fade-in">Use Claude Code in your favorite terminal, Codex, OpenCode, or OpenKit's own UI.
+        <br />
+        No need to change how you or your team operates.
+      </p>
     </div>
 
     <div class="story-flow">
@@ -241,6 +263,11 @@ const chapters = [
 </section>
 
 <style>
+  .highlight {
+    /* color: #acacad; */
+    color: #b1b1b3;
+  }
+
   .section-route-icon {
     display: flex;
     justify-content: center;
@@ -281,7 +308,7 @@ const chapters = [
 
   .flow-bridge {
     max-width: 860px;
-    margin: 400px auto 236px;
+    margin: 320px auto 400px;
     padding: 24px 28px 26px;
     border-radius: 14px;
     border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border-subtle));
@@ -328,7 +355,7 @@ const chapters = [
   }
 
   .flow-bridge-subtitle {
-    margin: 40px 0 0;
+    margin: 40px 0;
     text-align: center;
     font-family: var(--font-display);
     font-size: 18px;
