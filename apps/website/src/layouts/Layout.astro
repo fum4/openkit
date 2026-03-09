@@ -7,7 +7,7 @@ interface Props {
 }
 
 const {
-  title = "OpenKit — Your workflow for your agents",
+  title = "OpenKit — The platform for your agents",
   description = "Stop babysitting your AI agents. OpenKit gives them a real workflow — pick up tasks, work in isolation, ship PRs. Works with Claude Code, Cursor, or any MCP-compatible agent.",
 } = Astro.props;
 
@@ -46,6 +46,8 @@ const googleFontsUrl =
     <link rel="apple-touch-icon" href="/icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://api.github.com" crossorigin />
+    <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin />
     <link rel="preload" as="style" href={googleFontsUrl} />
     <link
       rel="stylesheet"
