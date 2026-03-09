@@ -4,7 +4,7 @@
 
 Hooks are automated checks, prompt instructions, and agent skills that run at defined points in a worktree's lifecycle. They provide a structured way to validate work and extend agent behavior.
 
-Hooks are organized by **trigger type** -- when they fire relative to agent work. Agent workflow triggers support command steps, prompt steps, and skill references. Worktree lifecycle triggers support command steps only.
+Hooks are organized by **trigger type** -- when they fire relative to agent work. All trigger types support command steps, prompt steps, and skill references.
 
 The hooks system is configured through the web UI's Hooks view and stored in `.openkit/hooks.json`.
 
@@ -44,7 +44,7 @@ References to skills from the `~/.openkit/skills/` registry. When hooks run, ski
 - The same skill can be used in multiple trigger types (e.g., a code-review skill in both `post-implementation` and `on-demand`).
 - Skills are identified by the composite key `skillName + trigger`.
 - Custom-trigger skills include a `condition` field -- a natural-language description of when the agent should invoke them.
-- Lifecycle triggers (`worktree-created`, `worktree-removed`) are command-only and do not accept skills.
+- Lifecycle-trigger skills (`worktree-created`, `worktree-removed`) are supported and reported using the same `report_hook_status` flow.
 
 ### Prompt Steps
 
@@ -52,7 +52,7 @@ Prompt steps are plain-language instructions sent to the agent (not shell comman
 
 - Stored as hook steps with `kind: "prompt"` and `prompt` text.
 - Prompt steps are never executed via `run_hooks`.
-- Prompt steps are available for pre/post/custom triggers only.
+- Prompt steps are available for all trigger types, including lifecycle triggers.
 
 ### Per-Issue Skill Overrides
 
@@ -138,7 +138,7 @@ Hooks configuration is stored in `.openkit/hooks.json`:
 
 The Hooks view (top navigation) is the configuration interface. Users can:
 
-1. Add command steps, prompt steps (pre/post/custom), or import skills into trigger sections.
+1. Add command steps, prompt steps, or import skills into any trigger section.
 2. Toggle individual items on/off.
 3. Edit command step names, commands, and conditions.
 4. Remove items.
@@ -181,7 +181,7 @@ When hooks are triggered for a worktree:
 4. Prompt steps are skipped by runtime execution and interpreted by the agent from `TASK.md`.
 5. Results are collected and persisted to `.openkit/worktrees/{worktreeId}/hooks/latest-run.json`.
 6. Skill results are reported separately by agents and stored at `.openkit/worktrees/{worktreeId}/hooks/skill-results.json` using key `skillName + trigger`.
-7. `worktree-created` and `worktree-removed` command hooks are triggered automatically by CLI-backed create/remove flows (server mode, MCP standalone mode, and `openkit task --init` worktree creation).
+7. `worktree-created` and `worktree-removed` command hooks are triggered automatically by CLI-backed create/remove flows (server mode, MCP standalone mode, and `openkit task --init` worktree creation). Prompt and skill entries for these lifecycle triggers are configured and reported the same way as other agent-interpreted hook items.
 
 ## Data Storage
 
@@ -236,13 +236,12 @@ Registered via `registerHooksRoutes(app, manager, hooksManager)` in the server s
 
 ### HooksPanel (`apps/web-app/src/components/VerificationPanel.tsx`)
 
-The top-level Hooks view. Displays six sections (one per trigger type). Pre/post/custom/on-demand sections support command/prompt/skill composition; worktree lifecycle sections are command-only.
+The top-level Hooks view. Displays six sections (one per trigger type). All sections support command/prompt/skill composition.
 
 - A header with icon, title, and description.
 - Command/prompt step cards (editable, toggleable, removable).
 - Skill cards (toggleable, removable).
-- "Add command", "Add skill", and (pre/post) "Add prompt" action buttons (mutually exclusive forms).
-- Worktree lifecycle sections expose only "Add command".
+- "Add command", "Add prompt", and "Add skill" action buttons (mutually exclusive forms).
 
 Custom-trigger sections support grouped condition-based commands, prompts, and skills in a single editor.
 

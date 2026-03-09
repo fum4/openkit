@@ -336,15 +336,6 @@ export function registerHooksRoutes(
       if (!skillName) {
         return c.json({ success: false, error: "skillName is required" }, 400);
       }
-      if (trigger === "worktree-created" || trigger === "worktree-removed") {
-        return c.json(
-          {
-            success: false,
-            error: "worktree-created/worktree-removed hooks support command steps only.",
-          },
-          400,
-        );
-      }
       const config = hooksManager.importSkill(skillName, trigger, condition, conditionTitle);
       return c.json({ success: true, config });
     } catch (error) {
@@ -745,15 +736,6 @@ export function registerHooksRoutes(
       const { skillName, trigger, success, summary, content, filePath } = body;
       if (!skillName) {
         return c.json({ success: false, error: "skillName is required" }, 400);
-      }
-      if (trigger === "worktree-created" || trigger === "worktree-removed") {
-        return c.json(
-          {
-            success: false,
-            error: "Lifecycle hooks are command-only; skill status reporting is not supported.",
-          },
-          400,
-        );
       }
 
       if (success === undefined || success === null) {

@@ -626,13 +626,19 @@ export function HooksTab({
   );
   const customSkills = (config?.skills ?? []).filter((s) => s.trigger === "custom");
   const onDemandSkills = (config?.skills ?? []).filter((s) => s.trigger === "on-demand");
+  const worktreeCreatedSkills = (config?.skills ?? []).filter(
+    (s) => s.trigger === "worktree-created",
+  );
+  const worktreeRemovedSkills = (config?.skills ?? []).filter(
+    (s) => s.trigger === "worktree-removed",
+  );
 
   const hasPre = preSteps.length > 0 || preSkills.length > 0;
   const hasPost = postSteps.length > 0 || postSkills.length > 0;
   const hasCustom = customSteps.length > 0 || customSkills.length > 0;
   const hasOnDemand = onDemandSteps.length > 0 || onDemandSkills.length > 0;
-  const hasWorktreeCreated = worktreeCreatedSteps.length > 0;
-  const hasWorktreeRemoved = worktreeRemovedSteps.length > 0;
+  const hasWorktreeCreated = worktreeCreatedSteps.length > 0 || worktreeCreatedSkills.length > 0;
+  const hasWorktreeRemoved = worktreeRemovedSteps.length > 0 || worktreeRemovedSkills.length > 0;
 
   // Group custom items by condition
   const customGroups: Record<
@@ -742,19 +748,30 @@ export function HooksTab({
                 <FolderPlus className="w-4 h-4 text-cyan-400" />
                 <span className={`text-xs ${text.primary}`}>Worktree Created</span>
                 <span className={`text-[10px] ${text.muted}`}>
-                  {worktreeCreatedSteps.length} item
-                  {worktreeCreatedSteps.length !== 1 ? "s" : ""}
+                  {worktreeCreatedSteps.length + worktreeCreatedSkills.length} item
+                  {worktreeCreatedSteps.length + worktreeCreatedSkills.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              <StepList
-                steps={worktreeCreatedSteps}
-                stepResults={stepResults}
-                runningSteps={runningSteps}
-                runningAll={false}
-                expandedSteps={expandedSteps}
-                setExpandedSteps={setExpandedSteps}
-                onRunSingle={handleRunSingle}
-              />
+              {worktreeCreatedSteps.length > 0 && (
+                <StepList
+                  steps={worktreeCreatedSteps}
+                  stepResults={stepResults}
+                  runningSteps={runningSteps}
+                  runningAll={false}
+                  expandedSteps={expandedSteps}
+                  setExpandedSteps={setExpandedSteps}
+                  onRunSingle={handleRunSingle}
+                />
+              )}
+              {worktreeCreatedSkills.length > 0 && (
+                <SkillList
+                  skills={worktreeCreatedSkills}
+                  skillResultMap={skillResultMap}
+                  expandedSkills={expandedSkills}
+                  setExpandedSkills={setExpandedSkills}
+                  onViewReport={handleViewReport}
+                />
+              )}
             </>
           )}
 
@@ -765,19 +782,30 @@ export function HooksTab({
                 <FolderMinus className="w-4 h-4 text-rose-400" />
                 <span className={`text-xs ${text.primary}`}>Worktree Removed</span>
                 <span className={`text-[10px] ${text.muted}`}>
-                  {worktreeRemovedSteps.length} item
-                  {worktreeRemovedSteps.length !== 1 ? "s" : ""}
+                  {worktreeRemovedSteps.length + worktreeRemovedSkills.length} item
+                  {worktreeRemovedSteps.length + worktreeRemovedSkills.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              <StepList
-                steps={worktreeRemovedSteps}
-                stepResults={stepResults}
-                runningSteps={runningSteps}
-                runningAll={false}
-                expandedSteps={expandedSteps}
-                setExpandedSteps={setExpandedSteps}
-                onRunSingle={handleRunSingle}
-              />
+              {worktreeRemovedSteps.length > 0 && (
+                <StepList
+                  steps={worktreeRemovedSteps}
+                  stepResults={stepResults}
+                  runningSteps={runningSteps}
+                  runningAll={false}
+                  expandedSteps={expandedSteps}
+                  setExpandedSteps={setExpandedSteps}
+                  onRunSingle={handleRunSingle}
+                />
+              )}
+              {worktreeRemovedSkills.length > 0 && (
+                <SkillList
+                  skills={worktreeRemovedSkills}
+                  skillResultMap={skillResultMap}
+                  expandedSkills={expandedSkills}
+                  setExpandedSkills={setExpandedSkills}
+                  onViewReport={handleViewReport}
+                />
+              )}
             </>
           )}
 

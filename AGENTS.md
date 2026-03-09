@@ -66,6 +66,7 @@ There is no test runner configured.
 - Always use the standard shared color palette and tokens from `apps/web-app/src/theme.ts`.
 - Do not introduce ad-hoc lighter/darker color variants for existing control patterns.
 - For switches/toggles, reuse the app-standard treatment (`bg-accent` when enabled, neutral off-state styling when disabled).
+- Use the shared `Modal` component for dialogs; avoid bespoke dialog shells unless there is a documented exception.
 
 ## Icon Handling
 

@@ -5,8 +5,10 @@
 OpenKit has a unified notification system that tracks events across worktrees, agents, git operations, and integrations. Events flow through a central **Activity Log** on the backend and surface in three ways:
 
 1. **Activity Feed surfaces** — the header bell dropdown plus a dedicated `Activity` page, both showing the same timeline rows and controls
-2. **Toast notifications** — in-app popups using `react-hot-toast`; all UI-surfaced errors are persistent until dismissed
+2. **Toast notifications** — in-app popups using `react-hot-toast`; UI error toasts auto-dismiss after 5s
 3. **OS notifications** — native desktop notifications (Electron only) when the app is unfocused
+
+In parallel, operational traces are captured in backend `OpsLog` (`.openkit/ops-log.jsonl`) and shown in per-project debug mode on the `Activity` page. Error toasts emit a client event that is mirrored into this operational log stream.
 
 The Jira/Linear/local auto-start flow emits two activity events: one when a new issue is detected and one when the selected coding agent starts working on it.
 
@@ -27,6 +29,13 @@ ActivityLog (backend)
   │           └─ listens to each project's SSE stream → fires native Notification
   │
   └─ REST endpoint GET /api/activity (polling fallback)
+
+OpsLog (backend)
+  │
+  ├─ Persists operational traces to disk (.openkit/ops-log.jsonl)
+  ├─ Broadcasts via SSE (/api/events → "ops-log" messages)
+  ├─ Stores command-monitor start/success/failure events for child_process calls
+  └─ Accepts client error-toast reports via POST /api/logs
 ```
 
 ### Key Files
@@ -35,8 +44,11 @@ ActivityLog (backend)
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `libs/shared/src/activity-event.ts`                   | Event types, category/severity enums, config interface, defaults                                                 |
 | `apps/server/src/activity-log.ts`                     | `ActivityLog` class — persistence, pub/sub, pruning                                                              |
+| `apps/server/src/ops-log.ts`                          | `OpsLog` class — operational trace persistence, pub/sub, pruning                                                 |
+| `apps/server/src/runtime/command-monitor.ts`          | Runtime child-process monitor (`execFile`/`execFileSync`/`spawn`) feeding `OpsLog`                               |
 | `apps/server/src/routes/activity.ts`                  | REST endpoint `GET /api/activity`                                                                                |
-| `apps/server/src/routes/events.ts`                    | SSE endpoint — streams `activity` and `activity-history` messages                                                |
+| `apps/server/src/routes/logs.ts`                      | REST endpoints `GET /api/logs` and `POST /api/logs`                                                              |
+| `apps/server/src/routes/events.ts`                    | SSE endpoint — streams `activity`/`activity-history` and `ops-log`/`ops-log-history` messages                    |
 | `apps/server/src/manager.ts`                          | Creates `ActivityLog` instance, emits events from worktree lifecycle                                             |
 | `libs/agents/src/actions.ts`                          | `notify` MCP action — lets agents send custom activity events                                                    |
 | `apps/cli/src/activity.ts`                            | CLI command for terminal agents to emit awaiting-input activity                                                  |
@@ -47,6 +59,7 @@ ActivityLog (backend)
 | `apps/web-app/src/hooks/activityFeedUtils.ts`         | Shared event upsert/history/hook-aggregation utilities used by feed hooks                                        |
 | `apps/web-app/src/hooks/useActivityFeed.ts`           | Hook — listens for `OpenKit:activity` CustomEvents, manages state                                                |
 | `apps/web-app/src/hooks/useProjectActivityFeeds.ts`   | Hook — manages per-project SSE activity streams/read state for Activity page                                     |
+| `apps/web-app/src/hooks/useProjectOpsLogs.ts`         | Hook — manages per-project SSE ops-log streams/read state for Activity debug mode                                |
 | `apps/web-app/src/hooks/useWorktrees.ts`              | SSE client — bridges SSE messages to window CustomEvents                                                         |
 | `apps/web-app/src/components/Header.tsx`              | Wires bell + feed panel into the app header                                                                      |
 | `apps/web-app/src/App.tsx`                            | Emits task-detected + selected-agent-started activity events for Jira/Linear/local auto-start                    |
@@ -196,10 +209,12 @@ Creates an activity event and broadcasts it over SSE. The UI uses this for app-l
 
 The existing SSE endpoint streams activity events alongside worktree updates. Messages relevant to notifications:
 
-| `type` field       | Payload                                                 | Description                               |
-| ------------------ | ------------------------------------------------------- | ----------------------------------------- |
-| `activity`         | `{ type: "activity", event: ActivityEvent }`            | Single new event                          |
-| `activity-history` | `{ type: "activity-history", events: ActivityEvent[] }` | Last 50 events sent on initial connection |
+| `type` field       | Payload                                                 | Description                                             |
+| ------------------ | ------------------------------------------------------- | ------------------------------------------------------- |
+| `activity`         | `{ type: "activity", event: ActivityEvent }`            | Single new activity event                               |
+| `activity-history` | `{ type: "activity-history", events: ActivityEvent[] }` | Last 50 activity events sent on initial connection      |
+| `ops-log`          | `{ type: "ops-log", event: OpsLogEvent }`               | Single new operational trace event                      |
+| `ops-log-history`  | `{ type: "ops-log-history", events: OpsLogEvent[] }`    | Recent operational trace events sent on initial connect |
 
 ## Frontend
 
@@ -212,6 +227,8 @@ The existing SSE endpoint streams activity events alongside worktree updates. Me
 
 This decouples the activity feed from the SSE connection hook.
 
+`useProjectOpsLogs` reads `ops-log` / `ops-log-history` directly from the same SSE stream to power the `Debug` toggle mode inside each Activity project card.
+
 ### useActivityFeed Hook
 
 `useActivityFeed` (`apps/web-app/src/hooks/useActivityFeed.ts`) listens for those CustomEvents and manages:
@@ -219,6 +236,7 @@ This decouples the activity feed from the SSE connection hook.
 - **Event list** — up to 200 events, strictly sorted newest-first.
 - **Group-key upserts** — events with the same `groupKey` replace prior events (e.g. creation started → creation completed).
 - **Hook group aggregation** — hook-related events (`hooks_started`, `hooks_ran`, `skill_*`) with `groupKey` `hooks:{worktreeId}:{trigger}` are merged into a single expandable feed entry with live child statuses for commands/skills.
+- **Consecutive task grouping** — back-to-back `task_detected` events in the same project stream are collapsed into a single pluralized entry (for example `New issues`) with per-item detail rows showing timestamp, project context, and issue/worktree links.
 - **Hook title format** — aggregated hook entries are titled as `Hooks started|running|completed (<trigger>)` (for example `Hooks started (worktree created)`).
 - **Worktree creation title format** — `creation_completed` uses the generic title `Worktree created` (worktree id stays in metadata/link context, not in the title).
 - **Unread count** — increments on each new event, resets on `markAllRead()`.
@@ -302,9 +320,11 @@ The web app uses `react-hot-toast` (`apps/web-app/src/main.tsx`) with dark styli
 
 Error toast behavior:
 
-- **Persistent errors** — error toasts use infinite duration and remain visible until the user clicks the `X`
+- **Auto-dismiss errors** — error toasts auto-close after 5 seconds
 - **Global coverage** — errors are surfaced from API wrappers (`useApi`), React Query global handlers (`QueryCache`/`MutationCache`), runtime handlers (`window.error`, `window.unhandledrejection`), and component-level error state hooks (`useErrorToast`)
+- **Recoverable worktree conflicts** — `useApi` suppresses auto-error toasts for recoverable worktree creation conflicts (`WORKTREE_EXISTS`, `WORKTREE_RECOVERY_REQUIRED`) when a canonical `worktreeId` is present, so the dedicated reuse/recreate dialog is the only prompt shown.
 - **Deduping** — near-duplicate errors are briefly deduped to prevent double toasts from overlapping handlers
+- **Ops-log mirroring** — displayed error toasts emit `OpenKit:error-toast`, and `App.tsx` forwards that to `POST /api/logs` for persistent operational tracing
 
 Activity events like auto-claims, agent progress, and hook lifecycle updates remain in the Activity feed.
 

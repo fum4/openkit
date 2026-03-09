@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 const DEFAULT_ERROR_MESSAGE = "Something went wrong";
 const DEFAULT_DEDUPE_WINDOW_MS = 1200;
 const recentErrorMap = new Map<string, number>();
+export const OPENKIT_ERROR_TOAST_EVENT = "OpenKit:error-toast";
 
 export interface ErrorToastContent {
   title?: string;
@@ -17,6 +18,11 @@ type ErrorToastInput = string | ErrorToastContent;
 interface ErrorToastOptions {
   scope?: string;
   dedupeWindowMs?: number;
+}
+
+export interface ErrorToastEventDetail {
+  message: string;
+  scope?: string;
 }
 
 function normalizeMessage(value: string): string {
@@ -74,6 +80,16 @@ export function showPersistentErrorToast(
   if (lastShownAt !== undefined && now - lastShownAt < dedupeWindowMs) return;
   recentErrorMap.set(dedupeKey, now);
 
+  if (typeof window !== "undefined") {
+    const detail: ErrorToastEventDetail = {
+      message: dedupeText,
+      scope: options?.scope,
+    };
+    window.dispatchEvent(
+      new CustomEvent<ErrorToastEventDetail>(OPENKIT_ERROR_TOAST_EVENT, { detail }),
+    );
+  }
+
   toast.custom(
     (toastInstance) => (
       <div className="pointer-events-auto flex min-w-[320px] max-w-[440px] items-start gap-3 rounded-xl bg-[#341417] px-4 py-3 text-sm text-red-100/75 shadow-2xl">
@@ -100,7 +116,7 @@ export function showPersistentErrorToast(
       </div>
     ),
     {
-      duration: Infinity,
+      duration: 5000,
       position: "bottom-right",
       removeDelay: 0,
     },

@@ -75,6 +75,17 @@ function resolveCreatedWorktreeId(result: {
   return result.worktreeId ?? result.worktree?.id ?? null;
 }
 
+function requiresWorktreeRecoveryPrompt(result: {
+  success: boolean;
+  code?: string;
+  worktreeId?: string;
+  error?: string;
+}): boolean {
+  if (result.success || !result.worktreeId) return false;
+  if (result.code === "WORKTREE_RECOVERY_REQUIRED") return true;
+  return (result.error ?? "").includes("cannot lock ref 'refs/heads/");
+}
+
 function formatDate(iso: string) {
   if (!iso) return "";
   return new Date(iso).toLocaleString(undefined, {
@@ -232,6 +243,11 @@ export function JiraDetailPanel({
   const [existingWorktree, setExistingWorktree] = useState<{ id: string; branch: string } | null>(
     null,
   );
+  const [pendingCodeWithAgent, setPendingCodeWithAgent] = useState<{
+    agent: CodingAgent;
+    prompt: string;
+    tabLabel: string;
+  } | null>(null);
   const [statusOptions, setStatusOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [priorityOptions, setPriorityOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [typeOptions, setTypeOptions] = useState<Array<{ id: string; name: string }>>([]);
@@ -363,8 +379,11 @@ export function JiraDetailPanel({
           scope: "jira:create-worktree",
         },
       );
-    } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
-      console.log("Showing WorktreeExistsModal for:", result.worktreeId);
+    } else if (
+      (result.code === "WORKTREE_EXISTS" || requiresWorktreeRecoveryPrompt(result)) &&
+      result.worktreeId
+    ) {
+      setPendingCodeWithAgent(null);
       setExistingWorktree({ id: result.worktreeId, branch: issueKey });
     } else {
       const errorMsg = result.error || "Failed to create worktree";
@@ -414,6 +433,12 @@ export function JiraDetailPanel({
     setIsCodingWithAgent(true);
     const result = await api.createFromJira(issueKey);
     setIsCodingWithAgent(false);
+    const launchPrompt = `Implement Jira issue ${issueKey}${issue?.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+    if (requiresWorktreeRecoveryPrompt(result)) {
+      setPendingCodeWithAgent({ agent, prompt: launchPrompt, tabLabel: issueKey });
+      setExistingWorktree({ id: result.worktreeId as string, branch: issueKey });
+      return;
+    }
     const reusingExistingWorktree =
       (result.success && result.reusedExisting === true) ||
       (!result.success && result.code === "WORKTREE_EXISTS" && !!result.worktreeId);
@@ -423,9 +448,7 @@ export function JiraDetailPanel({
         worktreeId,
         mode: reusingExistingWorktree ? "resume" : "start",
         tabLabel: issueKey,
-        prompt: reusingExistingWorktree
-          ? undefined
-          : `Implement Jira issue ${issueKey}${issue?.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`,
+        prompt: reusingExistingWorktree ? undefined : launchPrompt,
       });
     } else {
       const errorMsg = result.error || "Failed to create worktree";
@@ -1073,11 +1096,24 @@ export function JiraDetailPanel({
         <WorktreeExistsModal
           worktreeId={existingWorktree.id}
           branch={existingWorktree.branch}
-          onResolved={() => {
+          onResolved={(action) => {
+            const pendingLaunch = pendingCodeWithAgent;
             setExistingWorktree(null);
+            setPendingCodeWithAgent(null);
             onCreateWorktree(existingWorktree.id);
+            if (pendingLaunch) {
+              launchCodingAgent(pendingLaunch.agent, {
+                worktreeId: existingWorktree.id,
+                mode: action === "reuse" ? "resume" : "start",
+                tabLabel: pendingLaunch.tabLabel,
+                prompt: action === "reuse" ? undefined : pendingLaunch.prompt,
+              });
+            }
           }}
-          onCancel={() => setExistingWorktree(null)}
+          onCancel={() => {
+            setExistingWorktree(null);
+            setPendingCodeWithAgent(null);
+          }}
         />
       )}
 

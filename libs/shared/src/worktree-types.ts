@@ -26,7 +26,7 @@ export interface WorktreeConfig {
   startCommand: string;
   /** Command to install dependencies in each worktree (e.g., "pnpm install", "yarn install") */
   installCommand: string;
-  /** Base branch to create worktrees from (e.g., "origin/develop", "origin/main") */
+  /** Base branch to create worktrees from (e.g., "develop", "main") */
   baseBranch: string;
   /** Port configuration for multi-port offset */
   ports: PortConfig;

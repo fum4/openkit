@@ -1,4 +1,4 @@
-import { AlertTriangle, Link, ListTodo, Plus, X } from "lucide-react";
+import { AlertTriangle, GitBranch, Link, ListTodo, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
@@ -2045,6 +2045,7 @@ export function DetailPanel({
       {showRemoveModal && (
         <ConfirmDialog
           title="Delete worktree?"
+          icon={<GitBranch className="w-4 h-4 text-accent" />}
           confirmLabel="Delete"
           loadingConfirmLabel="Deleting..."
           isLoading={isDeletingWorktree}

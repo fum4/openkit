@@ -14,6 +14,7 @@ import { AttachmentThumbnail } from "../AttachmentThumbnail";
 import type { CustomTaskAttachment } from "../../types";
 import { CodeAgentSplitButton, type CodingAgent } from "./CodeAgentSplitButton";
 import { EditableTextareaCard } from "../EditableTextareaCard";
+import { WorktreeExistsModal } from "../WorktreeExistsModal";
 
 const TASK_DEBUG_PREFIX = "[tasks][TEMP]";
 
@@ -79,6 +80,17 @@ function resolveCreatedWorktreeId(result: {
   return result.worktreeId ?? result.worktree?.id ?? null;
 }
 
+function requiresWorktreeRecoveryPrompt(result: {
+  success: boolean;
+  code?: string;
+  worktreeId?: string;
+  error?: string;
+}): boolean {
+  if (result.success || !result.worktreeId) return false;
+  if (result.code === "WORKTREE_RECOVERY_REQUIRED") return true;
+  return (result.error ?? "").includes("cannot lock ref 'refs/heads/");
+}
+
 export function CustomTaskDetailPanel({
   taskId,
   activeWorktreeIds,
@@ -102,6 +114,13 @@ export function CustomTaskDetailPanel({
   const [labelInputFocused, setLabelInputFocused] = useState(false);
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
   const [isCodingWithAgent, setIsCodingWithAgent] = useState(false);
+  const [existingWorktree, setExistingWorktree] = useState<{ id: string; branch: string } | null>(
+    null,
+  );
+  const [pendingCodeWithAgent, setPendingCodeWithAgent] = useState<{
+    agent: CodingAgent;
+    prompt: string;
+  } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -145,6 +164,12 @@ export function CustomTaskDetailPanel({
           scope: "custom-task:create-worktree",
         },
       );
+    } else if (
+      (result.code === "WORKTREE_EXISTS" || requiresWorktreeRecoveryPrompt(result)) &&
+      result.worktreeId
+    ) {
+      setPendingCodeWithAgent(null);
+      setExistingWorktree({ id: result.worktreeId, branch: taskId });
     } else {
       reportPersistentErrorToast(result.error, "Failed to create worktree", {
         scope: "custom-task:create-worktree",
@@ -196,6 +221,12 @@ export function CustomTaskDetailPanel({
       error: result.error ?? null,
     });
     setIsCodingWithAgent(false);
+    const launchPrompt = `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+    if (requiresWorktreeRecoveryPrompt(result)) {
+      setPendingCodeWithAgent({ agent, prompt: launchPrompt });
+      setExistingWorktree({ id: result.worktreeId as string, branch: taskId });
+      return;
+    }
     const reusingExistingWorktree =
       (result.success && result.reusedExisting === true) ||
       (!result.success && result.code === "WORKTREE_EXISTS" && !!result.worktreeId);
@@ -205,9 +236,7 @@ export function CustomTaskDetailPanel({
       launchCodingAgent(agent, {
         worktreeId: result.worktreeId ?? taskId,
         mode: reusingExistingWorktree ? "resume" : "start",
-        prompt: reusingExistingWorktree
-          ? undefined
-          : `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`,
+        prompt: reusingExistingWorktree ? undefined : launchPrompt,
       });
       console.info(`${TASK_DEBUG_PREFIX} launch intent dispatched`, {
         taskId,
@@ -608,6 +637,32 @@ export function CustomTaskDetailPanel({
           <span>Updated {formatDate(task.updatedAt)}</span>
         </div>
       </div>
+
+      {existingWorktree && (
+        <WorktreeExistsModal
+          worktreeId={existingWorktree.id}
+          branch={existingWorktree.branch}
+          onResolved={(action) => {
+            const pendingLaunch = pendingCodeWithAgent;
+            setExistingWorktree(null);
+            setPendingCodeWithAgent(null);
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["customTasks"] });
+            onCreateWorktree(existingWorktree.id);
+            if (pendingLaunch) {
+              launchCodingAgent(pendingLaunch.agent, {
+                worktreeId: existingWorktree.id,
+                mode: action === "reuse" ? "resume" : "start",
+                prompt: action === "reuse" ? undefined : pendingLaunch.prompt,
+              });
+            }
+          }}
+          onCancel={() => {
+            setExistingWorktree(null);
+            setPendingCodeWithAgent(null);
+          }}
+        />
+      )}
 
       {/* Delete confirmation */}
       {showDeleteConfirm && (

@@ -45,6 +45,7 @@ import type { LinearTaskData } from "@openkit/integrations/linear/types";
 import { ActivityLog } from "./activity-log";
 import { ACTIVITY_TYPES } from "./activity-event";
 import { NotesManager } from "./notes-manager";
+import { OpsLog } from "./ops-log";
 import { PortManager } from "./port-manager";
 import type { HooksInfo, PendingTaskContext } from "./task-context";
 import { writeTaskMd, generateTaskMd } from "./task-context";
@@ -180,6 +181,8 @@ export class WorktreeManager {
 
   private activityLog: ActivityLog;
 
+  private opsLog: OpsLog;
+
   private runningProcesses: Map<string, RunningProcess> = new Map();
 
   private creatingWorktrees: Map<string, WorktreeInfo> = new Map();
@@ -224,6 +227,9 @@ export class WorktreeManager {
     this.portManager = new PortManager(config, configFilePath);
     this.notesManager = new NotesManager(this.configDir);
     this.activityLog = new ActivityLog(this.configDir, this.config.activity);
+    this.opsLog = new OpsLog(this.configDir, {
+      retentionDays: this.config.activity?.retentionDays,
+    });
 
     const worktreesPath = this.getWorktreesAbsolutePath();
     if (!existsSync(worktreesPath)) {
@@ -338,6 +344,9 @@ export class WorktreeManager {
   }
 
   private emitNotification(message: string, level: "error" | "info" = "error"): void {
+    this.opsLog.addNotificationEvent(message, level, {
+      projectName: this.getProjectName() ?? undefined,
+    });
     this.notificationListeners.forEach((listener) => listener({ message, level }));
   }
 
@@ -379,6 +388,10 @@ export class WorktreeManager {
 
   getActivityLog(): ActivityLog {
     return this.activityLog;
+  }
+
+  getOpsLog(): OpsLog {
+    return this.opsLog;
   }
 
   setPendingWorktreeContext(id: string, ctx: PendingTaskContext): void {
@@ -500,6 +513,24 @@ export class WorktreeManager {
     }
 
     return [...ids];
+  }
+
+  private clearTransientWorktreeState(worktreeId: string): void {
+    this.creatingWorktrees.delete(worktreeId);
+    this.worktreeCallbacks.delete(worktreeId);
+    this.pendingWorktreeContext.delete(worktreeId);
+  }
+
+  private pruneGitWorktreeMetadata(gitRoot: string): void {
+    try {
+      execFileSync("git", ["worktree", "prune"], {
+        cwd: gitRoot,
+        encoding: "utf-8",
+        stdio: "pipe",
+      });
+    } catch {
+      // Ignore prune failures.
+    }
   }
 
   getWorktrees(): WorktreeInfo[] {
@@ -806,6 +837,56 @@ export class WorktreeManager {
     return { success: true };
   }
 
+  private branchExistsLocally(branch: string, gitRoot: string): boolean {
+    try {
+      execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], {
+        cwd: gitRoot,
+        encoding: "utf-8",
+        stdio: "pipe",
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private findLocalBranchHierarchyConflict(
+    branch: string,
+    gitRoot: string,
+  ): { conflictingBranch: string; relation: "ancestor" | "descendant" } | null {
+    const parts = branch.split("/").filter(Boolean);
+    if (parts.length > 1) {
+      for (let idx = 1; idx < parts.length; idx++) {
+        const ancestor = parts.slice(0, idx).join("/");
+        if (this.branchExistsLocally(ancestor, gitRoot)) {
+          return { conflictingBranch: ancestor, relation: "ancestor" };
+        }
+      }
+    }
+
+    try {
+      const descendants = execFileSync(
+        "git",
+        ["for-each-ref", "--format=%(refname:short)", `refs/heads/${branch}/*`],
+        {
+          cwd: gitRoot,
+          encoding: "utf-8",
+          stdio: "pipe",
+        },
+      )
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+      if (descendants.length > 0) {
+        return { conflictingBranch: descendants[0], relation: "descendant" };
+      }
+    } catch {
+      // Ignore lookup failures and continue with normal creation flow.
+    }
+
+    return null;
+  }
+
   async createWorktree(
     request: WorktreeCreateRequest,
     callbacks?: {
@@ -839,6 +920,19 @@ export class WorktreeManager {
     }
 
     const gitRoot = this.getGitRoot();
+    const branchHierarchyConflict = this.findLocalBranchHierarchyConflict(branch, gitRoot);
+    if (branchHierarchyConflict) {
+      const recoveryWorktreeId =
+        branchHierarchyConflict.relation === "ancestor"
+          ? branchHierarchyConflict.conflictingBranch
+          : worktreeId;
+      return {
+        success: false,
+        error: `Cannot create branch "${branch}" because "${branchHierarchyConflict.conflictingBranch}" already exists. Reuse that worktree or recreate it from scratch.`,
+        code: "WORKTREE_RECOVERY_REQUIRED",
+        worktreeId: recoveryWorktreeId,
+      };
+    }
     try {
       execFileSync("git", ["worktree", "prune"], {
         cwd: gitRoot,
@@ -972,7 +1066,7 @@ export class WorktreeManager {
       }
 
       if (!baseRefValid) {
-        const fallbacks = ["main", "master", "HEAD"];
+        const fallbacks = ["develop", "main", "master", "HEAD"];
         for (const fallback of fallbacks) {
           try {
             await execFile("git", ["rev-parse", "--verify", fallback], {
@@ -1001,7 +1095,7 @@ export class WorktreeManager {
 
       // Try to create the worktree with various strategies
       try {
-        // New branch from baseRef (e.g. origin/develop)
+        // New branch from baseRef (e.g. develop)
         await execFile("git", ["worktree", "add", worktreePath, "-b", branch, baseRef], {
           cwd: gitRoot,
           encoding: "utf-8",
@@ -1297,9 +1391,14 @@ export class WorktreeManager {
       });
     }
 
+    // Always clear transient in-memory state so a removed worktree id can be recreated immediately.
+    this.clearTransientWorktreeState(worktreeId);
+
     const worktreesPath = this.getWorktreesAbsolutePath();
     const worktreePath = path.join(worktreesPath, worktreeId);
+    const gitRoot = this.getGitRoot();
     if (!existsSync(worktreePath)) {
+      this.pruneGitWorktreeMetadata(gitRoot);
       const clearedLinks = this.notesManager.clearLinkedWorktreeId(worktreeId);
       this.clearAwaitingInputForWorktree(worktreeId);
       this.notifyListeners();
@@ -1313,7 +1412,6 @@ export class WorktreeManager {
     }
 
     try {
-      const gitRoot = this.getGitRoot();
       logDeletePhase("remove-worktree-from-git/filesystem", "start", { worktreeId, worktreePath });
 
       try {
@@ -1327,16 +1425,8 @@ export class WorktreeManager {
           encoding: "utf-8",
           stdio: "pipe",
         });
-        try {
-          execFileSync("git", ["worktree", "prune"], {
-            cwd: gitRoot,
-            encoding: "utf-8",
-            stdio: "pipe",
-          });
-        } catch {
-          // Ignore prune failures.
-        }
       }
+      this.pruneGitWorktreeMetadata(gitRoot);
       logDeletePhase("remove-worktree-from-git/filesystem", "success", {
         worktreeId,
         worktreePath,
@@ -1534,6 +1624,8 @@ export class WorktreeManager {
       this.stopWorktree(id),
     );
     await Promise.all(stopPromises);
+    this.activityLog.dispose();
+    this.opsLog.dispose();
   }
 
   async cleanupIssueData(

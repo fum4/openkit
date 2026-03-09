@@ -216,12 +216,16 @@ export function HooksPanel() {
   const postSkills = config.skills.filter((s) => s.trigger === "post-implementation" || !s.trigger);
   const onDemandSkills = config.skills.filter((s) => s.trigger === "on-demand");
   const customSkills = config.skills.filter((s) => s.trigger === "custom");
+  const worktreeCreatedSkills = config.skills.filter((s) => s.trigger === "worktree-created");
+  const worktreeRemovedSkills = config.skills.filter((s) => s.trigger === "worktree-removed");
 
   const hasPreItems = preSteps.length > 0 || preSkills.length > 0;
   const hasPostItems = postSteps.length > 0 || postSkills.length > 0;
   const hasOnDemandItems = onDemandSteps.length > 0 || onDemandSkills.length > 0;
-  const hasWorktreeCreatedItems = worktreeCreatedSteps.length > 0;
-  const hasWorktreeRemovedItems = worktreeRemovedSteps.length > 0;
+  const hasWorktreeCreatedItems =
+    worktreeCreatedSteps.length > 0 || worktreeCreatedSkills.length > 0;
+  const hasWorktreeRemovedItems =
+    worktreeRemovedSteps.length > 0 || worktreeRemovedSkills.length > 0;
 
   return (
     <div className="max-w-2xl mx-auto p-6 flex flex-col gap-12">
@@ -436,7 +440,7 @@ export function HooksPanel() {
         description="Run automatically when a worktree is created"
         icon={<FolderPlus className="w-3.5 h-3.5 text-cyan-400" />}
         steps={worktreeCreatedSteps}
-        skills={[]}
+        skills={worktreeCreatedSkills}
         hasItems={hasWorktreeCreatedItems}
         addingStep={addingStep === "worktree-created"}
         onStartAdding={() => {
@@ -450,14 +454,28 @@ export function HooksPanel() {
           setNewCommand("");
         }}
         onAddStep={() => addStep("worktree-created")}
-        addingPrompt={false}
-        onStartAddingPrompt={() => {}}
-        onCancelAddingPrompt={() => {}}
-        onAddPrompt={() => {}}
-        onShowImportPicker={() => {}}
-        showImportPicker={false}
-        onImportSkill={() => {}}
-        onCloseImportPicker={() => {}}
+        addingPrompt={addingPrompt === "worktree-created"}
+        onStartAddingPrompt={() => {
+          setAddingStep(null);
+          setShowImportPicker(null);
+          setAddingPrompt("worktree-created");
+        }}
+        onCancelAddingPrompt={() => {
+          setAddingPrompt(null);
+          setNewPromptName("");
+          setNewPrompt("");
+        }}
+        onAddPrompt={() => addPrompt("worktree-created")}
+        onShowImportPicker={() => {
+          setAddingStep(null);
+          setAddingPrompt(null);
+          setNewName("");
+          setNewCommand("");
+          setShowImportPicker("worktree-created");
+        }}
+        showImportPicker={showImportPicker === "worktree-created"}
+        onImportSkill={(name) => handleImportSkill(name, "worktree-created")}
+        onCloseImportPicker={() => setShowImportPicker(null)}
         newName={newName}
         setNewName={setNewName}
         newCommand={newCommand}
@@ -472,8 +490,7 @@ export function HooksPanel() {
         handleToggleSkill={handleToggleSkill}
         handleRemoveSkill={handleRemoveSkill}
         updateSkillCondition={updateSkillCondition}
-        allowPrompts={false}
-        allowSkills={false}
+        allowPrompts
       />
 
       {/* Worktree Removed section */}
@@ -482,7 +499,7 @@ export function HooksPanel() {
         description="Run automatically when a worktree is removed"
         icon={<FolderMinus className="w-3.5 h-3.5 text-rose-400" />}
         steps={worktreeRemovedSteps}
-        skills={[]}
+        skills={worktreeRemovedSkills}
         hasItems={hasWorktreeRemovedItems}
         addingStep={addingStep === "worktree-removed"}
         onStartAdding={() => {
@@ -496,14 +513,28 @@ export function HooksPanel() {
           setNewCommand("");
         }}
         onAddStep={() => addStep("worktree-removed")}
-        addingPrompt={false}
-        onStartAddingPrompt={() => {}}
-        onCancelAddingPrompt={() => {}}
-        onAddPrompt={() => {}}
-        onShowImportPicker={() => {}}
-        showImportPicker={false}
-        onImportSkill={() => {}}
-        onCloseImportPicker={() => {}}
+        addingPrompt={addingPrompt === "worktree-removed"}
+        onStartAddingPrompt={() => {
+          setAddingStep(null);
+          setShowImportPicker(null);
+          setAddingPrompt("worktree-removed");
+        }}
+        onCancelAddingPrompt={() => {
+          setAddingPrompt(null);
+          setNewPromptName("");
+          setNewPrompt("");
+        }}
+        onAddPrompt={() => addPrompt("worktree-removed")}
+        onShowImportPicker={() => {
+          setAddingStep(null);
+          setAddingPrompt(null);
+          setNewName("");
+          setNewCommand("");
+          setShowImportPicker("worktree-removed");
+        }}
+        showImportPicker={showImportPicker === "worktree-removed"}
+        onImportSkill={(name) => handleImportSkill(name, "worktree-removed")}
+        onCloseImportPicker={() => setShowImportPicker(null)}
         newName={newName}
         setNewName={setNewName}
         newCommand={newCommand}
@@ -518,8 +549,7 @@ export function HooksPanel() {
         handleToggleSkill={handleToggleSkill}
         handleRemoveSkill={handleRemoveSkill}
         updateSkillCondition={updateSkillCondition}
-        allowPrompts={false}
-        allowSkills={false}
+        allowPrompts
       />
     </div>
   );

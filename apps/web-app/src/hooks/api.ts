@@ -3816,6 +3816,33 @@ export interface ActivityEvent {
   groupKey?: string;
 }
 
+export interface OpsCommandPayload {
+  command: string;
+  args: string[];
+  cwd?: string;
+  pid?: number | null;
+  exitCode?: number | null;
+  signal?: string | null;
+  durationMs?: number;
+  stdout?: string;
+  stderr?: string;
+}
+
+export interface OpsLogEvent {
+  id: string;
+  timestamp: string;
+  source: string;
+  action: string;
+  message: string;
+  level: "debug" | "info" | "warning" | "error";
+  status: "started" | "succeeded" | "failed" | "info";
+  runId?: string;
+  worktreeId?: string;
+  projectName?: string;
+  command?: OpsCommandPayload;
+  metadata?: Record<string, unknown>;
+}
+
 export async function fetchActivity(
   serverUrl: string | null = null,
   params?: { since?: string; category?: string; limit?: number },
@@ -3859,6 +3886,62 @@ export async function createActivityEvent(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to create activity event",
+    };
+  }
+}
+
+export async function fetchOpsLogs(
+  serverUrl: string | null = null,
+  params?: {
+    since?: string;
+    level?: "debug" | "info" | "warning" | "error";
+    status?: "started" | "succeeded" | "failed" | "info";
+    source?: string;
+    search?: string;
+    limit?: number;
+  },
+): Promise<{ events: OpsLogEvent[] }> {
+  try {
+    const searchParams = new URLSearchParams();
+    if (params?.since) searchParams.set("since", params.since);
+    if (params?.level) searchParams.set("level", params.level);
+    if (params?.status) searchParams.set("status", params.status);
+    if (params?.source) searchParams.set("source", params.source);
+    if (params?.search) searchParams.set("search", params.search);
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+
+    const queryString = searchParams.toString();
+    const url = `${getBaseUrl(serverUrl)}/api/logs${queryString ? `?${queryString}` : ""}`;
+    const res = await fetch(url);
+    return await res.json();
+  } catch {
+    return { events: [] };
+  }
+}
+
+export async function createOpsLogEvent(
+  event: {
+    source: string;
+    action: string;
+    message: string;
+    level?: "debug" | "info" | "warning" | "error";
+    status?: "started" | "succeeded" | "failed" | "info";
+    worktreeId?: string;
+    metadata?: Record<string, unknown>;
+  },
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/logs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to create log event",
     };
   }
 }
