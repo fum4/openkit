@@ -49,8 +49,11 @@ interface NavigatorWithUAData extends Navigator {
 }
 
 const CACHE_KEY = "OpenKit-release-info";
+const DESKTOP_VERSION_CACHE_KEY = "OpenKit-desktop-version";
 const RELEASES_API = "https://api.github.com/repos/fum4/openkit/releases/latest";
 const RELEASES_PAGE = "https://github.com/fum4/openkit/releases";
+const DESKTOP_PACKAGE_JSON_URL =
+  "https://raw.githubusercontent.com/fum4/openkit/master/apps/desktop-app/package.json";
 const LATEST_DOWNLOAD_BASE = "https://github.com/fum4/openkit/releases/latest/download";
 const LATEST_MAC_MANIFEST = `${LATEST_DOWNLOAD_BASE}/latest-mac.yml`;
 
@@ -464,6 +467,21 @@ function setCache(info: DownloadInfo) {
   } catch {}
 }
 
+function getCachedDesktopVersion(): string {
+  try {
+    const raw = sessionStorage.getItem(DESKTOP_VERSION_CACHE_KEY);
+    return typeof raw === "string" ? raw : "";
+  } catch {
+    return "";
+  }
+}
+
+function setCachedDesktopVersion(version: string) {
+  try {
+    sessionStorage.setItem(DESKTOP_VERSION_CACHE_KEY, version);
+  } catch {}
+}
+
 async function fetchRelease(): Promise<DownloadInfo> {
   const cached = getCached();
   if (cached) return cached;
@@ -500,6 +518,26 @@ async function fetchRelease(): Promise<DownloadInfo> {
       return { version: "", options: canonicalizeOptions([]) };
     }
   }
+}
+
+async function fetchDesktopAppVersion(): Promise<string> {
+  try {
+    const res = await fetch(DESKTOP_PACKAGE_JSON_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const parsed = (await res.json()) as { version?: unknown };
+    if (typeof parsed.version !== "string" || parsed.version.length === 0) return "";
+    const version = normalizeVersion(parsed.version);
+    setCachedDesktopVersion(version);
+    return version;
+  } catch {
+    return "";
+  }
+}
+
+function updateFooterVersion(version: string) {
+  const footerVersion = document.getElementById("footer-version");
+  if (!footerVersion || !version) return;
+  footerVersion.textContent = version;
 }
 
 function selectDefaultOption(options: DownloadOption[]): DownloadOption | null {
@@ -570,9 +608,6 @@ function updateWidgets(widgets: DownloadWidget[], info: DownloadInfo) {
     widget.label.textContent = `Download ${selected.title}`;
     if (widget.version) widget.version.textContent = info.version;
   });
-
-  const footerVersion = document.getElementById("footer-version");
-  if (footerVersion) footerVersion.textContent = info.version;
 }
 
 function renderMenus(widgets: DownloadWidget[], info: DownloadInfo) {
@@ -635,11 +670,26 @@ function bindDropdowns(widgets: DownloadWidget[]) {
 
 async function init() {
   const widgets = getWidgets();
-  if (widgets.length === 0) return;
+  const shouldLoadDownloads = widgets.length > 0;
+  if (shouldLoadDownloads) bindDropdowns(widgets);
+  const cachedDesktopVersion = getCachedDesktopVersion();
 
-  bindDropdowns(widgets);
+  if (cachedDesktopVersion) {
+    updateFooterVersion(cachedDesktopVersion);
+  }
 
-  const info = await fetchRelease();
+  const [desktopVersion, info] = await Promise.all([
+    fetchDesktopAppVersion(),
+    shouldLoadDownloads ? fetchRelease() : Promise.resolve<DownloadInfo | null>(null),
+  ]);
+
+  if (desktopVersion) {
+    updateFooterVersion(desktopVersion);
+  } else if (!cachedDesktopVersion && info?.version) {
+    updateFooterVersion(info.version);
+  }
+
+  if (!info) return;
   renderMenus(widgets, info);
   updateWidgets(widgets, info);
 }
