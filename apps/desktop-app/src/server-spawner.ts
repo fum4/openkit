@@ -1,11 +1,24 @@
 import { spawn, type ChildProcess } from "child_process";
-import { appendFileSync, existsSync } from "fs";
+import { appendFileSync, existsSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const debugLog = "/tmp/OpenKit-debug.log";
+const CONFIG_DIR_NAME = ".openkit";
 function debug(msg: string) {
   appendFileSync(debugLog, `${new Date().toISOString()} ${msg}\n`);
+}
+
+interface ServerRuntimeInfo {
+  pid: number;
+  port: number;
+  url: string;
+}
+
+export interface ServerReadyResult {
+  actualPort: number | null;
+  ready: boolean;
+  url: string | null;
 }
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
@@ -72,20 +85,127 @@ export function spawnServer(projectDir: string, port: number): ChildProcess {
   return child;
 }
 
-export async function waitForServerReady(port: number, timeout = 30000): Promise<boolean> {
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function readServerRuntimeInfo(projectDir: string, expectedPid?: number): ServerRuntimeInfo | null {
+  const serverJsonPath = path.join(projectDir, CONFIG_DIR_NAME, "server.json");
+  if (!existsSync(serverJsonPath)) {
+    return null;
+  }
+
+  try {
+    const raw = JSON.parse(readFileSync(serverJsonPath, "utf-8"));
+    if (typeof raw.url !== "string" || typeof raw.pid !== "number") {
+      debug(`server.json invalid shape at ${serverJsonPath}`);
+      return null;
+    }
+
+    if (!isProcessAlive(raw.pid)) {
+      debug(`server.json ignored: stale pid ${raw.pid} at ${serverJsonPath}`);
+      return null;
+    }
+
+    if (expectedPid && raw.pid !== expectedPid) {
+      debug(
+        `server.json ignored: pid mismatch at ${serverJsonPath}; expected ${expectedPid}, found ${raw.pid}`,
+      );
+      return null;
+    }
+
+    const url = new URL(raw.url);
+    const port = Number.parseInt(url.port, 10);
+    if (!Number.isFinite(port)) {
+      debug(`server.json ignored: invalid url ${raw.url} at ${serverJsonPath}`);
+      return null;
+    }
+
+    return {
+      pid: raw.pid,
+      port,
+      url: raw.url,
+    };
+  } catch (error) {
+    debug(
+      `server.json read failed at ${serverJsonPath}: ${error instanceof Error ? error.message : "unknown"}`,
+    );
+    return null;
+  }
+}
+
+export async function waitForServerReady(
+  projectDir: string,
+  requestedPort: number,
+  expectedPid?: number,
+  timeout = 30000,
+): Promise<ServerReadyResult> {
   const start = Date.now();
+  debug(
+    `waitForServerReady start: requestedPort=${requestedPort} expectedPid=${expectedPid ?? "unknown"} projectDir=${projectDir}`,
+  );
 
   while (Date.now() - start < timeout) {
+    const runtimeInfo = readServerRuntimeInfo(projectDir, expectedPid);
+    if (runtimeInfo) {
+      debug(
+        `waitForServerReady discovered server.json url=${runtimeInfo.url} actualPort=${runtimeInfo.port} pid=${runtimeInfo.pid}`,
+      );
+      try {
+        const res = await fetch(`${runtimeInfo.url}/api/config`);
+        if (res.ok) {
+          debug(
+            `waitForServerReady success via server.json requestedPort=${requestedPort} actualPort=${runtimeInfo.port}`,
+          );
+          return {
+            ready: true,
+            actualPort: runtimeInfo.port,
+            url: runtimeInfo.url,
+          };
+        }
+      } catch (error) {
+        debug(
+          `waitForServerReady fetch failed via server.json url=${runtimeInfo.url}: ${error instanceof Error ? error.message : "unknown"}`,
+        );
+      }
+    }
+
     try {
-      const res = await fetch(`http://localhost:${port}/api/config`);
-      if (res.ok) return true;
-    } catch {
+      const fallbackUrl = `http://localhost:${requestedPort}`;
+      const res = await fetch(`${fallbackUrl}/api/config`);
+      if (res.ok) {
+        debug(
+          `waitForServerReady success via requested port requestedPort=${requestedPort} actualPort=${requestedPort}`,
+        );
+        return {
+          ready: true,
+          actualPort: requestedPort,
+          url: fallbackUrl,
+        };
+      }
+    } catch (error) {
+      debug(
+        `waitForServerReady fetch failed via requested port ${requestedPort}: ${error instanceof Error ? error.message : "unknown"}`,
+      );
       // Server not ready yet
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
-  return false;
+  const discoveredInfo = readServerRuntimeInfo(projectDir, expectedPid);
+  debug(
+    `waitForServerReady timeout: requestedPort=${requestedPort} discoveredPort=${discoveredInfo?.port ?? "none"} expectedPid=${expectedPid ?? "unknown"}`,
+  );
+  return {
+    ready: false,
+    actualPort: discoveredInfo?.port ?? null,
+    url: discoveredInfo?.url ?? null,
+  };
 }
 
 export async function stopServer(process: ChildProcess): Promise<void> {

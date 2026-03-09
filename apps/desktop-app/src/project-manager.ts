@@ -134,13 +134,13 @@ export class ProjectManager {
     }
 
     const id = this.generateId(normalizedDir);
-    const port = this.allocatePort();
+    const requestedPort = this.allocatePort();
     const name = this.getProjectName(normalizedDir);
 
     const project: ProjectInternal = {
       id,
       projectDir: normalizedDir,
-      port,
+      port: requestedPort,
       name,
       status: "starting",
       serverProcess: null,
@@ -154,7 +154,7 @@ export class ProjectManager {
 
     // Spawn server
     try {
-      const serverProcess = spawnServer(normalizedDir, port);
+      const serverProcess = spawnServer(normalizedDir, requestedPort);
       project.serverProcess = serverProcess;
       const pushServerError = (line: string) => {
         const trimmed = line.trim();
@@ -201,18 +201,29 @@ export class ProjectManager {
       });
 
       // Wait for server to be ready
-      const ready = await waitForServerReady(port);
-      if (ready) {
+      const readyResult = await waitForServerReady(
+        normalizedDir,
+        requestedPort,
+        serverProcess.pid ?? undefined,
+      );
+      if (readyResult.ready) {
+        if (readyResult.actualPort && readyResult.actualPort !== project.port) {
+          project.port = readyResult.actualPort;
+        }
         project.status = "running";
       } else {
         if (project.status !== "error") {
           project.status = "error";
           const detail = project.recentServerErrors.join(" | ");
+          const portDetail =
+            readyResult.actualPort && readyResult.actualPort !== requestedPort
+              ? `requested port ${requestedPort}, discovered port ${readyResult.actualPort}`
+              : `requested port ${requestedPort}`;
           project.error = project.moduleResolveError
-            ? `Server failed to start: ${project.moduleResolveError}${detail ? ` | ${detail}` : ""}`
+            ? `Server failed to start (${portDetail}): ${project.moduleResolveError}${detail ? ` | ${detail}` : ""}`
             : detail
-              ? `Server failed to start: ${detail}`
-              : "Server failed to start";
+              ? `Server failed to start (${portDetail}): ${detail}`
+              : `Server failed to start (${portDetail})`;
         }
       }
       this.notifyChange();

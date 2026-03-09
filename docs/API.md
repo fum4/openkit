@@ -2018,7 +2018,7 @@ Resolve the best restore target for worktree-detail agent quick actions. This is
   }
   ```
 - `activeSessionId` is the current live scoped OpenKit PTY session when present.
-- `historyMatches` are native Claude/Codex sessions matched by exact worktree path.
+- `historyMatches` are native Claude/Codex sessions filtered to the current worktree path using each agent's current/latest recorded cwd safety rule. Claude sessions are only returned when their latest recorded cwd equals the active worktree path; Codex sessions remain exact-cwd matches.
 - **Error** (400): `{ success: false, error: "agent must be \"claude\" or \"codex\"" }`
 - **Error** (404/409): canonical worktree resolution failure (not found or ambiguous)
 

@@ -15,12 +15,14 @@ interface TerminalLaunchRequest {
   skipPermissions?: boolean;
   sessionId?: string;
   requestId: number;
+  scopeKey: string;
 }
 
 type LaunchRequestOutcome = "reattached" | "started" | "failed";
 
 interface TerminalViewProps {
   worktreeId: string;
+  worktreePath?: string;
   visible: boolean;
   variant?: "terminal" | "claude" | "codex" | "gemini" | "opencode";
   launchRequest?: TerminalLaunchRequest | null;
@@ -34,6 +36,15 @@ const DEFAULT_AGENT_START_PROMPT =
 const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
 const LAUNCH_CONNECT_MAX_ATTEMPTS = 3;
 const LAUNCH_CONNECT_RETRY_DELAY_MS = 150;
+
+function formatTempLog(prefix: string, message: string, payload?: Record<string, unknown>): string {
+  if (!payload) return `${prefix} ${message}`;
+  try {
+    return `${prefix} ${message} ${JSON.stringify(payload)}`;
+  } catch {
+    return `${prefix} ${message}`;
+  }
+}
 
 function shellQuoteSingle(value: string): string {
   if (!value) return "''";
@@ -83,12 +94,16 @@ function buildCodexCommandWithOptions(
 }
 
 function buildCodexResumeCommand(
+  worktreePath: string | undefined,
   sessionId: string,
   options?: { skipPermissions?: boolean },
 ): string {
   const args: string[] = [];
   if (options?.skipPermissions) {
     args.push("--dangerously-bypass-approvals-and-sandbox");
+  }
+  if (worktreePath) {
+    args.push("-C", shellQuoteSingle(worktreePath));
   }
   args.push("resume", shellQuoteSingle(sessionId));
   return `exec codex ${args.join(" ")}`;
@@ -124,6 +139,7 @@ function buildOpenCodeCommand(
 
 export function TerminalView({
   worktreeId,
+  worktreePath,
   visible,
   variant = "terminal",
   launchRequest,
@@ -147,11 +163,7 @@ export function TerminalView({
     null,
   );
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
-    if (extra) {
-      console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
-      return;
-    }
-    console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
+    console.info(formatTempLog(AUTO_CLAUDE_DEBUG_PREFIX, message, extra));
   }, []);
   const isAgentVariant = variant !== "terminal";
   const agentLabel =
@@ -188,7 +200,11 @@ export function TerminalView({
     if (variant === "codex") {
       const commandOptions = { skipPermissions: pendingLaunchRequest.skipPermissions };
       if (pendingLaunchRequest.mode === "resume-history" && pendingLaunchRequest.sessionId) {
-        return buildCodexResumeCommand(pendingLaunchRequest.sessionId, commandOptions);
+        return buildCodexResumeCommand(
+          worktreePath,
+          pendingLaunchRequest.sessionId,
+          commandOptions,
+        );
       }
       if (pendingLaunchRequest.mode === "start" || pendingLaunchRequest.mode === "start-new") {
         const prompt = pendingLaunchRequest.prompt?.trim() || DEFAULT_AGENT_START_PROMPT;
@@ -212,7 +228,7 @@ export function TerminalView({
       return buildOpenCodeCommand(prompt, commandOptions);
     }
     return buildOpenCodeCommand(undefined, commandOptions);
-  }, [isAgentVariant, pendingLaunchRequest, variant]);
+  }, [isAgentVariant, pendingLaunchRequest, variant, worktreePath]);
 
   useEffect(() => {
     if (!isAgentVariant) {
@@ -225,18 +241,22 @@ export function TerminalView({
     if (handledLaunchRequestIdsRef.current.has(launchRequest.requestId)) return;
     setPendingLaunchRequest((prev) => {
       if (prev?.requestId === launchRequest.requestId) return prev;
-      console.info("[terminal][TEMP] launch request pending", {
-        worktreeId,
-        variant,
-        requestId: launchRequest.requestId,
-        mode: launchRequest.mode,
-      });
+      console.info(
+        formatTempLog("[terminal][TEMP]", "launch request pending", {
+          worktreeId,
+          variant,
+          requestId: launchRequest.requestId,
+          mode: launchRequest.mode,
+          scopeKey: launchRequest.scopeKey,
+        }),
+      );
       return launchRequest;
     });
     logAutoClaude(`${agentLabel} terminal launch request received`, {
       worktreeId,
       requestId: launchRequest.requestId,
       mode: launchRequest.mode,
+      scopeKey: launchRequest.scopeKey,
       hasPrompt: Boolean(launchRequest.prompt?.trim()),
       skipPermissions: launchRequest.skipPermissions ?? false,
     });
@@ -247,15 +267,18 @@ export function TerminalView({
       if (handledLaunchRequestIdsRef.current.has(requestId)) return;
       handledLaunchRequestIdsRef.current.add(requestId);
       setPendingLaunchRequest((prev) => (prev?.requestId === requestId ? null : prev));
-      console.info("[terminal][TEMP] launch request handled", {
-        worktreeId,
-        variant,
-        requestId,
-        outcome,
-      });
+      console.info(
+        formatTempLog("[terminal][TEMP]", "launch request handled", {
+          worktreeId,
+          variant,
+          requestId,
+          outcome,
+          scopeKey: pendingLaunchRequest?.scopeKey ?? null,
+        }),
+      );
       onLaunchRequestHandled?.(requestId, outcome);
     },
-    [onLaunchRequestHandled, variant, worktreeId],
+    [onLaunchRequestHandled, pendingLaunchRequest?.scopeKey, variant, worktreeId],
   );
 
   const handleData = useCallback(
@@ -376,11 +399,18 @@ export function TerminalView({
       if (!(isAgentVariant && hasUnconsumedLaunchIntent)) {
         void connect({ reason: "visible-reconnect" });
       } else {
-        console.info("[terminal][TEMP] skipping initial passive connect due to launch intent", {
-          worktreeId,
-          variant,
-          requestId: launchRequest?.requestId ?? null,
-        });
+        console.info(
+          formatTempLog(
+            "[terminal][TEMP]",
+            "skipping initial passive connect due to launch intent",
+            {
+              worktreeId,
+              variant,
+              requestId: launchRequest?.requestId ?? null,
+              scopeKey: launchRequest?.scopeKey ?? null,
+            },
+          ),
+        );
       }
     }
 
@@ -454,12 +484,15 @@ export function TerminalView({
     const request = pendingLaunchRequest;
     let cancelled = false;
     void (async () => {
-      console.info("[terminal][TEMP] explicit launch connect requested", {
-        worktreeId,
-        variant,
-        requestId: request.requestId,
-        mode: request.mode,
-      });
+      console.info(
+        formatTempLog("[terminal][TEMP]", "explicit launch connect requested", {
+          worktreeId,
+          variant,
+          requestId: request.requestId,
+          mode: request.mode,
+          scopeKey: request.scopeKey,
+        }),
+      );
       let attempt = 0;
       let result = await connect({ reason: "explicit-launch", bypassClientCache: true });
       while (
@@ -469,14 +502,16 @@ export function TerminalView({
         attempt < LAUNCH_CONNECT_MAX_ATTEMPTS - 1
       ) {
         attempt += 1;
-        console.info("[terminal][TEMP] explicit launch waiting for in-flight connect", {
-          worktreeId,
-          variant,
-          requestId: request.requestId,
-          mode: request.mode,
-          attempt: attempt + 1,
-          maxAttempts: LAUNCH_CONNECT_MAX_ATTEMPTS,
-        });
+        console.info(
+          formatTempLog("[terminal][TEMP]", "explicit launch waiting for in-flight connect", {
+            worktreeId,
+            variant,
+            requestId: request.requestId,
+            mode: request.mode,
+            attempt: attempt + 1,
+            maxAttempts: LAUNCH_CONNECT_MAX_ATTEMPTS,
+          }),
+        );
         await new Promise<void>((resolve) =>
           window.setTimeout(resolve, LAUNCH_CONNECT_RETRY_DELAY_MS),
         );

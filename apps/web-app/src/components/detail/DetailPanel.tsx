@@ -86,6 +86,7 @@ interface AgentLaunchRequest {
   skipPermissions?: boolean;
   sessionId?: string;
   requestId: number;
+  scopeKey: string;
 }
 
 type AgentLaunchOutcome = "reattached" | "started" | "failed";
@@ -98,6 +99,8 @@ interface NotificationTabRequest {
 
 interface DetailPanelProps {
   worktree: WorktreeInfo | null;
+  isScopeHydrated: boolean;
+  scopeWorktreeIds: ReadonlySet<string>;
   onUpdate: () => void;
   onDeleted: () => void;
   onNavigateToIntegrations?: () => void;
@@ -141,6 +144,11 @@ interface DetailPanelProps {
   geminiLaunchRequest?: AgentLaunchRequest | null;
   opencodeLaunchRequest?: AgentLaunchRequest | null;
   notificationTabRequest?: NotificationTabRequest | null;
+  onAgentLaunchRequestHandled?: (
+    agent: "claude" | "codex" | "gemini" | "opencode",
+    requestId: number,
+    outcome: AgentLaunchOutcome,
+  ) => void;
 }
 
 interface AgentRestoreModalState {
@@ -150,9 +158,21 @@ interface AgentRestoreModalState {
 }
 
 const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
+const DETAIL_DEBUG_PREFIX = "[detail][TEMP]";
+
+function formatTempLog(prefix: string, message: string, payload?: Record<string, unknown>): string {
+  if (!payload) return `${prefix} ${message}`;
+  try {
+    return `${prefix} ${message} ${JSON.stringify(payload)}`;
+  } catch {
+    return `${prefix} ${message}`;
+  }
+}
 
 export function DetailPanel({
   worktree,
+  isScopeHydrated,
+  scopeWorktreeIds,
   onUpdate,
   onDeleted,
   onNavigateToIntegrations,
@@ -172,6 +192,7 @@ export function DetailPanel({
   geminiLaunchRequest,
   opencodeLaunchRequest,
   notificationTabRequest,
+  onAgentLaunchRequestHandled,
 }: DetailPanelProps) {
   const api = useApi();
   const { activeProject, isElectron } = useServer();
@@ -258,16 +279,24 @@ export function DetailPanel({
   const processedNotificationTabRequestIdRef = useRef<number | null>(
     initialScopeCache.lastProcessedNotificationTabRequestId,
   );
+  const transientScopeStateRef = useRef({
+    currentClaudeLaunchRequest: null as AgentLaunchRequest | null,
+    currentCodexLaunchRequest: null as AgentLaunchRequest | null,
+    currentGeminiLaunchRequest: null as AgentLaunchRequest | null,
+    currentOpenCodeLaunchRequest: null as AgentLaunchRequest | null,
+    agentRestoreModal: null as AgentRestoreModalState | null,
+    missingHistoryAgent: null as RestorableAgent | null,
+    isResolvingAgentRestore: null as RestorableAgent | null,
+  });
   const closeClaudeRequestIdRef = useRef(0);
   const closeCodexRequestIdRef = useRef(0);
   const closeGeminiRequestIdRef = useRef(0);
   const closeOpenCodeRequestIdRef = useRef(0);
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
-    if (extra) {
-      console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
-      return;
-    }
-    console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
+    console.info(formatTempLog(AUTO_CLAUDE_DEBUG_PREFIX, message, extra));
+  }, []);
+  const logDetailTemp = useCallback((message: string, extra?: Record<string, unknown>) => {
+    console.info(formatTempLog(DETAIL_DEBUG_PREFIX, message, extra));
   }, []);
 
   const getScopeCache = useCallback(
@@ -275,8 +304,30 @@ export function DetailPanel({
     [detailScopeKey],
   );
 
+  useEffect(() => {
+    transientScopeStateRef.current = {
+      currentClaudeLaunchRequest,
+      currentCodexLaunchRequest,
+      currentGeminiLaunchRequest,
+      currentOpenCodeLaunchRequest,
+      agentRestoreModal,
+      missingHistoryAgent,
+      isResolvingAgentRestore,
+    };
+  }, [
+    agentRestoreModal,
+    currentClaudeLaunchRequest,
+    currentCodexLaunchRequest,
+    currentGeminiLaunchRequest,
+    currentOpenCodeLaunchRequest,
+    isResolvingAgentRestore,
+    missingHistoryAgent,
+  ]);
+
   const activeTab = worktree ? (tabPerWorktree[worktree.id] ?? "logs") : "logs";
   const terminalProjectScopeKey = detailScopeKey;
+  const isWorktreeConfirmedInCurrentScope =
+    !!worktree && isScopeHydrated && scopeWorktreeIds.has(worktree.id);
 
   const setTabForWorktree = useCallback(
     (worktreeId: string, tab: WorktreeTab) => {
@@ -297,6 +348,42 @@ export function DetailPanel({
 
   useEffect(() => {
     const scopeCache = getScopeCache();
+    const {
+      currentClaudeLaunchRequest: previousClaudeLaunchRequest,
+      currentCodexLaunchRequest: previousCodexLaunchRequest,
+      currentGeminiLaunchRequest: previousGeminiLaunchRequest,
+      currentOpenCodeLaunchRequest: previousOpenCodeLaunchRequest,
+      agentRestoreModal: previousAgentRestoreModal,
+      missingHistoryAgent: previousMissingHistoryAgent,
+      isResolvingAgentRestore: previousResolvingAgent,
+    } = transientScopeStateRef.current;
+    const droppedRequests = [
+      { agent: "claude", request: previousClaudeLaunchRequest },
+      { agent: "codex", request: previousCodexLaunchRequest },
+      { agent: "gemini", request: previousGeminiLaunchRequest },
+      { agent: "opencode", request: previousOpenCodeLaunchRequest },
+    ].filter(({ request }) => request !== null);
+    if (
+      droppedRequests.length > 0 ||
+      previousAgentRestoreModal ||
+      previousMissingHistoryAgent ||
+      previousResolvingAgent
+    ) {
+      logDetailTemp("detail scope reset transient launch state", {
+        detailScopeKey,
+        droppedRequests: droppedRequests.map(({ agent, request }) => ({
+          agent,
+          requestId: request?.requestId ?? null,
+          mode: request?.mode ?? null,
+          worktreeId: request?.worktreeId ?? null,
+          sessionId: request?.sessionId ?? null,
+          scopeKey: request?.scopeKey ?? null,
+        })),
+        clearedRestoreModal: Boolean(previousAgentRestoreModal),
+        clearedMissingHistoryAgent: previousMissingHistoryAgent,
+        clearedResolvingAgent: previousResolvingAgent,
+      });
+    }
     setTabPerWorktree({ ...scopeCache.tabCache });
     setOpenTerminals(new Set());
     setOpenClaudeTabs(new Set(scopeCache.openClaudeTabs));
@@ -312,11 +399,18 @@ export function DetailPanel({
     setLaunchCodexRequestId(null);
     setLaunchGeminiRequestId(null);
     setLaunchOpenCodeRequestId(null);
+    setCurrentClaudeLaunchRequest(null);
+    setCurrentCodexLaunchRequest(null);
+    setCurrentGeminiLaunchRequest(null);
+    setCurrentOpenCodeLaunchRequest(null);
+    setAgentRestoreModal(null);
+    setMissingHistoryAgent(null);
+    setIsResolvingAgentRestore(null);
     processedClaudeRequestIdRef.current = null;
     processedCodexRequestIdRef.current = null;
     processedGeminiRequestIdRef.current = null;
     processedOpenCodeRequestIdRef.current = null;
-  }, [getScopeCache]);
+  }, [detailScopeKey, getScopeCache, logDetailTemp]);
 
   const ensureTerminalTabMounted = useCallback((worktreeId: string) => {
     setOpenTerminals((prev) => {
@@ -637,6 +731,18 @@ export function DetailPanel({
 
   const openClaudeWithRequest = useCallback(
     (request: AgentLaunchRequest) => {
+      if (request.scopeKey !== detailScopeKey) {
+        logDetailTemp("dropping stale local launch request", {
+          detailScopeKey,
+          agent: "claude",
+          requestId: request.requestId,
+          mode: request.mode,
+          worktreeId: request.worktreeId,
+          sessionId: request.sessionId ?? null,
+          requestScopeKey: request.scopeKey,
+        });
+        return;
+      }
       logAutoClaude("Opening Claude tab with launch request", {
         scopeKey: detailScopeKey,
         worktreeId: request.worktreeId,
@@ -655,11 +761,23 @@ export function DetailPanel({
       ensureClaudeTabMounted(request.worktreeId);
       setLaunchClaudeRequestId(request.requestId);
     },
-    [detailScopeKey, ensureClaudeTabMounted, logAutoClaude, setTabForWorktree],
+    [detailScopeKey, ensureClaudeTabMounted, logAutoClaude, logDetailTemp, setTabForWorktree],
   );
 
   const openCodexWithRequest = useCallback(
     (request: AgentLaunchRequest) => {
+      if (request.scopeKey !== detailScopeKey) {
+        logDetailTemp("dropping stale local launch request", {
+          detailScopeKey,
+          agent: "codex",
+          requestId: request.requestId,
+          mode: request.mode,
+          worktreeId: request.worktreeId,
+          sessionId: request.sessionId ?? null,
+          requestScopeKey: request.scopeKey,
+        });
+        return;
+      }
       logAutoClaude("Opening Codex tab with launch request", {
         scopeKey: detailScopeKey,
         worktreeId: request.worktreeId,
@@ -678,11 +796,23 @@ export function DetailPanel({
       ensureCodexTabMounted(request.worktreeId);
       setLaunchCodexRequestId(request.requestId);
     },
-    [detailScopeKey, ensureCodexTabMounted, logAutoClaude, setTabForWorktree],
+    [detailScopeKey, ensureCodexTabMounted, logAutoClaude, logDetailTemp, setTabForWorktree],
   );
 
   const openGeminiWithRequest = useCallback(
     (request: AgentLaunchRequest) => {
+      if (request.scopeKey !== detailScopeKey) {
+        logDetailTemp("dropping stale local launch request", {
+          detailScopeKey,
+          agent: "gemini",
+          requestId: request.requestId,
+          mode: request.mode,
+          worktreeId: request.worktreeId,
+          sessionId: request.sessionId ?? null,
+          requestScopeKey: request.scopeKey,
+        });
+        return;
+      }
       logAutoClaude("Opening Gemini tab with launch request", {
         scopeKey: detailScopeKey,
         worktreeId: request.worktreeId,
@@ -701,11 +831,23 @@ export function DetailPanel({
       ensureGeminiTabMounted(request.worktreeId);
       setLaunchGeminiRequestId(request.requestId);
     },
-    [detailScopeKey, ensureGeminiTabMounted, logAutoClaude, setTabForWorktree],
+    [detailScopeKey, ensureGeminiTabMounted, logAutoClaude, logDetailTemp, setTabForWorktree],
   );
 
   const openOpenCodeWithRequest = useCallback(
     (request: AgentLaunchRequest) => {
+      if (request.scopeKey !== detailScopeKey) {
+        logDetailTemp("dropping stale local launch request", {
+          detailScopeKey,
+          agent: "opencode",
+          requestId: request.requestId,
+          mode: request.mode,
+          worktreeId: request.worktreeId,
+          sessionId: request.sessionId ?? null,
+          requestScopeKey: request.scopeKey,
+        });
+        return;
+      }
       logAutoClaude("Opening OpenCode tab with launch request", {
         scopeKey: detailScopeKey,
         worktreeId: request.worktreeId,
@@ -724,7 +866,7 @@ export function DetailPanel({
       ensureOpenCodeTabMounted(request.worktreeId);
       setLaunchOpenCodeRequestId(request.requestId);
     },
-    [detailScopeKey, ensureOpenCodeTabMounted, logAutoClaude, setTabForWorktree],
+    [detailScopeKey, ensureOpenCodeTabMounted, logAutoClaude, logDetailTemp, setTabForWorktree],
   );
 
   const handleLaunchRequestHandled = useCallback(
@@ -739,21 +881,77 @@ export function DetailPanel({
         requestId,
         outcome,
       });
+      logDetailTemp("forwarding handled launch request to app state", {
+        detailScopeKey,
+        agent,
+        worktreeId: worktree?.id ?? null,
+        requestId,
+        outcome,
+      });
+      onAgentLaunchRequestHandled?.(agent, requestId, outcome);
       if (agent === "claude") {
+        setCurrentClaudeLaunchRequest((prev) => {
+          if (!prev || prev.requestId !== requestId) return prev;
+          logDetailTemp("cleared local launch request after handling", {
+            detailScopeKey,
+            agent,
+            requestId,
+            mode: prev.mode,
+            worktreeId: prev.worktreeId,
+            sessionId: prev.sessionId ?? null,
+          });
+          return null;
+        });
         setLaunchClaudeRequestId((prev) => (prev === requestId ? null : prev));
         return;
       }
       if (agent === "codex") {
+        setCurrentCodexLaunchRequest((prev) => {
+          if (!prev || prev.requestId !== requestId) return prev;
+          logDetailTemp("cleared local launch request after handling", {
+            detailScopeKey,
+            agent,
+            requestId,
+            mode: prev.mode,
+            worktreeId: prev.worktreeId,
+            sessionId: prev.sessionId ?? null,
+          });
+          return null;
+        });
         setLaunchCodexRequestId((prev) => (prev === requestId ? null : prev));
         return;
       }
       if (agent === "gemini") {
+        setCurrentGeminiLaunchRequest((prev) => {
+          if (!prev || prev.requestId !== requestId) return prev;
+          logDetailTemp("cleared local launch request after handling", {
+            detailScopeKey,
+            agent,
+            requestId,
+            mode: prev.mode,
+            worktreeId: prev.worktreeId,
+            sessionId: prev.sessionId ?? null,
+          });
+          return null;
+        });
         setLaunchGeminiRequestId((prev) => (prev === requestId ? null : prev));
         return;
       }
+      setCurrentOpenCodeLaunchRequest((prev) => {
+        if (!prev || prev.requestId !== requestId) return prev;
+        logDetailTemp("cleared local launch request after handling", {
+          detailScopeKey,
+          agent,
+          requestId,
+          mode: prev.mode,
+          worktreeId: prev.worktreeId,
+          sessionId: prev.sessionId ?? null,
+        });
+        return null;
+      });
       setLaunchOpenCodeRequestId((prev) => (prev === requestId ? null : prev));
     },
-    [detailScopeKey, logAutoClaude, worktree?.id],
+    [detailScopeKey, logAutoClaude, logDetailTemp, onAgentLaunchRequestHandled, worktree?.id],
   );
 
   const getAgentTabLabel = useCallback((agent: "claude" | "codex" | "gemini" | "opencode") => {
@@ -842,6 +1040,11 @@ export function DetailPanel({
       setIsResolvingAgentRestore("claude");
       setAgentRestoreModal(null);
       setMissingHistoryAgent(null);
+      logDetailTemp("fetching restore targets", {
+        detailScopeKey,
+        worktreeId: worktree.id,
+        agent: "claude",
+      });
 
       const restore = await api.fetchRestorableAgentSessions(worktree.id, "claude");
       setIsResolvingAgentRestore((prev) => (prev === "claude" ? null : prev));
@@ -849,8 +1052,22 @@ export function DetailPanel({
         setError(restore.error || "Failed to restore Claude conversation");
         return;
       }
+      logDetailTemp("restore targets resolved", {
+        detailScopeKey,
+        worktreeId: worktree.id,
+        agent: "claude",
+        activeSessionId: restore.activeSessionId,
+        historySessionIds: restore.historyMatches.map((match) => match.sessionId),
+      });
 
       if (restore.activeSessionId) {
+        logDetailTemp("restore launch mode chosen", {
+          detailScopeKey,
+          worktreeId: worktree.id,
+          agent: "claude",
+          mode: "resume-active",
+          activeSessionId: restore.activeSessionId,
+        });
         launchAgentIntent("claude", {
           worktreeId: worktree.id,
           mode: "resume-active",
@@ -860,6 +1077,13 @@ export function DetailPanel({
       }
 
       if (restore.historyMatches.length === 1) {
+        logDetailTemp("restore launch mode chosen", {
+          detailScopeKey,
+          worktreeId: worktree.id,
+          agent: "claude",
+          mode: "resume-history",
+          sessionId: restore.historyMatches[0].sessionId,
+        });
         launchAgentIntent("claude", {
           worktreeId: worktree.id,
           mode: "resume-history",
@@ -870,6 +1094,12 @@ export function DetailPanel({
       }
 
       if (restore.historyMatches.length > 1) {
+        logDetailTemp("restore requires picker", {
+          detailScopeKey,
+          worktreeId: worktree.id,
+          agent: "claude",
+          historySessionIds: restore.historyMatches.map((match) => match.sessionId),
+        });
         setAgentRestoreModal({
           agent: "claude",
           matches: restore.historyMatches,
@@ -878,9 +1108,22 @@ export function DetailPanel({
         return;
       }
 
+      logDetailTemp("restore targets empty", {
+        detailScopeKey,
+        worktreeId: worktree.id,
+        agent: "claude",
+      });
       setMissingHistoryAgent("claude");
     })();
-  }, [api, getAgentTabLabel, isResolvingAgentRestore, launchAgentIntent, worktree]);
+  }, [
+    api,
+    detailScopeKey,
+    getAgentTabLabel,
+    isResolvingAgentRestore,
+    launchAgentIntent,
+    logDetailTemp,
+    worktree,
+  ]);
 
   const requestCloseClaudeTab = useCallback((worktreeId: string) => {
     closeClaudeRequestIdRef.current += 1;
@@ -895,6 +1138,11 @@ export function DetailPanel({
       setIsResolvingAgentRestore("codex");
       setAgentRestoreModal(null);
       setMissingHistoryAgent(null);
+      logDetailTemp("fetching restore targets", {
+        detailScopeKey,
+        worktreeId: worktree.id,
+        agent: "codex",
+      });
 
       const restore = await api.fetchRestorableAgentSessions(worktree.id, "codex");
       setIsResolvingAgentRestore((prev) => (prev === "codex" ? null : prev));
@@ -902,8 +1150,22 @@ export function DetailPanel({
         setError(restore.error || "Failed to restore Codex conversation");
         return;
       }
+      logDetailTemp("restore targets resolved", {
+        detailScopeKey,
+        worktreeId: worktree.id,
+        agent: "codex",
+        activeSessionId: restore.activeSessionId,
+        historySessionIds: restore.historyMatches.map((match) => match.sessionId),
+      });
 
       if (restore.activeSessionId) {
+        logDetailTemp("restore launch mode chosen", {
+          detailScopeKey,
+          worktreeId: worktree.id,
+          agent: "codex",
+          mode: "resume-active",
+          activeSessionId: restore.activeSessionId,
+        });
         launchAgentIntent("codex", {
           worktreeId: worktree.id,
           mode: "resume-active",
@@ -913,6 +1175,13 @@ export function DetailPanel({
       }
 
       if (restore.historyMatches.length === 1) {
+        logDetailTemp("restore launch mode chosen", {
+          detailScopeKey,
+          worktreeId: worktree.id,
+          agent: "codex",
+          mode: "resume-history",
+          sessionId: restore.historyMatches[0].sessionId,
+        });
         launchAgentIntent("codex", {
           worktreeId: worktree.id,
           mode: "resume-history",
@@ -923,6 +1192,12 @@ export function DetailPanel({
       }
 
       if (restore.historyMatches.length > 1) {
+        logDetailTemp("restore requires picker", {
+          detailScopeKey,
+          worktreeId: worktree.id,
+          agent: "codex",
+          historySessionIds: restore.historyMatches.map((match) => match.sessionId),
+        });
         setAgentRestoreModal({
           agent: "codex",
           matches: restore.historyMatches,
@@ -931,9 +1206,22 @@ export function DetailPanel({
         return;
       }
 
+      logDetailTemp("restore targets empty", {
+        detailScopeKey,
+        worktreeId: worktree.id,
+        agent: "codex",
+      });
       setMissingHistoryAgent("codex");
     })();
-  }, [api, getAgentTabLabel, isResolvingAgentRestore, launchAgentIntent, worktree]);
+  }, [
+    api,
+    detailScopeKey,
+    getAgentTabLabel,
+    isResolvingAgentRestore,
+    launchAgentIntent,
+    logDetailTemp,
+    worktree,
+  ]);
 
   const requestCloseCodexTab = useCallback((worktreeId: string) => {
     closeCodexRequestIdRef.current += 1;
@@ -943,6 +1231,13 @@ export function DetailPanel({
 
   const handleRestoreSelectedConversation = useCallback(() => {
     if (!worktree || !agentRestoreModal?.selectedSessionId) return;
+    logDetailTemp("restore launch mode chosen", {
+      detailScopeKey,
+      worktreeId: worktree.id,
+      agent: agentRestoreModal.agent,
+      mode: "resume-history",
+      sessionId: agentRestoreModal.selectedSessionId,
+    });
     launchAgentIntent(agentRestoreModal.agent, {
       worktreeId: worktree.id,
       mode: "resume-history",
@@ -950,11 +1245,24 @@ export function DetailPanel({
       tabLabel: getAgentTabLabel(agentRestoreModal.agent),
     });
     setAgentRestoreModal(null);
-  }, [agentRestoreModal, getAgentTabLabel, launchAgentIntent, worktree]);
+  }, [
+    agentRestoreModal,
+    detailScopeKey,
+    getAgentTabLabel,
+    launchAgentIntent,
+    logDetailTemp,
+    worktree,
+  ]);
 
   const handleStartNewConversation = useCallback(
     (agent: RestorableAgent) => {
       if (!worktree) return;
+      logDetailTemp("restore launch mode chosen", {
+        detailScopeKey,
+        worktreeId: worktree.id,
+        agent,
+        mode: "start-new",
+      });
       launchAgentIntent(agent, {
         worktreeId: worktree.id,
         mode: "start-new",
@@ -963,7 +1271,7 @@ export function DetailPanel({
       setAgentRestoreModal(null);
       setMissingHistoryAgent(null);
     },
-    [getAgentTabLabel, launchAgentIntent, worktree],
+    [detailScopeKey, getAgentTabLabel, launchAgentIntent, logDetailTemp, worktree],
   );
 
   const handleOpenGeminiTab = useCallback(() => {
@@ -1005,18 +1313,48 @@ export function DetailPanel({
       setSelectedOpenTarget(null);
       return;
     }
+    if (!isWorktreeConfirmedInCurrentScope) {
+      logDetailTemp("skipping open-target probe for unhydrated or stale worktree", {
+        detailScopeKey,
+        serverUrl,
+        requestedWorktreeId: worktree.id,
+        isScopeHydrated,
+        scopeContainsWorktree: scopeWorktreeIds.has(worktree.id),
+      });
+      setOpenTargetOptions([]);
+      setSelectedOpenTarget(null);
+      return;
+    }
 
     let cancelled = false;
     void (async () => {
+      logDetailTemp("fetching open targets", {
+        detailScopeKey,
+        serverUrl,
+        requestedWorktreeId: worktree.id,
+      });
       const result = await api.fetchOpenProjectTargets(worktree.id);
       if (cancelled) return;
       if (!result.success) {
+        logDetailTemp("open-target probe failed", {
+          detailScopeKey,
+          serverUrl,
+          requestedWorktreeId: worktree.id,
+          error: result.error ?? "unknown",
+        });
         setOpenTargetOptions([]);
         setSelectedOpenTarget(null);
         return;
       }
 
       const targets = result.targets ?? [];
+      logDetailTemp("open-target probe resolved", {
+        detailScopeKey,
+        serverUrl,
+        requestedWorktreeId: worktree.id,
+        targetCount: targets.length,
+        selectedTarget: result.selectedTarget ?? null,
+      });
       setOpenTargetOptions(targets);
       setSelectedOpenTarget(pickDefaultOpenTarget(targets, result.selectedTarget));
     })();
@@ -1024,33 +1362,93 @@ export function DetailPanel({
     return () => {
       cancelled = true;
     };
-  }, [api, worktree?.id]);
+  }, [
+    api,
+    detailScopeKey,
+    isScopeHydrated,
+    isWorktreeConfirmedInCurrentScope,
+    logDetailTemp,
+    scopeWorktreeIds,
+    serverUrl,
+    worktree,
+  ]);
 
   useEffect(() => {
     if (!worktree) return;
+    if (!isWorktreeConfirmedInCurrentScope) {
+      logDetailTemp("skipping active terminal session probes for unhydrated or stale worktree", {
+        detailScopeKey,
+        serverUrl,
+        requestedWorktreeId: worktree.id,
+        isScopeHydrated,
+        scopeContainsWorktree: scopeWorktreeIds.has(worktree.id),
+      });
+      return;
+    }
     let cancelled = false;
 
     void (async () => {
+      logDetailTemp("probing active terminal sessions", {
+        detailScopeKey,
+        serverUrl,
+        requestedWorktreeId: worktree.id,
+      });
       const claudeResult = await api.fetchActiveTerminalSession(worktree.id, "claude");
       if (cancelled) return;
+      logDetailTemp("active terminal session probe result", {
+        detailScopeKey,
+        serverUrl,
+        requestedWorktreeId: worktree.id,
+        scope: "claude",
+        success: claudeResult.success,
+        sessionId: claudeResult.sessionId ?? null,
+        error: claudeResult.error ?? null,
+      });
       if (claudeResult.success && claudeResult.sessionId) {
         ensureClaudeTabMounted(worktree.id);
       }
 
       const codexResult = await api.fetchActiveTerminalSession(worktree.id, "codex");
       if (cancelled) return;
+      logDetailTemp("active terminal session probe result", {
+        detailScopeKey,
+        serverUrl,
+        requestedWorktreeId: worktree.id,
+        scope: "codex",
+        success: codexResult.success,
+        sessionId: codexResult.sessionId ?? null,
+        error: codexResult.error ?? null,
+      });
       if (codexResult.success && codexResult.sessionId) {
         ensureCodexTabMounted(worktree.id);
       }
 
       const geminiResult = await api.fetchActiveTerminalSession(worktree.id, "gemini");
       if (cancelled) return;
+      logDetailTemp("active terminal session probe result", {
+        detailScopeKey,
+        serverUrl,
+        requestedWorktreeId: worktree.id,
+        scope: "gemini",
+        success: geminiResult.success,
+        sessionId: geminiResult.sessionId ?? null,
+        error: geminiResult.error ?? null,
+      });
       if (geminiResult.success && geminiResult.sessionId) {
         ensureGeminiTabMounted(worktree.id);
       }
 
       const opencodeResult = await api.fetchActiveTerminalSession(worktree.id, "opencode");
       if (cancelled) return;
+      logDetailTemp("active terminal session probe result", {
+        detailScopeKey,
+        serverUrl,
+        requestedWorktreeId: worktree.id,
+        scope: "opencode",
+        success: opencodeResult.success,
+        sessionId: opencodeResult.sessionId ?? null,
+        error: opencodeResult.error ?? null,
+      });
       if (opencodeResult.success && opencodeResult.sessionId) {
         ensureOpenCodeTabMounted(worktree.id);
       }
@@ -1061,40 +1459,94 @@ export function DetailPanel({
     };
   }, [
     api,
+    detailScopeKey,
     ensureClaudeTabMounted,
     ensureCodexTabMounted,
     ensureGeminiTabMounted,
     ensureOpenCodeTabMounted,
-    worktree?.id,
+    isScopeHydrated,
+    isWorktreeConfirmedInCurrentScope,
+    logDetailTemp,
+    scopeWorktreeIds,
+    serverUrl,
+    worktree,
   ]);
 
   useEffect(() => {
     if (!claudeLaunchRequest) return;
+    if (claudeLaunchRequest.scopeKey !== detailScopeKey) {
+      logDetailTemp("dropping stale local launch request", {
+        detailScopeKey,
+        agent: "claude",
+        requestId: claudeLaunchRequest.requestId,
+        mode: claudeLaunchRequest.mode,
+        worktreeId: claudeLaunchRequest.worktreeId,
+        sessionId: claudeLaunchRequest.sessionId ?? null,
+        requestScopeKey: claudeLaunchRequest.scopeKey,
+      });
+      return;
+    }
     if (processedClaudeRequestIdRef.current === claudeLaunchRequest.requestId) return;
     processedClaudeRequestIdRef.current = claudeLaunchRequest.requestId;
     openClaudeWithRequest(claudeLaunchRequest);
-  }, [claudeLaunchRequest, openClaudeWithRequest]);
+  }, [claudeLaunchRequest, detailScopeKey, logDetailTemp, openClaudeWithRequest]);
 
   useEffect(() => {
     if (!codexLaunchRequest) return;
+    if (codexLaunchRequest.scopeKey !== detailScopeKey) {
+      logDetailTemp("dropping stale local launch request", {
+        detailScopeKey,
+        agent: "codex",
+        requestId: codexLaunchRequest.requestId,
+        mode: codexLaunchRequest.mode,
+        worktreeId: codexLaunchRequest.worktreeId,
+        sessionId: codexLaunchRequest.sessionId ?? null,
+        requestScopeKey: codexLaunchRequest.scopeKey,
+      });
+      return;
+    }
     if (processedCodexRequestIdRef.current === codexLaunchRequest.requestId) return;
     processedCodexRequestIdRef.current = codexLaunchRequest.requestId;
     openCodexWithRequest(codexLaunchRequest);
-  }, [codexLaunchRequest, openCodexWithRequest]);
+  }, [codexLaunchRequest, detailScopeKey, logDetailTemp, openCodexWithRequest]);
 
   useEffect(() => {
     if (!geminiLaunchRequest) return;
+    if (geminiLaunchRequest.scopeKey !== detailScopeKey) {
+      logDetailTemp("dropping stale local launch request", {
+        detailScopeKey,
+        agent: "gemini",
+        requestId: geminiLaunchRequest.requestId,
+        mode: geminiLaunchRequest.mode,
+        worktreeId: geminiLaunchRequest.worktreeId,
+        sessionId: geminiLaunchRequest.sessionId ?? null,
+        requestScopeKey: geminiLaunchRequest.scopeKey,
+      });
+      return;
+    }
     if (processedGeminiRequestIdRef.current === geminiLaunchRequest.requestId) return;
     processedGeminiRequestIdRef.current = geminiLaunchRequest.requestId;
     openGeminiWithRequest(geminiLaunchRequest);
-  }, [geminiLaunchRequest, openGeminiWithRequest]);
+  }, [detailScopeKey, geminiLaunchRequest, logDetailTemp, openGeminiWithRequest]);
 
   useEffect(() => {
     if (!opencodeLaunchRequest) return;
+    if (opencodeLaunchRequest.scopeKey !== detailScopeKey) {
+      logDetailTemp("dropping stale local launch request", {
+        detailScopeKey,
+        agent: "opencode",
+        requestId: opencodeLaunchRequest.requestId,
+        mode: opencodeLaunchRequest.mode,
+        worktreeId: opencodeLaunchRequest.worktreeId,
+        sessionId: opencodeLaunchRequest.sessionId ?? null,
+        requestScopeKey: opencodeLaunchRequest.scopeKey,
+      });
+      return;
+    }
     if (processedOpenCodeRequestIdRef.current === opencodeLaunchRequest.requestId) return;
     processedOpenCodeRequestIdRef.current = opencodeLaunchRequest.requestId;
     openOpenCodeWithRequest(opencodeLaunchRequest);
-  }, [opencodeLaunchRequest, openOpenCodeWithRequest]);
+  }, [detailScopeKey, logDetailTemp, openOpenCodeWithRequest, opencodeLaunchRequest]);
 
   useEffect(() => {
     if (!notificationTabRequest) return;
@@ -1939,6 +2391,7 @@ export function DetailPanel({
         <TerminalView
           key={`terminal-${terminalProjectScopeKey}-${wtId}`}
           worktreeId={wtId}
+          worktreePath={wtId === worktree.id ? worktree.path : undefined}
           visible={wtId === worktree.id && activeTab === "terminal" && !isCreating}
         />
       ))}
@@ -1946,12 +2399,14 @@ export function DetailPanel({
         <TerminalView
           key={`claude-${terminalProjectScopeKey}-${wtId}`}
           worktreeId={wtId}
+          worktreePath={wtId === worktree.id ? worktree.path : undefined}
           variant="claude"
           visible={wtId === worktree.id && activeTab === "claude" && !isCreating}
           launchRequest={
             currentClaudeLaunchRequest &&
             launchClaudeRequestId === currentClaudeLaunchRequest.requestId &&
-            currentClaudeLaunchRequest.worktreeId === wtId
+            currentClaudeLaunchRequest.worktreeId === wtId &&
+            currentClaudeLaunchRequest.scopeKey === detailScopeKey
               ? currentClaudeLaunchRequest
               : null
           }
@@ -1966,12 +2421,14 @@ export function DetailPanel({
         <TerminalView
           key={`codex-${terminalProjectScopeKey}-${wtId}`}
           worktreeId={wtId}
+          worktreePath={wtId === worktree.id ? worktree.path : undefined}
           variant="codex"
           visible={wtId === worktree.id && activeTab === "codex" && !isCreating}
           launchRequest={
             currentCodexLaunchRequest &&
             launchCodexRequestId === currentCodexLaunchRequest.requestId &&
-            currentCodexLaunchRequest.worktreeId === wtId
+            currentCodexLaunchRequest.worktreeId === wtId &&
+            currentCodexLaunchRequest.scopeKey === detailScopeKey
               ? currentCodexLaunchRequest
               : null
           }
@@ -1986,12 +2443,14 @@ export function DetailPanel({
         <TerminalView
           key={`gemini-${terminalProjectScopeKey}-${wtId}`}
           worktreeId={wtId}
+          worktreePath={wtId === worktree.id ? worktree.path : undefined}
           variant="gemini"
           visible={wtId === worktree.id && activeTab === "gemini" && !isCreating}
           launchRequest={
             currentGeminiLaunchRequest &&
             launchGeminiRequestId === currentGeminiLaunchRequest.requestId &&
-            currentGeminiLaunchRequest.worktreeId === wtId
+            currentGeminiLaunchRequest.worktreeId === wtId &&
+            currentGeminiLaunchRequest.scopeKey === detailScopeKey
               ? currentGeminiLaunchRequest
               : null
           }
@@ -2006,12 +2465,14 @@ export function DetailPanel({
         <TerminalView
           key={`opencode-${terminalProjectScopeKey}-${wtId}`}
           worktreeId={wtId}
+          worktreePath={wtId === worktree.id ? worktree.path : undefined}
           variant="opencode"
           visible={wtId === worktree.id && activeTab === "opencode" && !isCreating}
           launchRequest={
             currentOpenCodeLaunchRequest &&
             launchOpenCodeRequestId === currentOpenCodeLaunchRequest.requestId &&
-            currentOpenCodeLaunchRequest.worktreeId === wtId
+            currentOpenCodeLaunchRequest.worktreeId === wtId &&
+            currentOpenCodeLaunchRequest.scopeKey === detailScopeKey
               ? currentOpenCodeLaunchRequest
               : null
           }

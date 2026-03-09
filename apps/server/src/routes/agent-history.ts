@@ -12,6 +12,14 @@ export interface AgentHistoryMatch {
   preview?: string;
 }
 
+interface AgentHistoryCandidateLog {
+  accepted: boolean;
+  agent: RestorableAgent;
+  latestCwd: string | null;
+  sessionId: string;
+  worktreePath: string;
+}
+
 interface ClaudeTranscriptEvent {
   cwd?: unknown;
   sessionId?: unknown;
@@ -36,6 +44,7 @@ interface CodexSessionMetaEntry {
 }
 
 interface CodexSqliteRow {
+  cwd?: unknown;
   id?: unknown;
   title?: unknown;
   updated_at?: unknown;
@@ -142,6 +151,22 @@ function buildClaudeFallbackTitle(sessionId: string, gitBranch: string | null): 
   return `Claude session ${sessionId.slice(0, 8)}`;
 }
 
+function logAgentHistoryCandidate({
+  accepted,
+  agent,
+  latestCwd,
+  sessionId,
+  worktreePath,
+}: AgentHistoryCandidateLog) {
+  console.info("[agent-history][TEMP] restore candidate evaluated", {
+    accepted,
+    agent,
+    latestCwd,
+    sessionId,
+    worktreePath,
+  });
+}
+
 function findClaudeHistoryMatches(worktreePath: string): AgentHistoryMatch[] {
   const projectsDir = path.join(os.homedir(), ".claude", "projects");
   const matchesBySessionId = new Map<
@@ -161,8 +186,12 @@ function findClaudeHistoryMatches(worktreePath: string): AgentHistoryMatch[] {
     let updatedAt: string | null = null;
     let preview: string | null = null;
     let gitBranch: string | null = null;
+    let latestCwd: string | null = null;
 
     for (const line of lines) {
+      if (typeof line.cwd === "string" && line.cwd.length > 0) {
+        latestCwd = line.cwd;
+      }
       if (line.cwd === worktreePath) {
         matchesWorktree = true;
       }
@@ -186,7 +215,17 @@ function findClaudeHistoryMatches(worktreePath: string): AgentHistoryMatch[] {
       }
     }
 
-    if (!matchesWorktree || !sessionId) continue;
+    if (!sessionId) continue;
+    if (!matchesWorktree || latestCwd !== worktreePath) {
+      logAgentHistoryCandidate({
+        accepted: false,
+        agent: "claude",
+        latestCwd,
+        sessionId,
+        worktreePath,
+      });
+      continue;
+    }
 
     const effectiveUpdatedAt = updatedAt ?? new Date(0).toISOString();
     const previewText = preview ? truncate(preview, 160) : undefined;
@@ -211,6 +250,13 @@ function findClaudeHistoryMatches(worktreePath: string): AgentHistoryMatch[] {
     ) {
       matchesBySessionId.set(sessionId, nextMatch);
     }
+    logAgentHistoryCandidate({
+      accepted: true,
+      agent: "claude",
+      latestCwd,
+      sessionId,
+      worktreePath,
+    });
   }
 
   return [...matchesBySessionId.values()]
@@ -227,7 +273,7 @@ function findCodexHistoryMatchesFromSqlite(worktreePath: string): AgentHistoryMa
   if (!existsSync(sqlitePath)) return [];
 
   const sql = `
-    SELECT id, title, updated_at
+    SELECT id, title, updated_at, cwd
     FROM threads
     WHERE archived = 0 AND cwd = '${escapeSqliteString(worktreePath)}'
     ORDER BY updated_at DESC
@@ -244,6 +290,14 @@ function findCodexHistoryMatchesFromSqlite(worktreePath: string): AgentHistoryMa
     const updatedAt = normalizeTimestamp(row.updated_at) ?? new Date(0).toISOString();
     const preview =
       typeof row.title === "string" && row.title.trim().length > 0 ? row.title.trim() : undefined;
+    const latestCwd = typeof row.cwd === "string" ? row.cwd : null;
+    logAgentHistoryCandidate({
+      accepted: latestCwd === worktreePath,
+      agent: "codex",
+      latestCwd,
+      sessionId: row.id,
+      worktreePath,
+    });
     matches.push({
       sessionId: row.id,
       title: preview ? truncate(preview, 80) : `Codex session ${row.id.slice(0, 8)}`,
@@ -285,7 +339,15 @@ function findCodexHistoryMatchesFromIndex(worktreePath: string): AgentHistoryMat
   const matchingSessionIds = new Set<string>();
   for (const filePath of walkJsonlFiles(sessionsDir)) {
     const meta = extractCodexSessionMeta(filePath);
-    if (!meta || meta.cwd !== worktreePath) continue;
+    if (!meta) continue;
+    logAgentHistoryCandidate({
+      accepted: meta.cwd === worktreePath,
+      agent: "codex",
+      latestCwd: meta.cwd,
+      sessionId: meta.sessionId,
+      worktreePath,
+    });
+    if (meta.cwd !== worktreePath) continue;
     matchingSessionIds.add(meta.sessionId);
   }
 

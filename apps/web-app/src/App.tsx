@@ -86,6 +86,7 @@ interface ClaudeLaunchIntent extends AgentLaunchIntentBase {
 
 type ClaudeLaunchRequest = ClaudeLaunchIntent & {
   requestId: number;
+  scopeKey: string;
 };
 
 type CodexLaunchIntent = AgentLaunchIntentBase;
@@ -94,6 +95,7 @@ type OpenCodeLaunchIntent = AgentLaunchIntentBase;
 
 type AgentLaunchRequestBase = AgentLaunchIntentBase & {
   requestId: number;
+  scopeKey: string;
 };
 
 type CodexLaunchRequest = AgentLaunchRequestBase;
@@ -165,6 +167,12 @@ interface RuntimeScopedState {
   notificationTabRequestIdCounter: number;
 }
 
+type ActiveAgentLaunchRequest =
+  | ClaudeLaunchRequest
+  | CodexLaunchRequest
+  | GeminiLaunchRequest
+  | OpenCodeLaunchRequest;
+
 function createEmptyRuntimeScopedState(): RuntimeScopedState {
   return {
     pendingClaudeLaunches: [],
@@ -210,6 +218,16 @@ const AGENT_SKIP_PERMISSION_FLAGS: Record<CodingAgent, string> = {
   opencode: 'OPENCODE_PERMISSION=\'{"*":"allow"}\'',
 };
 const LAUNCH_TARGET_WAIT_TIMEOUT_MS = 60_000;
+
+function formatTempLog(prefix: string, message: string, payload?: Record<string, unknown>): string {
+  if (!payload) return `${prefix} ${message}`;
+  try {
+    return `${prefix} ${message} ${JSON.stringify(payload)}`;
+  } catch {
+    return `${prefix} ${message}`;
+  }
+}
+const EMPTY_WORKTREES: WorktreeInfo[] = [];
 
 function getAgentCliLabel(agent: CodingAgent): string {
   const base = AGENT_DISPLAY_NAMES[agent];
@@ -321,7 +339,14 @@ export default function App() {
     serverUrl,
   } = useServer();
   const [hookUpdateKey, setHookUpdateKey] = useState(0);
-  const { worktrees, isConnected, error, refetch } = useWorktrees(
+  const {
+    worktrees,
+    isConnected,
+    error,
+    refetch,
+    hasHydratedCurrentScope,
+    isHydratingCurrentScope,
+  } = useWorktrees(
     useCallback((message: string, level: "error" | "info") => {
       if (level === "error") {
         showPersistentErrorToast(message, { scope: "sse:notification" });
@@ -457,6 +482,10 @@ export default function App() {
   const runtimeScopeKey = isElectron
     ? `project:${activeProject?.id ?? "__none__"}`
     : `server:${serverUrl ?? "__relative__"}`;
+  const visibleWorktrees = useMemo(
+    () => (hasHydratedCurrentScope ? worktrees : EMPTY_WORKTREES),
+    [hasHydratedCurrentScope, worktrees],
+  );
   const workspaceStorageKey = useCallback(
     (suffix: WorkspaceStorageSuffix): string | null =>
       workspaceStorageScope ? `OpenKit:${suffix}:${workspaceStorageScope}` : null,
@@ -584,19 +613,94 @@ export default function App() {
   const runtimeStateSnapshotRef = useRef<RuntimeScopedState>(createEmptyRuntimeScopedState());
   const launchMissingTargetSinceRef = useRef<Map<string, number>>(new Map());
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
-    if (extra) {
-      console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
-      return;
-    }
-    console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
+    console.info(formatTempLog(AUTO_CLAUDE_DEBUG_PREFIX, message, extra));
   }, []);
   const logAppTemp = useCallback((message: string, extra?: Record<string, unknown>) => {
-    if (extra) {
-      console.info(`${APP_DEBUG_PREFIX} ${message}`, extra);
+    console.info(formatTempLog(APP_DEBUG_PREFIX, message, extra));
+  }, []);
+  const logDroppedActiveLaunchRequest = useCallback(
+    (
+      phase: "save" | "restore",
+      scopeKey: string,
+      agent: "claude" | "codex" | "gemini" | "opencode",
+      request: ActiveAgentLaunchRequest | null,
+    ) => {
+      if (!request) return;
+      logAppTemp("dropping active launch request during scope save/restore", {
+        phase,
+        scopeKey,
+        agent,
+        requestId: request.requestId,
+        mode: request.mode,
+        worktreeId: request.worktreeId,
+      });
+    },
+    [logAppTemp],
+  );
+  const logIgnoredStaleScopedLaunchRequest = useCallback(
+    (
+      agent: "claude" | "codex" | "gemini" | "opencode",
+      request: ActiveAgentLaunchRequest,
+      activeScopeKey: string,
+    ) => {
+      logAppTemp("ignoring stale scoped launch request", {
+        activeScopeKey,
+        requestScopeKey: request.scopeKey,
+        agent,
+        requestId: request.requestId,
+        mode: request.mode,
+        worktreeId: request.worktreeId,
+        sessionId: request.sessionId ?? null,
+      });
+    },
+    [logAppTemp],
+  );
+  const previousProjectScopeRef = useRef<{
+    projectId: string | null;
+    serverUrl: string | null;
+    runtimeScopeKey: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    const previous = previousProjectScopeRef.current;
+    logAppTemp("project scope changed", {
+      previousProjectId: previous?.projectId ?? null,
+      nextProjectId: activeProject?.id ?? null,
+      previousServerUrl: previous?.serverUrl ?? null,
+      nextServerUrl: serverUrl,
+      previousRuntimeScopeKey: previous?.runtimeScopeKey ?? null,
+      nextRuntimeScopeKey: runtimeScopeKey,
+    });
+    previousProjectScopeRef.current = {
+      projectId: activeProject?.id ?? null,
+      serverUrl,
+      runtimeScopeKey,
+    };
+  }, [activeProject?.id, logAppTemp, runtimeScopeKey, serverUrl]);
+
+  useEffect(() => {
+    if (!serverUrl) return;
+    if (isHydratingCurrentScope) {
+      logAppTemp("worktree scope hydration started", {
+        scopeKey: runtimeScopeKey,
+        serverUrl,
+      });
       return;
     }
-    console.info(`${APP_DEBUG_PREFIX} ${message}`);
-  }, []);
+    if (!hasHydratedCurrentScope) return;
+    logAppTemp("worktree scope hydrated", {
+      scopeKey: runtimeScopeKey,
+      serverUrl,
+      worktreeCount: visibleWorktrees.length,
+    });
+  }, [
+    hasHydratedCurrentScope,
+    isHydratingCurrentScope,
+    logAppTemp,
+    runtimeScopeKey,
+    serverUrl,
+    visibleWorktrees.length,
+  ]);
 
   useEffect(() => {
     runtimeStateSnapshotRef.current = {
@@ -636,20 +740,143 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    if (claudeLaunchRequest && claudeLaunchRequest.scopeKey !== runtimeScopeKey) {
+      logIgnoredStaleScopedLaunchRequest("claude", claudeLaunchRequest, runtimeScopeKey);
+    }
+    if (codexLaunchRequest && codexLaunchRequest.scopeKey !== runtimeScopeKey) {
+      logIgnoredStaleScopedLaunchRequest("codex", codexLaunchRequest, runtimeScopeKey);
+    }
+    if (geminiLaunchRequest && geminiLaunchRequest.scopeKey !== runtimeScopeKey) {
+      logIgnoredStaleScopedLaunchRequest("gemini", geminiLaunchRequest, runtimeScopeKey);
+    }
+    if (opencodeLaunchRequest && opencodeLaunchRequest.scopeKey !== runtimeScopeKey) {
+      logIgnoredStaleScopedLaunchRequest("opencode", opencodeLaunchRequest, runtimeScopeKey);
+    }
+  }, [
+    claudeLaunchRequest,
+    codexLaunchRequest,
+    geminiLaunchRequest,
+    logIgnoredStaleScopedLaunchRequest,
+    opencodeLaunchRequest,
+    runtimeScopeKey,
+  ]);
+
+  const scopedClaudeLaunchRequest =
+    claudeLaunchRequest && claudeLaunchRequest.scopeKey === runtimeScopeKey
+      ? claudeLaunchRequest
+      : null;
+  const scopedCodexLaunchRequest =
+    codexLaunchRequest && codexLaunchRequest.scopeKey === runtimeScopeKey
+      ? codexLaunchRequest
+      : null;
+  const scopedGeminiLaunchRequest =
+    geminiLaunchRequest && geminiLaunchRequest.scopeKey === runtimeScopeKey
+      ? geminiLaunchRequest
+      : null;
+  const scopedOpenCodeLaunchRequest =
+    opencodeLaunchRequest && opencodeLaunchRequest.scopeKey === runtimeScopeKey
+      ? opencodeLaunchRequest
+      : null;
+
+  useEffect(() => {
     const previousScopeKey = runtimeScopePreviousKeyRef.current;
     if (previousScopeKey && previousScopeKey !== runtimeScopeKey) {
+      logDroppedActiveLaunchRequest(
+        "save",
+        previousScopeKey,
+        "claude",
+        runtimeStateSnapshotRef.current.claudeLaunchRequest,
+      );
+      logDroppedActiveLaunchRequest(
+        "save",
+        previousScopeKey,
+        "codex",
+        runtimeStateSnapshotRef.current.codexLaunchRequest,
+      );
+      logDroppedActiveLaunchRequest(
+        "save",
+        previousScopeKey,
+        "gemini",
+        runtimeStateSnapshotRef.current.geminiLaunchRequest,
+      );
+      logDroppedActiveLaunchRequest(
+        "save",
+        previousScopeKey,
+        "opencode",
+        runtimeStateSnapshotRef.current.opencodeLaunchRequest,
+      );
+      if (runtimeStateSnapshotRef.current.notificationTabRequest) {
+        logAppTemp("dropping notification tab request during scope save/restore", {
+          phase: "save",
+          scopeKey: previousScopeKey,
+          requestId: runtimeStateSnapshotRef.current.notificationTabRequest.requestId,
+          tab: runtimeStateSnapshotRef.current.notificationTabRequest.tab,
+          worktreeId: runtimeStateSnapshotRef.current.notificationTabRequest.worktreeId,
+        });
+      }
       runtimeScopedStateRef.current.set(previousScopeKey, {
         ...runtimeStateSnapshotRef.current,
         pendingClaudeLaunches: [...runtimeStateSnapshotRef.current.pendingClaudeLaunches],
         pendingCodexLaunches: [...runtimeStateSnapshotRef.current.pendingCodexLaunches],
         pendingGeminiLaunches: [...runtimeStateSnapshotRef.current.pendingGeminiLaunches],
         pendingOpenCodeLaunches: [...runtimeStateSnapshotRef.current.pendingOpenCodeLaunches],
+        claudeLaunchRequest: null,
+        codexLaunchRequest: null,
+        geminiLaunchRequest: null,
+        opencodeLaunchRequest: null,
+        notificationTabRequest: null,
       });
       logAppTemp("scope state saved", { scopeKey: previousScopeKey });
     }
 
-    const nextState =
+    const nextStateRaw =
       runtimeScopedStateRef.current.get(runtimeScopeKey) ?? createEmptyRuntimeScopedState();
+    logDroppedActiveLaunchRequest(
+      "restore",
+      runtimeScopeKey,
+      "claude",
+      nextStateRaw.claudeLaunchRequest,
+    );
+    logDroppedActiveLaunchRequest(
+      "restore",
+      runtimeScopeKey,
+      "codex",
+      nextStateRaw.codexLaunchRequest,
+    );
+    logDroppedActiveLaunchRequest(
+      "restore",
+      runtimeScopeKey,
+      "gemini",
+      nextStateRaw.geminiLaunchRequest,
+    );
+    logDroppedActiveLaunchRequest(
+      "restore",
+      runtimeScopeKey,
+      "opencode",
+      nextStateRaw.opencodeLaunchRequest,
+    );
+    if (nextStateRaw.notificationTabRequest) {
+      logAppTemp("dropping notification tab request during scope save/restore", {
+        phase: "restore",
+        scopeKey: runtimeScopeKey,
+        requestId: nextStateRaw.notificationTabRequest.requestId,
+        tab: nextStateRaw.notificationTabRequest.tab,
+        worktreeId: nextStateRaw.notificationTabRequest.worktreeId,
+      });
+    }
+    const nextState = {
+      ...nextStateRaw,
+      pendingClaudeLaunches: [...nextStateRaw.pendingClaudeLaunches],
+      pendingCodexLaunches: [...nextStateRaw.pendingCodexLaunches],
+      pendingGeminiLaunches: [...nextStateRaw.pendingGeminiLaunches],
+      pendingOpenCodeLaunches: [...nextStateRaw.pendingOpenCodeLaunches],
+      claudeLaunchRequest: null,
+      codexLaunchRequest: null,
+      geminiLaunchRequest: null,
+      opencodeLaunchRequest: null,
+      notificationTabRequest: null,
+    };
+    runtimeScopedStateRef.current.set(runtimeScopeKey, nextState);
     setPendingClaudeLaunches([...nextState.pendingClaudeLaunches]);
     setPendingCodexLaunches([...nextState.pendingCodexLaunches]);
     setPendingGeminiLaunches([...nextState.pendingGeminiLaunches]);
@@ -670,7 +897,7 @@ export default function App() {
     notificationTabRequestIdRef.current = nextState.notificationTabRequestIdCounter;
     runtimeScopePreviousKeyRef.current = runtimeScopeKey;
     logAppTemp("scope state restored", { scopeKey: runtimeScopeKey });
-  }, [logAppTemp, runtimeScopeKey]);
+  }, [logAppTemp, logDroppedActiveLaunchRequest, runtimeScopeKey]);
 
   const updateRuntimeScopeState = useCallback(
     (scopeKey: string, updater: (state: RuntimeScopedState) => RuntimeScopedState) => {
@@ -775,15 +1002,42 @@ export default function App() {
     if (!workspaceStorageScope) return;
     try {
       const saved = readWorkspaceStorageValue("wsSel");
-      if (saved) setSelectionState(JSON.parse(saved));
-      else setSelectionState(null);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Selection;
+        logAppTemp("selection restored for scope", {
+          scopeKey: runtimeScopeKey,
+          selectionType: parsed?.type ?? null,
+          selectionId:
+            parsed?.type === "worktree"
+              ? parsed.id
+              : parsed?.type === "issue"
+                ? parsed.key
+                : parsed?.type === "linear-issue"
+                  ? parsed.identifier
+                  : parsed?.type === "custom-task"
+                    ? parsed.id
+                    : null,
+        });
+        setSelectionState(parsed);
+      } else {
+        logAppTemp("selection restored for scope", {
+          scopeKey: runtimeScopeKey,
+          selectionType: null,
+          selectionId: null,
+        });
+        setSelectionState(null);
+      }
     } catch (error) {
       reportPersistentErrorToast(error, "Failed to restore workspace selection", {
         scope: "app:restore-selection",
       });
+      logAppTemp("selection restore failed", {
+        scopeKey: runtimeScopeKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
       setSelectionState(null);
     }
-  }, [readWorkspaceStorageValue, workspaceStorageScope]);
+  }, [logAppTemp, readWorkspaceStorageValue, runtimeScopeKey, workspaceStorageScope]);
   const [activeCreateTab, setActiveCreateTabState] = useState<"branch" | "issues">(() => {
     const saved = readWorkspaceStorageValue("wsTab");
     if (saved === "branch" || saved === "issues") return saved;
@@ -1096,50 +1350,94 @@ export default function App() {
 
   // Auto-select first worktree when nothing is selected, or fix stale worktree selection
   useEffect(() => {
-    if (worktrees.length === 0) {
+    if (!hasHydratedCurrentScope) {
+      return;
+    }
+    if (visibleWorktrees.length === 0) {
       if (selection?.type === "worktree") setSelection(null);
       return;
     }
     if (!selection) {
-      setSelection({ type: "worktree", id: worktrees[0].id });
+      setSelection({ type: "worktree", id: visibleWorktrees[0].id });
       return;
     }
     // Fix stale worktree selection (worktree was deleted)
-    if (selection.type === "worktree" && !worktrees.find((w) => w.id === selection.id)) {
-      setSelection({ type: "worktree", id: worktrees[0].id });
+    if (selection.type === "worktree" && !visibleWorktrees.find((w) => w.id === selection.id)) {
+      setSelection({ type: "worktree", id: visibleWorktrees[0].id });
     }
-  }, [worktrees, selection]);
+  }, [hasHydratedCurrentScope, selection, visibleWorktrees]);
 
   const selectedWorktree =
-    selection?.type === "worktree" ? worktrees.find((w) => w.id === selection.id) || null : null;
+    hasHydratedCurrentScope && selection?.type === "worktree"
+      ? visibleWorktrees.find((w) => w.id === selection.id) || null
+      : null;
   const activeWorktreeIds = useMemo(
-    () => new Set(worktrees.map((worktree) => worktree.id)),
-    [worktrees],
+    () => new Set(visibleWorktrees.map((worktree) => worktree.id)),
+    [visibleWorktrees],
   );
 
   useEffect(() => {
-    const dropMissingLaunches = <T extends { worktreeId: string }>(pending: T[]): T[] => {
+    if (!hasHydratedCurrentScope) {
+      return;
+    }
+    const dropMissingLaunches = <T extends { worktreeId: string }>(
+      pending: T[],
+      agent: string,
+    ): T[] => {
       const filtered = pending.filter((intent) => activeWorktreeIds.has(intent.worktreeId));
+      if (filtered.length !== pending.length) {
+        logAppTemp("scope dropped stale launch intents", {
+          scopeKey: runtimeScopeKey,
+          agent,
+          droppedWorktreeIds: pending
+            .filter((intent) => !activeWorktreeIds.has(intent.worktreeId))
+            .map((intent) => intent.worktreeId),
+        });
+      }
       return filtered.length === pending.length ? pending : filtered;
     };
 
-    setPendingClaudeLaunches((prev) => dropMissingLaunches(prev));
-    setPendingCodexLaunches((prev) => dropMissingLaunches(prev));
-    setPendingGeminiLaunches((prev) => dropMissingLaunches(prev));
-    setPendingOpenCodeLaunches((prev) => dropMissingLaunches(prev));
+    setPendingClaudeLaunches((prev) => dropMissingLaunches(prev, "claude"));
+    setPendingCodexLaunches((prev) => dropMissingLaunches(prev, "codex"));
+    setPendingGeminiLaunches((prev) => dropMissingLaunches(prev, "gemini"));
+    setPendingOpenCodeLaunches((prev) => dropMissingLaunches(prev, "opencode"));
 
-    setClaudeLaunchRequest((prev) =>
-      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
-    );
-    setCodexLaunchRequest((prev) =>
-      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
-    );
-    setGeminiLaunchRequest((prev) =>
-      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
-    );
-    setOpenCodeLaunchRequest((prev) =>
-      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
-    );
+    setClaudeLaunchRequest((prev) => {
+      if (!prev || activeWorktreeIds.has(prev.worktreeId)) return prev;
+      logAppTemp("scope cleared stale launch request", {
+        scopeKey: runtimeScopeKey,
+        agent: "claude",
+        worktreeId: prev.worktreeId,
+      });
+      return null;
+    });
+    setCodexLaunchRequest((prev) => {
+      if (!prev || activeWorktreeIds.has(prev.worktreeId)) return prev;
+      logAppTemp("scope cleared stale launch request", {
+        scopeKey: runtimeScopeKey,
+        agent: "codex",
+        worktreeId: prev.worktreeId,
+      });
+      return null;
+    });
+    setGeminiLaunchRequest((prev) => {
+      if (!prev || activeWorktreeIds.has(prev.worktreeId)) return prev;
+      logAppTemp("scope cleared stale launch request", {
+        scopeKey: runtimeScopeKey,
+        agent: "gemini",
+        worktreeId: prev.worktreeId,
+      });
+      return null;
+    });
+    setOpenCodeLaunchRequest((prev) => {
+      if (!prev || activeWorktreeIds.has(prev.worktreeId)) return prev;
+      logAppTemp("scope cleared stale launch request", {
+        scopeKey: runtimeScopeKey,
+        agent: "opencode",
+        worktreeId: prev.worktreeId,
+      });
+      return null;
+    });
 
     for (const waitKey of launchMissingTargetSinceRef.current.keys()) {
       if (!waitKey.startsWith(`${runtimeScopeKey}:`)) continue;
@@ -1147,8 +1445,13 @@ export default function App() {
       const worktreeId = parts[parts.length - 1];
       if (activeWorktreeIds.has(worktreeId)) continue;
       launchMissingTargetSinceRef.current.delete(waitKey);
+      logAppTemp("scope cleared stale launch wait key", {
+        scopeKey: runtimeScopeKey,
+        waitKey,
+        worktreeId,
+      });
     }
-  }, [activeWorktreeIds, runtimeScopeKey]);
+  }, [activeWorktreeIds, hasHydratedCurrentScope, logAppTemp, runtimeScopeKey]);
 
   const startAgentSessionInBackground = useCallback(
     async (
@@ -1205,10 +1508,11 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (!hasHydratedCurrentScope) return;
     const pendingClaudeLaunch = pendingClaudeLaunches[0];
     if (!pendingClaudeLaunch) return;
     const waitKey = `${runtimeScopeKey}:claude:${pendingClaudeLaunch.worktreeId}`;
-    const target = worktrees.find((wt) => wt.id === pendingClaudeLaunch.worktreeId);
+    const target = visibleWorktrees.find((wt) => wt.id === pendingClaudeLaunch.worktreeId);
     if (!target) {
       logAutoClaude("Waiting for target worktree to appear before launching Claude", {
         worktreeId: pendingClaudeLaunch.worktreeId,
@@ -1283,6 +1587,7 @@ export default function App() {
         ...intent,
         mode,
         requestId: claudeLaunchRequestIdRef.current,
+        scopeKey: runtimeScopeKey,
       });
       logAutoClaude("Promoted pending Claude launch to active request", {
         worktreeId: intent.worktreeId,
@@ -1297,17 +1602,19 @@ export default function App() {
     logAppTemp,
     logAutoClaude,
     maybeDropStaleLaunchIntent,
+    hasHydratedCurrentScope,
     pendingClaudeLaunches,
     runtimeScopeKey,
     startAgentSessionInBackground,
-    worktrees,
+    visibleWorktrees,
   ]);
 
   useEffect(() => {
+    if (!hasHydratedCurrentScope) return;
     const pendingCodexLaunch = pendingCodexLaunches[0];
     if (!pendingCodexLaunch) return;
     const waitKey = `${runtimeScopeKey}:codex:${pendingCodexLaunch.worktreeId}`;
-    const target = worktrees.find((wt) => wt.id === pendingCodexLaunch.worktreeId);
+    const target = visibleWorktrees.find((wt) => wt.id === pendingCodexLaunch.worktreeId);
     if (!target) {
       logAutoClaude("Waiting for target worktree to appear before launching Codex", {
         worktreeId: pendingCodexLaunch.worktreeId,
@@ -1368,6 +1675,7 @@ export default function App() {
       setCodexLaunchRequest({
         ...intent,
         requestId: codexLaunchRequestIdRef.current,
+        scopeKey: runtimeScopeKey,
       });
       logAutoClaude("Promoted pending Codex launch to active request", {
         worktreeId: intent.worktreeId,
@@ -1381,16 +1689,18 @@ export default function App() {
     logAppTemp,
     logAutoClaude,
     maybeDropStaleLaunchIntent,
+    hasHydratedCurrentScope,
     pendingCodexLaunches,
     runtimeScopeKey,
-    worktrees,
+    visibleWorktrees,
   ]);
 
   useEffect(() => {
+    if (!hasHydratedCurrentScope) return;
     const pendingGeminiLaunch = pendingGeminiLaunches[0];
     if (!pendingGeminiLaunch) return;
     const waitKey = `${runtimeScopeKey}:gemini:${pendingGeminiLaunch.worktreeId}`;
-    const target = worktrees.find((wt) => wt.id === pendingGeminiLaunch.worktreeId);
+    const target = visibleWorktrees.find((wt) => wt.id === pendingGeminiLaunch.worktreeId);
     if (!target) {
       logAutoClaude("Waiting for target worktree to appear before launching Gemini", {
         worktreeId: pendingGeminiLaunch.worktreeId,
@@ -1451,6 +1761,7 @@ export default function App() {
       setGeminiLaunchRequest({
         ...intent,
         requestId: geminiLaunchRequestIdRef.current,
+        scopeKey: runtimeScopeKey,
       });
       logAutoClaude("Promoted pending Gemini launch to active request", {
         worktreeId: intent.worktreeId,
@@ -1464,16 +1775,18 @@ export default function App() {
     logAppTemp,
     logAutoClaude,
     maybeDropStaleLaunchIntent,
+    hasHydratedCurrentScope,
     pendingGeminiLaunches,
     runtimeScopeKey,
-    worktrees,
+    visibleWorktrees,
   ]);
 
   useEffect(() => {
+    if (!hasHydratedCurrentScope) return;
     const pendingOpenCodeLaunch = pendingOpenCodeLaunches[0];
     if (!pendingOpenCodeLaunch) return;
     const waitKey = `${runtimeScopeKey}:opencode:${pendingOpenCodeLaunch.worktreeId}`;
-    const target = worktrees.find((wt) => wt.id === pendingOpenCodeLaunch.worktreeId);
+    const target = visibleWorktrees.find((wt) => wt.id === pendingOpenCodeLaunch.worktreeId);
     if (!target) {
       logAutoClaude("Waiting for target worktree to appear before launching OpenCode", {
         worktreeId: pendingOpenCodeLaunch.worktreeId,
@@ -1534,6 +1847,7 @@ export default function App() {
       setOpenCodeLaunchRequest({
         ...intent,
         requestId: openCodeLaunchRequestIdRef.current,
+        scopeKey: runtimeScopeKey,
       });
       logAutoClaude("Promoted pending OpenCode launch to active request", {
         worktreeId: intent.worktreeId,
@@ -1547,9 +1861,10 @@ export default function App() {
     logAppTemp,
     logAutoClaude,
     maybeDropStaleLaunchIntent,
+    hasHydratedCurrentScope,
     pendingOpenCodeLaunches,
     runtimeScopeKey,
-    worktrees,
+    visibleWorktrees,
   ]);
 
   const handleDeleted = () => {
@@ -1574,7 +1889,7 @@ export default function App() {
 
   const findLinkedJiraWorktree = (issueKey: string): WorktreeInfo | null => {
     const suffix = `/browse/${issueKey}`;
-    const wt = worktrees.find((w) => w.jiraUrl?.endsWith(suffix));
+    const wt = visibleWorktrees.find((w) => w.jiraUrl?.endsWith(suffix));
     return wt ?? null;
   };
 
@@ -1590,7 +1905,7 @@ export default function App() {
 
   const findLinkedLinearWorktree = (identifier: string): WorktreeInfo | null => {
     const suffix = `/issue/${identifier}`;
-    const wt = worktrees.find((w) => w.linearUrl?.includes(suffix));
+    const wt = visibleWorktrees.find((w) => w.linearUrl?.includes(suffix));
     return wt ?? null;
   };
 
@@ -1705,6 +2020,71 @@ export default function App() {
       refetch();
     },
     [logAppTemp, logAutoClaude, refetch, runtimeScopeKey],
+  );
+
+  const handleAgentLaunchRequestHandled = useCallback(
+    (
+      agent: "claude" | "codex" | "gemini" | "opencode",
+      requestId: number,
+      outcome: "reattached" | "started" | "failed",
+    ) => {
+      const clearMatchingRequest = <T extends ActiveAgentLaunchRequest>(
+        currentScopeKey: string,
+        current: T | null,
+      ): T | null => {
+        if (!current || current.requestId !== requestId) return current;
+        logAppTemp("active launch request cleared after handling", {
+          scopeKey: currentScopeKey,
+          agent,
+          requestId,
+          outcome,
+          mode: current.mode,
+          worktreeId: current.worktreeId,
+        });
+        return null;
+      };
+      const scopedState = runtimeScopedStateRef.current.get(runtimeScopeKey);
+      if (scopedState) {
+        runtimeScopedStateRef.current.set(runtimeScopeKey, {
+          ...scopedState,
+          pendingClaudeLaunches: [...scopedState.pendingClaudeLaunches],
+          pendingCodexLaunches: [...scopedState.pendingCodexLaunches],
+          pendingGeminiLaunches: [...scopedState.pendingGeminiLaunches],
+          pendingOpenCodeLaunches: [...scopedState.pendingOpenCodeLaunches],
+          claudeLaunchRequest:
+            agent === "claude" && scopedState.claudeLaunchRequest?.requestId === requestId
+              ? null
+              : scopedState.claudeLaunchRequest,
+          codexLaunchRequest:
+            agent === "codex" && scopedState.codexLaunchRequest?.requestId === requestId
+              ? null
+              : scopedState.codexLaunchRequest,
+          geminiLaunchRequest:
+            agent === "gemini" && scopedState.geminiLaunchRequest?.requestId === requestId
+              ? null
+              : scopedState.geminiLaunchRequest,
+          opencodeLaunchRequest:
+            agent === "opencode" && scopedState.opencodeLaunchRequest?.requestId === requestId
+              ? null
+              : scopedState.opencodeLaunchRequest,
+        });
+      }
+
+      if (agent === "claude") {
+        setClaudeLaunchRequest((prev) => clearMatchingRequest(runtimeScopeKey, prev));
+        return;
+      }
+      if (agent === "codex") {
+        setCodexLaunchRequest((prev) => clearMatchingRequest(runtimeScopeKey, prev));
+        return;
+      }
+      if (agent === "gemini") {
+        setGeminiLaunchRequest((prev) => clearMatchingRequest(runtimeScopeKey, prev));
+        return;
+      }
+      setOpenCodeLaunchRequest((prev) => clearMatchingRequest(runtimeScopeKey, prev));
+    },
+    [logAppTemp, runtimeScopeKey],
   );
 
   const continueAgentLaunch = useCallback(
@@ -2858,7 +3238,7 @@ export default function App() {
                       transition={{ duration: 0.075, ease: "easeInOut" }}
                     >
                       <WorktreeList
-                        worktrees={worktrees}
+                        worktrees={visibleWorktrees}
                         selectedId={selection?.type === "worktree" ? selection.id : null}
                         onSelect={(id) => setSelection({ type: "worktree", id })}
                         filter={worktreeFilter}
@@ -2915,7 +3295,7 @@ export default function App() {
                           selection?.type === "custom-task" ? selection.id : null
                         }
                         onSelectCustomTask={(id) => setSelection({ type: "custom-task", id })}
-                        worktrees={worktrees}
+                        worktrees={visibleWorktrees}
                         onViewWorktree={handleViewWorktreeFromJira}
                       />
                     </motion.div>
@@ -3011,6 +3391,8 @@ export default function App() {
                 ) : (
                   <DetailPanel
                     worktree={selectedWorktree}
+                    isScopeHydrated={hasHydratedCurrentScope}
+                    scopeWorktreeIds={activeWorktreeIds}
                     onUpdate={refetch}
                     onDeleted={handleDeleted}
                     hookUpdateKey={hookUpdateKey}
@@ -3038,11 +3420,12 @@ export default function App() {
                     onCodeWithCodex={handleCodeWithCodex}
                     onCodeWithGemini={handleCodeWithGemini}
                     onCodeWithOpenCode={handleCodeWithOpenCode}
-                    claudeLaunchRequest={claudeLaunchRequest}
-                    codexLaunchRequest={codexLaunchRequest}
-                    geminiLaunchRequest={geminiLaunchRequest}
-                    opencodeLaunchRequest={opencodeLaunchRequest}
+                    claudeLaunchRequest={scopedClaudeLaunchRequest}
+                    codexLaunchRequest={scopedCodexLaunchRequest}
+                    geminiLaunchRequest={scopedGeminiLaunchRequest}
+                    opencodeLaunchRequest={scopedOpenCodeLaunchRequest}
                     notificationTabRequest={notificationTabRequest}
+                    onAgentLaunchRequestHandled={handleAgentLaunchRequestHandled}
                   />
                 )}
               </main>

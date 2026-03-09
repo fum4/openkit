@@ -22,6 +22,15 @@ function isRestorableAgent(value: unknown): value is RestorableAgent {
   return value === "claude" || value === "codex";
 }
 
+function formatTempLog(prefix: string, message: string, payload?: Record<string, unknown>): string {
+  if (!payload) return `${prefix} ${message}`;
+  try {
+    return `${prefix} ${message} ${JSON.stringify(payload)}`;
+  } catch {
+    return `${prefix} ${message}`;
+  }
+}
+
 export function registerTerminalRoutes(
   app: Hono,
   worktreeManager: WorktreeManager,
@@ -34,17 +43,25 @@ export function registerTerminalRoutes(
 
   app.post("/api/worktrees/:id/terminals", async (c) => {
     const worktreeId = c.req.param("id");
+    const body = await c.req.json().catch(() => ({}));
+    const scope = isTerminalScope(body.scope) ? body.scope : null;
     const resolved = worktreeManager.resolveWorktree(worktreeId);
     if (!resolved.success) {
+      console.info(
+        formatTempLog("[terminal][TEMP]", "create session worktree resolution failed", {
+          requestedWorktreeId: worktreeId,
+          scope,
+          code: resolved.code,
+          error: resolved.error,
+        }),
+      );
       return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
     }
     const { worktree, worktreeId: canonicalWorktreeId } = resolved;
 
     try {
-      const body = await c.req.json().catch(() => ({}));
       const cols = body.cols ?? 80;
       const rows = body.rows ?? 24;
-      const scope = isTerminalScope(body.scope) ? body.scope : null;
       const startupCommand =
         typeof body.startupCommand === "string" && body.startupCommand.trim()
           ? body.startupCommand
@@ -58,14 +75,17 @@ export function registerTerminalRoutes(
         startupCommand,
         scope,
       );
-      console.info("[terminal][TEMP] session created", {
-        worktreeId: canonicalWorktreeId,
-        sessionId: createResult.sessionId,
-        scope,
-        hasStartupCommand: Boolean(startupCommand),
-        reusedScopedSession: createResult.reusedScopedSession,
-        replacedScopedShellSession: createResult.replacedScopedShellSession,
-      });
+      console.info(
+        formatTempLog("[terminal][TEMP]", "session created", {
+          worktreeId: canonicalWorktreeId,
+          sessionId: createResult.sessionId,
+          scope,
+          hasStartupCommand: Boolean(startupCommand),
+          reusedScopedSession: createResult.reusedScopedSession,
+          replacedScopedShellSession: createResult.replacedScopedShellSession,
+          createPath: startupCommand ? "explicit-create" : "passive-create",
+        }),
+      );
       return c.json({
         success: true,
         sessionId: createResult.sessionId,
@@ -95,10 +115,26 @@ export function registerTerminalRoutes(
 
     const resolved = worktreeManager.resolveWorktreeId(worktreeId);
     if (!resolved.success) {
+      console.info(
+        formatTempLog("[terminal][TEMP]", "active session worktree resolution failed", {
+          requestedWorktreeId: worktreeId,
+          scope,
+          code: resolved.code,
+          error: resolved.error,
+        }),
+      );
       return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
     }
 
     const sessionId = terminalManager.getSessionIdForScope(resolved.worktreeId, scope);
+    console.info(
+      formatTempLog("[terminal][TEMP]", "active session resolved", {
+        requestedWorktreeId: worktreeId,
+        canonicalWorktreeId: resolved.worktreeId,
+        scope,
+        sessionId,
+      }),
+    );
     return c.json({ success: true, sessionId });
   });
 
@@ -123,6 +159,16 @@ export function registerTerminalRoutes(
     try {
       const activeSessionId = terminalManager.getSessionIdForScope(resolved.worktreeId, agent);
       const historyMatches = findHistoricalAgentSessions(agent, resolved.worktree.path);
+      console.info(
+        formatTempLog("[terminal][TEMP]", "restore targets resolved", {
+          requestedWorktreeId: worktreeId,
+          canonicalWorktreeId: resolved.worktreeId,
+          worktreePath: resolved.worktree.path,
+          agent,
+          activeSessionId,
+          historySessionIds: historyMatches.map((match) => match.sessionId),
+        }),
+      );
       return c.json({
         success: true,
         activeSessionId,
@@ -158,16 +204,19 @@ export function registerTerminalRoutes(
           if (!attached) {
             const reason = hadSession ? "terminal-spawn-failed" : "session-not-found";
             console.info(
-              "[terminal][TEMP] websocket attach failed: session not found or spawn failed",
-              {
-                sessionId,
-                reason,
-              },
+              formatTempLog(
+                "[terminal][TEMP]",
+                "websocket attach failed: session not found or spawn failed",
+                {
+                  sessionId,
+                  reason,
+                },
+              ),
             );
             ws.close(1008, reason);
             return;
           }
-          console.info("[terminal][TEMP] websocket attached", { sessionId });
+          console.info(formatTempLog("[terminal][TEMP]", "websocket attached", { sessionId }));
         },
       };
     }),

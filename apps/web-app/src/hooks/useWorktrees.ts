@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { reportPersistentErrorToast } from "../errorToasts";
 import type { WorktreeInfo, PortsInfo, JiraStatus, GitHubStatus, LinearStatus } from "../types";
@@ -13,6 +13,12 @@ import {
   fetchConfig as apiFetchConfig,
 } from "./api";
 
+interface WorktreeScopeHydrationState {
+  currentServerUrl: string | null;
+  hydratedServerUrl: string | null;
+  isHydrating: boolean;
+}
+
 export function useWorktrees(
   onNotification?: (message: string, level: "error" | "info") => void,
   onHookUpdate?: (worktreeId: string) => void,
@@ -21,19 +27,74 @@ export function useWorktrees(
   const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scopeHydrationState, setScopeHydrationState] = useState<WorktreeScopeHydrationState>({
+    currentServerUrl: serverUrl,
+    hydratedServerUrl: null,
+    isHydrating: serverUrl !== null,
+  });
+  const activeScopeRef = useRef<{ seq: number; serverUrl: string | null }>({
+    seq: 0,
+    serverUrl,
+  });
 
-  const fetchWorktrees = useCallback(async () => {
-    if (serverUrl === null) return; // No active project in Electron mode
-    try {
-      const data = await apiFetchWorktrees(serverUrl);
+  const isScopeActive = useCallback((scopeSeq: number, scopeServerUrl: string | null) => {
+    return (
+      activeScopeRef.current.seq === scopeSeq && activeScopeRef.current.serverUrl === scopeServerUrl
+    );
+  }, []);
+
+  const markScopeHydrated = useCallback((scopeServerUrl: string) => {
+    setScopeHydrationState((prev) => {
+      if (prev.currentServerUrl !== scopeServerUrl) return prev;
+      if (prev.hydratedServerUrl === scopeServerUrl && !prev.isHydrating) return prev;
+      return {
+        currentServerUrl: scopeServerUrl,
+        hydratedServerUrl: scopeServerUrl,
+        isHydrating: false,
+      };
+    });
+  }, []);
+
+  const fetchWorktreesForScope = useCallback(
+    async (scopeSeq: number, scopeServerUrl: string) => {
+      let data;
+      try {
+        data = await apiFetchWorktrees(scopeServerUrl);
+      } catch (err) {
+        if (!isScopeActive(scopeSeq, scopeServerUrl)) {
+          return false;
+        }
+
+        const message = err instanceof Error ? err.message : "Failed to fetch worktrees";
+        setError(message);
+        reportPersistentErrorToast(err, "Failed to fetch worktrees", { scope: "worktrees:fetch" });
+        return false;
+      }
+
+      if (!isScopeActive(scopeSeq, scopeServerUrl)) {
+        return false;
+      }
+
       setWorktrees((data.worktrees || []) as WorktreeInfo[]);
       setError(null);
+      markScopeHydrated(scopeServerUrl);
+      return true;
+    },
+    [isScopeActive, markScopeHydrated],
+  );
+
+  const fetchWorktrees = useCallback(async () => {
+    if (serverUrl === null) return;
+    const scope = activeScopeRef.current;
+    if (!scope.serverUrl) return;
+    try {
+      await fetchWorktreesForScope(scope.seq, scope.serverUrl);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to fetch worktrees";
       setError(message);
       reportPersistentErrorToast(err, "Failed to fetch worktrees", { scope: "worktrees:fetch" });
     }
-  }, [serverUrl]);
+  }, [fetchWorktreesForScope, serverUrl]);
 
   // Store callbacks in refs so they don't cause reconnects
   const notificationRef = useCallback(
@@ -51,26 +112,43 @@ export function useWorktrees(
   );
 
   useEffect(() => {
+    activeScopeRef.current = {
+      seq: activeScopeRef.current.seq + 1,
+      serverUrl,
+    };
+    const scopeSeq = activeScopeRef.current.seq;
+
+    setWorktrees([]);
+    setIsConnected(false);
+    setError(null);
+    setScopeHydrationState({
+      currentServerUrl: serverUrl,
+      hydratedServerUrl: null,
+      isHydrating: serverUrl !== null,
+    });
+
     if (serverUrl === null) {
-      setWorktrees([]);
-      setIsConnected(false);
       return;
     }
 
-    fetchWorktrees();
+    void fetchWorktreesForScope(scopeSeq, serverUrl);
 
     const eventSource = new EventSource(getEventsUrl(serverUrl));
 
     eventSource.onopen = () => {
+      if (!isScopeActive(scopeSeq, serverUrl)) return;
       setIsConnected(true);
       setError(null);
     };
 
     eventSource.onmessage = (event) => {
+      if (!isScopeActive(scopeSeq, serverUrl)) return;
       try {
         const data = JSON.parse(event.data);
         if (data.type === "worktrees") {
           setWorktrees(data.worktrees || []);
+          markScopeHydrated(serverUrl);
+          setError(null);
         } else if (data.type === "notification") {
           notificationRef(data.message, data.level);
         } else if (data.type === "hook-update") {
@@ -88,6 +166,7 @@ export function useWorktrees(
     };
 
     eventSource.onerror = () => {
+      if (!isScopeActive(scopeSeq, serverUrl)) return;
       setIsConnected(false);
       setError("Live updates disconnected");
       reportPersistentErrorToast("Live updates disconnected", "Live updates disconnected", {
@@ -95,16 +174,42 @@ export function useWorktrees(
       });
       eventSource.close();
       setTimeout(() => {
-        fetchWorktrees();
+        if (!isScopeActive(scopeSeq, serverUrl)) return;
+        void fetchWorktreesForScope(scopeSeq, serverUrl);
       }, 5000);
     };
 
     return () => {
       eventSource.close();
     };
-  }, [fetchWorktrees, notificationRef, hookUpdateRef, serverUrl]);
+  }, [
+    fetchWorktreesForScope,
+    hookUpdateRef,
+    isScopeActive,
+    markScopeHydrated,
+    notificationRef,
+    serverUrl,
+  ]);
 
-  return { worktrees, isConnected, error, refetch: fetchWorktrees };
+  const hasHydratedCurrentScope =
+    serverUrl !== null &&
+    scopeHydrationState.currentServerUrl === serverUrl &&
+    scopeHydrationState.hydratedServerUrl === serverUrl &&
+    !scopeHydrationState.isHydrating;
+
+  const isHydratingCurrentScope =
+    serverUrl !== null &&
+    scopeHydrationState.currentServerUrl === serverUrl &&
+    scopeHydrationState.isHydrating;
+
+  return {
+    worktrees,
+    isConnected,
+    error,
+    refetch: fetchWorktrees,
+    hasHydratedCurrentScope,
+    isHydratingCurrentScope,
+  };
 }
 
 export function useProjectName() {
