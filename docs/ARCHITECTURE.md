@@ -40,6 +40,8 @@ flowchart TB
     TM["TerminalManager\n(PTY sessions via WebSocket)"]
     NM["NotesManager\n(issue notes, todos, AI context)"]
     AL["ActivityLog\n(event persistence + emission)"]
+    OL["OpsLog\n(operational traces + command logs)"]
+    CM["Command Monitor\n(execFile/execFileSync/spawn patch)"]
     VM["HooksManager\n(hooks: commands + skills)"]
     NC["Ngrok Connect Routes\n(qr pairing + gateway proxy)"]
     GH["GitHubManager\n(PR status, git operations)"]
@@ -51,6 +53,7 @@ flowchart TB
     WM --> PM
     WM --> NM
     WM --> AL
+    WM --> OL
     WM --> GH
     VM --> WM
     Routes --> WM
@@ -58,11 +61,13 @@ flowchart TB
     Routes --> NM
     Routes --> VM
     Routes --> AL
+    Routes --> OL
     Routes --> NC
     Actions --> WM
     Actions --> NM
     Actions --> VM
     Actions --> AL
+    CM --> OL
     McpFactory --> Actions
     PM -->|env vars| Hook
 ```
@@ -82,6 +87,7 @@ Key responsibilities:
 - **Config management**: `reloadConfig()`, `updateConfig()`, `getConfig()`
 - **Log capture**: Stdout/stderr from spawned processes is captured (last 100 lines) and forwarded to listeners with debounced batching (250ms)
 - **Activity tracking**: Owns an `ActivityLog` instance, emitting lifecycle events (`creation_started`, `creation_completed`, `creation_failed`, `started`, `stopped`, `crashed`) during worktree operations
+- **Operational tracing**: Owns an `OpsLog` instance used for request traces, notification emissions, and structured command execution telemetry
 
 ### PortManager
 
@@ -135,6 +141,30 @@ Key responsibilities:
 - **Notification classification**: `isToastEvent()` and `isOsNotificationEvent()` expose config-based checks in `ActivityLog`; product policy routes workflow/agent/live updates to the Activity feed, reserves toasts for direct user actions, and reserves Electron native alerts for agent-attention events
 
 Shared activity types are defined in `libs/shared/src/activity-event.ts`: `ActivityCategory` (`agent` | `worktree` | `system`), `ActivitySeverity` (`info` | `success` | `warning` | `error`), `ActivityEvent`, and the `ACTIVITY_TYPES` event catalog.
+
+### OpsLog
+
+`apps/server/src/ops-log.ts` -- Persists and broadcasts operational trace events (command execution telemetry, HTTP request traces, notification emissions, and client-reported UI errors).
+
+Key responsibilities:
+
+- **Event persistence**: Events are appended to `.openkit/ops-log.jsonl` in JSONL format
+- **Real-time broadcast**: Maintains subscriber callbacks, emitting each new event over SSE (`ops-log`)
+- **Querying**: `getEvents(filter?)` supports since/level/status/source/search/limit filters
+- **Pruning**: Removes events older than retention (default 7 days), on startup and hourly
+- **Command correlation**: Stores `runId` plus command payload (`command`, `args`, `cwd`, `pid`, `exitCode`, `durationMs`, `stdout`, `stderr`) for start/success/failure phases
+
+### Command Monitor
+
+`apps/server/src/runtime/command-monitor.ts` patches Node's `child_process` methods at runtime (`execFile`, `execFileSync`, `spawn`) and emits structured start/success/failure events to the configured sink.
+
+Key responsibilities:
+
+- **Global command interception**: Captures command invocations without requiring per-callsite wrappers
+- **Source attribution**: Derives callsite source from stack traces
+- **Redaction**: Masks sensitive CLI args (token/password/auth-style flags)
+- **Output capture**: Records bounded stdout/stderr snippets for debugging context
+- **Safety**: Sink failures are non-fatal and cannot break command execution
 
 ### HooksManager
 
@@ -281,7 +311,7 @@ vite build
 
 Vite builds the React SPA through `apps/web-app/vite.config.ts` from `apps/web-app/src/` into `apps/web-app/dist/`. The Hono server serves UI from `apps/web-app/dist` when present, and falls back to downloaded UI components under `~/.openkit/components/web/current` when running in core-only installs. The Electron app loads `apps/web-app/dist/index.html` directly.
 
-The SPA includes multiple top-level product surfaces (Workspace, Agents, Activity, Hooks, Integrations, Settings). The Activity surface uses a per-project SSE model in the renderer (`useProjectActivityFeeds`) to render one activity card per open project while reusing the same feed panel component as the header bell dropdown.
+The SPA includes multiple top-level product surfaces (Workspace, Agents, Activity, Hooks, Integrations, Settings). The Activity surface uses a per-project SSE model in the renderer (`useProjectActivityFeeds`) to render one activity card per open project while reusing the same feed panel component as the header bell dropdown. Each activity card also includes a `Debug` toggle that switches that card to an operational timeline powered by `useProjectOpsLogs` and `ops-log` SSE events.
 
 ### Electron: tsc + electron-builder
 

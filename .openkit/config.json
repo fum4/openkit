@@ -6,5 +6,7 @@
   "ports": {
     "discovered": [],
     "offsetStep": 1
-  }
+  },
+  "allowAgentCommits": false,
+  "allowAgentPushes": false
 }

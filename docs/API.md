@@ -908,13 +908,64 @@ Create a new activity event (used by the UI for app-level notifications such as 
 
 ---
 
+## Operational Logs
+
+Query and append structured operational log events (command executions, request traces, notification emissions, and UI error-toast reports).
+
+#### `GET /api/logs`
+
+Query persisted ops-log events with optional filters.
+
+- **Query params**:
+  - `?since=<iso>` -- Only events after this ISO 8601 timestamp
+  - `?level=<level>` -- Filter by level (`debug`, `info`, `warning`, `error`)
+  - `?status=<status>` -- Filter by status (`started`, `succeeded`, `failed`, `info`)
+  - `?source=<text>` -- Filter by source substring
+  - `?search=<text>` -- Full-text match across message/source/action/command fields
+  - `?limit=<n>` -- Max number of events to return (default: 200)
+- **Response**: `{ events: OpsLogEvent[] }`
+
+Each `OpsLogEvent` includes:
+
+- `id`, `timestamp`
+- `source`, `action`, `message`
+- `level` (`debug` | `info` | `warning` | `error`)
+- `status` (`started` | `succeeded` | `failed` | `info`)
+- optional `runId`, `worktreeId`, `projectName`, `metadata`
+- optional `command` payload (`command`, `args`, `cwd`, `pid`, `exitCode`, `signal`, `durationMs`, `stdout`, `stderr`)
+
+Events are persisted to `.openkit/ops-log.jsonl` (JSONL format) and pruned automatically (default retention: 7 days).
+
+#### `POST /api/logs`
+
+Append a custom operational log event (used by UI error-toast reporting and other client-side telemetry).
+
+- **Request**:
+  ```json
+  {
+    "source": "ui.toast",
+    "action": "toast.error",
+    "message": "Failed to fetch Jira status",
+    "level": "error",
+    "status": "failed",
+    "metadata": {
+      "scope": "jira-status:fetch"
+    }
+  }
+  ```
+- `level`, `status`, `worktreeId`, and `metadata` are optional.
+- **Response**: `{ success: true, event: OpsLogEvent }`
+- **Error** (400): `{ success: false, error: "..." }`
+
+---
+
 ## Events (SSE)
 
-Server-Sent Events stream for real-time worktree and activity updates.
+Server-Sent Events stream for real-time worktree, activity, and operational-log updates.
 
 #### `GET /api/events`
 
-Opens an SSE connection. Immediately sends the current worktree state and recent activity history, then pushes updates as they occur.
+Opens an SSE connection. Immediately sends the current worktree state plus recent activity and ops-log history, then pushes updates as they occur.
 
 - **Headers**: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`
 - **Event format**:
@@ -922,11 +973,15 @@ Opens an SSE connection. Immediately sends the current worktree state and recent
   data: {"type":"worktrees","worktrees":[...]}
   data: {"type":"activity-history","events":[...]}
   data: {"type":"activity","event":{...}}
+  data: {"type":"ops-log-history","events":[...]}
+  data: {"type":"ops-log","event":{...}}
   ```
 - **Event types**:
   - `worktrees` -- Full worktree list on every state change (status transitions, log updates, port changes, etc.)
   - `activity-history` -- Sent once on connection, contains the last 50 activity events
   - `activity` -- Individual activity events as they occur in real-time
+  - `ops-log-history` -- Sent once on connection, contains recent operational log events (default 200)
+  - `ops-log` -- Individual operational log events as they occur in real-time
 
 The connection stays open until the client disconnects.
 

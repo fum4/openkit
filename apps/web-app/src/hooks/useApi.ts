@@ -626,6 +626,12 @@ export function useApi() {
 
       createActivityEvent: (event: Parameters<typeof api.createActivityEvent>[0]) =>
         api.createActivityEvent(event, serverUrl),
+
+      fetchOpsLogs: (params?: Parameters<typeof api.fetchOpsLogs>[1]) =>
+        api.fetchOpsLogs(serverUrl, params),
+
+      createOpsLogEvent: (event: Parameters<typeof api.createOpsLogEvent>[0]) =>
+        api.createOpsLogEvent(event, serverUrl),
     }),
     [serverUrl],
   );

@@ -365,7 +365,7 @@ export function useMyFeature() {
 
 ### SSE for Real-Time Updates
 
-State is pushed from the server via Server-Sent Events. The `useWorktrees` hook connects to `/api/events` and handles `worktrees` (worktree state updates), `notification` (direct user-action success/failure messages displayed as toasts), `hook-update` (triggers auto-refetch of hook results in the HooksTab), plus `activity` / `activity-history` (workflow and agent updates routed to the Activity feed). This is how the UI reflects process start/stop, log output, status changes, and agent-reported hook results without polling.
+State is pushed from the server via Server-Sent Events. The `useWorktrees` hook connects to `/api/events` and handles `worktrees` (worktree state updates), `notification` (direct user-action success/failure messages displayed as toasts), `hook-update` (triggers auto-refetch of hook results in the HooksTab), plus `activity` / `activity-history` (workflow and agent updates routed to the Activity feed). The same SSE stream also emits `ops-log` / `ops-log-history`, consumed by per-project Activity-card debug mode (`useProjectOpsLogs`) for behind-the-scenes operational tracing. This is how the UI reflects process start/stop, log output, status changes, and agent-reported hook results without polling.
 
 ### Theme System
 

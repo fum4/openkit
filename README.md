@@ -8,6 +8,9 @@ and ship pull requests with clear visibility.
 
 Recent updates:
 
+- Added per-project debug-log mode in Activity cards (Debug toggle) with operational traces for command execution, request traces, notification emissions, and UI error reports.
+- Runtime command monitoring now captures all server-side `execFile` / `execFileSync` / `spawn` calls into `.openkit/ops-log.jsonl` and streams them live over SSE.
+- UI error toasts now auto-dismiss after 5 seconds and are mirrored into operational logs for easier debugging.
 - Hook lifecycle triggers (`worktree-created`, `worktree-removed`) now support command, prompt, and skill configuration.
 - Consecutive task-detected activity events are grouped into a single feed entry with per-item detail rows.
 - Worktree branch-ref collision errors now surface recovery choices (reuse existing or recreate fresh) in "Code with" flows.

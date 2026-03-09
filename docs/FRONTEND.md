@@ -57,6 +57,8 @@ The Agents list is cache-first: sidebar items render immediately from local cach
 
 Shows project-scoped activity timelines using the same feed rows/filters/actions as the bell dropdown. In Electron multi-project mode, the page renders one card per open project, ordered with the active project first, in a responsive wrapping grid (`minmax(500px, 1fr)`) constrained to viewport height (equal-height rows, per-card internal scrolling). Running projects stream live events over SSE per project, and non-running projects render an unavailable state card.
 
+Inside each `Activity` project card, a `Debug` toggle switches that card between the normal activity feed and a debug-log mode. Debug-log mode streams structured operational events for command executions (`execFile`, `execFileSync`, `spawn`), API requests, notification emissions, and client-reported error toasts, with per-project search and level-based filtering (`error`, `warning`, `info`, `debug`). The `Debug` toggle state is persisted per project scope.
+
 ### Hooks
 
 Configures automated checks and agent skills organized by trigger type (pre-implementation, post-implementation, custom, on-demand, worktree-created, worktree-removed). Users can add command steps, prompt steps, and skills in all sections, including lifecycle triggers.
@@ -180,6 +182,9 @@ App
 |
 +-- [Agents view]
 |   +-- AgentsView            (rules, custom/plugin agents, MCP servers, skills, plugins management)
+|
++-- [Activity view]
+|   +-- ActivityPage          (per-project activity cards with bug-toggle debug logs mode)
 |
 +-- [Configuration view]
 |   +-- ConfigurationPanel
@@ -309,6 +314,8 @@ All hooks live in `apps/web-app/src/hooks/`.
 - `hook-update` -- signals that hook results changed for a worktree, triggering auto-refetch in the HooksTab
 - `activity-history` -- batch of recent events on initial connection (dispatched as `OpenKit:activity-history` CustomEvent)
 - `activity` -- individual real-time activity events (dispatched as `OpenKit:activity` CustomEvent)
+- `ops-log-history` -- batch of recent operational logs on initial connection (consumed by `useProjectOpsLogs`)
+- `ops-log` -- individual real-time operational log event (consumed by `useProjectOpsLogs`)
 
 On connection error, it falls back to polling with a 5-second retry.
 
@@ -550,7 +557,7 @@ The app uses Framer Motion for transitions:
 | `Spinner.tsx`               | Loading spinner component                                                                                                                                                                                                                                          |
 | `TabBar.tsx`                | Electron multi-project tab bar and bottom-right project controls (QR, Wi-Fi tunnel toggle, Settings)                                                                                                                                                               |
 | `ActivityFeed.tsx`          | Shared activity feed panel (`ActivityFeedPanel`) plus dropdown wrapper (`ActivityFeed`) and bell button (`ActivityBell`), with multi-select filter chips, action-required prioritization, row-level subject navigation, and grouped consecutive task-detected rows |
-| `errorToasts.tsx`           | Global `react-hot-toast` error renderer and runtime bridges (`window.error`/`window.unhandledrejection`) with persistent dark-themed dismissible error toasts                                                                                                      |
+| `errorToasts.tsx`           | Global `react-hot-toast` error renderer/runtime bridges; error toasts auto-dismiss after 5s and emit `OpenKit:error-toast` for backend ops logging                                                                                                                 |
 | `Tooltip.tsx`               | Tooltip component (always use this instead of native `title` attribute)                                                                                                                                                                                            |
 | `TruncatedTooltip.tsx`      | Text with automatic tooltip on overflow                                                                                                                                                                                                                            |
 | `VerificationPanel.tsx`     | Hooks configuration view (trigger-based command steps, prompts, and skills across workflow + lifecycle triggers)                                                                                                                                                   |
@@ -608,6 +615,7 @@ The app uses Framer Motion for transitions:
 | `activityFeedUtils.ts`         | Shared activity feed upsert/history utilities, including hook aggregation and consecutive task-detected grouping                   |
 | `useActivityFeed.ts`           | Activity feed state, unread count, chronological upserts, hook-run aggregation, and grouped-event rendering support                |
 | `useProjectActivityFeeds.ts`   | Per-project activity feed state with one SSE stream per running project, cache-first hydration, and initial loading-state handling |
+| `useProjectOpsLogs.ts`         | Per-project operational log state with one SSE stream per running project for Activity debug mode                                  |
 | `useWorktrees.ts`              | SSE-based real-time worktree updates + integration status hooks                                                                    |
 
 ### Context (`apps/web-app/src/contexts/`)

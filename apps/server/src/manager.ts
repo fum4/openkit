@@ -45,6 +45,7 @@ import type { LinearTaskData } from "@openkit/integrations/linear/types";
 import { ActivityLog } from "./activity-log";
 import { ACTIVITY_TYPES } from "./activity-event";
 import { NotesManager } from "./notes-manager";
+import { OpsLog } from "./ops-log";
 import { PortManager } from "./port-manager";
 import type { HooksInfo, PendingTaskContext } from "./task-context";
 import { writeTaskMd, generateTaskMd } from "./task-context";
@@ -180,6 +181,8 @@ export class WorktreeManager {
 
   private activityLog: ActivityLog;
 
+  private opsLog: OpsLog;
+
   private runningProcesses: Map<string, RunningProcess> = new Map();
 
   private creatingWorktrees: Map<string, WorktreeInfo> = new Map();
@@ -224,6 +227,9 @@ export class WorktreeManager {
     this.portManager = new PortManager(config, configFilePath);
     this.notesManager = new NotesManager(this.configDir);
     this.activityLog = new ActivityLog(this.configDir, this.config.activity);
+    this.opsLog = new OpsLog(this.configDir, {
+      retentionDays: this.config.activity?.retentionDays,
+    });
 
     const worktreesPath = this.getWorktreesAbsolutePath();
     if (!existsSync(worktreesPath)) {
@@ -338,6 +344,9 @@ export class WorktreeManager {
   }
 
   private emitNotification(message: string, level: "error" | "info" = "error"): void {
+    this.opsLog.addNotificationEvent(message, level, {
+      projectName: this.getProjectName() ?? undefined,
+    });
     this.notificationListeners.forEach((listener) => listener({ message, level }));
   }
 
@@ -379,6 +388,10 @@ export class WorktreeManager {
 
   getActivityLog(): ActivityLog {
     return this.activityLog;
+  }
+
+  getOpsLog(): OpsLog {
+    return this.opsLog;
   }
 
   setPendingWorktreeContext(id: string, ctx: PendingTaskContext): void {
@@ -1611,6 +1624,8 @@ export class WorktreeManager {
       this.stopWorktree(id),
     );
     await Promise.all(stopPromises);
+    this.activityLog.dispose();
+    this.opsLog.dispose();
   }
 
   async cleanupIssueData(
