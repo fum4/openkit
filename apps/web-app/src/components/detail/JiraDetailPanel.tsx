@@ -356,7 +356,13 @@ export function JiraDetailPanel({
     if (result.success && createdWorktreeId) {
       onCreateWorktree(createdWorktreeId);
     } else if (result.success) {
-      setCreateError("Worktree was created, but the response did not include a worktree id.");
+      reportPersistentErrorToast(
+        "Worktree was created, but the response did not include a worktree id.",
+        "Failed to create worktree",
+        {
+          scope: "jira:create-worktree",
+        },
+      );
     } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
       console.log("Showing WorktreeExistsModal for:", result.worktreeId);
       setExistingWorktree({ id: result.worktreeId, branch: issueKey });

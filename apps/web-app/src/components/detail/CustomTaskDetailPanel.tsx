@@ -138,7 +138,13 @@ export function CustomTaskDetailPanel({
       queryClient.invalidateQueries({ queryKey: ["customTasks"] });
       onCreateWorktree(createdWorktreeId);
     } else if (result.success) {
-      setCreateError("Worktree was created, but the response did not include a worktree id.");
+      reportPersistentErrorToast(
+        "Worktree was created, but the response did not include a worktree id.",
+        "Failed to create worktree",
+        {
+          scope: "custom-task:create-worktree",
+        },
+      );
     } else {
       reportPersistentErrorToast(result.error, "Failed to create worktree", {
         scope: "custom-task:create-worktree",
@@ -425,7 +431,6 @@ export function CustomTaskDetailPanel({
             )}
           </div>
         </div>
-        {createError && <p className={`${text.error} text-[10px] mt-2`}>{createError}</p>}
         {activeLinkedWorktreeId && (
           <p className={`${text.dimmed} text-[10px] mt-1.5`}>
             This will use worktree <span className={text.secondary}>{activeLinkedWorktreeId}</span>.

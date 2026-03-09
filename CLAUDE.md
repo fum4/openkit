@@ -45,6 +45,11 @@ There is no test runner configured.
 - Never use Prettier in this repository.
 - Use `oxlint` for linting and `oxfmt` for formatting.
 
+## Error Handling
+
+- Always surface user-facing errors through toast notifications.
+- Do not introduce inline error text for operational failures when a toast can communicate the failure.
+
 ## TypeScript Preference
 
 - Always prefer TypeScript (`.ts`/`.tsx`) whenever possible.
