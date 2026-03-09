@@ -200,10 +200,10 @@ pnpm nx run-many -t dev --projects web-app,cli,desktop-app --parallel=3
 
 This ensures desktop dependencies are running before/alongside the shell. The desktop target itself still executes the app-local `apps/desktop-app` desktop script (two concurrent processes):
 
-| Process               | What it does                                                                                                     |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `dev:desktop:compile` | TypeScript watcher for `apps/desktop-app/src/*.ts` -> `apps/desktop-app/dist/`                                   |
-| `dev:desktop:run`     | Waits for the Vite server and compiled Electron main, then launches Electron via `electronmon` with auto-restart |
+| Process               | What it does                                                                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dev:desktop:compile` | TypeScript watcher for `apps/desktop-app/src/*.ts` -> `apps/desktop-app/dist/`                                                                  |
+| `dev:desktop:run`     | Waits for the Vite server, compiled Electron main, and `apps/cli/dist/cli/index.js`, then launches Electron via `electronmon` with auto-restart |
 
 ### How Changes Propagate
 

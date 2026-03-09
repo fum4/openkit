@@ -7,6 +7,7 @@ import type {
   LinearStatus,
   LinearIssueSummary,
   LinearIssueDetail,
+  WorktreeInfo,
   CustomTaskSummary,
   CustomTaskDetail,
   McpServerSummary,
@@ -52,6 +53,14 @@ export type OpenProjectTarget =
   | "neovim";
 
 export type CodingAgent = "claude" | "codex" | "gemini" | "opencode";
+export type RestorableAgent = "claude" | "codex";
+
+export interface AgentHistoryMatch {
+  sessionId: string;
+  title: string;
+  updatedAt: string;
+  preview?: string;
+}
 
 export interface OpenProjectTargetOption {
   target: OpenProjectTarget;
@@ -67,6 +76,7 @@ export async function createWorktree(
   error?: string;
   code?: string;
   worktreeId?: string;
+  worktree?: WorktreeInfo;
 }> {
   try {
     const body: { branch: string; name?: string } = { branch };
@@ -218,7 +228,16 @@ export async function fetchOpenProjectTargets(
 export async function removeWorktree(
   id: string,
   serverUrl: string | null = null,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  code?: string;
+  worktreeId?: string;
+  removedTerminalSessions?: number;
+  removedRunningProcess?: boolean;
+  clearedLinks?: number;
+  deleteOpId?: string;
+}> {
   try {
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(id)}`, {
       method: "DELETE",
@@ -271,6 +290,8 @@ export async function createFromJira(
   error?: string;
   code?: string;
   worktreeId?: string;
+  worktreePath?: string;
+  reusedExisting?: boolean;
 }> {
   try {
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/jira/task`, {
@@ -490,7 +511,13 @@ export async function createTerminalSession(
   startupCommand?: string,
   scope?: "terminal" | "claude" | "codex" | "gemini" | "opencode",
   serverUrl: string | null = null,
-): Promise<{ success: boolean; sessionId?: string; error?: string }> {
+): Promise<{
+  success: boolean;
+  sessionId?: string;
+  reusedScopedSession?: boolean;
+  replacedScopedShellSession?: boolean;
+  error?: string;
+}> {
   try {
     const res = await fetch(
       `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(worktreeId)}/terminals`,
@@ -606,6 +633,33 @@ export async function fetchActiveTerminalSession(
       success: false,
       sessionId: null,
       error: err instanceof Error ? err.message : "Failed to fetch active terminal session",
+    };
+  }
+}
+
+export async function fetchRestorableAgentSessions(
+  worktreeId: string,
+  agent: RestorableAgent,
+  serverUrl: string | null = null,
+): Promise<{
+  success: boolean;
+  activeSessionId: string | null;
+  historyMatches: AgentHistoryMatch[];
+  error?: string;
+}> {
+  try {
+    const res = await fetch(
+      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(
+        worktreeId,
+      )}/agents/${encodeURIComponent(agent)}/restore`,
+    );
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      activeSessionId: null,
+      historyMatches: [],
+      error: err instanceof Error ? err.message : "Failed to fetch restorable agent sessions",
     };
   }
 }
@@ -1267,6 +1321,8 @@ export async function createFromLinear(
   error?: string;
   code?: string;
   worktreeId?: string;
+  worktreePath?: string;
+  reusedExisting?: boolean;
 }> {
   try {
     const res = await fetch(`${getBaseUrl(serverUrl)}/api/linear/task`, {
@@ -2035,6 +2091,36 @@ export async function createCustomTask(
   }
 }
 
+export async function recoverLocalTask(
+  data: {
+    taskId: string;
+    title?: string;
+    description?: string;
+    priority?: "high" | "medium" | "low";
+    labels?: string[];
+  },
+  serverUrl: string | null = null,
+): Promise<{
+  success: boolean;
+  task?: CustomTaskDetail;
+  linkedWorktreeId?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/tasks/recover-local`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to recover local task",
+    };
+  }
+}
+
 export async function updateCustomTask(
   id: string,
   updates: Record<string, unknown>,
@@ -2079,8 +2165,11 @@ export async function createWorktreeFromCustomTask(
 ): Promise<{
   success: boolean;
   worktreeId?: string;
+  worktree?: WorktreeInfo;
+  worktreePath?: string;
   error?: string;
   code?: string;
+  reusedExisting?: boolean;
 }> {
   try {
     const res = await fetch(

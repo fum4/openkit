@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "child_process";
-import { appendFileSync } from "fs";
+import { appendFileSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -12,16 +12,29 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const isPackaged = Boolean(process.resourcesPath) && currentDir.includes("app.asar");
 const devWorkspaceRoot = path.resolve(currentDir, "..", "..", "..");
 const projectRoot = isPackaged ? process.resourcesPath : devWorkspaceRoot;
+const devCliPath = path.join(projectRoot, "apps", "cli", "dist", "cli", "index.js");
+const packagedCliPath = path.join(projectRoot, "cli", "cli", "index.js");
+
+function getCliPath(): string {
+  return isPackaged ? packagedCliPath : devCliPath;
+}
+
+function ensureDevCliArtifact(cliPath: string): void {
+  if (isPackaged || existsSync(cliPath)) return;
+  const message = `CLI build output is missing at ${cliPath}. Run pnpm dev:desktop-app or build cli first.`;
+  debug(`preflight error: ${message}`);
+  throw new Error(message);
+}
 
 export function spawnServer(projectDir: string, port: number): ChildProcess {
   // Path to the CLI entry point
-  const cliPath = isPackaged
-    ? path.join(projectRoot, "cli", "cli", "index.js")
-    : path.join(projectRoot, "apps", "cli", "dist", "cli", "index.js");
+  const cliPath = getCliPath();
   const runtime = isPackaged ? process.execPath : "node";
 
   // --no-open: don't open browser/electron
   const args = ["--no-open"];
+
+  ensureDevCliArtifact(cliPath);
 
   debug(`--- spawn ---`);
   debug(`cliPath: ${cliPath}`);

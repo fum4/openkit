@@ -2,6 +2,8 @@ import { existsSync } from "fs";
 import { createRequire } from "module";
 import type { WebSocket } from "ws";
 import type { IPty } from "node-pty";
+import { Terminal as HeadlessTerminal } from "@xterm/headless";
+import { SerializeAddon } from "@xterm/addon-serialize";
 
 const require = createRequire(import.meta.url);
 
@@ -40,14 +42,24 @@ interface TerminalSession {
   pty: IPty | null;
   ws: WebSocket | null;
   dataHandler: { dispose: () => void } | null;
-  outputBuffer: string;
+  fallbackBuffer: string;
+  restoreTerminal: HeadlessTerminal;
+  serializeAddon: SerializeAddon;
+  restoreSnapshot: string;
   worktreePath: string;
   cols: number;
   rows: number;
 }
 
+export interface TerminalSessionCreateResult {
+  sessionId: string;
+  reusedScopedSession: boolean;
+  replacedScopedShellSession: boolean;
+}
+
 export class TerminalManager {
-  private static readonly MAX_BUFFER_CHARS = 400_000;
+  private static readonly MAX_FALLBACK_BUFFER_CHARS = 80_000;
+  private static readonly RESTORE_SCROLLBACK_LINES = 10_000;
   private sessions = new Map<string, TerminalSession>();
   private sessionsByScope = new Map<string, string>();
   private idCounter = 0;
@@ -65,6 +77,93 @@ export class TerminalManager {
     if (this.sessionsByScope.get(key) === session.id) {
       this.sessionsByScope.delete(key);
     }
+  }
+
+  private isSessionProcessAlive(session: TerminalSession): boolean {
+    if (!session.pty) return false;
+    const pid = (session.pty as unknown as { pid?: number }).pid;
+    if (typeof pid !== "number" || !Number.isFinite(pid) || pid <= 0) return false;
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private isScopedSessionHealthy(session: TerminalSession): boolean {
+    // Scoped shell sessions can be lazily spawned on websocket attach.
+    if (session.startupCommand === null) return true;
+    return this.isSessionProcessAlive(session);
+  }
+
+  private createRestoreTracker(
+    cols: number,
+    rows: number,
+  ): {
+    restoreTerminal: HeadlessTerminal;
+    serializeAddon: SerializeAddon;
+    restoreSnapshot: string;
+  } {
+    const restoreTerminal = new HeadlessTerminal({
+      cols,
+      rows,
+      scrollback: TerminalManager.RESTORE_SCROLLBACK_LINES,
+      allowProposedApi: false,
+    });
+    const serializeAddon = new SerializeAddon();
+    restoreTerminal.loadAddon(serializeAddon);
+    return {
+      restoreTerminal,
+      serializeAddon,
+      restoreSnapshot: "",
+    };
+  }
+
+  private updateFallbackBuffer(session: TerminalSession, data: string): void {
+    session.fallbackBuffer += data;
+    if (session.fallbackBuffer.length > TerminalManager.MAX_FALLBACK_BUFFER_CHARS) {
+      session.fallbackBuffer = session.fallbackBuffer.slice(
+        session.fallbackBuffer.length - TerminalManager.MAX_FALLBACK_BUFFER_CHARS,
+      );
+    }
+  }
+
+  private refreshRestoreSnapshot(session: TerminalSession): void {
+    try {
+      session.restoreSnapshot = session.serializeAddon.serialize({
+        scrollback: TerminalManager.RESTORE_SCROLLBACK_LINES,
+      });
+    } catch (error) {
+      console.info("[terminal][TEMP] failed to serialize terminal state", {
+        worktreeId: session.worktreeId,
+        scope: session.scope,
+        sessionId: session.id,
+        error: error instanceof Error ? error.message : "unknown",
+      });
+      session.restoreSnapshot = "";
+    }
+  }
+
+  private writeToRestoreTracker(session: TerminalSession, data: string): void {
+    this.updateFallbackBuffer(session, data);
+    session.restoreTerminal.write(data, () => {
+      this.refreshRestoreSnapshot(session);
+    });
+  }
+
+  private resizeRestoreTracker(session: TerminalSession, cols: number, rows: number): void {
+    session.cols = cols;
+    session.rows = rows;
+    session.restoreTerminal.resize(cols, rows);
+    this.refreshRestoreSnapshot(session);
+  }
+
+  private getRestorePayload(session: TerminalSession): string {
+    if (session.restoreSnapshot.length > 0) {
+      return session.restoreSnapshot;
+    }
+    return session.fallbackBuffer;
   }
 
   private spawnSessionPty(sessionId: string, session: TerminalSession): boolean {
@@ -96,12 +195,7 @@ export class TerminalManager {
 
     session.pty = ptyProcess;
     session.dataHandler = ptyProcess.onData((data: string) => {
-      session.outputBuffer += data;
-      if (session.outputBuffer.length > TerminalManager.MAX_BUFFER_CHARS) {
-        session.outputBuffer = session.outputBuffer.slice(
-          session.outputBuffer.length - TerminalManager.MAX_BUFFER_CHARS,
-        );
-      }
+      this.writeToRestoreTracker(session, data);
       try {
         const activeWs = session.ws;
         if (activeWs && activeWs.readyState === 1) {
@@ -139,7 +233,7 @@ export class TerminalManager {
     rows = 24,
     startupCommand: string | null = null,
     scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null = null,
-  ): string {
+  ): TerminalSessionCreateResult {
     if (!existsSync(worktreePath)) {
       throw new Error(`Worktree path does not exist: ${worktreePath}`);
     }
@@ -149,17 +243,82 @@ export class TerminalManager {
       throw new Error(`Shell not found: ${shell}`);
     }
 
+    let replacedScopedShellSession = false;
     if (scope) {
-      const existingSessionId = this.sessionsByScope.get(this.scopeKey(worktreeId, scope));
-      if (existingSessionId && this.sessions.has(existingSessionId)) {
-        return existingSessionId;
-      }
+      const scopeKey = this.scopeKey(worktreeId, scope);
+      const existingSessionId = this.sessionsByScope.get(scopeKey);
       if (existingSessionId) {
-        this.sessionsByScope.delete(this.scopeKey(worktreeId, scope));
+        const existingSession = this.sessions.get(existingSessionId);
+        if (!existingSession) {
+          this.sessionsByScope.delete(scopeKey);
+        } else {
+          const existingSessionHealthy = this.isScopedSessionHealthy(existingSession);
+          if (!existingSessionHealthy) {
+            console.info("[terminal][TEMP] createSession scope decision", {
+              worktreeId,
+              scope,
+              sessionId: existingSessionId,
+              decision: "replaced-unhealthy-scope",
+              reason:
+                existingSession.startupCommand === null
+                  ? "existing-scoped-shell-session-unhealthy"
+                  : "existing-scoped-agent-session-unhealthy",
+            });
+            this.destroySession(existingSessionId);
+            if (existingSession.startupCommand === null) {
+              replacedScopedShellSession = true;
+            }
+          } else {
+            const hasStartupCommand = Boolean(startupCommand);
+            const existingIsAgentSession = existingSession.startupCommand !== null;
+            if (!hasStartupCommand) {
+              console.info("[terminal][TEMP] createSession scope decision", {
+                worktreeId,
+                scope,
+                sessionId: existingSessionId,
+                decision: "reused-agent-scope",
+                reason: "no-startup-command",
+              });
+              return {
+                sessionId: existingSessionId,
+                reusedScopedSession: true,
+                replacedScopedShellSession: false,
+              };
+            }
+            if (existingIsAgentSession) {
+              console.info("[terminal][TEMP] createSession scope decision", {
+                worktreeId,
+                scope,
+                sessionId: existingSessionId,
+                decision: "reused-agent-scope",
+                reason: "existing-scoped-agent-session",
+              });
+              return {
+                sessionId: existingSessionId,
+                reusedScopedSession: true,
+                replacedScopedShellSession: false,
+              };
+            }
+
+            console.info("[terminal][TEMP] createSession scope decision", {
+              worktreeId,
+              scope,
+              sessionId: existingSessionId,
+              decision: "replaced-shell-scope",
+              reason: "startup-command-requested",
+            });
+            this.destroySession(existingSessionId);
+            replacedScopedShellSession = true;
+          }
+        }
       }
     }
 
     const sessionId = `term-${++this.idCounter}`;
+    const { restoreTerminal, serializeAddon, restoreSnapshot } = this.createRestoreTracker(
+      cols,
+      rows,
+    );
 
     const session: TerminalSession = {
       id: sessionId,
@@ -169,7 +328,10 @@ export class TerminalManager {
       pty: null,
       ws: null,
       dataHandler: null,
-      outputBuffer: "",
+      fallbackBuffer: "",
+      restoreTerminal,
+      serializeAddon,
+      restoreSnapshot,
       worktreePath,
       cols,
       rows,
@@ -184,7 +346,19 @@ export class TerminalManager {
       throw new Error("Failed to start terminal session");
     }
 
-    return sessionId;
+    console.info("[terminal][TEMP] createSession scope decision", {
+      worktreeId,
+      scope,
+      sessionId,
+      decision: "created-fresh",
+      hasStartupCommand: Boolean(startupCommand),
+      replacedScopedShellSession,
+    });
+    return {
+      sessionId,
+      reusedScopedSession: false,
+      replacedScopedShellSession,
+    };
   }
 
   attachWebSocket(sessionId: string, ws: WebSocket): boolean {
@@ -220,14 +394,13 @@ export class TerminalManager {
       return false;
     }
 
-    if (session.outputBuffer.length > 0) {
-      try {
-        if (ws.readyState === ws.OPEN) {
-          ws.send(session.outputBuffer);
-        }
-      } catch {
-        // Ignore replay errors.
+    const restorePayload = this.getRestorePayload(session);
+    try {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify({ type: "restore", payload: restorePayload }));
       }
+    } catch {
+      // Ignore restore replay errors.
     }
 
     ws.on("message", (rawData: Buffer | string) => {
@@ -235,6 +408,7 @@ export class TerminalManager {
       try {
         const msg = JSON.parse(data);
         if (msg.type === "resize" && msg.cols && msg.rows) {
+          this.resizeRestoreTracker(session, msg.cols, msg.rows);
           ptyProcess.resize(msg.cols, msg.rows);
           return;
         }
@@ -256,8 +430,7 @@ export class TerminalManager {
   resizeSession(sessionId: string, cols: number, rows: number): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
-    session.cols = cols;
-    session.rows = rows;
+    this.resizeRestoreTracker(session, cols, rows);
     session.pty?.resize(cols, rows);
     return true;
   }
@@ -286,12 +459,16 @@ export class TerminalManager {
     return true;
   }
 
-  destroyAllForWorktree(worktreeId: string): void {
+  destroyAllForWorktree(worktreeId: string): number {
+    let removed = 0;
     for (const [id, session] of this.sessions) {
       if (session.worktreeId === worktreeId) {
-        this.destroySession(id);
+        if (this.destroySession(id)) {
+          removed += 1;
+        }
       }
     }
+    return removed;
   }
 
   destroyAll(): void {

@@ -69,7 +69,7 @@ Edits the `.openkit/config.json` settings: start commands, install commands, bas
 
 Configures external service connections: Jira (OAuth credentials, project key, refresh interval), Linear (API key, team key), and GitHub (CLI installation, authentication). Jira/Linear cards include an "Auto-start agent" section where users choose Claude/Codex/Gemini/OpenCode and configure toggles for enablement, skip-permissions mode, and optional terminal auto-focus.
 
-The active view is persisted to `localStorage` per server URL, so switching between projects in Electron mode restores each project's last-viewed tab.
+Workspace UI state is persisted per project scope. In Electron mode, keys are scoped by stable `project.id` (not `serverUrl`) so state does not bleed when ports change or are reused. In web mode, keys remain scoped by `serverUrl`.
 
 ---
 
@@ -214,9 +214,11 @@ Tab switcher at the top of the sidebar with two tabs:
 - **Branch** -- shows worktrees. Provides a "New Worktree" button.
 - **Issues** -- always available, even without Jira/Linear configured. Shows local tasks by default and adds Jira/Linear sections when integrations are connected.
 
+New worktree creation is focus-forward: after creating or resolving an existing worktree from the create modal, the workspace switches to the Branch tab and selects that worktree in the detail panel.
+
 ### WorktreeList / WorktreeItem (`apps/web-app/src/components/WorktreeList.tsx`, `WorktreeItem.tsx`)
 
-Displays all worktrees with filtering support. Each `WorktreeItem` shows the worktree name, branch, status indicator (running/stopped/creating), and linked issue badges (Jira, Linear, custom task). Clicking a worktree selects it and shows its detail panel.
+Displays all worktrees with filtering support. Each `WorktreeItem` shows the worktree name, branch, status indicator (running/stopped/creating), and linked issue badges (Jira, Linear, custom task). Clicking a worktree selects it and shows its detail panel. When a worktree is created from the sidebar modal, the Branch tab clears any active filter, selects the new worktree, and scrolls its row into view.
 
 ### Issue Lists
 
@@ -239,28 +241,36 @@ All detail panels live in `apps/web-app/src/components/detail/`.
 The worktree detail view. Contains:
 
 - **DetailHeader** -- worktree name (editable inline), branch name, status badge, start/stop/delete action buttons, linked issue badges, and the split `Open` button (primary action + dropdown) for detected open targets. The primary button label includes the current target (for example `Open in Cursor`).
-- **Tab bar** -- Logs | Terminal | Hooks, plus Claude/Codex/Gemini/OpenCode controls. Each agent appears as its own tab only when opened; otherwise `+ Claude`, `+ Codex`, `+ Gemini`, and `+ OpenCode` quick actions are shown.
+- **Tab bar** -- Logs | Terminal | Hooks, plus Claude/Codex/Gemini/OpenCode controls. Each agent appears as its own tab only when opened; otherwise `+ Claude`, `+ Codex`, `+ Gemini`, and `+ OpenCode` quick actions are shown. From the worktree detail panel, `+ Claude` and `+ Codex` are restore-first actions: they prefer a live scoped PTY session, then native agent history for the exact worktree path, show a picker when multiple saved conversations match, and only offer `Start New Conversation` as an explicit follow-up when no restore target exists. `+ Gemini` and `+ OpenCode` keep the existing live-session launch-or-resume behavior.
 - **Git action toolbar** -- contextual buttons for Commit (when uncommitted changes exist), Push (when unpushed commits exist), and PR (when pushed but no PR exists). Each expands an inline input form.
 - **LogsViewer** -- streaming process output for running worktrees.
-- **TerminalView** -- interactive xterm.js terminal. Sessions are reused per worktree+scope (`terminal`/`claude`/`codex`/`gemini`/`opencode`). Sessions with startup commands (agent launch) are bootstrapped server-side and later reattached in the UI, including after full page refresh via active-session lookup. Awaiting-input notifications are explicit agent events via `openkit activity await-input`, not terminal-text heuristics. Closing agent tabs explicitly destroys their scoped sessions.
+- **TerminalView** -- interactive xterm.js terminal. Sessions are reused per project-server+worktree+scope (`terminal`/`claude`/`codex`/`gemini`/`opencode`), so identical worktree IDs in different projects do not collide. Sessions with startup commands (agent launch) are bootstrapped server-side and later reattached in the UI, including after full page refresh via active-session lookup. On reattach, the server now sends a serialized terminal-state snapshot first so worktree terminals restore the current screen plus bounded scrollback instead of relying on raw PTY output replay alone. Worktree-detail `Claude` and `Codex` quick actions can also bootstrap from native history (`claude -r <sessionId>` / `codex resume <sessionId>`) when no live scoped PTY exists but a prior conversation for the exact worktree path does. Agent launch requests are one-shot: once handled (`reattached`, `started`, or `failed`), launch intent is cleared so passive focus/reconnect cannot retrigger startup commands. Explicit launch requests run a scoped reconcile connect path that bypasses client SID cache so the server can reuse an existing agent session or replace a shell-only scoped session as needed. When explicit launch intent is present, passive reconnect is suppressed; if a passive connect is already in progress, explicit launch retries in a short bounded loop instead of being marked failed immediately. Awaiting-input notifications are explicit agent events via `openkit activity await-input`, not terminal-text heuristics. Closing agent tabs explicitly destroys their scoped sessions. If a reused scoped session rapidly opens/closes, the client clears cached state, resets the active scoped session on the server when needed, and performs one forced fresh-session retry before surfacing an error.
 - **HooksTab** -- runs and displays hook results with visual state indicators (dashed/no-bg for unrun and running items, spinner during execution, solid card background for completed/disabled items). Supports command, prompt, and skill entries for agent workflow triggers, plus command-only lifecycle trigger steps; auto-expands items with output when the pipeline completes. Receives real-time updates via `hook-update` SSE events.
+- **Recover Task** -- for local-pattern worktrees (`LOCAL-*`) with missing local task metadata, DetailPanel exposes a recovery action that calls `POST /api/tasks/recover-local`, recreates task metadata + notes linked to the canonical worktree, and navigates directly to the recovered task.
+- **Delete workflow** -- delete is non-optimistic: UI cache/tab cleanup runs only after successful `DELETE /api/worktrees/:id` response. While delete is in-flight, the confirmation dialog stays open in loading state (`Deleting...` with spinner), the `Cancel` and close `X` controls are hidden, and backdrop dismissal is disabled. On failure, selection/tabs/sessions are preserved and an explicit error is shown.
 
 Agent launch integration:
 
 - App-level launch queues run `pre-implementation` command hooks before starting Claude/Codex/Gemini/OpenCode in `start` mode.
 - When Claude, Codex, Gemini, or OpenCode exits cleanly (`exitCode === 0`), DetailPanel triggers `post-implementation` command hooks automatically.
+- Detail panel tab state for agent tabs is scoped per project context (Electron: `project.id`, Web: `serverUrl`) to prevent cross-project bleed when worktree IDs overlap.
+- Worktree detail `+ Claude` / `+ Codex` actions now call a restore lookup endpoint before launching: they choose between live scoped PTY reattach, native history resume, a history picker, or an explicit `Start New Conversation` fallback. `+ Gemini` / `+ OpenCode` continue to synthesize `resume` vs `start` launch requests from active scoped session lookup only.
+- Explicit "Code with ..." clicks always propagate a launch request into the matching terminal tab, even when that tab is already open.
+- Launch requests are consumed after first handling, so returning focus to a tab does not relaunch the agent.
 
 ### JiraDetailPanel (`JiraDetailPanel.tsx`)
 
 Shows Jira issue details: summary, description (rendered as Markdown from Atlassian Document Format), status, priority, assignee, and comments. Provides both "Create Worktree" and a split "Code with ..." action that launches Claude, Codex, Gemini CLI, or OpenCode. The panel also supports inline issue updates through API actions: status transition, editable summary/title with autosave, autosaving description edits (blur or idle debounce), and comments with enter-to-post (`Shift+Enter` for newline). Own comments expose inline `Edit | Delete` actions with delete confirmation. The last-selected coding agent is reused as the default action across issue/task panels. Manual launches perform a CLI preflight check (`claude`, `codex`, `gemini`, or `opencode`) and show a Homebrew install modal when missing. A shared permissions dialog is used for all supported agents before launch.
+Shows Jira issue details: summary, description (rendered as Markdown from Atlassian Document Format), status, priority, assignee, and comments. Provides both "Create Worktree" and a split "Code with ..." action that launches Claude, Codex, Gemini CLI, or OpenCode. The last-selected coding agent is reused as the default action across issue/task panels. Manual launches perform a CLI preflight check (`claude`, `codex`, `gemini`, or `opencode`) and show a Homebrew install modal when missing. A shared permissions dialog is used for all supported agents before launch. For task-initiated coding, launch mode is derived from create response semantics: reused existing worktrees launch in `resume` mode (no startup prompt), newly created worktrees launch in `start` mode (with task prompt).
 
 ### LinearDetailPanel (`LinearDetailPanel.tsx`)
 
 Similar to JiraDetailPanel but for Linear issues. Shows title, description, state, priority, assignee, labels, and attachment previews/download links via a Linear attachment proxy endpoint to avoid auth/CORS failures. The panel also supports inline issue updates through API actions: status transition, editable title with autosave, autosaving description edits (blur or idle debounce), and comments with enter-to-post (`Shift+Enter` for newline). Own comments expose inline `Edit | Delete` actions with delete confirmation. It also supports split "Code with ..." launch (Claude, Codex, Gemini CLI, or OpenCode); launches check CLI availability first and offer Homebrew install if missing, and all supported agents use the shared manual permissions choice modal.
+Similar to JiraDetailPanel but for Linear issues. Shows title, description, state, priority, assignee, labels, and attachment previews/download links via a Linear attachment proxy endpoint to avoid auth/CORS failures. Also supports split "Code with ..." launch (Claude, Codex, Gemini CLI, or OpenCode); launches check CLI availability first and offer Homebrew install if missing, and all supported agents use the shared manual permissions choice modal. Reused existing worktrees launch agents in `resume` mode; newly created worktrees launch in `start` mode.
 
 ### CustomTaskDetailPanel (`CustomTaskDetailPanel.tsx`)
 
-Detail view for local custom tasks. Supports inline editing of title, description, status, priority, and labels. Description uses the shared editable textarea card behavior (click to edit, save on blur). Shows file attachments with image preview support and supports split "Code with ..." launch (Claude, Codex, Gemini CLI, or OpenCode); launches check CLI availability first and offer Homebrew install if missing, and all supported agents use the shared manual permissions choice modal.
+Detail view for local custom tasks. Supports inline editing of title, description, status, priority, and labels. Description uses the shared editable textarea card behavior (click to edit, save on blur). Shows file attachments with image preview support and supports split "Code with ..." launch (Claude, Codex, Gemini CLI, or OpenCode); launches check CLI availability first and offer Homebrew install if missing, and all supported agents use the shared manual permissions choice modal. Reused existing worktrees launch agents in `resume` mode; newly created worktrees launch in `start` mode. When a linked active worktree exists, the panel shows an explicit guardrail note indicating the `Code with ...` action will reuse that worktree.
 
 ### Other Detail Panels
 
@@ -339,13 +349,14 @@ Issue hooks support configurable refresh intervals (from integration settings) a
 **`useTerminal`** (`useTerminal.ts`) manages interactive PTY sessions:
 
 1. `connect()` -- POST to `/api/worktrees/:id/terminals` (with a scope) to create/reuse a session, then opens a WebSocket to `/api/terminals/:sessionId/ws`.
-2. `createSessionStartupCommand` (optional) -- when provided (Claude/Codex/Gemini/OpenCode flow), the session starts with a shell startup command.
-3. `sendData(data)` -- forwards keystrokes to the PTY via WebSocket.
-4. `sendResize(cols, rows)` -- sends terminal resize events.
-5. `disconnect()` -- closes WebSocket only (session stays alive for reconnect/tab switches).
-6. `destroy()` -- explicitly destroys the server-side session.
+2. `createSessionStartupCommand` (optional) -- when provided for a pending explicit launch request, the session starts with a shell startup command. Explicit launch connects bypass client SID cache and rely on server scoped-session reconcile metadata (`reusedScopedSession`, `replacedScopedShellSession`) to determine `reattached` vs `started`.
+3. `restore` WebSocket control frames reset the visible xterm instance and replay a serialized terminal snapshot before live output resumes.
+4. `sendData(data)` -- forwards keystrokes to the PTY via WebSocket.
+5. `sendResize(cols, rows)` -- sends terminal resize events.
+6. `disconnect()` -- closes WebSocket only (session stays alive for reconnect/tab switches).
+7. `destroy()` -- explicitly destroys the server-side session.
 
-Sessions are keyed by `worktreeId + scope` (`terminal`, `claude`, `codex`, `gemini`, or `opencode`). `TerminalView` keeps sessions alive across tab switches/navigation and reattaches on reconnect.
+Sessions are keyed by `runtimeScopeKey + worktreeId + scope` (`terminal`, `claude`, `codex`, `gemini`, or `opencode`). `runtimeScopeKey` is `project:<id>` in Electron and `server:<url-or-relative>` in web mode. `TerminalView` keeps sessions alive across tab switches/navigation, and visible tabs automatically reconnect when project/server context changes. Reconnect is reattach-first; startup commands are only used while a one-shot explicit launch request is pending. The server tracks terminal state with a headless xterm instance and serializes up to 10,000 lines of scrollback for restore-on-reattach across all scopes. Explicit launch intent takes precedence over passive reconnect attempts, and in-flight connect contention is handled by bounded explicit-launch retries instead of immediate failure. To prevent infinite reconnect loops, websocket open attempts have a timeout, rapid repeated open->close cycles trigger a forced fresh-session reconnect path, and visible reconnecting tabs run a watchdog that forces one scoped-session refresh before showing an explicit terminal error.
 
 ### Configuration
 
@@ -409,13 +420,20 @@ type Selection =
 
 ### Persistence
 
-Selection state is persisted to `localStorage` under the key `OpenKit:wsSel:{serverUrl}`. This means each project in Electron mode remembers its own selection independently.
+Selection state is persisted to `localStorage` under the key `OpenKit:wsSel:{scope}`.
 
-Similarly persisted per server URL:
+Scope rules:
 
-- Active view: `OpenKit:view:{serverUrl}`
-- Active sidebar tab (branch/issues): `OpenKit:wsTab:{serverUrl}`
+- Electron mode: `{scope}` = `project.id`
+- Web mode: `{scope}` = `serverUrl`
+
+Similarly persisted per scope:
+
+- Active view: `OpenKit:view:{scope}`
+- Active sidebar tab (branch/issues): `OpenKit:wsTab:{scope}`
 - Sidebar width: `OpenKit:sidebarWidth` (global, not per-project)
+
+In Electron mode, the app includes a one-time migration read path from legacy `serverUrl` keys to the new `project.id` keys.
 
 ### Auto-Selection
 
@@ -518,7 +536,7 @@ The app uses Framer Motion for transitions:
 | `McpServerCreateModal.tsx`  | Create/edit MCP server modal                                                                                                                                                                                                |
 | `McpServerItem.tsx`         | MCP server sidebar item                                                                                                                                                                                                     |
 | `McpServerScanModal.tsx`    | Scan and import MCP servers/skills/custom agents (supports direct device-scan entry from discovery banner and prefilled results from the latest banner scan; custom agents import as-is using detected deployment defaults) |
-| `Modal.tsx`                 | Base modal component (sm/md/lg widths)                                                                                                                                                                                      |
+| `Modal.tsx`                 | Base modal component (sm/md/lg widths, optional close/backdrop dismissal controls)                                                                                                                                          |
 | `NavBar.tsx`                | Navigation bar (defines View type)                                                                                                                                                                                          |
 | `PluginInstallModal.tsx`    | Install Claude plugin modal                                                                                                                                                                                                 |
 | `PluginItem.tsx`            | Plugin sidebar item                                                                                                                                                                                                         |

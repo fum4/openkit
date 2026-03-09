@@ -39,6 +39,10 @@
     "lint-staged": "lint-staged",
     "prepare": "husky"
   },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "picocolors": "^1.1.1"
+  },
   "devDependencies": {
     "@types/node": "^25.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260226.1",

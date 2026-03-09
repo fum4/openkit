@@ -10,6 +10,8 @@ interface ModalProps {
   contentClassName?: string;
   onClose: () => void;
   onSubmit?: (e: React.FormEvent) => void;
+  showCloseButton?: boolean;
+  closeOnBackdrop?: boolean;
   width?: "sm" | "md" | "lg";
 }
 
@@ -23,6 +25,8 @@ export function Modal({
   contentClassName,
   onClose,
   onSubmit,
+  showCloseButton = true,
+  closeOnBackdrop = true,
   width = "md",
 }: ModalProps) {
   const widthClass = widthMap[width];
@@ -35,13 +39,15 @@ export function Modal({
           {icon && <div className="p-2 rounded-lg bg-white/[0.06]">{icon}</div>}
           <h2 className={`text-sm font-medium ${text.primary}`}>{title}</h2>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className={`p-1 rounded-md ${text.muted} hover:${text.secondary} hover:bg-white/[0.04] transition-colors`}
-        >
-          <X className="w-4 h-4" />
-        </button>
+        {showCloseButton ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className={`p-1 rounded-md ${text.muted} hover:${text.secondary} hover:bg-white/[0.04] transition-colors`}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        ) : null}
       </div>
 
       {/* Content */}
@@ -59,7 +65,10 @@ export function Modal({
   return (
     <>
       {/* Backdrop */}
-      <div className={`fixed inset-0 ${surface.overlay} z-50`} onClick={onClose} />
+      <div
+        className={`fixed inset-0 ${surface.overlay} z-50`}
+        onClick={closeOnBackdrop ? onClose : undefined}
+      />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

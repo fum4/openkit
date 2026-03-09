@@ -280,6 +280,14 @@ export function useApi() {
         labels?: string[];
       }) => api.createCustomTask(data, serverUrl),
 
+      recoverLocalTask: (data: {
+        taskId: string;
+        title?: string;
+        description?: string;
+        priority?: "high" | "medium" | "low";
+        labels?: string[];
+      }) => api.recoverLocalTask(data, serverUrl),
+
       updateCustomTask: (id: string, updates: Record<string, unknown>) =>
         api.updateCustomTask(id, updates, serverUrl),
 
@@ -586,6 +594,9 @@ export function useApi() {
         worktreeId: string,
         scope: "terminal" | "claude" | "codex" | "gemini" | "opencode",
       ) => api.fetchActiveTerminalSession(worktreeId, scope, serverUrl),
+
+      fetchRestorableAgentSessions: (worktreeId: string, agent: api.RestorableAgent) =>
+        api.fetchRestorableAgentSessions(worktreeId, agent, serverUrl),
 
       createActivityEvent: (event: Parameters<typeof api.createActivityEvent>[0]) =>
         api.createActivityEvent(event, serverUrl),

@@ -13,7 +13,7 @@
     "preview": "wait-on ./dist/main.js ../web-app/dist/index.html ../cli/dist/cli/index.js ../server/dist/runtime/port-hook.cjs && electron ./dist/main.js",
     "start": "pnpm -C ../.. nx run desktop-app:build && pnpm preview",
     "compile": "mkdir -p dist && cp src/preload.cjs dist/preload.cjs && tsgo -p tsconfig.json --watch --preserveWatchOutput",
-    "run": "wait-on http://localhost:${OPENKIT_WEB_APP_PORT:-5173} ./dist/main.js && UI_DEV_SERVER_URL=http://localhost:${OPENKIT_WEB_APP_PORT:-5173} VITE_DEV_SERVER=1 electronmon ./dist/main.js",
+    "run": "wait-on http://localhost:${OPENKIT_WEB_APP_PORT:-5173} ./dist/main.js ../cli/dist/cli/index.js && UI_DEV_SERVER_URL=http://localhost:${OPENKIT_WEB_APP_PORT:-5173} VITE_DEV_SERVER=1 electronmon ./dist/main.js",
     "typecheck": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint src",
     "package": "pnpm package:mac && pnpm package:linux",

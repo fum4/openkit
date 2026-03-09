@@ -641,9 +641,10 @@ async function processJiraTask(
   saveJiraTaskData(jiraTask, tasksDir);
   log.success(`Task saved`);
 
-  await handleWorktreeAction(jiraTask.key, batch, configDir, options, (branchName) => {
-    jiraTask.linkedWorktree = branchName;
+  await handleWorktreeAction(jiraTask.key, batch, configDir, options, (worktreeId) => {
+    jiraTask.linkedWorktree = worktreeId;
     saveJiraTaskData(jiraTask, tasksDir);
+    saveLinkedWorktreeToNotes(configDir, "jira", jiraTask.key, worktreeId);
   });
 }
 
@@ -743,9 +744,10 @@ async function processLinearTask(
   saveLinearTaskData(linearTask, tasksDir);
   log.success(`Task saved`);
 
-  await handleWorktreeAction(linearTask.identifier, batch, configDir, options, (branchName) => {
-    linearTask.linkedWorktree = branchName;
+  await handleWorktreeAction(linearTask.identifier, batch, configDir, options, (worktreeId) => {
+    linearTask.linkedWorktree = worktreeId;
     saveLinearTaskData(linearTask, tasksDir);
+    saveLinkedWorktreeToNotes(configDir, "linear", linearTask.identifier, worktreeId);
   });
 }
 
@@ -760,7 +762,6 @@ async function processLocalTask(
   const id = taskId.toUpperCase().startsWith("LOCAL-") ? taskId.toUpperCase() : `LOCAL-${taskId}`;
   const issueDir = path.join(configDir, CONFIG_DIR_NAME, "issues", "local", id);
   const taskFile = path.join(issueDir, "task.json");
-  const notesFile = path.join(issueDir, "notes.json");
 
   if (!existsSync(taskFile)) {
     if (batch) {
@@ -781,26 +782,39 @@ async function processLocalTask(
 
   printSummary(task.id, task.title, task.status, task.priority, null, task.labels, null);
 
-  await handleWorktreeAction(task.id, batch, configDir, options, (branchName) => {
-    // Local task metadata stores worktree link in notes.json.
-    const existing =
-      existsSync(notesFile) && readFileSync(notesFile, "utf-8").trim().length > 0
-        ? (JSON.parse(readFileSync(notesFile, "utf-8")) as Record<string, unknown>)
-        : {};
-
-    const next = {
-      ...existing,
-      linkedWorktreeId: branchName,
-      personal: (existing.personal as string | null | undefined) ?? null,
-      aiContext: (existing.aiContext as string | null | undefined) ?? null,
-      todos: Array.isArray(existing.todos) ? existing.todos : [],
-    };
-
-    writeFileSync(notesFile, JSON.stringify(next, null, 2) + "\n");
+  await handleWorktreeAction(task.id, batch, configDir, options, (worktreeId) => {
+    saveLinkedWorktreeToNotes(configDir, "local", task.id, worktreeId);
   });
 }
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
+
+function saveLinkedWorktreeToNotes(
+  configDir: string,
+  source: Source,
+  issueId: string,
+  worktreeId: string,
+): void {
+  const issueDir = path.join(configDir, CONFIG_DIR_NAME, "issues", source, issueId);
+  const notesFile = path.join(issueDir, "notes.json");
+  if (!existsSync(issueDir)) mkdirSync(issueDir, { recursive: true });
+
+  const existing =
+    existsSync(notesFile) && readFileSync(notesFile, "utf-8").trim().length > 0
+      ? (JSON.parse(readFileSync(notesFile, "utf-8")) as Record<string, unknown>)
+      : {};
+
+  const next = {
+    ...existing,
+    linkedWorktreeId: worktreeId,
+    personal: existing.personal && typeof existing.personal === "object" ? existing.personal : null,
+    aiContext:
+      existing.aiContext && typeof existing.aiContext === "object" ? existing.aiContext : null,
+    todos: Array.isArray(existing.todos) ? existing.todos : [],
+  };
+
+  writeFileSync(notesFile, JSON.stringify(next, null, 2) + "\n");
+}
 
 function printSummary(
   key: string,
@@ -827,7 +841,7 @@ async function handleWorktreeAction(
   batch: boolean,
   configDir: string,
   options: TaskRunOptions,
-  onLink: (branchName: string) => void,
+  onLink: (worktreeId: string) => void,
 ) {
   const actionOverride = options.action;
 
@@ -887,10 +901,11 @@ async function handleWorktreeAction(
 async function createWorktreeForTask(
   key: string,
   configDir: string,
-  onLink: (branchName: string) => void,
+  onLink: (worktreeId: string) => void,
 ) {
   const { config, configPath } = loadConfig();
-  const branchName = key.toLowerCase();
+  const worktreeId = key;
+  const branchName = key;
 
   const worktreesDir = path.join(configDir, CONFIG_DIR_NAME, "worktrees");
 
@@ -898,12 +913,12 @@ async function createWorktreeForTask(
     mkdirSync(worktreesDir, { recursive: true });
   }
 
-  const worktreePath = path.join(worktreesDir, branchName);
+  const worktreePath = path.join(worktreesDir, worktreeId);
 
   if (existsSync(worktreePath)) {
     log.warn(`Worktree directory already exists: ${worktreePath}`);
     log.info("Linking to existing worktree instead.");
-    onLink(branchName);
+    onLink(worktreeId);
     return;
   }
 
@@ -964,8 +979,8 @@ async function createWorktreeForTask(
     }
   }
 
-  onLink(branchName);
-  await runTaskLifecycleCreatedHooks(config, configPath, branchName, worktreePath);
+  onLink(worktreeId);
+  await runTaskLifecycleCreatedHooks(config, configPath, worktreeId, worktreePath);
   log.success(`Worktree linked to task ${key}`);
 }
 
@@ -994,7 +1009,7 @@ async function runTaskLifecycleCreatedHooks(
 async function linkWorktreeToTask(
   key: string,
   configDir: string,
-  onLink: (branchName: string) => void,
+  onLink: (worktreeId: string) => void,
 ) {
   const worktreesDir = path.join(configDir, CONFIG_DIR_NAME, "worktrees");
 

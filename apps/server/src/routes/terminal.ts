@@ -4,6 +4,7 @@ import type { WebSocket } from "ws";
 
 import type { TerminalManager } from "../terminal-manager";
 import type { WorktreeManager } from "../manager";
+import { findHistoricalAgentSessions, type RestorableAgent } from "./agent-history";
 
 function isTerminalScope(
   value: unknown,
@@ -17,19 +18,27 @@ function isTerminalScope(
   );
 }
 
+function isRestorableAgent(value: unknown): value is RestorableAgent {
+  return value === "claude" || value === "codex";
+}
+
 export function registerTerminalRoutes(
   app: Hono,
   worktreeManager: WorktreeManager,
   terminalManager: TerminalManager,
   upgradeWebSocket: UpgradeWebSocket<WebSocket>,
 ) {
+  const toResolutionStatus = (code: string): 404 | 409 => {
+    return code === "WORKTREE_ID_AMBIGUOUS" ? 409 : 404;
+  };
+
   app.post("/api/worktrees/:id/terminals", async (c) => {
     const worktreeId = c.req.param("id");
-    const worktree = worktreeManager.getWorktrees().find((w) => w.id === worktreeId);
-
-    if (!worktree) {
-      return c.json({ success: false, error: "Worktree not found" }, 404);
+    const resolved = worktreeManager.resolveWorktree(worktreeId);
+    if (!resolved.success) {
+      return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
     }
+    const { worktree, worktreeId: canonicalWorktreeId } = resolved;
 
     try {
       const body = await c.req.json().catch(() => ({}));
@@ -41,8 +50,8 @@ export function registerTerminalRoutes(
           ? body.startupCommand
           : null;
 
-      const sessionId = terminalManager.createSession(
-        worktreeId,
+      const createResult = terminalManager.createSession(
+        canonicalWorktreeId,
         worktree.path,
         cols,
         rows,
@@ -50,12 +59,19 @@ export function registerTerminalRoutes(
         scope,
       );
       console.info("[terminal][TEMP] session created", {
-        worktreeId,
-        sessionId,
+        worktreeId: canonicalWorktreeId,
+        sessionId: createResult.sessionId,
         scope,
         hasStartupCommand: Boolean(startupCommand),
+        reusedScopedSession: createResult.reusedScopedSession,
+        replacedScopedShellSession: createResult.replacedScopedShellSession,
       });
-      return c.json({ success: true, sessionId });
+      return c.json({
+        success: true,
+        sessionId: createResult.sessionId,
+        reusedScopedSession: createResult.reusedScopedSession,
+        replacedScopedShellSession: createResult.replacedScopedShellSession,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create terminal session";
       console.error("[terminal] Failed to create session:", message);
@@ -77,8 +93,47 @@ export function registerTerminalRoutes(
       );
     }
 
-    const sessionId = terminalManager.getSessionIdForScope(worktreeId, scope);
+    const resolved = worktreeManager.resolveWorktreeId(worktreeId);
+    if (!resolved.success) {
+      return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+    }
+
+    const sessionId = terminalManager.getSessionIdForScope(resolved.worktreeId, scope);
     return c.json({ success: true, sessionId });
+  });
+
+  app.get("/api/worktrees/:id/agents/:agent/restore", (c) => {
+    const worktreeId = c.req.param("id");
+    const agent = c.req.param("agent");
+    if (!isRestorableAgent(agent)) {
+      return c.json(
+        {
+          success: false,
+          error: 'agent must be "claude" or "codex"',
+        },
+        400,
+      );
+    }
+
+    const resolved = worktreeManager.resolveWorktree(worktreeId);
+    if (!resolved.success) {
+      return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+    }
+
+    try {
+      const activeSessionId = terminalManager.getSessionIdForScope(resolved.worktreeId, agent);
+      const historyMatches = findHistoricalAgentSessions(agent, resolved.worktree.path);
+      return c.json({
+        success: true,
+        activeSessionId,
+        historyMatches,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to resolve historical agent sessions";
+      console.error("[terminal] Failed to resolve historical agent sessions:", message);
+      return c.json({ success: false, error: message }, 500);
+    }
   });
 
   app.delete("/api/terminals/:sessionId", (c) => {

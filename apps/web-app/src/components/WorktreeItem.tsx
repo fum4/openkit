@@ -1,4 +1,5 @@
 import { ListTodo } from "lucide-react";
+import type { RefObject } from "react";
 
 import type { WorktreeInfo } from "../types";
 import { border, status, surface, text } from "../theme";
@@ -8,6 +9,7 @@ import { Tooltip } from "./Tooltip";
 interface WorktreeItemProps {
   worktree: WorktreeInfo;
   isSelected: boolean;
+  itemRef?: RefObject<HTMLButtonElement | null>;
   onSelect: () => void;
   hasLocalIssue?: boolean;
   onSelectJiraIssue?: (key: string) => void;
@@ -18,6 +20,7 @@ interface WorktreeItemProps {
 export function WorktreeItem({
   worktree,
   isSelected,
+  itemRef,
   onSelect,
   hasLocalIssue,
   onSelectJiraIssue,
@@ -29,6 +32,7 @@ export function WorktreeItem({
 
   return (
     <button
+      ref={itemRef}
       type="button"
       onClick={onSelect}
       className={`w-full px-3 py-2.5 flex items-center gap-2.5 text-left transition-colors duration-150 border-l ${

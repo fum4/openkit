@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import type { WorktreeInfo } from "../types";
 import { text } from "../theme";
 import { WorktreeItem } from "./WorktreeItem";
@@ -23,12 +25,19 @@ export function WorktreeList({
   onSelectLinearIssue,
   onSelectLocalIssue,
 }: WorktreeListProps) {
+  const selectedItemRef = useRef<HTMLButtonElement | null>(null);
+
   const filtered = filter
     ? worktrees.filter((w) => {
         const q = filter.toLowerCase();
         return w.id.toLowerCase().includes(q) || w.branch.toLowerCase().includes(q);
       })
     : worktrees;
+
+  useEffect(() => {
+    if (!selectedId) return;
+    selectedItemRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
 
   if (worktrees.length === 0) {
     return (
@@ -55,6 +64,7 @@ export function WorktreeList({
                 key={worktree.id}
                 worktree={worktree}
                 isSelected={worktree.id === selectedId}
+                itemRef={worktree.id === selectedId ? selectedItemRef : undefined}
                 onSelect={() => onSelect(worktree.id)}
                 hasLocalIssue={localIssueLinkedIds?.has(worktree.id)}
                 onSelectJiraIssue={onSelectJiraIssue}

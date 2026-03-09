@@ -74,9 +74,11 @@ flowchart TB
 Key responsibilities:
 
 - **Worktree CRUD**: `createWorktree()`, `removeWorktree()`, `renameWorktree()`, `recoverWorktree()`
+- **Transactional delete orchestration**: `removeWorktree()` runs scoped phases (validate, graceful stop, scoped terminal teardown callback, filesystem/git removal, link cleanup, lifecycle hooks, listener notification) and returns structured delete metadata.
 - **Process management**: `startWorktree()` spawns the dev command with port-offset env vars; `stopWorktree()` sends SIGTERM
+- **Canonical ID resolution**: worktree IDs are resolved exact-first, then case-insensitive; ambiguous case-insensitive matches return an explicit error
 - **SSE notification**: Maintains a set of event listeners and calls `notifyListeners()` on every state change
-- **Issue integration**: `createWorktreeFromJira()` and `createWorktreeFromLinear()` fetch issue data, generate a branch name, write `TASK.md`, and link the issue to the worktree
+- **Issue integration**: `createWorktreeFromJira()` and `createWorktreeFromLinear()` fetch issue data, generate a branch name, write `TASK.md`, and link the issue to the worktree (auto-reusing matching existing worktrees by default)
 - **Config management**: `reloadConfig()`, `updateConfig()`, `getConfig()`
 - **Log capture**: Stdout/stderr from spawned processes is captured (last 100 lines) and forwarded to listeners with debounced batching (250ms)
 - **Activity tracking**: Owns an `ActivityLog` instance, emitting lifecycle events (`creation_started`, `creation_completed`, `creation_failed`, `started`, `stopped`, `crashed`) during worktree operations
@@ -100,6 +102,9 @@ Key responsibilities:
 Key responsibilities:
 
 - **Session lifecycle**: `createSession()` registers a session; `attachWebSocket()` spawns the PTY process (using `node-pty`) and wires bidirectional data flow between the WebSocket and the PTY
+- **Restore snapshots**: Each session mirrors PTY output into a headless xterm instance with bounded scrollback, serializes that state on reattach, and sends a restore frame before live output resumes
+- **Scoped reconcile + health checks**: For scoped agent sessions (`claude`/`codex`/`gemini`/`opencode`), startup-command launches prefer reusing a healthy scoped agent session and replace shell-only or unhealthy scoped sessions. Create responses include additive metadata (`reusedScopedSession`, `replacedScopedShellSession`) used by the UI to classify `reattached` vs `started` launch outcomes.
+- **Historical agent restore**: Terminal routes also expose restore discovery for worktree-detail `claude` / `codex` quick actions by combining live scoped PTY lookup with native agent history matched by exact worktree path.
 - **Resize handling**: JSON messages with `{ type: "resize", cols, rows }` are intercepted and forwarded to `pty.resize()`
 - **Cleanup**: `destroySession()`, `destroyAllForWorktree()`, `destroyAll()` handle teardown of PTY processes and WebSocket connections
 
@@ -214,12 +219,18 @@ The tool definitions live in `libs/agents/src/actions.ts` as a flat array of `Ac
 
 Terminal sessions use a two-step protocol:
 
-1. **Create session**: `POST /api/worktrees/:id/terminal` returns a `sessionId`
-2. **Attach WebSocket**: `GET /api/terminal/:sessionId/ws` upgrades to WebSocket
+1. **Create session**: `POST /api/worktrees/:id/terminals` returns a `sessionId`
+2. **Attach WebSocket**: `GET /api/terminals/:sessionId/ws` upgrades to WebSocket
 
 Once attached, the `TerminalManager` spawns a PTY process (`node-pty`) in the worktree directory. Data flows bidirectionally: keystrokes from the WebSocket are written to the PTY; PTY output is sent back over the WebSocket. Resize messages (`{ type: "resize", cols, rows }`) are intercepted and forwarded to `pty.resize()`.
 
-### 4. Ngrok Connect Mobile Routing
+In Electron multi-project mode, frontend launch/navigation queues are scoped by project (`runtimeScopeKey = project:<id>`), so intents from one project are not processed against another project's server when switching tabs.
+
+### 4. Local Task Recovery
+
+Local task IDs remain monotonic via `.openkit/issues/local/.counter`. If metadata for an existing local worktree is lost, `POST /api/tasks/recover-local` recreates task metadata + notes for a specific local task ID (for example `LOCAL-1`) after canonical worktree resolution, and ensures the counter is at least the recovered suffix.
+
+### 5. Ngrok Connect Mobile Routing
 
 1. Laptop user enables the tunnel from the bottom-right Wi-Fi button (Electron tab bar), then creates a one-time pairing session (`/api/ngrok/pairing/start`).
 2. Mobile scans QR and opens `/_ok/pair?token=...` on that ngrok host.

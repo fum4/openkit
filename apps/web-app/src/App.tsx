@@ -67,22 +67,9 @@ type Selection =
   | { type: "custom-task"; id: string }
   | null;
 
-type ClaudeLaunchMode = "resume" | "start";
+type WorkspaceStorageSuffix = "wsSel" | "wsTab" | "view";
 
-interface ClaudeLaunchIntent {
-  worktreeId: string;
-  mode: ClaudeLaunchMode;
-  prompt?: string;
-  tabLabel?: string;
-  skipPermissions?: boolean;
-  startInBackground?: boolean;
-}
-
-interface ClaudeLaunchRequest extends ClaudeLaunchIntent {
-  requestId: number;
-}
-
-type AgentLaunchMode = "resume" | "start";
+type AgentLaunchMode = "resume" | "resume-active" | "resume-history" | "start" | "start-new";
 
 interface AgentLaunchIntentBase {
   worktreeId: string;
@@ -90,15 +77,24 @@ interface AgentLaunchIntentBase {
   prompt?: string;
   tabLabel?: string;
   skipPermissions?: boolean;
+  sessionId?: string;
 }
+
+interface ClaudeLaunchIntent extends AgentLaunchIntentBase {
+  startInBackground?: boolean;
+}
+
+type ClaudeLaunchRequest = ClaudeLaunchIntent & {
+  requestId: number;
+};
 
 type CodexLaunchIntent = AgentLaunchIntentBase;
 type GeminiLaunchIntent = AgentLaunchIntentBase;
 type OpenCodeLaunchIntent = AgentLaunchIntentBase;
 
-interface AgentLaunchRequestBase extends AgentLaunchIntentBase {
+type AgentLaunchRequestBase = AgentLaunchIntentBase & {
   requestId: number;
-}
+};
 
 type CodexLaunchRequest = AgentLaunchRequestBase;
 type GeminiLaunchRequest = AgentLaunchRequestBase;
@@ -135,7 +131,65 @@ interface AgentCliPromptState {
   isInstalling: boolean;
 }
 
+interface PendingNotificationNavState {
+  worktreeId: string;
+  targetProjectId: string | null;
+  openClaudeTab?: boolean;
+  openHooksTab?: boolean;
+}
+
+interface PendingIssueNotificationNavState {
+  source: "jira" | "linear" | "local";
+  issueId: string;
+  targetProjectId: string | null;
+}
+
+interface RuntimeScopedState {
+  pendingClaudeLaunches: ClaudeLaunchIntent[];
+  pendingCodexLaunches: CodexLaunchIntent[];
+  pendingGeminiLaunches: GeminiLaunchIntent[];
+  pendingOpenCodeLaunches: OpenCodeLaunchIntent[];
+  claudeLaunchRequest: ClaudeLaunchRequest | null;
+  codexLaunchRequest: CodexLaunchRequest | null;
+  geminiLaunchRequest: GeminiLaunchRequest | null;
+  opencodeLaunchRequest: OpenCodeLaunchRequest | null;
+  pendingNotificationNav: PendingNotificationNavState | null;
+  pendingIssueNotificationNav: PendingIssueNotificationNavState | null;
+  notificationTabRequest: NotificationTabRequest | null;
+  agentPermissionPrompt: AgentPermissionPromptState | null;
+  agentCliPrompt: AgentCliPromptState | null;
+  claudeLaunchRequestIdCounter: number;
+  codexLaunchRequestIdCounter: number;
+  geminiLaunchRequestIdCounter: number;
+  openCodeLaunchRequestIdCounter: number;
+  notificationTabRequestIdCounter: number;
+}
+
+function createEmptyRuntimeScopedState(): RuntimeScopedState {
+  return {
+    pendingClaudeLaunches: [],
+    pendingCodexLaunches: [],
+    pendingGeminiLaunches: [],
+    pendingOpenCodeLaunches: [],
+    claudeLaunchRequest: null,
+    codexLaunchRequest: null,
+    geminiLaunchRequest: null,
+    opencodeLaunchRequest: null,
+    pendingNotificationNav: null,
+    pendingIssueNotificationNav: null,
+    notificationTabRequest: null,
+    agentPermissionPrompt: null,
+    agentCliPrompt: null,
+    claudeLaunchRequestIdCounter: 0,
+    codexLaunchRequestIdCounter: 0,
+    geminiLaunchRequestIdCounter: 0,
+    openCodeLaunchRequestIdCounter: 0,
+    notificationTabRequestIdCounter: 0,
+  };
+}
+
 const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
+const APP_DEBUG_PREFIX = "[app][TEMP]";
 const CODING_AGENT_PREF_KEY = `${APP_NAME}:defaultCodingAgent`;
 const AGENT_DISPLAY_NAMES: Record<CodingAgent, string> = {
   claude: "Claude Code",
@@ -155,6 +209,7 @@ const AGENT_SKIP_PERMISSION_FLAGS: Record<CodingAgent, string> = {
   gemini: "--yolo",
   opencode: 'OPENCODE_PERMISSION=\'{"*":"allow"}\'',
 };
+const LAUNCH_TARGET_WAIT_TIMEOUT_MS = 60_000;
 
 function getAgentCliLabel(agent: CodingAgent): string {
   const base = AGENT_DISPLAY_NAMES[agent];
@@ -193,6 +248,10 @@ function buildAgentStartupCommand(
   }
   const invocation = args.length > 0 ? `${agent} ${args.join(" ")}` : agent;
   return `exec ${invocation}`;
+}
+
+function isStartLaunchMode(mode: AgentLaunchMode): boolean {
+  return mode === "start" || mode === "start-new";
 }
 
 function buildClaudeStartupCommand(
@@ -356,7 +415,13 @@ export default function App() {
 
   const handleSetupComplete = () => {
     // Clear stale workspace state from a previous config
-    if (serverUrl) {
+    const scopedKeySource = isElectron ? activeProject?.id : serverUrl;
+    if (scopedKeySource) {
+      localStorage.removeItem(`OpenKit:wsSel:${scopedKeySource}`);
+      localStorage.removeItem(`OpenKit:wsTab:${scopedKeySource}`);
+      localStorage.removeItem(`OpenKit:view:${scopedKeySource}`);
+    }
+    if (isElectron && serverUrl) {
       localStorage.removeItem(`OpenKit:wsSel:${serverUrl}`);
       localStorage.removeItem(`OpenKit:wsTab:${serverUrl}`);
       localStorage.removeItem(`OpenKit:view:${serverUrl}`);
@@ -388,34 +453,67 @@ export default function App() {
     }
   };
 
-  const [activeView, setActiveViewState] = useState<View>(() => {
-    if (serverUrl) {
-      const saved = localStorage.getItem(`OpenKit:view:${serverUrl}`);
-      if (
-        saved === "workspace" ||
-        saved === "agents" ||
-        saved === "activity" ||
-        saved === "hooks" ||
-        saved === "configuration" ||
-        saved === "integrations"
-      ) {
-        return saved;
+  const workspaceStorageScope = isElectron ? (activeProject?.id ?? null) : serverUrl;
+  const runtimeScopeKey = isElectron
+    ? `project:${activeProject?.id ?? "__none__"}`
+    : `server:${serverUrl ?? "__relative__"}`;
+  const workspaceStorageKey = useCallback(
+    (suffix: WorkspaceStorageSuffix): string | null =>
+      workspaceStorageScope ? `OpenKit:${suffix}:${workspaceStorageScope}` : null,
+    [workspaceStorageScope],
+  );
+  const legacyServerWorkspaceKey = useCallback(
+    (suffix: WorkspaceStorageSuffix): string | null =>
+      serverUrl ? `OpenKit:${suffix}:${serverUrl}` : null,
+    [serverUrl],
+  );
+  const readWorkspaceStorageValue = useCallback(
+    (suffix: WorkspaceStorageSuffix): string | null => {
+      const scopedKey = workspaceStorageKey(suffix);
+      if (!scopedKey) return null;
+
+      const scopedValue = localStorage.getItem(scopedKey);
+      if (scopedValue !== null) return scopedValue;
+
+      if (!isElectron || !activeProject?.id) return null;
+
+      const legacyKey = legacyServerWorkspaceKey(suffix);
+      if (!legacyKey) return null;
+      const legacyValue = localStorage.getItem(legacyKey);
+      if (legacyValue !== null) {
+        localStorage.setItem(scopedKey, legacyValue);
       }
+      return legacyValue;
+    },
+    [activeProject?.id, isElectron, legacyServerWorkspaceKey, workspaceStorageKey],
+  );
+
+  const [activeView, setActiveViewState] = useState<View>(() => {
+    const saved = readWorkspaceStorageValue("view");
+    if (
+      saved === "workspace" ||
+      saved === "agents" ||
+      saved === "activity" ||
+      saved === "hooks" ||
+      saved === "configuration" ||
+      saved === "integrations"
+    ) {
+      return saved;
     }
     return "workspace";
   });
 
   const setActiveView = (view: View) => {
     setActiveViewState(view);
-    if (serverUrl) {
-      localStorage.setItem(`OpenKit:view:${serverUrl}`, view);
+    const storageKey = workspaceStorageKey("view");
+    if (storageKey) {
+      localStorage.setItem(storageKey, view);
     }
   };
 
   // Restore view when switching projects
   useEffect(() => {
-    if (!serverUrl) return;
-    const saved = localStorage.getItem(`OpenKit:view:${serverUrl}`);
+    const saved = readWorkspaceStorageValue("view");
     if (
       saved === "workspace" ||
       saved === "agents" ||
@@ -428,38 +526,30 @@ export default function App() {
     } else {
       setActiveViewState("workspace");
     }
-  }, [serverUrl]);
+  }, [readWorkspaceStorageValue]);
 
   const [selection, setSelectionState] = useState<Selection>(() => {
-    if (serverUrl) {
-      try {
-        const saved = localStorage.getItem(`OpenKit:wsSel:${serverUrl}`);
-        if (saved) return JSON.parse(saved);
-      } catch {
-        /* ignore */
-      }
+    try {
+      const saved = readWorkspaceStorageValue("wsSel");
+      if (saved) return JSON.parse(saved);
+    } catch {
+      /* ignore */
     }
     return null;
   });
 
   const setSelection = (sel: Selection) => {
     setSelectionState(sel);
-    if (serverUrl) {
-      localStorage.setItem(`OpenKit:wsSel:${serverUrl}`, JSON.stringify(sel));
+    const storageKey = workspaceStorageKey("wsSel");
+    if (storageKey) {
+      localStorage.setItem(storageKey, JSON.stringify(sel));
     }
   };
 
-  const [pendingNotificationNav, setPendingNotificationNav] = useState<{
-    worktreeId: string;
-    targetProjectId: string | null;
-    openClaudeTab?: boolean;
-    openHooksTab?: boolean;
-  } | null>(null);
-  const [pendingIssueNotificationNav, setPendingIssueNotificationNav] = useState<{
-    source: "jira" | "linear" | "local";
-    issueId: string;
-    targetProjectId: string | null;
-  } | null>(null);
+  const [pendingNotificationNav, setPendingNotificationNav] =
+    useState<PendingNotificationNavState | null>(null);
+  const [pendingIssueNotificationNav, setPendingIssueNotificationNav] =
+    useState<PendingIssueNotificationNavState | null>(null);
   const claudeLaunchRequestIdRef = useRef(0);
   const codexLaunchRequestIdRef = useRef(0);
   const geminiLaunchRequestIdRef = useRef(0);
@@ -489,6 +579,10 @@ export default function App() {
   const [agentCliPrompt, setAgentCliPrompt] = useState<AgentCliPromptState | null>(null);
   const [notificationTabRequest, setNotificationTabRequest] =
     useState<NotificationTabRequest | null>(null);
+  const runtimeScopedStateRef = useRef<Map<string, RuntimeScopedState>>(new Map());
+  const runtimeScopePreviousKeyRef = useRef<string | null>(null);
+  const runtimeStateSnapshotRef = useRef<RuntimeScopedState>(createEmptyRuntimeScopedState());
+  const launchMissingTargetSinceRef = useRef<Map<string, number>>(new Map());
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
     if (extra) {
       console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
@@ -496,6 +590,103 @@ export default function App() {
     }
     console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
   }, []);
+  const logAppTemp = useCallback((message: string, extra?: Record<string, unknown>) => {
+    if (extra) {
+      console.info(`${APP_DEBUG_PREFIX} ${message}`, extra);
+      return;
+    }
+    console.info(`${APP_DEBUG_PREFIX} ${message}`);
+  }, []);
+
+  useEffect(() => {
+    runtimeStateSnapshotRef.current = {
+      pendingClaudeLaunches: [...pendingClaudeLaunches],
+      pendingCodexLaunches: [...pendingCodexLaunches],
+      pendingGeminiLaunches: [...pendingGeminiLaunches],
+      pendingOpenCodeLaunches: [...pendingOpenCodeLaunches],
+      claudeLaunchRequest,
+      codexLaunchRequest,
+      geminiLaunchRequest,
+      opencodeLaunchRequest,
+      pendingNotificationNav,
+      pendingIssueNotificationNav,
+      notificationTabRequest,
+      agentPermissionPrompt,
+      agentCliPrompt,
+      claudeLaunchRequestIdCounter: claudeLaunchRequestIdRef.current,
+      codexLaunchRequestIdCounter: codexLaunchRequestIdRef.current,
+      geminiLaunchRequestIdCounter: geminiLaunchRequestIdRef.current,
+      openCodeLaunchRequestIdCounter: openCodeLaunchRequestIdRef.current,
+      notificationTabRequestIdCounter: notificationTabRequestIdRef.current,
+    };
+  }, [
+    agentCliPrompt,
+    agentPermissionPrompt,
+    claudeLaunchRequest,
+    codexLaunchRequest,
+    geminiLaunchRequest,
+    notificationTabRequest,
+    opencodeLaunchRequest,
+    pendingClaudeLaunches,
+    pendingCodexLaunches,
+    pendingGeminiLaunches,
+    pendingIssueNotificationNav,
+    pendingNotificationNav,
+    pendingOpenCodeLaunches,
+  ]);
+
+  useEffect(() => {
+    const previousScopeKey = runtimeScopePreviousKeyRef.current;
+    if (previousScopeKey && previousScopeKey !== runtimeScopeKey) {
+      runtimeScopedStateRef.current.set(previousScopeKey, {
+        ...runtimeStateSnapshotRef.current,
+        pendingClaudeLaunches: [...runtimeStateSnapshotRef.current.pendingClaudeLaunches],
+        pendingCodexLaunches: [...runtimeStateSnapshotRef.current.pendingCodexLaunches],
+        pendingGeminiLaunches: [...runtimeStateSnapshotRef.current.pendingGeminiLaunches],
+        pendingOpenCodeLaunches: [...runtimeStateSnapshotRef.current.pendingOpenCodeLaunches],
+      });
+      logAppTemp("scope state saved", { scopeKey: previousScopeKey });
+    }
+
+    const nextState =
+      runtimeScopedStateRef.current.get(runtimeScopeKey) ?? createEmptyRuntimeScopedState();
+    setPendingClaudeLaunches([...nextState.pendingClaudeLaunches]);
+    setPendingCodexLaunches([...nextState.pendingCodexLaunches]);
+    setPendingGeminiLaunches([...nextState.pendingGeminiLaunches]);
+    setPendingOpenCodeLaunches([...nextState.pendingOpenCodeLaunches]);
+    setClaudeLaunchRequest(nextState.claudeLaunchRequest);
+    setCodexLaunchRequest(nextState.codexLaunchRequest);
+    setGeminiLaunchRequest(nextState.geminiLaunchRequest);
+    setOpenCodeLaunchRequest(nextState.opencodeLaunchRequest);
+    setPendingNotificationNav(nextState.pendingNotificationNav);
+    setPendingIssueNotificationNav(nextState.pendingIssueNotificationNav);
+    setNotificationTabRequest(nextState.notificationTabRequest);
+    setAgentPermissionPrompt(nextState.agentPermissionPrompt);
+    setAgentCliPrompt(nextState.agentCliPrompt);
+    claudeLaunchRequestIdRef.current = nextState.claudeLaunchRequestIdCounter;
+    codexLaunchRequestIdRef.current = nextState.codexLaunchRequestIdCounter;
+    geminiLaunchRequestIdRef.current = nextState.geminiLaunchRequestIdCounter;
+    openCodeLaunchRequestIdRef.current = nextState.openCodeLaunchRequestIdCounter;
+    notificationTabRequestIdRef.current = nextState.notificationTabRequestIdCounter;
+    runtimeScopePreviousKeyRef.current = runtimeScopeKey;
+    logAppTemp("scope state restored", { scopeKey: runtimeScopeKey });
+  }, [logAppTemp, runtimeScopeKey]);
+
+  const updateRuntimeScopeState = useCallback(
+    (scopeKey: string, updater: (state: RuntimeScopedState) => RuntimeScopedState) => {
+      const current =
+        runtimeScopedStateRef.current.get(scopeKey) ?? createEmptyRuntimeScopedState();
+      const next = updater({
+        ...current,
+        pendingClaudeLaunches: [...current.pendingClaudeLaunches],
+        pendingCodexLaunches: [...current.pendingCodexLaunches],
+        pendingGeminiLaunches: [...current.pendingGeminiLaunches],
+        pendingOpenCodeLaunches: [...current.pendingOpenCodeLaunches],
+      });
+      runtimeScopedStateRef.current.set(scopeKey, next);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!pendingNotificationNav) return;
@@ -507,8 +698,9 @@ export default function App() {
     }
     const sel: Selection = { type: "worktree", id: pendingNotificationNav.worktreeId };
     setSelectionState(sel);
-    if (serverUrl) {
-      localStorage.setItem(`OpenKit:wsSel:${serverUrl}`, JSON.stringify(sel));
+    const selectionKey = workspaceStorageKey("wsSel");
+    if (selectionKey) {
+      localStorage.setItem(selectionKey, JSON.stringify(sel));
     }
     if (pendingNotificationNav.openClaudeTab) {
       setPendingClaudeLaunches((prev) => [
@@ -525,7 +717,7 @@ export default function App() {
       });
     }
     setPendingNotificationNav(null);
-  }, [pendingNotificationNav, activeProject?.id, serverUrl]);
+  }, [pendingNotificationNav, activeProject?.id, workspaceStorageKey]);
 
   useEffect(() => {
     if (!pendingIssueNotificationNav) return;
@@ -542,15 +734,17 @@ export default function App() {
           ? { type: "linear-issue", identifier: pendingIssueNotificationNav.issueId }
           : { type: "custom-task", id: pendingIssueNotificationNav.issueId };
     setActiveCreateTabState("issues");
-    if (serverUrl) {
-      localStorage.setItem(`OpenKit:wsTab:${serverUrl}`, "issues");
+    const tabKey = workspaceStorageKey("wsTab");
+    if (tabKey) {
+      localStorage.setItem(tabKey, "issues");
     }
     setSelectionState(sel);
-    if (serverUrl) {
-      localStorage.setItem(`OpenKit:wsSel:${serverUrl}`, JSON.stringify(sel));
+    const selectionKey = workspaceStorageKey("wsSel");
+    if (selectionKey) {
+      localStorage.setItem(selectionKey, JSON.stringify(sel));
     }
     setPendingIssueNotificationNav(null);
-  }, [pendingIssueNotificationNav, activeProject?.id, serverUrl]);
+  }, [pendingIssueNotificationNav, activeProject?.id, workspaceStorageKey]);
 
   const resolveProjectIdFromNotification = useCallback(
     (projectName?: string, sourceServerUrl?: string): string | null => {
@@ -578,9 +772,9 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (!serverUrl) return;
+    if (!workspaceStorageScope) return;
     try {
-      const saved = localStorage.getItem(`OpenKit:wsSel:${serverUrl}`);
+      const saved = readWorkspaceStorageValue("wsSel");
       if (saved) setSelectionState(JSON.parse(saved));
       else setSelectionState(null);
     } catch (error) {
@@ -589,31 +783,30 @@ export default function App() {
       });
       setSelectionState(null);
     }
-  }, [serverUrl]);
+  }, [readWorkspaceStorageValue, workspaceStorageScope]);
   const [activeCreateTab, setActiveCreateTabState] = useState<"branch" | "issues">(() => {
-    if (serverUrl) {
-      const saved = localStorage.getItem(`OpenKit:wsTab:${serverUrl}`);
-      if (saved === "branch" || saved === "issues") return saved;
-    }
+    const saved = readWorkspaceStorageValue("wsTab");
+    if (saved === "branch" || saved === "issues") return saved;
     return "branch";
   });
 
   const setActiveCreateTab = (tab: "branch" | "issues") => {
     setActiveCreateTabState(tab);
-    if (serverUrl) {
-      localStorage.setItem(`OpenKit:wsTab:${serverUrl}`, tab);
+    const storageKey = workspaceStorageKey("wsTab");
+    if (storageKey) {
+      localStorage.setItem(storageKey, tab);
     }
   };
 
   useEffect(() => {
-    if (!serverUrl) return;
-    const saved = localStorage.getItem(`OpenKit:wsTab:${serverUrl}`);
+    if (!workspaceStorageScope) return;
+    const saved = readWorkspaceStorageValue("wsTab");
     if (saved === "branch" || saved === "issues") {
       setActiveCreateTabState(saved);
     } else {
       setActiveCreateTabState("branch");
     }
-  }, [serverUrl]);
+  }, [readWorkspaceStorageValue, workspaceStorageScope]);
   const [defaultCodingAgent, setDefaultCodingAgent] = useState<CodingAgent>(() => {
     const saved = localStorage.getItem(CODING_AGENT_PREF_KEY);
     return saved === "claude" || saved === "codex" || saved === "gemini" || saved === "opencode"
@@ -924,6 +1117,39 @@ export default function App() {
     [worktrees],
   );
 
+  useEffect(() => {
+    const dropMissingLaunches = <T extends { worktreeId: string }>(pending: T[]): T[] => {
+      const filtered = pending.filter((intent) => activeWorktreeIds.has(intent.worktreeId));
+      return filtered.length === pending.length ? pending : filtered;
+    };
+
+    setPendingClaudeLaunches((prev) => dropMissingLaunches(prev));
+    setPendingCodexLaunches((prev) => dropMissingLaunches(prev));
+    setPendingGeminiLaunches((prev) => dropMissingLaunches(prev));
+    setPendingOpenCodeLaunches((prev) => dropMissingLaunches(prev));
+
+    setClaudeLaunchRequest((prev) =>
+      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
+    );
+    setCodexLaunchRequest((prev) =>
+      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
+    );
+    setGeminiLaunchRequest((prev) =>
+      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
+    );
+    setOpenCodeLaunchRequest((prev) =>
+      prev && !activeWorktreeIds.has(prev.worktreeId) ? null : prev,
+    );
+
+    for (const waitKey of launchMissingTargetSinceRef.current.keys()) {
+      if (!waitKey.startsWith(`${runtimeScopeKey}:`)) continue;
+      const parts = waitKey.split(":");
+      const worktreeId = parts[parts.length - 1];
+      if (activeWorktreeIds.has(worktreeId)) continue;
+      launchMissingTargetSinceRef.current.delete(waitKey);
+    }
+  }, [activeWorktreeIds, runtimeScopeKey]);
+
   const startAgentSessionInBackground = useCallback(
     async (
       agent: CodingAgent,
@@ -946,14 +1172,56 @@ export default function App() {
     [api, logAutoClaude],
   );
 
+  const maybeDropStaleLaunchIntent = useCallback(
+    (
+      agent: CodingAgent,
+      worktreeId: string,
+      reason: "target-missing" | "target-creating",
+      drop: () => void,
+    ): boolean => {
+      const waitKey = `${runtimeScopeKey}:${agent}:${worktreeId}`;
+      const now = Date.now();
+      const firstSeenAt = launchMissingTargetSinceRef.current.get(waitKey);
+      if (!firstSeenAt) {
+        launchMissingTargetSinceRef.current.set(waitKey, now);
+        return false;
+      }
+      const elapsedMs = now - firstSeenAt;
+      if (elapsedMs < LAUNCH_TARGET_WAIT_TIMEOUT_MS) {
+        return false;
+      }
+      launchMissingTargetSinceRef.current.delete(waitKey);
+      drop();
+      logAppTemp("scope drop stale launch intent", {
+        scopeKey: runtimeScopeKey,
+        agent,
+        worktreeId,
+        reason,
+        elapsedMs,
+      });
+      return true;
+    },
+    [logAppTemp, runtimeScopeKey],
+  );
+
   useEffect(() => {
     const pendingClaudeLaunch = pendingClaudeLaunches[0];
     if (!pendingClaudeLaunch) return;
+    const waitKey = `${runtimeScopeKey}:claude:${pendingClaudeLaunch.worktreeId}`;
     const target = worktrees.find((wt) => wt.id === pendingClaudeLaunch.worktreeId);
     if (!target) {
       logAutoClaude("Waiting for target worktree to appear before launching Claude", {
         worktreeId: pendingClaudeLaunch.worktreeId,
       });
+      const dropped = maybeDropStaleLaunchIntent(
+        "claude",
+        pendingClaudeLaunch.worktreeId,
+        "target-missing",
+        () => {
+          setPendingClaudeLaunches((prev) => prev.slice(1));
+        },
+      );
+      if (dropped) return;
       return;
     }
     if (target.status === "creating") {
@@ -961,13 +1229,29 @@ export default function App() {
         worktreeId: pendingClaudeLaunch.worktreeId,
         status: target.status,
       });
+      const dropped = maybeDropStaleLaunchIntent(
+        "claude",
+        pendingClaudeLaunch.worktreeId,
+        "target-creating",
+        () => {
+          setPendingClaudeLaunches((prev) => prev.slice(1));
+        },
+      );
+      if (dropped) return;
       return;
     }
+    launchMissingTargetSinceRef.current.delete(waitKey);
     const intent = pendingClaudeLaunch;
+    logAppTemp("scope dequeue launch intent", {
+      scopeKey: runtimeScopeKey,
+      agent: "claude",
+      worktreeId: intent.worktreeId,
+      mode: intent.mode,
+    });
     setPendingClaudeLaunches((prev) => prev.slice(1));
 
     void (async () => {
-      if (intent.mode === "start") {
+      if (isStartLaunchMode(intent.mode)) {
         logAutoClaude("Running pre-implementation hooks before Claude launch", {
           worktreeId: intent.worktreeId,
         });
@@ -981,7 +1265,7 @@ export default function App() {
         });
       }
 
-      let mode: ClaudeLaunchMode = intent.mode;
+      let mode: ClaudeLaunchIntent["mode"] = intent.mode;
       if (intent.startInBackground && intent.prompt) {
         const started = await startAgentSessionInBackground(
           "claude",
@@ -1008,16 +1292,35 @@ export default function App() {
         startInBackground: intent.startInBackground ?? false,
       });
     })();
-  }, [api, logAutoClaude, pendingClaudeLaunches, startAgentSessionInBackground, worktrees]);
+  }, [
+    api,
+    logAppTemp,
+    logAutoClaude,
+    maybeDropStaleLaunchIntent,
+    pendingClaudeLaunches,
+    runtimeScopeKey,
+    startAgentSessionInBackground,
+    worktrees,
+  ]);
 
   useEffect(() => {
     const pendingCodexLaunch = pendingCodexLaunches[0];
     if (!pendingCodexLaunch) return;
+    const waitKey = `${runtimeScopeKey}:codex:${pendingCodexLaunch.worktreeId}`;
     const target = worktrees.find((wt) => wt.id === pendingCodexLaunch.worktreeId);
     if (!target) {
       logAutoClaude("Waiting for target worktree to appear before launching Codex", {
         worktreeId: pendingCodexLaunch.worktreeId,
       });
+      const dropped = maybeDropStaleLaunchIntent(
+        "codex",
+        pendingCodexLaunch.worktreeId,
+        "target-missing",
+        () => {
+          setPendingCodexLaunches((prev) => prev.slice(1));
+        },
+      );
+      if (dropped) return;
       return;
     }
     if (target.status === "creating") {
@@ -1025,13 +1328,29 @@ export default function App() {
         worktreeId: pendingCodexLaunch.worktreeId,
         status: target.status,
       });
+      const dropped = maybeDropStaleLaunchIntent(
+        "codex",
+        pendingCodexLaunch.worktreeId,
+        "target-creating",
+        () => {
+          setPendingCodexLaunches((prev) => prev.slice(1));
+        },
+      );
+      if (dropped) return;
       return;
     }
+    launchMissingTargetSinceRef.current.delete(waitKey);
     const intent = pendingCodexLaunch;
+    logAppTemp("scope dequeue launch intent", {
+      scopeKey: runtimeScopeKey,
+      agent: "codex",
+      worktreeId: intent.worktreeId,
+      mode: intent.mode,
+    });
     setPendingCodexLaunches((prev) => prev.slice(1));
 
     void (async () => {
-      if (intent.mode === "start") {
+      if (isStartLaunchMode(intent.mode)) {
         logAutoClaude("Running pre-implementation hooks before Codex launch", {
           worktreeId: intent.worktreeId,
         });
@@ -1057,16 +1376,34 @@ export default function App() {
         tabLabel: intent.tabLabel,
       });
     })();
-  }, [api, logAutoClaude, pendingCodexLaunches, worktrees]);
+  }, [
+    api,
+    logAppTemp,
+    logAutoClaude,
+    maybeDropStaleLaunchIntent,
+    pendingCodexLaunches,
+    runtimeScopeKey,
+    worktrees,
+  ]);
 
   useEffect(() => {
     const pendingGeminiLaunch = pendingGeminiLaunches[0];
     if (!pendingGeminiLaunch) return;
+    const waitKey = `${runtimeScopeKey}:gemini:${pendingGeminiLaunch.worktreeId}`;
     const target = worktrees.find((wt) => wt.id === pendingGeminiLaunch.worktreeId);
     if (!target) {
       logAutoClaude("Waiting for target worktree to appear before launching Gemini", {
         worktreeId: pendingGeminiLaunch.worktreeId,
       });
+      const dropped = maybeDropStaleLaunchIntent(
+        "gemini",
+        pendingGeminiLaunch.worktreeId,
+        "target-missing",
+        () => {
+          setPendingGeminiLaunches((prev) => prev.slice(1));
+        },
+      );
+      if (dropped) return;
       return;
     }
     if (target.status === "creating") {
@@ -1074,13 +1411,29 @@ export default function App() {
         worktreeId: pendingGeminiLaunch.worktreeId,
         status: target.status,
       });
+      const dropped = maybeDropStaleLaunchIntent(
+        "gemini",
+        pendingGeminiLaunch.worktreeId,
+        "target-creating",
+        () => {
+          setPendingGeminiLaunches((prev) => prev.slice(1));
+        },
+      );
+      if (dropped) return;
       return;
     }
+    launchMissingTargetSinceRef.current.delete(waitKey);
     const intent = pendingGeminiLaunch;
+    logAppTemp("scope dequeue launch intent", {
+      scopeKey: runtimeScopeKey,
+      agent: "gemini",
+      worktreeId: intent.worktreeId,
+      mode: intent.mode,
+    });
     setPendingGeminiLaunches((prev) => prev.slice(1));
 
     void (async () => {
-      if (intent.mode === "start") {
+      if (isStartLaunchMode(intent.mode)) {
         logAutoClaude("Running pre-implementation hooks before Gemini launch", {
           worktreeId: intent.worktreeId,
         });
@@ -1106,16 +1459,34 @@ export default function App() {
         tabLabel: intent.tabLabel,
       });
     })();
-  }, [api, logAutoClaude, pendingGeminiLaunches, worktrees]);
+  }, [
+    api,
+    logAppTemp,
+    logAutoClaude,
+    maybeDropStaleLaunchIntent,
+    pendingGeminiLaunches,
+    runtimeScopeKey,
+    worktrees,
+  ]);
 
   useEffect(() => {
     const pendingOpenCodeLaunch = pendingOpenCodeLaunches[0];
     if (!pendingOpenCodeLaunch) return;
+    const waitKey = `${runtimeScopeKey}:opencode:${pendingOpenCodeLaunch.worktreeId}`;
     const target = worktrees.find((wt) => wt.id === pendingOpenCodeLaunch.worktreeId);
     if (!target) {
       logAutoClaude("Waiting for target worktree to appear before launching OpenCode", {
         worktreeId: pendingOpenCodeLaunch.worktreeId,
       });
+      const dropped = maybeDropStaleLaunchIntent(
+        "opencode",
+        pendingOpenCodeLaunch.worktreeId,
+        "target-missing",
+        () => {
+          setPendingOpenCodeLaunches((prev) => prev.slice(1));
+        },
+      );
+      if (dropped) return;
       return;
     }
     if (target.status === "creating") {
@@ -1123,13 +1494,29 @@ export default function App() {
         worktreeId: pendingOpenCodeLaunch.worktreeId,
         status: target.status,
       });
+      const dropped = maybeDropStaleLaunchIntent(
+        "opencode",
+        pendingOpenCodeLaunch.worktreeId,
+        "target-creating",
+        () => {
+          setPendingOpenCodeLaunches((prev) => prev.slice(1));
+        },
+      );
+      if (dropped) return;
       return;
     }
+    launchMissingTargetSinceRef.current.delete(waitKey);
     const intent = pendingOpenCodeLaunch;
+    logAppTemp("scope dequeue launch intent", {
+      scopeKey: runtimeScopeKey,
+      agent: "opencode",
+      worktreeId: intent.worktreeId,
+      mode: intent.mode,
+    });
     setPendingOpenCodeLaunches((prev) => prev.slice(1));
 
     void (async () => {
-      if (intent.mode === "start") {
+      if (isStartLaunchMode(intent.mode)) {
         logAutoClaude("Running pre-implementation hooks before OpenCode launch", {
           worktreeId: intent.worktreeId,
         });
@@ -1155,16 +1542,28 @@ export default function App() {
         tabLabel: intent.tabLabel,
       });
     })();
-  }, [api, logAutoClaude, pendingOpenCodeLaunches, worktrees]);
+  }, [
+    api,
+    logAppTemp,
+    logAutoClaude,
+    maybeDropStaleLaunchIntent,
+    pendingOpenCodeLaunches,
+    runtimeScopeKey,
+    worktrees,
+  ]);
 
   const handleDeleted = () => {
     setSelection(null);
   };
 
-  const handleCreateWorktreeFromJira = () => {
-    // Switch to worktree tab so user sees the newly created worktree
+  const focusWorktree = useCallback((worktreeId: string) => {
     setActiveCreateTab("branch");
-    setSelection(null);
+    setSelection({ type: "worktree", id: worktreeId });
+  }, []);
+
+  const handleCreateWorktreeFromJira = (worktreeId: string) => {
+    // Switch to worktree tab so user sees the newly created worktree
+    focusWorktree(worktreeId);
     refetch();
   };
 
@@ -1179,9 +1578,8 @@ export default function App() {
     return wt ?? null;
   };
 
-  const handleCreateWorktreeFromLinear = () => {
-    setActiveCreateTab("branch");
-    setSelection(null);
+  const handleCreateWorktreeFromLinear = (worktreeId: string) => {
+    focusWorktree(worktreeId);
     refetch();
   };
 
@@ -1201,9 +1599,8 @@ export default function App() {
   const selectedLinearWorktree =
     selection?.type === "linear-issue" ? findLinkedLinearWorktree(selection.identifier) : null;
 
-  const handleCreateWorktreeFromCustomTask = () => {
-    setActiveCreateTab("branch");
-    setSelection(null);
+  const handleCreateWorktreeFromCustomTask = (worktreeId: string) => {
+    focusWorktree(worktreeId);
     refetch();
     refetchCustomTasks();
   };
@@ -1215,6 +1612,12 @@ export default function App() {
 
   const enqueueClaudeLaunch = useCallback(
     (intent: ClaudeLaunchIntent, options?: AgentLaunchOptions) => {
+      logAppTemp("scope enqueue launch intent", {
+        scopeKey: runtimeScopeKey,
+        agent: "claude",
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+      });
       logAutoClaude("Scheduling Claude launch intent", {
         worktreeId: intent.worktreeId,
         mode: intent.mode,
@@ -1229,11 +1632,17 @@ export default function App() {
       setPendingClaudeLaunches((prev) => [...prev, intent]);
       refetch();
     },
-    [logAutoClaude, refetch],
+    [logAppTemp, logAutoClaude, refetch, runtimeScopeKey],
   );
 
   const enqueueCodexLaunch = useCallback(
     (intent: CodexLaunchIntent, options?: AgentLaunchOptions) => {
+      logAppTemp("scope enqueue launch intent", {
+        scopeKey: runtimeScopeKey,
+        agent: "codex",
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+      });
       logAutoClaude("Scheduling Codex launch intent", {
         worktreeId: intent.worktreeId,
         mode: intent.mode,
@@ -1247,11 +1656,17 @@ export default function App() {
       setPendingCodexLaunches((prev) => [...prev, intent]);
       refetch();
     },
-    [logAutoClaude, refetch],
+    [logAppTemp, logAutoClaude, refetch, runtimeScopeKey],
   );
 
   const enqueueGeminiLaunch = useCallback(
     (intent: GeminiLaunchIntent, options?: AgentLaunchOptions) => {
+      logAppTemp("scope enqueue launch intent", {
+        scopeKey: runtimeScopeKey,
+        agent: "gemini",
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+      });
       logAutoClaude("Scheduling Gemini launch intent", {
         worktreeId: intent.worktreeId,
         mode: intent.mode,
@@ -1265,11 +1680,17 @@ export default function App() {
       setPendingGeminiLaunches((prev) => [...prev, intent]);
       refetch();
     },
-    [logAutoClaude, refetch],
+    [logAppTemp, logAutoClaude, refetch, runtimeScopeKey],
   );
 
   const enqueueOpenCodeLaunch = useCallback(
     (intent: OpenCodeLaunchIntent, options?: AgentLaunchOptions) => {
+      logAppTemp("scope enqueue launch intent", {
+        scopeKey: runtimeScopeKey,
+        agent: "opencode",
+        worktreeId: intent.worktreeId,
+        mode: intent.mode,
+      });
       logAutoClaude("Scheduling OpenCode launch intent", {
         worktreeId: intent.worktreeId,
         mode: intent.mode,
@@ -1283,7 +1704,7 @@ export default function App() {
       setPendingOpenCodeLaunches((prev) => [...prev, intent]);
       refetch();
     },
-    [logAutoClaude, refetch],
+    [logAppTemp, logAutoClaude, refetch, runtimeScopeKey],
   );
 
   const continueAgentLaunch = useCallback(
@@ -2176,11 +2597,22 @@ export default function App() {
     setActiveView("workspace");
     const targetProjectId = resolveProjectIdFromNotification(navProjectName, sourceServerUrl);
     if (targetProjectId && targetProjectId !== activeProject?.id) {
-      setPendingNotificationNav({
+      const targetScopeKey = `project:${targetProjectId}`;
+      updateRuntimeScopeState(targetScopeKey, (state) => ({
+        ...state,
+        pendingNotificationNav: {
+          worktreeId,
+          targetProjectId,
+          openClaudeTab,
+          openHooksTab,
+        },
+      }));
+      logAppTemp("scope enqueue notification navigation", {
+        scopeKey: targetScopeKey,
         worktreeId,
         targetProjectId,
-        openClaudeTab,
-        openHooksTab,
+        openClaudeTab: openClaudeTab ?? false,
+        openHooksTab: openHooksTab ?? false,
       });
       switchProject(targetProjectId);
       return;
@@ -2214,7 +2646,17 @@ export default function App() {
     setActiveCreateTab("issues");
     const targetProjectId = resolveProjectIdFromNotification(navProjectName, sourceServerUrl);
     if (targetProjectId && targetProjectId !== activeProject?.id) {
-      setPendingIssueNotificationNav({ source, issueId, targetProjectId });
+      const targetScopeKey = `project:${targetProjectId}`;
+      updateRuntimeScopeState(targetScopeKey, (state) => ({
+        ...state,
+        pendingIssueNotificationNav: { source, issueId, targetProjectId },
+      }));
+      logAppTemp("scope enqueue issue navigation", {
+        scopeKey: targetScopeKey,
+        source,
+        issueId,
+        targetProjectId,
+      });
       switchProject(targetProjectId);
       return;
     }
@@ -2430,11 +2872,8 @@ export default function App() {
                           setSelection({ type: "linear-issue", identifier });
                         }}
                         onSelectLocalIssue={(identifier) => {
-                          const task = customTasks.find((t) => t.id === identifier);
-                          if (task) {
-                            setActiveCreateTab("issues");
-                            setSelection({ type: "custom-task", id: task.id });
-                          }
+                          setActiveCreateTab("issues");
+                          setSelection({ type: "custom-task", id: identifier });
                         }}
                       />
                     </motion.div>
@@ -2586,11 +3025,8 @@ export default function App() {
                       setSelection({ type: "linear-issue", identifier });
                     }}
                     onSelectLocalIssue={(identifier) => {
-                      const task = customTasks.find((t) => t.id === identifier);
-                      if (task) {
-                        setActiveCreateTab("issues");
-                        setSelection({ type: "custom-task", id: task.id });
-                      }
+                      setActiveCreateTab("issues");
+                      setSelection({ type: "custom-task", id: identifier });
                     }}
                     onCreateTask={(worktreeId) => {
                       setCreateTaskForWorktreeId(worktreeId);
@@ -2598,6 +3034,10 @@ export default function App() {
                       setShowCreateModal(true);
                     }}
                     onLinkIssue={(worktreeId) => setLinkIssueForWorktreeId(worktreeId)}
+                    onCodeWithClaude={handleCodeWithClaude}
+                    onCodeWithCodex={handleCodeWithCodex}
+                    onCodeWithGemini={handleCodeWithGemini}
+                    onCodeWithOpenCode={handleCodeWithOpenCode}
                     claudeLaunchRequest={claudeLaunchRequest}
                     codexLaunchRequest={codexLaunchRequest}
                     geminiLaunchRequest={geminiLaunchRequest}
@@ -2678,7 +3118,11 @@ export default function App() {
         <CreateWorktreeModal
           mode={createModalMode as "branch" | "jira" | "linear"}
           hasBranchNameRule={hasBranchNameRule}
-          onCreated={refetch}
+          onCreated={(worktreeId) => {
+            setWorktreeFilter("");
+            focusWorktree(worktreeId);
+            refetch();
+          }}
           onClose={() => setShowCreateModal(false)}
           onSetupNeeded={handleSetupNeeded}
         />

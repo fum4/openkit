@@ -12,7 +12,7 @@ import { WorktreeExistsModal } from "./WorktreeExistsModal";
 interface CreateWorktreeModalProps {
   mode: "branch" | "jira" | "linear";
   hasBranchNameRule?: boolean;
-  onCreated: () => void;
+  onCreated: (worktreeId: string) => void;
   onClose: () => void;
   onSetupNeeded?: () => void;
 }
@@ -23,6 +23,13 @@ function deriveBranch(name: string): string {
     .replace(/[^a-z0-9-]/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+function resolveCreatedWorktreeId(result: {
+  worktreeId?: string;
+  worktree?: { id: string };
+}): string | null {
+  return result.worktreeId ?? result.worktree?.id ?? null;
 }
 
 export function CreateWorktreeModal({
@@ -102,12 +109,16 @@ export function CreateWorktreeModal({
     setIsCreating(true);
     setError(null);
 
-    const result = await api.createWorktree(name.trim(), branch.trim() || undefined);
+    const resolvedBranch = branch.trim() || deriveBranch(name.trim());
+    const result = await api.createWorktree(resolvedBranch, name.trim());
     setIsCreating(false);
 
-    if (result.success) {
-      onCreated();
+    const createdWorktreeId = resolveCreatedWorktreeId(result);
+    if (result.success && createdWorktreeId) {
+      onCreated(createdWorktreeId);
       onClose();
+    } else if (result.success) {
+      setError("Worktree was created, but the response did not include a worktree id.");
     } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
       setExistingWorktree({ id: result.worktreeId, branch: branch.trim() });
     } else {
@@ -131,9 +142,12 @@ export function CreateWorktreeModal({
     const result = await api.createFromJira(taskId.trim(), jiraBranch.trim() || undefined);
     setIsCreating(false);
 
-    if (result.success) {
-      onCreated();
+    const createdWorktreeId = resolveCreatedWorktreeId(result);
+    if (result.success && createdWorktreeId) {
+      onCreated(createdWorktreeId);
       onClose();
+    } else if (result.success) {
+      setError("Worktree was created, but the response did not include a worktree id.");
     } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
       setExistingWorktree({ id: result.worktreeId, branch: jiraBranch.trim() || taskId.trim() });
     } else {
@@ -157,9 +171,12 @@ export function CreateWorktreeModal({
     const result = await api.createFromLinear(linearId.trim(), linearBranch.trim() || undefined);
     setIsCreating(false);
 
-    if (result.success) {
-      onCreated();
+    const createdWorktreeId = resolveCreatedWorktreeId(result);
+    if (result.success && createdWorktreeId) {
+      onCreated(createdWorktreeId);
       onClose();
+    } else if (result.success) {
+      setError("Worktree was created, but the response did not include a worktree id.");
     } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
       setExistingWorktree({
         id: result.worktreeId,
@@ -349,7 +366,7 @@ export function CreateWorktreeModal({
           branch={existingWorktree.branch}
           onResolved={() => {
             setExistingWorktree(null);
-            onCreated();
+            onCreated(existingWorktree.id);
             onClose();
           }}
           onCancel={() => setExistingWorktree(null)}
