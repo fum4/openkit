@@ -1,38 +1,36 @@
 let hasLoaded = false;
+let loadPromise: Promise<unknown> | null = null;
 
 function loadDownloadEnhancements() {
-  if (hasLoaded) return;
-  hasLoaded = true;
-  void import("./download");
-}
-
-function scheduleBackgroundLoad() {
-  const requestIdleCallback = (
-    window as Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-    }
-  ).requestIdleCallback;
-
-  if (requestIdleCallback) {
-    requestIdleCallback(loadDownloadEnhancements, { timeout: 5000 });
+  if (hasLoaded) return loadPromise ?? Promise.resolve();
+  if (!loadPromise) {
+    loadPromise = import("./download").then(() => {
+      hasLoaded = true;
+    });
   }
-
-  setTimeout(loadDownloadEnhancements, 5000);
+  return loadPromise;
 }
 
 function bindIntentLoad() {
-  const loadOnIntent = () => {
-    loadDownloadEnhancements();
-  };
+  const toggleButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>("[data-download-toggle]"),
+  );
+  if (toggleButtons.length === 0) return;
 
-  document.addEventListener("pointerdown", loadOnIntent, { once: true });
-  document.addEventListener("keydown", loadOnIntent, { once: true });
-  document.addEventListener("touchstart", loadOnIntent, { once: true });
+  toggleButtons.forEach((toggle) => {
+    toggle.addEventListener("click", async (event) => {
+      if (hasLoaded) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      await loadDownloadEnhancements();
+      toggle.click();
+    });
+  });
 }
 
 function initDownloadBootstrap() {
   bindIntentLoad();
-  scheduleBackgroundLoad();
 }
 
 if (document.readyState === "complete") {

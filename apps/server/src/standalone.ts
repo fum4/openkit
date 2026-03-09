@@ -72,7 +72,7 @@ function loadConfig(): { config: WorktreeConfig; configPath: string | null } {
     projectDir: ".",
     startCommand: "",
     installCommand: "",
-    baseBranch: "origin/main",
+    baseBranch: "main",
     ports: {
       discovered: [],
       offsetStep: 1,

@@ -8,35 +8,54 @@ export interface DetectedConfig {
   installCommand: string;
 }
 
+function localBranchExists(projectDir: string, branch: string): boolean {
+  try {
+    execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], {
+      encoding: "utf-8",
+      cwd: projectDir,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function detectDefaultBranch(projectDir: string): string {
-  // Try to detect the default branch from the remote
+  // Prefer the local branch corresponding to origin/HEAD.
   try {
     const ref = execFileSync("git", ["symbolic-ref", "refs/remotes/origin/HEAD"], {
       encoding: "utf-8",
       cwd: projectDir,
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
-    // ref is like "refs/remotes/origin/main" → extract "origin/main"
-    const match = ref.match(/^refs\/remotes\/(.+)$/);
-    if (match) return match[1];
+    // ref is like "refs/remotes/origin/main" → extract local branch "main"
+    const match = ref.match(/^refs\/remotes\/origin\/(.+)$/);
+    if (match?.[1] && localBranchExists(projectDir, match[1])) return match[1];
   } catch {
-    // Fallback: check which common branches exist
+    // Fall through to local branch checks.
   }
 
-  for (const branch of ["origin/develop", "origin/main", "origin/master"]) {
-    try {
-      execFileSync("git", ["rev-parse", "--verify", branch], {
-        encoding: "utf-8",
-        cwd: projectDir,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
+  // Common local defaults.
+  for (const branch of ["develop", "main", "master"]) {
+    if (localBranchExists(projectDir, branch)) {
       return branch;
-    } catch {
-      // Try next
     }
   }
 
-  return "origin/main";
+  // Use current local branch if available.
+  try {
+    const current = execFileSync("git", ["branch", "--show-current"], {
+      encoding: "utf-8",
+      cwd: projectDir,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    if (current && localBranchExists(projectDir, current)) return current;
+  } catch {
+    // Ignore and fall back.
+  }
+
+  return "main";
 }
 
 export function detectPackageManager(projectDir: string): string | null {

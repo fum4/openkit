@@ -32,6 +32,17 @@ function resolveCreatedWorktreeId(result: {
   return result.worktreeId ?? result.worktree?.id ?? null;
 }
 
+function requiresWorktreeRecoveryPrompt(result: {
+  success: boolean;
+  code?: string;
+  worktreeId?: string;
+  error?: string;
+}): boolean {
+  if (result.success || !result.worktreeId) return false;
+  if (result.code === "WORKTREE_RECOVERY_REQUIRED") return true;
+  return (result.error ?? "").includes("cannot lock ref 'refs/heads/");
+}
+
 export function CreateWorktreeModal({
   mode,
   hasBranchNameRule,
@@ -119,8 +130,11 @@ export function CreateWorktreeModal({
       onClose();
     } else if (result.success) {
       setError("Worktree was created, but the response did not include a worktree id.");
-    } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
-      setExistingWorktree({ id: result.worktreeId, branch: branch.trim() });
+    } else if (
+      (result.code === "WORKTREE_EXISTS" || requiresWorktreeRecoveryPrompt(result)) &&
+      result.worktreeId
+    ) {
+      setExistingWorktree({ id: result.worktreeId, branch: resolvedBranch });
     } else {
       const errorMsg = result.error || "Failed to create worktree";
       if (errorMsg.includes("no commits") || errorMsg.includes("invalid reference")) {
@@ -148,7 +162,10 @@ export function CreateWorktreeModal({
       onClose();
     } else if (result.success) {
       setError("Worktree was created, but the response did not include a worktree id.");
-    } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
+    } else if (
+      (result.code === "WORKTREE_EXISTS" || requiresWorktreeRecoveryPrompt(result)) &&
+      result.worktreeId
+    ) {
       setExistingWorktree({ id: result.worktreeId, branch: jiraBranch.trim() || taskId.trim() });
     } else {
       const errorMsg = result.error || "Failed to create from Jira";
@@ -177,7 +194,10 @@ export function CreateWorktreeModal({
       onClose();
     } else if (result.success) {
       setError("Worktree was created, but the response did not include a worktree id.");
-    } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
+    } else if (
+      (result.code === "WORKTREE_EXISTS" || requiresWorktreeRecoveryPrompt(result)) &&
+      result.worktreeId
+    ) {
       setExistingWorktree({
         id: result.worktreeId,
         branch: linearBranch.trim() || linearId.trim(),

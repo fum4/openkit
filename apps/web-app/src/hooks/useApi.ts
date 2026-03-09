@@ -56,6 +56,31 @@ type ApiClient<T extends Record<string, ApiMethod>> = {
   [K in keyof T]: (...args: Parameters<T[K]>) => ReturnType<T[K]>;
 };
 
+const RECOVERABLE_WORKTREE_CONFLICT_METHODS = new Set([
+  "createWorktree",
+  "createFromJira",
+  "createFromLinear",
+  "createWorktreeFromCustomTask",
+]);
+
+function shouldSuppressRecoverableWorktreeConflictToast(
+  method: string,
+  resolved: { success?: boolean; error?: unknown },
+): boolean {
+  if (!RECOVERABLE_WORKTREE_CONFLICT_METHODS.has(method)) return false;
+  if (resolved.success !== false) return false;
+
+  const worktreeId =
+    "worktreeId" in resolved ? (resolved as { worktreeId?: unknown }).worktreeId : undefined;
+  if (typeof worktreeId !== "string" || worktreeId.trim().length === 0) return false;
+
+  const code = "code" in resolved ? (resolved as { code?: unknown }).code : undefined;
+  if (code === "WORKTREE_EXISTS" || code === "WORKTREE_RECOVERY_REQUIRED") return true;
+
+  const error = typeof resolved.error === "string" ? resolved.error : String(resolved.error ?? "");
+  return error.includes("cannot lock ref 'refs/heads/");
+}
+
 function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(client: T): ApiClient<T> {
   const wrappedClient = {} as ApiClient<T>;
 
@@ -70,7 +95,8 @@ function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(client: 
           if (
             hasErrorResult(resolved) &&
             (resolved.success === false ||
-              (typeof resolved.error === "string" && resolved.error.trim().length > 0))
+              (typeof resolved.error === "string" && resolved.error.trim().length > 0)) &&
+            !shouldSuppressRecoverableWorktreeConflictToast(String(key), resolved)
           ) {
             showPersistentErrorToast(buildStructuredErrorToast(resolved), {
               scope: `api:${String(key)}`,
@@ -600,6 +626,12 @@ export function useApi() {
 
       createActivityEvent: (event: Parameters<typeof api.createActivityEvent>[0]) =>
         api.createActivityEvent(event, serverUrl),
+
+      fetchOpsLogs: (params?: Parameters<typeof api.fetchOpsLogs>[1]) =>
+        api.fetchOpsLogs(serverUrl, params),
+
+      createOpsLogEvent: (event: Parameters<typeof api.createOpsLogEvent>[0]) =>
+        api.createOpsLogEvent(event, serverUrl),
     }),
     [serverUrl],
   );

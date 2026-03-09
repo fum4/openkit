@@ -13,6 +13,18 @@ export interface HookFeedItem {
   filePath?: string;
 }
 
+export interface ConsecutiveActivityItem {
+  id: string;
+  title: string;
+  detail?: string;
+  timestamp: string;
+  worktreeId?: string;
+  projectName?: string;
+  issueId?: string;
+  source?: "jira" | "linear" | "local";
+  sourceServerUrl?: string;
+}
+
 function normalizeHookTrigger(value: unknown): HookTrigger {
   if (
     value === "pre-implementation" ||
@@ -76,6 +88,87 @@ export function withSourceServerUrl(event: ActivityEvent, serverUrl: string | nu
 function toHookItems(event: ActivityEvent): HookFeedItem[] {
   const rawItems = (event.metadata?.hookItems as HookFeedItem[] | undefined) ?? [];
   return Array.isArray(rawItems) ? rawItems : [];
+}
+
+function normalizeIssueSource(value: unknown): "jira" | "linear" | "local" | undefined {
+  if (value === "jira" || value === "linear" || value === "local") return value;
+  return undefined;
+}
+
+function toConsecutiveItem(event: ActivityEvent): ConsecutiveActivityItem {
+  return {
+    id: event.id,
+    title: event.title,
+    detail: event.detail,
+    timestamp: event.timestamp,
+    worktreeId: event.worktreeId,
+    projectName: event.projectName,
+    issueId:
+      typeof event.metadata?.issueId === "string" ? (event.metadata.issueId as string) : undefined,
+    source: normalizeIssueSource(event.metadata?.source),
+    sourceServerUrl:
+      typeof event.metadata?.sourceServerUrl === "string"
+        ? (event.metadata.sourceServerUrl as string)
+        : undefined,
+  };
+}
+
+function toConsecutiveItems(event: ActivityEvent): ConsecutiveActivityItem[] {
+  const raw = event.metadata?.consecutiveGroupItems as ConsecutiveActivityItem[] | undefined;
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw;
+  }
+  return [toConsecutiveItem(event)];
+}
+
+function shouldGroupConsecutively(event: ActivityEvent): boolean {
+  return event.type === "task_detected";
+}
+
+function sameConsecutiveGroupContext(a: ActivityEvent, b: ActivityEvent): boolean {
+  if (a.type !== b.type || a.category !== b.category) return false;
+  if ((a.projectName ?? "") !== (b.projectName ?? "")) return false;
+  const aSourceServerUrl =
+    typeof a.metadata?.sourceServerUrl === "string" ? (a.metadata.sourceServerUrl as string) : "";
+  const bSourceServerUrl =
+    typeof b.metadata?.sourceServerUrl === "string" ? (b.metadata.sourceServerUrl as string) : "";
+  return aSourceServerUrl === bSourceServerUrl;
+}
+
+function pluralizeActivityTitle(title: string): string {
+  const trimmed = title.trim();
+  if (!trimmed) return "New notifications";
+  if (trimmed.endsWith("s")) return trimmed;
+  if (trimmed.endsWith("y")) return `${trimmed.slice(0, -1)}ies`;
+  return `${trimmed}s`;
+}
+
+function mergeConsecutiveEvents(existing: ActivityEvent, incoming: ActivityEvent): ActivityEvent {
+  const existingItems = toConsecutiveItems(existing);
+  if (existingItems.some((item) => item.id === incoming.id)) {
+    return existing;
+  }
+  const mergedItems = [...existingItems, toConsecutiveItem(incoming)];
+  const groupedTitle = pluralizeActivityTitle(incoming.title || existing.title);
+  return {
+    ...existing,
+    id: existing.id,
+    timestamp: incoming.timestamp,
+    title: groupedTitle,
+    detail: undefined,
+    worktreeId: incoming.worktreeId ?? existing.worktreeId,
+    projectName: incoming.projectName ?? existing.projectName,
+    metadata: {
+      ...existing.metadata,
+      ...incoming.metadata,
+      consecutiveGroupCount: mergedItems.length,
+      consecutiveGroupItems: mergedItems,
+    },
+  };
+}
+
+export function getConsecutiveGroupItems(event: ActivityEvent): ConsecutiveActivityItem[] {
+  return toConsecutiveItems(event);
 }
 
 function upsertHookItem(items: HookFeedItem[], item: HookFeedItem): HookFeedItem[] {
@@ -198,6 +291,15 @@ export function upsertActivityEvent(
       next = [merged, ...next];
     }
     return sortActivityEventsByNewest(next).slice(0, ACTIVITY_FEED_EVENT_LIMIT);
+  }
+
+  if (shouldGroupConsecutively(incoming) && next.length > 0) {
+    const latest = next[0];
+    if (shouldGroupConsecutively(latest) && sameConsecutiveGroupContext(latest, incoming)) {
+      const merged = mergeConsecutiveEvents(latest, incoming);
+      next = [merged, ...next.slice(1)];
+      return sortActivityEventsByNewest(next).slice(0, ACTIVITY_FEED_EVENT_LIMIT);
+    }
   }
 
   if (incoming.groupKey) {

@@ -1,3 +1,5 @@
+import "./runtime/install-command-monitor";
+
 import { createAdaptorServer } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createNodeWebSocket } from "@hono/node-ws";
@@ -35,6 +37,7 @@ import { registerLinearRoutes } from "./routes/linear";
 import { registerAgentCliRoutes } from "./routes/agent-cli";
 import { registerActivityRoutes } from "./routes/activity";
 import { registerEventRoutes } from "./routes/events";
+import { registerLogsRoutes } from "./routes/logs";
 import { registerMcpRoutes } from "./routes/mcp";
 import { registerMcpServerRoutes } from "./routes/mcp-servers";
 import { registerSkillRoutes } from "./routes/skills";
@@ -51,6 +54,7 @@ import { NotesManager } from "./notes-manager";
 import { TerminalManager } from "./terminal-manager";
 import { HooksManager } from "./verification-manager";
 import { ensureBundledSkills } from "./verification-skills";
+import { setCommandMonitorSink } from "./runtime/command-monitor";
 import type { WorktreeConfig } from "./types";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
@@ -163,8 +167,50 @@ export function createWorktreeServer(manager: WorktreeManager) {
   const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
   app.use("*", cors());
+  app.use("*", async (c, next) => {
+    const startedAt = Date.now();
+    try {
+      await next();
+    } finally {
+      const requestPath = c.req.path;
+      if (
+        requestPath.startsWith("/api/") ||
+        requestPath === "/mcp" ||
+        requestPath.startsWith("/_ok/")
+      ) {
+        const statusCode = c.res.status || 200;
+        manager.getOpsLog().addEvent({
+          source: "http",
+          action: "http.request",
+          level: statusCode >= 500 ? "error" : statusCode >= 400 ? "warning" : "info",
+          status: statusCode >= 400 ? "failed" : "succeeded",
+          message: `${c.req.method} ${requestPath} -> ${statusCode}`,
+          projectName: manager.getProjectName() ?? undefined,
+          metadata: {
+            method: c.req.method,
+            path: requestPath,
+            statusCode,
+            durationMs: Date.now() - startedAt,
+          },
+        });
+      }
+    }
+  });
   app.onError((err, c) => {
     log.error(`${c.req.method} ${c.req.path} → ${err.message}`);
+    manager.getOpsLog().addEvent({
+      source: "http",
+      action: "http.error",
+      level: "error",
+      status: "failed",
+      message: `${c.req.method} ${c.req.path} -> ${err.message}`,
+      projectName: manager.getProjectName() ?? undefined,
+      metadata: {
+        method: c.req.method,
+        path: c.req.path,
+        error: err.message,
+      },
+    });
     if (process.env.DEBUG) log.debug(err.stack ?? "");
     return c.json({ error: err.message }, 500);
   });
@@ -178,6 +224,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
   registerNgrokConnectRoutes(app, manager);
   registerEventRoutes(app, manager);
   registerActivityRoutes(app, manager.getActivityLog(), () => manager.getProjectName());
+  registerLogsRoutes(app, manager);
   if (mcpSetupEnabled) {
     registerMcpRoutes(app, manager);
   } else {
@@ -319,6 +366,9 @@ export async function startWorktreeServer(
   const exitOnClose = options?.exitOnClose ?? true;
   const requestedPort = options?.port ?? DEFAULT_PORT;
   const manager = new WorktreeManager(config, configFilePath ?? null);
+  setCommandMonitorSink((event) => {
+    manager.getOpsLog().addCommandEvent(event, manager.getProjectName() ?? undefined);
+  });
   ensureCliInPath();
   const { app, injectWebSocket, terminalManager } = createWorktreeServer(manager);
 
@@ -368,6 +418,7 @@ export async function startWorktreeServer(
 
     terminalManager.destroyAll();
     await manager.stopAll();
+    setCommandMonitorSink(null);
     server.close();
     if (exitOnClose) {
       process.exit(0);

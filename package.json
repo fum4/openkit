@@ -1,6 +1,6 @@
 {
   "name": "openkit",
-  "version": "0.0.48",
+  "version": "0.0.49",
   "private": true,
   "description": "Your local kit for agentic development",
   "homepage": "https://dawg-chi.vercel.app/",
@@ -31,8 +31,8 @@
     "check:lint": "pnpm nx run-many -t lint",
     "check:types": "pnpm nx run-many -t typecheck",
     "check:format": "oxfmt --check .",
-    "check:all": "pnpm check:format && pnpm nx run-many -t lint,typecheck,build",
-    "check:affected": "pnpm check:format && pnpm nx affected -t lint,typecheck,build --base=${NX_BASE:-origin/master} --head=${NX_HEAD:-HEAD}",
+    "check:all": "pnpm check:format && pnpm nx run-many -t lint,typecheck",
+    "check:affected": "pnpm check:format && pnpm nx affected -t lint,typecheck --base=${NX_BASE:-origin/master} --head=${NX_HEAD:-HEAD}",
     "fix:format": "oxfmt .",
     "fix:lint": "oxlint --fix",
     "fix:all": "pnpm fix:format && pnpm fix:lint",

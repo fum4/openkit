@@ -2,6 +2,7 @@ import type { ActivityFilterGroup } from "../components/ActivityFeed";
 
 const FILTERS_KEY_PREFIX = "OpenKit:activityFeedFiltersByScope:";
 const LEGACY_FILTERS_KEY = "OpenKit:activityFeedFilters";
+const DEBUG_MODE_KEY_PREFIX = "OpenKit:activityDebugModeByScope:";
 
 function normalizeActivityFilterGroups(value: unknown): ActivityFilterGroup[] {
   if (!Array.isArray(value)) return [];
@@ -38,6 +39,10 @@ function readFiltersByKey(key: string): ActivityFilterGroup[] | null {
 
 function scopedFiltersKey(scope: string): string {
   return `${FILTERS_KEY_PREFIX}${scope}`;
+}
+
+function scopedDebugModeKey(scope: string): string {
+  return `${DEBUG_MODE_KEY_PREFIX}${scope}`;
 }
 
 export function activityFilterScopeForProject(options: {
@@ -79,6 +84,33 @@ export function writePersistedActivityFilters(
       return;
     }
     localStorage.setItem(key, JSON.stringify(selectedFilterGroups));
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
+export function readPersistedActivityDebugMode(scope: string): boolean {
+  try {
+    const raw = localStorage.getItem(scopedDebugModeKey(scope));
+    if (!raw) return false;
+
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === "boolean") return parsed;
+
+    return raw === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function writePersistedActivityDebugMode(scope: string, enabled: boolean): void {
+  try {
+    const key = scopedDebugModeKey(scope);
+    if (!enabled) {
+      localStorage.removeItem(key);
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(enabled));
   } catch {
     // Ignore localStorage write failures.
   }

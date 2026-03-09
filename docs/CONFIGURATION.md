@@ -34,7 +34,7 @@ The primary configuration file. Created by `openkit init` (interactive CLI) or v
   "projectDir": ".",
   "startCommand": "pnpm dev",
   "installCommand": "pnpm install",
-  "baseBranch": "origin/main",
+  "baseBranch": "main",
   "autoInstall": true,
   "localIssuePrefix": "LOCAL",
   "localAutoStartAgent": "claude",
@@ -93,15 +93,15 @@ Examples: `"pnpm install"`, `"npm install"`, `"yarn install"`, `"bun install"`
 
 #### `baseBranch`
 
-| Property     | Value           |
-| ------------ | --------------- |
-| **Type**     | `string`        |
-| **Default**  | `"origin/main"` |
-| **Required** | No              |
+| Property     | Value    |
+| ------------ | -------- |
+| **Type**     | `string` |
+| **Default**  | `"main"` |
+| **Required** | No       |
 
-The base branch from which new worktrees are created. During `openkit init`, this is auto-detected by checking `refs/remotes/origin/HEAD` and then falling back to `origin/develop`, `origin/main`, or `origin/master` in that order.
+The base branch from which new worktrees are created. During `openkit init`, this is auto-detected by preferring the local branch that matches `refs/remotes/origin/HEAD`, then falling back to local `develop`, `main`, `master`, and finally the current local branch.
 
-Examples: `"origin/main"`, `"origin/develop"`, `"origin/master"`
+Examples: `"main"`, `"develop"`, `"master"`
 
 #### `autoInstall`
 

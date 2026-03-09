@@ -65,12 +65,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const scheduleAutoDismiss = useCallback(
-    (id: string, level: "error" | "info" | "success") => {
+    (id: string, _level: "error" | "info" | "success") => {
       // Clear any existing timer for this toast
       const existing = timersRef.current.get(id);
       if (existing) clearTimeout(existing);
 
-      const timeout = level === "error" ? 10000 : 5000;
+      const timeout = 5000;
       const timer = setTimeout(() => {
         removeToast(id);
         timersRef.current.delete(id);

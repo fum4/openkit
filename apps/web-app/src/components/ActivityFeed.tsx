@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 
 import { ACTIVITY_TYPES } from "@openkit/shared/activity-event";
 import type { ActivityEvent } from "../hooks/api";
-import type { HookFeedItem } from "../hooks/activityFeedUtils";
+import { getConsecutiveGroupItems, type HookFeedItem } from "../hooks/activityFeedUtils";
 import { ClaudeIcon, CodexIcon, GeminiIcon, JiraIcon, LinearIcon, OpenCodeIcon } from "../icons";
 import { activity, integration, text } from "../theme";
 import { ToggleSwitch } from "./ToggleSwitch";
@@ -46,6 +46,13 @@ function formatRelativeTime(timestamp: string): string {
   if (diffMin < 60) return `${diffMin}m ago`;
   if (diffHr < 24) return `${diffHr}h ago`;
   return `${diffDays}d ago`;
+}
+
+function formatClockTime(timestamp: string): string {
+  return new Date(timestamp).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function isHookEvent(event: ActivityEvent): boolean {
@@ -493,6 +500,8 @@ function ActivityRow({
             : (activity.categoryBg[event.category] ?? "bg-white/[0.06]");
   const items = hookItems(event);
   const hasChildren = hookEvent && items.length > 0;
+  const groupedItems = getConsecutiveGroupItems(event);
+  const hasConsecutiveGroup = groupedItems.length > 1;
   const sourceServerUrl =
     typeof event.metadata?.sourceServerUrl === "string"
       ? (event.metadata.sourceServerUrl as string)
@@ -544,11 +553,12 @@ function ActivityRow({
   };
 
   const rowClickable = Boolean(
-    (hookEvent && event.worktreeId && onNavigateToWorktree) ||
-    (issueSource &&
-      issueId &&
-      ((claudeRelated && event.worktreeId && onNavigateToWorktree) || onNavigateToIssue)) ||
-    (event.worktreeId && onNavigateToWorktree),
+    !hasConsecutiveGroup &&
+    ((hookEvent && event.worktreeId && onNavigateToWorktree) ||
+      (issueSource &&
+        issueId &&
+        ((claudeRelated && event.worktreeId && onNavigateToWorktree) || onNavigateToIssue)) ||
+      (event.worktreeId && onNavigateToWorktree)),
   );
 
   return (
@@ -605,8 +615,68 @@ function ActivityRow({
           <div className="flex items-start justify-between gap-2">
             <p className={`text-xs ${text.primary} leading-relaxed`}>{event.title}</p>
           </div>
-          {event.detail && (
+          {!hasConsecutiveGroup && event.detail && (
             <p className={`text-[10px] ${subtitleTextClass} mt-0.5`}>{event.detail}</p>
+          )}
+          {hasConsecutiveGroup && (
+            <div className="mt-1.5 divide-y divide-white/[0.06]">
+              {groupedItems.map((item) => {
+                const itemSource = item.source;
+                const itemIssueId = item.issueId;
+                const itemWorktreeId = item.worktreeId;
+                return (
+                  <div key={item.id} className="py-1.5 first:pt-0 last:pb-0">
+                    <p className={`text-[10px] ${subtitleTextClass}`}>
+                      {item.detail ?? item.title}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={`text-[10px] ${metaTextClass}`}>
+                        {formatClockTime(item.timestamp)}
+                      </span>
+                      {item.projectName && (
+                        <span className={`text-[10px] ${metaTextClass}`}>{item.projectName}</span>
+                      )}
+                      {itemSource && itemIssueId && onNavigateToIssue ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onResolveActionRequired?.(event);
+                            onNavigateToIssue({
+                              source: itemSource,
+                              issueId: itemIssueId,
+                              projectName: item.projectName,
+                              sourceServerUrl: item.sourceServerUrl,
+                            });
+                          }}
+                          className="text-[10px] text-teal-400/70 hover:text-teal-400 transition-colors"
+                        >
+                          {itemIssueId}
+                        </button>
+                      ) : itemIssueId ? (
+                        <span className={`text-[10px] ${metaTextClass}`}>{itemIssueId}</span>
+                      ) : itemWorktreeId && onNavigateToWorktree ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onResolveActionRequired?.(event);
+                            onNavigateToWorktree({
+                              worktreeId: itemWorktreeId,
+                              projectName: item.projectName,
+                              sourceServerUrl: item.sourceServerUrl,
+                            });
+                          }}
+                          className="text-[10px] text-teal-400/70 hover:text-teal-400 transition-colors"
+                        >
+                          {itemWorktreeId}
+                        </button>
+                      ) : itemWorktreeId ? (
+                        <span className={`text-[10px] ${metaTextClass}`}>{itemWorktreeId}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
           <div className="flex items-center gap-2 mt-1">
             <span className={`text-[10px] ${metaTextClass}`}>

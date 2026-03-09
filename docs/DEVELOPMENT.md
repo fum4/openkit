@@ -262,7 +262,7 @@ Electron has its own TypeScript config (`apps/desktop-app/tsconfig.json`) target
 The marketing site in `apps/website` uses Astro. `pnpm build:website` (or `nx run website:build`) outputs static assets to `apps/website/dist/`.
 The website footer version is resolved at runtime from `apps/desktop-app/package.json` on GitHub (`master`) so desktop version bumps are reflected without requiring a website redeploy. The client uses stale-while-revalidate behavior: it shows cached session version immediately, then refreshes in the background and updates the footer/cache when newer data is available.
 Website build config enables `build.inlineStylesheets = "always"` to reduce render-blocking stylesheet requests, and `apps/website/src/layouts/Layout.astro` loads Google Fonts with a non-blocking `media="print"` swap pattern (plus `<noscript>` fallback).
-Download/metadata enhancements are bootstrapped by `apps/website/src/scripts/download-bootstrap.ts`, which waits until `load` and idle time before importing `apps/website/src/scripts/download.ts` to keep GitHub metadata requests off the initial critical render path.
+Download/metadata enhancements are bootstrapped by `apps/website/src/scripts/download-bootstrap.ts`, which imports `apps/website/src/scripts/download.ts` only when the user explicitly interacts with a download widget control. This keeps GitHub metadata requests off the initial critical render path.
 
 For Vercel deployments with `apps/website` as the project root, `apps/website/vercel.json` uses an `ignoreCommand` that skips builds when the current commit does not modify files in `apps/website/`.
 The same Vercel config changes directory to the repository root (`cd ../..`) and runs a filtered pnpm install (`OpenKit-website...`) so website previews avoid installing unrelated workspace dependencies (for example Electron/desktop build deps).
@@ -365,7 +365,7 @@ export function useMyFeature() {
 
 ### SSE for Real-Time Updates
 
-State is pushed from the server via Server-Sent Events. The `useWorktrees` hook connects to `/api/events` and handles `worktrees` (worktree state updates), `notification` (direct user-action success/failure messages displayed as toasts), `hook-update` (triggers auto-refetch of hook results in the HooksTab), plus `activity` / `activity-history` (workflow and agent updates routed to the Activity feed). This is how the UI reflects process start/stop, log output, status changes, and agent-reported hook results without polling.
+State is pushed from the server via Server-Sent Events. The `useWorktrees` hook connects to `/api/events` and handles `worktrees` (worktree state updates), `notification` (direct user-action success/failure messages displayed as toasts), `hook-update` (triggers auto-refetch of hook results in the HooksTab), plus `activity` / `activity-history` (workflow and agent updates routed to the Activity feed). The same SSE stream also emits `ops-log` / `ops-log-history`, consumed by per-project Activity-card debug mode (`useProjectOpsLogs`) for behind-the-scenes operational tracing. This is how the UI reflects process start/stop, log output, status changes, and agent-reported hook results without polling.
 
 ### Theme System
 

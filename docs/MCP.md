@@ -179,7 +179,7 @@ There are six trigger types:
 - **worktree-created**: Runs automatically after worktree creation via CLI-backed flows.
 - **worktree-removed**: Runs automatically after worktree removal via CLI-backed flows.
 
-`worktree-created` and `worktree-removed` are command-only lifecycle hooks. Skill import and skill status reporting are not supported for these triggers.
+Lifecycle create/remove flows automatically execute command steps. Prompt and skill hooks for these triggers are still discovered via `get_hooks_config` and can be reported through `report_hook_status` when agents run them.
 
 ### Workflow
 1. Call get_hooks_config immediately after entering a worktree to see all hooks

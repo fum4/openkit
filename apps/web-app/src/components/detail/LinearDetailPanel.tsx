@@ -74,6 +74,17 @@ function resolveCreatedWorktreeId(result: {
   return result.worktreeId ?? result.worktree?.id ?? null;
 }
 
+function requiresWorktreeRecoveryPrompt(result: {
+  success: boolean;
+  code?: string;
+  worktreeId?: string;
+  error?: string;
+}): boolean {
+  if (result.success || !result.worktreeId) return false;
+  if (result.code === "WORKTREE_RECOVERY_REQUIRED") return true;
+  return (result.error ?? "").includes("cannot lock ref 'refs/heads/");
+}
+
 function formatDate(iso: string) {
   if (!iso) return "";
   return new Date(iso).toLocaleString(undefined, {
@@ -140,6 +151,11 @@ export function LinearDetailPanel({
   const [existingWorktree, setExistingWorktree] = useState<{ id: string; branch: string } | null>(
     null,
   );
+  const [pendingCodeWithAgent, setPendingCodeWithAgent] = useState<{
+    agent: CodingAgent;
+    prompt: string;
+    tabLabel: string;
+  } | null>(null);
   const [statusOptions, setStatusOptions] = useState<
     Array<{ name: string; type: string; color: string }>
   >([]);
@@ -246,7 +262,11 @@ export function LinearDetailPanel({
           scope: "linear:create-worktree",
         },
       );
-    } else if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
+    } else if (
+      (result.code === "WORKTREE_EXISTS" || requiresWorktreeRecoveryPrompt(result)) &&
+      result.worktreeId
+    ) {
+      setPendingCodeWithAgent(null);
       setExistingWorktree({ id: result.worktreeId, branch: identifier });
     } else {
       const errorMsg = result.error || "Failed to create worktree";
@@ -295,6 +315,12 @@ export function LinearDetailPanel({
     setIsCodingWithAgent(true);
     const result = await api.createFromLinear(identifier);
     setIsCodingWithAgent(false);
+    const launchPrompt = `Implement Linear issue ${identifier}${issue?.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+    if (requiresWorktreeRecoveryPrompt(result)) {
+      setPendingCodeWithAgent({ agent, prompt: launchPrompt, tabLabel: identifier });
+      setExistingWorktree({ id: result.worktreeId as string, branch: identifier });
+      return;
+    }
     const reusingExistingWorktree =
       (result.success && result.reusedExisting === true) ||
       (!result.success && result.code === "WORKTREE_EXISTS" && !!result.worktreeId);
@@ -304,9 +330,7 @@ export function LinearDetailPanel({
         worktreeId,
         mode: reusingExistingWorktree ? "resume" : "start",
         tabLabel: identifier,
-        prompt: reusingExistingWorktree
-          ? undefined
-          : `Implement Linear issue ${identifier}${issue?.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`,
+        prompt: reusingExistingWorktree ? undefined : launchPrompt,
       });
     } else {
       const errorMsg = result.error || "Failed to create worktree";
@@ -945,11 +969,24 @@ export function LinearDetailPanel({
         <WorktreeExistsModal
           worktreeId={existingWorktree.id}
           branch={existingWorktree.branch}
-          onResolved={() => {
+          onResolved={(action) => {
+            const pendingLaunch = pendingCodeWithAgent;
             setExistingWorktree(null);
+            setPendingCodeWithAgent(null);
             onCreateWorktree(existingWorktree.id);
+            if (pendingLaunch) {
+              launchCodingAgent(pendingLaunch.agent, {
+                worktreeId: existingWorktree.id,
+                mode: action === "reuse" ? "resume" : "start",
+                tabLabel: pendingLaunch.tabLabel,
+                prompt: action === "reuse" ? undefined : pendingLaunch.prompt,
+              });
+            }
           }}
-          onCancel={() => setExistingWorktree(null)}
+          onCancel={() => {
+            setExistingWorktree(null);
+            setPendingCodeWithAgent(null);
+          }}
         />
       )}
       {commentToDelete && (

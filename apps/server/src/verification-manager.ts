@@ -31,10 +31,6 @@ export class HooksManager {
 
   // ─── Config ─────────────────────────────────────────────────────
 
-  private isLifecycleTrigger(trigger: HookTrigger | undefined): boolean {
-    return trigger === "worktree-created" || trigger === "worktree-removed";
-  }
-
   private configPath(): string {
     return path.join(this.manager.getConfigDir(), CONFIG_DIR_NAME, "hooks.json");
   }
@@ -44,9 +40,7 @@ export class HooksManager {
     if (!existsSync(p)) return defaultConfig();
     try {
       const raw = JSON.parse(readFileSync(p, "utf-8"));
-      raw.skills = (raw.skills ?? []).filter(
-        (skill: HookSkillRef) => !this.isLifecycleTrigger(skill.trigger),
-      );
+      raw.skills = raw.skills ?? [];
       raw.steps = (raw.steps ?? []).map((step: HookStep) => {
         const isPrompt = step.kind === "prompt" || (!!step.prompt && !step.command);
         if (isPrompt) {
@@ -71,7 +65,7 @@ export class HooksManager {
   saveConfig(config: HooksConfig): HooksConfig {
     const sanitized: HooksConfig = {
       ...config,
-      skills: (config.skills ?? []).filter((skill) => !this.isLifecycleTrigger(skill.trigger)),
+      skills: config.skills ?? [],
     };
     const dir = path.dirname(this.configPath());
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -141,9 +135,6 @@ export class HooksManager {
     conditionTitle?: string,
   ): HooksConfig {
     const config = this.getConfig();
-    if (this.isLifecycleTrigger(trigger as HookTrigger | undefined)) {
-      return config;
-    }
     const effectiveTrigger = trigger ?? "post-implementation";
     // Allow same skill in different triggers
     if (

@@ -74,7 +74,7 @@ Config initialization also auto-enables the default `work-on-task` project skill
 
 **Core fields:**
 
-- Base branch (e.g., `origin/main`)
+- Base branch (e.g., `main`)
 - Start command (e.g., `pnpm dev`)
 - Install command (e.g., `pnpm install`)
 

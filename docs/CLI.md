@@ -115,7 +115,7 @@ The wizard prompts for:
 | Prompt            | Default                                              | Description                                      |
 | ----------------- | ---------------------------------------------------- | ------------------------------------------------ |
 | Project directory | `.` (current directory)                              | Absolute or relative path to the project root    |
-| Base branch       | Auto-detected (e.g., `origin/main`)                  | Branch that new worktrees are created from       |
+| Base branch       | Auto-detected (e.g., `main`)                         | Branch that new worktrees are created from       |
 | Dev start command | Auto-detected from `package.json` scripts            | Command to start the dev server in each worktree |
 | Install command   | Auto-detected (`pnpm install`, `yarn install`, etc.) | Command to install dependencies in each worktree |
 
@@ -133,7 +133,7 @@ The generated config file (`.openkit/config.json`) looks like:
 {
   "startCommand": "pnpm dev",
   "installCommand": "pnpm install",
-  "baseBranch": "origin/main",
+  "baseBranch": "main",
   "ports": {
     "discovered": [],
     "offsetStep": 1
@@ -468,14 +468,14 @@ Once found, OpenKit changes the working directory to the project root (the paren
 
 If no config is found, OpenKit uses defaults:
 
-| Setting            | Default       |
-| ------------------ | ------------- |
-| `projectDir`       | `.`           |
-| `startCommand`     | `""` (empty)  |
-| `installCommand`   | `""` (empty)  |
-| `baseBranch`       | `origin/main` |
-| `ports.discovered` | `[]`          |
-| `ports.offsetStep` | `1`           |
+| Setting            | Default      |
+| ------------------ | ------------ |
+| `projectDir`       | `.`          |
+| `startCommand`     | `""` (empty) |
+| `installCommand`   | `""` (empty) |
+| `baseBranch`       | `main`       |
+| `ports.discovered` | `[]`         |
+| `ports.offsetStep` | `1`          |
 
 ---
 

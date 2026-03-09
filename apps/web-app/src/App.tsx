@@ -16,9 +16,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { APP_NAME } from "@openkit/shared/constants";
 import { AppSettingsModal } from "./components/AppSettingsModal";
 import {
+  OPENKIT_ERROR_TOAST_EVENT,
   reportDetailedErrorToast,
   reportPersistentErrorToast,
   showPersistentErrorToast,
+  type ErrorToastEventDetail,
 } from "./errorToasts";
 import { ConfigurationPanel } from "./components/ConfigurationPanel";
 import { CreateCustomTaskModal } from "./components/CreateCustomTaskModal";
@@ -47,6 +49,7 @@ import { WelcomeScreen } from "./components/WelcomeScreen";
 import { WorktreeList } from "./components/WorktreeList";
 import { Modal } from "./components/Modal";
 import { useServer } from "./contexts/ServerContext";
+import { createOpsLogEvent as createOpsLogEventRaw } from "./hooks/api";
 import { useApi } from "./hooks/useApi";
 import { useConfig } from "./hooks/useConfig";
 import { useCustomTasks } from "./hooks/useCustomTasks";
@@ -354,6 +357,32 @@ export default function App() {
     }, []),
     useCallback(() => setHookUpdateKey((k) => k + 1), []),
   );
+
+  useEffect(() => {
+    const handleErrorToast = (event: Event) => {
+      const detail = (event as CustomEvent<ErrorToastEventDetail>).detail;
+      if (!detail || typeof detail.message !== "string") return;
+
+      void createOpsLogEventRaw(
+        {
+          source: "ui.toast",
+          action: "toast.error",
+          level: "error",
+          status: "failed",
+          message: detail.message,
+          metadata: {
+            scope: detail.scope ?? null,
+          },
+        },
+        serverUrl,
+      );
+    };
+
+    window.addEventListener(OPENKIT_ERROR_TOAST_EVENT, handleErrorToast as EventListener);
+    return () =>
+      window.removeEventListener(OPENKIT_ERROR_TOAST_EVENT, handleErrorToast as EventListener);
+  }, [serverUrl]);
+
   const {
     config,
     projectName,

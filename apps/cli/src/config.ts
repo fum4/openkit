@@ -60,7 +60,7 @@ export function loadConfig(): { config: WorktreeConfig; configPath: string | nul
     projectDir: ".",
     startCommand: "",
     installCommand: "",
-    baseBranch: "origin/main",
+    baseBranch: "main",
     ports: {
       discovered: [],
       offsetStep: 1,
