@@ -12,22 +12,39 @@ permissions:
   contents: write
 
 jobs:
-  detect-desktop-release-impact:
+  check-release-impact:
     runs-on: ubuntu-latest
     outputs:
-      should_release: ${{ steps.desktop-package-impact.outputs.affected }}
-      affected_projects: ${{ steps.desktop-package-impact.outputs.projects }}
+      should_release: ${{ steps.release-gate.outputs.should_release }}
 
     steps:
+      - name: Check release commit
+        id: release-commit-check
+        shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+
+          is_release_commit="false"
+          if [[ "${HEAD_COMMIT_MESSAGE}" == "🔖 release:"* ]]; then
+            is_release_commit="true"
+          fi
+
+          echo "is_release_commit=${is_release_commit}" >> "${GITHUB_OUTPUT}"
+
       - name: Checkout
+        if: steps.release-commit-check.outputs.is_release_commit != 'true'
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup workspace
+        if: steps.release-commit-check.outputs.is_release_commit != 'true'
         uses: ./.github/actions/setup-pnpm-node
 
       - name: Resolve comparison SHAs
+        if: steps.release-commit-check.outputs.is_release_commit != 'true'
         id: comparison
         shell: bash
         env:
@@ -49,6 +66,7 @@ jobs:
           echo "head_sha=${PUSH_HEAD_SHA}" >> "${GITHUB_OUTPUT}"
 
       - name: Detect desktop packaging impact
+        if: steps.release-commit-check.outputs.is_release_commit != 'true'
         id: desktop-package-impact
         uses: ./.github/actions/check-affected-target
         with:
@@ -58,13 +76,27 @@ jobs:
           project-type: app
           include-projects: desktop-app
 
+      - name: Resolve release gate
+        id: release-gate
+        shell: bash
+        env:
+          IS_RELEASE_COMMIT: ${{ steps.release-commit-check.outputs.is_release_commit }}
+          DESKTOP_PACKAGE_AFFECTED: ${{ steps.desktop-package-impact.outputs.affected }}
+        run: |
+          set -euo pipefail
+
+          should_release="false"
+          if [[ "${IS_RELEASE_COMMIT}" == "false" && "${DESKTOP_PACKAGE_AFFECTED}" == "true" ]]; then
+            should_release="true"
+          fi
+
+          echo "should_release=${should_release}" >> "${GITHUB_OUTPUT}"
+
   publish:
-    needs: detect-desktop-release-impact
+    needs: check-release-impact
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: |
-      !startsWith(github.event.head_commit.message, '🔖 release:') &&
-      needs.detect-desktop-release-impact.outputs.should_release == 'true'
+    if: needs.check-release-impact.outputs.should_release == 'true'
     outputs:
       tag: ${{ steps.release_tag.outputs.tag }}
 
