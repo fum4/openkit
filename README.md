@@ -10,6 +10,10 @@ You can experiment, analyze the results, and continuously refine your approach u
 
 Check the official [docs](https://openkit.work/) for more info and usage patterns.
 
+<br />
+
+⚠️ <b>This project is in an early stage, so expect bugs and be cautious!</b>
+
 <br /><br />
 
 ## 🏗 Setup
