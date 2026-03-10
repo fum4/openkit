@@ -48,13 +48,13 @@ export function resolveGitPolicy(
     if (override === "deny") {
       return { allowed: false, reason: `Agent ${label} denied by per-worktree policy` };
     }
-    // 'inherit' or undefined → fall through to global config
+    // 'inherit' or undefined → fall through to local user policy
   }
 
-  // Fall back to global config (default: false)
+  // Fall back to local user policy (default: false)
   const globalAllowed = config[configKey] === true;
   if (!globalAllowed) {
-    return { allowed: false, reason: `Agent ${label} disabled in project settings` };
+    return { allowed: false, reason: `Agent ${label} disabled in local settings` };
   }
 
   return { allowed: true };

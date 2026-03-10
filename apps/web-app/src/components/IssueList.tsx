@@ -99,7 +99,10 @@ interface IssueListProps {
   // Custom tasks
   customTasks: CustomTaskSummary[];
   customTasksLoading: boolean;
+  customTasksFetching: boolean;
   customTasksError: string | null;
+  onRefreshCustomTasks: () => void;
+  customTasksUpdatedAt: number;
   selectedCustomTaskId: string | null;
   onSelectCustomTask: (id: string) => void;
   // Shared
@@ -127,7 +130,10 @@ export function IssueList({
   linearUpdatedAt,
   customTasks,
   customTasksLoading,
+  customTasksFetching,
   customTasksError,
+  onRefreshCustomTasks,
+  customTasksUpdatedAt,
   selectedCustomTaskId,
   onSelectCustomTask,
   worktrees,
@@ -449,6 +455,16 @@ export function IssueList({
                 {unlinkedCustomTasks.length}
               </span>
             )}
+
+            <RefreshIcon
+              spinning={customTasksFetching && customTasks.length > 0}
+              onClick={onRefreshCustomTasks}
+              tooltip={
+                customTasksUpdatedAt
+                  ? `Last refreshed: ${formatTimeAgo(customTasksUpdatedAt)}`
+                  : "Refresh"
+              }
+            />
           </div>
 
           {!customEmpty && !customCollapsed && (

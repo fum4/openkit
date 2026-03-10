@@ -70,6 +70,7 @@ function resolveProjectRoot(startDir: string): string {
 }
 
 const projectRoot = resolveProjectRoot(currentDir);
+const MAX_HTTP_PAYLOAD_CHARS = 16_000;
 
 function formatLifecycleHookTriggerContext(
   trigger: "worktree-created" | "worktree-removed",
@@ -95,6 +96,111 @@ function findAvailablePort(startPort: number): Promise<number> {
     };
     tryPort(startPort);
   });
+}
+
+function shouldLogOpsRequestPath(requestPath: string): boolean {
+  return (
+    requestPath.startsWith("/api/") || requestPath === "/mcp" || requestPath.startsWith("/_ok/")
+  );
+}
+
+function normalizeContentType(contentType: string | null | undefined): string {
+  if (!contentType) return "";
+  return contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
+function isTextPayloadContentType(contentType: string): boolean {
+  if (!contentType) return false;
+  if (contentType.startsWith("text/")) return true;
+  if (contentType === "application/json") return true;
+  if (contentType.endsWith("+json")) return true;
+  if (contentType === "application/x-www-form-urlencoded") return true;
+  if (contentType === "application/xml" || contentType === "text/xml") return true;
+  if (contentType === "application/graphql") return true;
+  return false;
+}
+
+function truncateHttpPayload(payload: string): { value: string; truncated: boolean } {
+  if (payload.length <= MAX_HTTP_PAYLOAD_CHARS) {
+    return { value: payload, truncated: false };
+  }
+  return {
+    value: `${payload.slice(0, MAX_HTTP_PAYLOAD_CHARS)}\n...[truncated]`,
+    truncated: true,
+  };
+}
+
+async function captureHttpRequestPayload(rawRequest: Request): Promise<Record<string, unknown>> {
+  const method = rawRequest.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+    return {};
+  }
+
+  const requestContentType = normalizeContentType(rawRequest.headers.get("content-type"));
+  if (!requestContentType) return {};
+  if (!isTextPayloadContentType(requestContentType)) {
+    return {
+      requestContentType,
+      requestPayloadOmitted: true,
+    };
+  }
+
+  try {
+    const payload = await rawRequest.clone().text();
+    if (!payload) {
+      return { requestContentType };
+    }
+    const { value, truncated } = truncateHttpPayload(payload);
+    return {
+      requestContentType,
+      requestPayload: value,
+      ...(truncated ? { requestPayloadTruncated: true } : {}),
+    };
+  } catch {
+    return {
+      requestContentType,
+      requestPayloadError: "Failed to read request payload",
+    };
+  }
+}
+
+async function captureHttpResponsePayload(response: Response): Promise<Record<string, unknown>> {
+  if (response.status === 101) {
+    return { responseTransport: "ws" };
+  }
+
+  const responseContentType = normalizeContentType(response.headers.get("content-type"));
+  if (!responseContentType) return {};
+  if (responseContentType === "text/event-stream") {
+    return { responseContentType, responseTransport: "sse" };
+  }
+  if (!isTextPayloadContentType(responseContentType)) {
+    return {
+      responseContentType,
+      responsePayloadOmitted: true,
+    };
+  }
+  if (response.status === 204 || response.status === 304 || response.body === null) {
+    return { responseContentType };
+  }
+
+  try {
+    const payload = await response.clone().text();
+    if (!payload) {
+      return { responseContentType };
+    }
+    const { value, truncated } = truncateHttpPayload(payload);
+    return {
+      responseContentType,
+      responsePayload: value,
+      ...(truncated ? { responsePayloadTruncated: true } : {}),
+    };
+  } catch {
+    return {
+      responseContentType,
+      responsePayloadError: "Failed to read response payload",
+    };
+  }
 }
 
 export function createWorktreeServer(manager: WorktreeManager) {
@@ -169,16 +275,18 @@ export function createWorktreeServer(manager: WorktreeManager) {
   app.use("*", cors());
   app.use("*", async (c, next) => {
     const startedAt = Date.now();
+    const requestPath = c.req.path;
+    const shouldLog = shouldLogOpsRequestPath(requestPath);
+    const requestPayloadMetadata = shouldLog ? await captureHttpRequestPayload(c.req.raw) : {};
+    const requestUpgrade = (c.req.header("upgrade") ?? "").trim().toLowerCase();
+    const requestTransport = requestUpgrade === "websocket" ? "ws" : undefined;
+
     try {
       await next();
     } finally {
-      const requestPath = c.req.path;
-      if (
-        requestPath.startsWith("/api/") ||
-        requestPath === "/mcp" ||
-        requestPath.startsWith("/_ok/")
-      ) {
+      if (shouldLog) {
         const statusCode = c.res.status || 200;
+        const responsePayloadMetadata = await captureHttpResponsePayload(c.res);
         manager.getOpsLog().addEvent({
           source: "http",
           action: "http.request",
@@ -191,6 +299,9 @@ export function createWorktreeServer(manager: WorktreeManager) {
             path: requestPath,
             statusCode,
             durationMs: Date.now() - startedAt,
+            ...(requestTransport ? { requestTransport } : {}),
+            ...requestPayloadMetadata,
+            ...responsePayloadMetadata,
           },
         });
       }

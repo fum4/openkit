@@ -7,6 +7,7 @@ OpenKit uses several configuration files at both the project level (`.openkit/` 
 ## Table of Contents
 
 - [Project Configuration (`.openkit/config.json`)](#project-configuration-openkitconfigjson)
+- [Local User Configuration (`.openkit/local-config.json`)](#local-user-configuration-openkitlocal-configjson)
 - [Integrations (`.openkit/integrations.json`)](#integrations-openkitintegrationsjson)
 - [Hooks (`.openkit/hooks.json`)](#hooks-openkithooksjson)
 - [Branch Naming Rules (`.openkit/scripts/branch-name.mjs`)](#branch-naming-rules)
@@ -42,9 +43,6 @@ The primary configuration file. Created by `openkit init` (interactive CLI) or v
   "localAutoStartClaudeSkipPermissions": true,
   "localAutoStartClaudeFocusTerminal": true,
   "openProjectTarget": "cursor",
-  "allowAgentCommits": false,
-  "allowAgentPushes": false,
-  "allowAgentPRs": false,
   "ports": {
     "discovered": [3000, 3001, 5173],
     "offsetStep": 1
@@ -188,36 +186,6 @@ Allowed values:
 
 At runtime, the UI only shows targets that are autodetected on the current machine. If the configured value is unavailable, the server falls back to the first detected target by priority.
 
-#### `allowAgentCommits`
-
-| Property     | Value     |
-| ------------ | --------- |
-| **Type**     | `boolean` |
-| **Default**  | `false`   |
-| **Required** | No        |
-
-Global policy controlling whether MCP agents (e.g., Claude Code) are allowed to create git commits in worktrees. Can be overridden per-worktree via the issue notes git policy.
-
-#### `allowAgentPushes`
-
-| Property     | Value     |
-| ------------ | --------- |
-| **Type**     | `boolean` |
-| **Default**  | `false`   |
-| **Required** | No        |
-
-Global policy controlling whether MCP agents are allowed to push commits to the remote. Can be overridden per-worktree via the issue notes git policy.
-
-#### `allowAgentPRs`
-
-| Property     | Value     |
-| ------------ | --------- |
-| **Type**     | `boolean` |
-| **Default**  | `false`   |
-| **Required** | No        |
-
-Global policy controlling whether MCP agents are allowed to create pull requests. Can be overridden per-worktree via the issue notes git policy.
-
 #### `ports`
 
 | Property     | Value                                   |
@@ -317,6 +285,56 @@ Port references use the `${PORT}` syntax where `PORT` is the original (base) por
 If the worktree gets offset 1, `${3001}` becomes `3002` and `${5432}` becomes `5433`.
 
 The UI includes a "Detect Env Mapping" button that scans your project's `.env` files and source code to find references to discovered ports.
+
+---
+
+## Local User Configuration (`.openkit/local-config.json`)
+
+Local-only, non-committed settings that still affect agent workflow behavior.
+
+This file is intended for per-user preferences that should influence agent operations but must not be shared through repository config.
+
+### Example
+
+```json
+{
+  "allowAgentCommits": false,
+  "allowAgentPushes": false,
+  "allowAgentPRs": false
+}
+```
+
+### Field Reference
+
+#### `allowAgentCommits`
+
+| Property     | Value     |
+| ------------ | --------- |
+| **Type**     | `boolean` |
+| **Default**  | `false`   |
+| **Required** | No        |
+
+Controls whether agents may create git commits in worktrees. Can be overridden per-worktree via issue-notes git policy.
+
+#### `allowAgentPushes`
+
+| Property     | Value     |
+| ------------ | --------- |
+| **Type**     | `boolean` |
+| **Default**  | `false`   |
+| **Required** | No        |
+
+Controls whether agents may push commits to remotes. Can be overridden per-worktree via issue-notes git policy.
+
+#### `allowAgentPRs`
+
+| Property     | Value     |
+| ------------ | --------- |
+| **Type**     | `boolean` |
+| **Default**  | `false`   |
+| **Required** | No        |
+
+Controls whether agents may create pull requests. Can be overridden per-worktree via issue-notes git policy.
 
 ---
 
@@ -747,7 +765,7 @@ The `gitPolicy` object allows overriding the global agent git policy on a per-wo
 **Resolution order:**
 
 1. Per-worktree override (from the linked issue's `notes.json`) -- if `"allow"` or `"deny"`, use that
-2. Global config (`allowAgentCommits`, `allowAgentPushes`, `allowAgentPRs` in `config.json`) -- used when override is `"inherit"` or absent
+2. Local user config (`allowAgentCommits`, `allowAgentPushes`, `allowAgentPRs` in `local-config.json`) -- used when override is `"inherit"` or absent
 3. Default: `false` (deny)
 
 ---
@@ -803,7 +821,7 @@ Created automatically during `openkit init`. Uses a whitelist approach: everythi
 This means:
 
 - **Committed**: `config.json`, `.gitignore`
-- **Not committed**: `integrations.json`, `server.json`, `hooks.json`, `mcp-env.json`, `worktrees/`, `issues/`, `scripts/`
+- **Not committed**: `local-config.json`, `integrations.json`, `server.json`, `hooks.json`, `mcp-env.json`, `worktrees/`, `issues/`, `scripts/`
 
 If you want to share branch naming or commit message rules with your team, add the scripts directory to the whitelist:
 

@@ -6,7 +6,7 @@ import { useServerUrlOptional } from "../contexts/ServerContext";
 export function useCustomTasks() {
   const serverUrl = useServerUrlOptional();
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
+  const { data, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["customTasks", serverUrl],
     queryFn: async () => {
       const result = await fetchCustomTasks(serverUrl);
@@ -15,13 +15,13 @@ export function useCustomTasks() {
     },
     enabled: serverUrl !== null,
     staleTime: 5_000,
-    refetchInterval: 10_000,
   });
 
   return {
     tasks: data ?? [],
     isLoading,
     isFetching,
+    updatedAt: dataUpdatedAt,
     error: error instanceof Error ? error.message : null,
     refetch,
   };

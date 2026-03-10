@@ -333,7 +333,7 @@ Plugin marketplaces are registries of available plugins. OpenKit supports:
 
 ## Agent Git Policy
 
-OpenKit provides a policy system that controls whether AI agents can perform git operations. This gives project owners fine-grained control over what agents are allowed to do.
+OpenKit provides a policy system that controls whether AI agents can perform git operations. This gives each local user fine-grained control over what agents are allowed to do.
 
 ### Operations
 
@@ -347,7 +347,7 @@ Three operations are governed by git policy:
 
 ### Global Settings
 
-Global toggles are stored in `.openkit/config.json`:
+Global toggles are stored in `.openkit/local-config.json` (local-only, not committed):
 
 ```json
 {
@@ -363,18 +363,18 @@ All three default to `false` -- agents cannot perform git operations unless expl
 
 Each worktree (linked to an issue) can override the global policy. Overrides are stored in the issue's notes and can be one of three values:
 
-| Override Value | Behavior                                          |
-| -------------- | ------------------------------------------------- |
-| `inherit`      | Falls through to the global config (default)      |
-| `allow`        | Permits the operation regardless of global config |
-| `deny`         | Blocks the operation regardless of global config  |
+| Override Value | Behavior                                         |
+| -------------- | ------------------------------------------------ |
+| `inherit`      | Falls through to local user config (default)     |
+| `allow`        | Permits the operation regardless of local config |
+| `deny`         | Blocks the operation regardless of local config  |
 
 ### Resolution Logic
 
 The policy resolution function (`resolveGitPolicy` in `apps/server/src/git-policy.ts`) follows this order:
 
 1. **Check per-worktree override**: Look up the worktree's linked issue notes. If a per-worktree override exists and is `allow` or `deny`, return immediately.
-2. **Fall through to global**: If the override is `inherit` or absent, check the global config key. If the global setting is `false` (or missing), the operation is denied.
+2. **Fall through to local policy**: If the override is `inherit` or absent, check the local git-policy key. If the setting is `false` (or missing), the operation is denied.
 
 The result is a `GitPolicyResult`:
 

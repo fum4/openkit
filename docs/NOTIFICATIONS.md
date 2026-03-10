@@ -8,7 +8,7 @@ OpenKit has a unified notification system that tracks events across worktrees, a
 2. **Toast notifications** — in-app popups using `react-hot-toast`; UI error toasts auto-dismiss after 5s
 3. **OS notifications** — native desktop notifications (Electron only) when the app is unfocused
 
-In parallel, operational traces are captured in backend `OpsLog` (`.openkit/ops-log.jsonl`) and shown in per-project debug mode on the `Activity` page. Error toasts emit a client event that is mirrored into this operational log stream.
+In parallel, operational traces are captured in backend `OpsLog` (`.openkit/ops-log.jsonl`) and shown in per-project debug mode on the `Activity` page. Error toasts emit a client event that is mirrored into this operational log stream. HTTP traces include request/response payload metadata when available.
 
 The Jira/Linear/local auto-start flow emits two activity events: one when a new issue is detected and one when the selected coding agent starts working on it.
 

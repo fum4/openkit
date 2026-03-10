@@ -371,8 +371,10 @@ export default function App() {
   const {
     tasks: customTasks,
     isLoading: customTasksLoading,
+    isFetching: customTasksFetching,
     error: customTasksError,
     refetch: refetchCustomTasks,
+    updatedAt: customTasksUpdatedAt,
   } = useCustomTasks();
   const localIssueLinkedIds = useMemo(
     () =>
@@ -2939,7 +2941,10 @@ export default function App() {
                         linearUpdatedAt={linearIssuesUpdatedAt}
                         customTasks={customTasks}
                         customTasksLoading={customTasksLoading}
+                        customTasksFetching={customTasksFetching}
                         customTasksError={customTasksError}
+                        onRefreshCustomTasks={() => refetchCustomTasks()}
+                        customTasksUpdatedAt={customTasksUpdatedAt}
                         selectedCustomTaskId={
                           selection?.type === "custom-task" ? selection.id : null
                         }

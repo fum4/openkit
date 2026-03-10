@@ -44,6 +44,7 @@ import type { LinearTaskData } from "@openkit/integrations/linear/types";
 
 import { ActivityLog } from "./activity-log";
 import { ACTIVITY_TYPES } from "./activity-event";
+import { loadLocalGitPolicyConfig, updateLocalConfig } from "./local-config";
 import { NotesManager } from "./notes-manager";
 import { OpsLog } from "./ops-log";
 import { PortManager } from "./port-manager";
@@ -89,6 +90,8 @@ const OPEN_PROJECT_TARGETS = new Set<NonNullable<WorktreeConfig["openProjectTarg
   "ghostty",
   "neovim",
 ]);
+
+const AGENT_GIT_POLICY_KEYS = ["allowAgentCommits", "allowAgentPushes", "allowAgentPRs"] as const;
 
 function isConfiguredOpenProjectTarget(
   value: unknown,
@@ -217,13 +220,32 @@ export class WorktreeManager {
 
   private taskHooksProvider: ((worktreeId: string) => HooksInfo | null) | null = null;
 
+  private readAgentGitPolicyConfig(): {
+    allowAgentCommits: boolean;
+    allowAgentPushes: boolean;
+    allowAgentPRs: boolean;
+  } {
+    return loadLocalGitPolicyConfig(this.configDir);
+  }
+
+  private withAgentGitPolicyConfig(config: WorktreeConfig): WorktreeConfig {
+    const policy = this.readAgentGitPolicyConfig();
+    return {
+      ...config,
+      allowAgentCommits: policy.allowAgentCommits,
+      allowAgentPushes: policy.allowAgentPushes,
+      allowAgentPRs: policy.allowAgentPRs,
+    };
+  }
+
   constructor(config: WorktreeConfig, configFilePath: string | null = null) {
+    this.configFilePath = configFilePath;
+    this.configDir = configFilePath ? path.dirname(path.dirname(configFilePath)) : process.cwd();
     this.config = {
       ...config,
       activity: sanitizeActivityConfig(config.activity),
     };
-    this.configFilePath = configFilePath;
-    this.configDir = configFilePath ? path.dirname(path.dirname(configFilePath)) : process.cwd();
+    this.config = this.withAgentGitPolicyConfig(this.config);
     this.portManager = new PortManager(config, configFilePath);
     this.notesManager = new NotesManager(this.configDir);
     this.activityLog = new ActivityLog(this.configDir, this.config.activity);
@@ -252,7 +274,7 @@ export class WorktreeManager {
       const fileConfig = JSON.parse(content);
 
       // Update the config
-      this.config = {
+      this.config = this.withAgentGitPolicyConfig({
         projectDir: fileConfig.projectDir ?? this.config.projectDir,
         startCommand: fileConfig.startCommand ?? this.config.startCommand,
         installCommand: fileConfig.installCommand ?? this.config.installCommand,
@@ -278,7 +300,7 @@ export class WorktreeManager {
           ? fileConfig.openProjectTarget
           : this.config.openProjectTarget,
         activity: sanitizeActivityConfig(fileConfig.activity ?? this.config.activity),
-      };
+      });
 
       // Update the config file path for future reloads
       this.configFilePath = configPath;
@@ -1724,7 +1746,7 @@ export class WorktreeManager {
   }
 
   getConfig(): WorktreeConfig {
-    return this.config;
+    return this.withAgentGitPolicyConfig(this.config);
   }
 
   getConfigDir(): string {
@@ -1735,9 +1757,28 @@ export class WorktreeManager {
     const configPath = path.join(this.configDir, CONFIG_DIR_NAME, "config.json");
 
     try {
+      const configExists = existsSync(configPath);
       let existing: Record<string, unknown> = {};
-      if (existsSync(configPath)) {
+      if (configExists) {
         existing = JSON.parse(readFileSync(configPath, "utf-8"));
+      }
+
+      const policyUpdates: Partial<{
+        allowAgentCommits: boolean;
+        allowAgentPushes: boolean;
+        allowAgentPRs: boolean;
+      }> = {};
+
+      for (const key of AGENT_GIT_POLICY_KEYS) {
+        if (!(key in partial) || partial[key] === undefined) continue;
+        if (typeof partial[key] !== "boolean") {
+          return { success: false, error: `Invalid value for ${key}` };
+        }
+        policyUpdates[key] = partial[key];
+      }
+
+      if (Object.keys(policyUpdates).length > 0) {
+        updateLocalConfig(this.configDir, policyUpdates);
       }
 
       // Merge allowed top-level fields
@@ -1753,13 +1794,12 @@ export class WorktreeManager {
         "localAutoStartClaudeSkipPermissions",
         "localAutoStartClaudeFocusTerminal",
         "openProjectTarget",
-        "allowAgentCommits",
-        "allowAgentPushes",
-        "allowAgentPRs",
       ] as const;
 
+      let hasConfigUpdates = false;
       for (const key of allowedKeys) {
         if (key in partial && partial[key] !== undefined) {
+          hasConfigUpdates = true;
           if (
             key === "openProjectTarget" &&
             !isConfiguredOpenProjectTarget(partial.openProjectTarget)
@@ -1782,6 +1822,7 @@ export class WorktreeManager {
 
       // Handle nested ports.offsetStep
       if (partial.ports?.offsetStep !== undefined) {
+        hasConfigUpdates = true;
         const ports = (existing.ports ?? {}) as Record<string, unknown>;
         ports.offsetStep = partial.ports.offsetStep;
         existing.ports = ports;
@@ -1790,12 +1831,14 @@ export class WorktreeManager {
 
       // Handle envMapping
       if (partial.envMapping !== undefined) {
+        hasConfigUpdates = true;
         existing.envMapping = partial.envMapping;
         this.config.envMapping = partial.envMapping;
       }
 
       // Handle activity settings
       if (partial.activity !== undefined) {
+        hasConfigUpdates = true;
         const mergedActivity = sanitizeActivityConfig({
           ...(existing.activity as Record<string, unknown>),
           ...partial.activity,
@@ -1805,7 +1848,15 @@ export class WorktreeManager {
         this.activityLog.updateConfig(mergedActivity ?? {});
       }
 
-      writeFileSync(configPath, JSON.stringify(existing, null, 2) + "\n");
+      for (const key of AGENT_GIT_POLICY_KEYS) {
+        delete existing[key];
+      }
+
+      if (configExists || hasConfigUpdates) {
+        writeFileSync(configPath, JSON.stringify(existing, null, 2) + "\n");
+      }
+
+      this.config = this.withAgentGitPolicyConfig(this.config);
       return { success: true };
     } catch (error) {
       return {

@@ -57,7 +57,7 @@ The Agents list is cache-first: sidebar items render immediately from local cach
 
 Shows project-scoped activity timelines using the same feed rows/filters/actions as the bell dropdown. In Electron multi-project mode, the page renders one card per open project, ordered with the active project first, in a responsive wrapping grid (`minmax(500px, 1fr)`) constrained to viewport height (equal-height rows, per-card internal scrolling). Running projects stream live events over SSE per project, and non-running projects render an unavailable state card.
 
-Inside each `Activity` project card, a `Debug` toggle switches that card between the normal activity feed and a debug-log mode. Debug-log mode streams structured operational events for command executions (`execFile`, `execFileSync`, `spawn`), API requests, notification emissions, and client-reported error toasts, with per-project search and level-based filtering (`error`, `warning`, `info`, `debug`). The `Debug` toggle state is persisted per project scope.
+Inside each `Activity` project card, a `Debug` toggle switches that card between the normal activity feed and a debug-log mode. Debug-log mode streams structured operational events for command executions (`execFile`, `execFileSync`, `spawn`), API requests, notification emissions, and client-reported error toasts, with per-project search plus dropdown filters for severity (`error`, `warning`, `info`, `debug`), type (`HTTP`, `Git`, `Terminal`, `Other`), and surface (`Internal`, `Notification`, `Toast`). Command events with the same `runId` are consolidated into a single row: the initial execute state is replaced in-place by final `success`/`failed` status and includes duration/output metadata when available. HTTP entries show status-code chips (green for success, red for failure), transport tags (`SSE`/`WS` when detected), and stacked `Request`/`Response` payload panels (collapsed to five lines and expandable on click) when available, each with a top-right copy action powered by the reusable `PayloadCopyButton` component, while non-HTTP command rows collapse titles to the command binary (for example `git`) with a leading terminal icon. Both normal activity lists and debug log lists show a floating circular back-to-top action after scrolling down. The `Debug` toggle state is persisted per project scope.
 
 ### Hooks
 
@@ -233,7 +233,7 @@ Displays all worktrees with filtering support. Each `WorktreeItem` shows the wor
 
 ### IssueList (`apps/web-app/src/components/IssueList.tsx`)
 
-Aggregator component that renders all issue types in a single scrollable list. Receives issues from all sources and delegates rendering to the type-specific list/item components. Jira/Linear issue queries are initialized in the background once integrations are configured (they do not wait for the Issues tab to be opened). The Local section is always shown so users can work with local issues even when no external integration is configured.
+Aggregator component that renders all issue types in a single scrollable list. Receives issues from all sources and delegates rendering to the type-specific list/item components. Jira/Linear issue queries are initialized in the background once integrations are configured (they do not wait for the Issues tab to be opened). Jira, Linear, and Local sections each provide a manual refresh control in the section header; Local tasks are refresh-on-demand (plus mutation invalidation) rather than interval polling. The Local section is always shown so users can work with local issues even when no external integration is configured.
 
 ---
 
@@ -347,7 +347,7 @@ These use TanStack React Query for caching, background refetching, and stale-whi
 | `useAgentRule`         | `['agentRule', fileId]`               | `/api/agent-rules/:fileId` |
 | `useHooksConfig`       | `['hooks-config', serverUrl]`         | `/api/hooks/config`        |
 
-Issue hooks support configurable refresh intervals (from integration settings) and search query debouncing (300ms).
+Jira/Linear issue hooks support configurable refresh intervals (from integration settings) and search query debouncing (300ms). Local custom tasks are refreshed via explicit invalidation and the manual Local refresh control.
 
 `App.tsx` installs a global keydown guard that prevents hard reload shortcuts (`Cmd/Ctrl+R` and `F5`) in non-dev builds so accidental refreshes do not reset active UI state. In dev mode, those shortcuts are allowed.
 
@@ -547,6 +547,7 @@ The app uses Framer Motion for transitions:
 | `McpServerScanModal.tsx`    | Scan and import MCP servers/skills/custom agents (supports direct device-scan entry from discovery banner and prefilled results from the latest banner scan; custom agents import as-is using detected deployment defaults)                                        |
 | `Modal.tsx`                 | Base modal component (sm/md/lg widths, optional close/backdrop dismissal controls)                                                                                                                                                                                 |
 | `NavBar.tsx`                | Navigation bar (defines View type)                                                                                                                                                                                                                                 |
+| `PayloadCopyButton.tsx`     | Reusable hover-only payload copy control with clipboard integration and 3-second `Copied` feedback state                                                                                                                                                           |
 | `PluginInstallModal.tsx`    | Install Claude plugin modal                                                                                                                                                                                                                                        |
 | `PluginItem.tsx`            | Plugin sidebar item                                                                                                                                                                                                                                                |
 | `ProjectSetupScreen.tsx`    | First-run setup for new Electron projects                                                                                                                                                                                                                          |

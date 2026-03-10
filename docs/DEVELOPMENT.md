@@ -513,4 +513,6 @@ The project config lives at `.openkit/config.json` in the project root. Key fiel
 - `envMapping` -- environment variable mappings for port offsetting
 - Integration settings for Jira, GitHub, and Linear
 
+Local, non-committed workflow preferences live in `.openkit/local-config.json`. This currently stores agent git policy toggles (`allowAgentCommits`, `allowAgentPushes`, `allowAgentPRs`).
+
 Worktrees are stored in `.openkit/worktrees/`. The server writes `server.json` to `.openkit/` for agent discovery (contains URL and PID of the running server).

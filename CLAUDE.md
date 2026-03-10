@@ -50,6 +50,13 @@ There is no test runner configured.
 - Always surface user-facing errors through toast notifications.
 - Do not introduce inline error text for operational failures when a toast can communicate the failure.
 
+## Operational Logging
+
+- Treat ops logging as mandatory for all agent/workflow operations.
+- Always log start and terminal outcome (success/failure) for git operations, CLI commands, HTTP requests, workflow transitions, notifications, and other behind-the-scenes actions.
+- Include actionable metadata whenever available (for example command, args, cwd, status code, request/response payload metadata, worktreeId, projectName, and error details).
+- Errors that surface as toasts must also be present in ops logs; toasts do not replace logging.
+
 ## TypeScript Preference
 
 - Always prefer TypeScript (`.ts`/`.tsx`) whenever possible.

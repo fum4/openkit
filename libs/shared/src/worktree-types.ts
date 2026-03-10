@@ -46,11 +46,11 @@ export interface WorktreeConfig {
   localAutoStartClaudeFocusTerminal?: boolean;
   /** Preferred app target for "Open project in" */
   openProjectTarget?: OpenProjectTarget;
-  /** Whether MCP agents are allowed to commit (default: false) */
+  /** User preference: whether MCP agents are allowed to commit (default: false) */
   allowAgentCommits?: boolean;
-  /** Whether MCP agents are allowed to push (default: false) */
+  /** User preference: whether MCP agents are allowed to push (default: false) */
   allowAgentPushes?: boolean;
-  /** Whether MCP agents are allowed to create PRs (default: false) */
+  /** User preference: whether MCP agents are allowed to create PRs (default: false) */
   allowAgentPRs?: boolean;
   /** Activity feed configuration */
   activity?: {

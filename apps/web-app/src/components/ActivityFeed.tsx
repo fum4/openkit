@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Bell,
   Bot,
+  ChevronUp,
   Check,
   FishingHook,
   GitBranch,
@@ -15,7 +16,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ACTIVITY_TYPES } from "@openkit/shared/activity-event";
 import type { ActivityEvent } from "../hooks/api";
@@ -233,6 +234,8 @@ export function ActivityFeedPanel({
   hideFilterBar = false,
   showAllProjectsControl,
 }: ActivityFeedPanelProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const showTitle = !hideTitle && (title !== null || titleAfter !== undefined);
   const selectedGroupSet = useMemo(() => new Set(selectedFilterGroups), [selectedFilterGroups]);
   const filteredEvents = useMemo(() => {
@@ -259,6 +262,16 @@ export function ActivityFeedPanel({
   );
   const hasActionRequired = actionRequiredEvents.length > 0;
   const dividerColorClass = hasActionRequired ? "border-amber-300/20" : "border-white/[0.06]";
+  const shouldShowBackToTop = showBackToTop && filteredEvents.length > 0;
+
+  useEffect(() => {
+    const node = scrollContainerRef.current;
+    if (!node) {
+      setShowBackToTop(false);
+      return;
+    }
+    setShowBackToTop(node.scrollTop > 120);
+  }, [filteredEvents.length, events.length]);
 
   return (
     <div className={containerClassName ?? "flex flex-col min-h-0 h-full"}>
@@ -342,35 +355,56 @@ export function ActivityFeedPanel({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {isLoading && events.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center py-12">
-            <Loader2 className={`w-6 h-6 ${text.dimmed} animate-spin`} />
-          </div>
-        ) : events.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center py-12">
-            <MoonStar className={`w-7 h-7 ${text.dimmed} mb-2`} />
-            <p className={`text-xs ${text.dimmed}`}>No recent activity</p>
-          </div>
-        ) : filteredEvents.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center py-12">
-            <MoonStar className={`w-7 h-7 ${text.dimmed} mb-2`} />
-            <p className={`text-xs ${text.dimmed}`}>No activity matches selected types</p>
-          </div>
-        ) : (
-          <div>
-            {prioritizedEvents.map((event, index) => (
-              <ActivityRow
-                key={event.id}
-                event={event}
-                showUnreadDot={unseenEventIds.has(event.id)}
-                showAttentionDivider={index === 0 && isActionRequiredEvent(event)}
-                onNavigateToWorktree={onNavigateToWorktree}
-                onNavigateToIssue={onNavigateToIssue}
-                onResolveActionRequired={onResolveActionRequired}
-              />
-            ))}
-          </div>
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={scrollContainerRef}
+          className="h-full overflow-y-auto"
+          onScroll={(event) => {
+            const shouldShow = event.currentTarget.scrollTop > 120;
+            setShowBackToTop((prev) => (prev === shouldShow ? prev : shouldShow));
+          }}
+        >
+          {isLoading && events.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center py-12">
+              <Loader2 className={`w-6 h-6 ${text.dimmed} animate-spin`} />
+            </div>
+          ) : events.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center py-12">
+              <MoonStar className={`w-7 h-7 ${text.dimmed} mb-2`} />
+              <p className={`text-xs ${text.dimmed}`}>No recent activity</p>
+            </div>
+          ) : filteredEvents.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center py-12">
+              <MoonStar className={`w-7 h-7 ${text.dimmed} mb-2`} />
+              <p className={`text-xs ${text.dimmed}`}>No activity matches selected types</p>
+            </div>
+          ) : (
+            <div>
+              {prioritizedEvents.map((event, index) => (
+                <ActivityRow
+                  key={event.id}
+                  event={event}
+                  showUnreadDot={unseenEventIds.has(event.id)}
+                  showAttentionDivider={index === 0 && isActionRequiredEvent(event)}
+                  onNavigateToWorktree={onNavigateToWorktree}
+                  onNavigateToIssue={onNavigateToIssue}
+                  onResolveActionRequired={onResolveActionRequired}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        {shouldShowBackToTop && (
+          <button
+            type="button"
+            onClick={() => {
+              scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            aria-label="Back to top"
+            className="absolute left-1/2 -translate-x-1/2 bottom-4 z-10 w-8 h-8 rounded-full bg-white/[0.12] hover:bg-white/[0.2] text-white/80 hover:text-white flex items-center justify-center shadow-xl shadow-black/35 transition-colors"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
     </div>
