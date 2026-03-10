@@ -18,6 +18,11 @@ Check the official [docs](https://openkit.work/) for more info and usage pattern
 
 ## 🏗 Setup
 
+> [!INFO]
+> The easiest way to setup OpenKit is to [download](https://www.openkit.work/) the app and follow the instructions. You will be up and running in no time.
+
+Alternatively, you can clone the repo and set it up locally:
+
 ### Prerequisites:
 
 - Node.js >= 18 (LTS recommended)
