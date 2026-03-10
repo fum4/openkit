@@ -2,20 +2,11 @@
 
 # OpenKit
 
-OpenKit is an AI engineering workflow platform.
-It gives agents a real execution loop: pick up tasks, work in isolated environments, run checks,
-and ship pull requests with clear visibility.
+OpenKit provides developers with a simple, centralized way to manage their agents and control how they operate across different projects.
 
-Recent updates:
+Rather than enforcing a predefined workflow structure, OpenKit gives you the flexibility to design your own.
 
-- Expanded per-project debug-log mode in Activity cards (Debug toggle) with operational traces for command execution, inbound/outbound HTTP traffic, task/terminal/worktree lifecycle operations, notification emissions, and UI error reports.
-- Runtime command monitoring now captures all server-side `execFile` / `execFileSync` / `spawn` calls into `.openkit/ops-log.jsonl` and streams them live over SSE.
-- UI error toasts now auto-dismiss after 5 seconds and are mirrored into operational logs for easier debugging.
-- Hook lifecycle triggers (`worktree-created`, `worktree-removed`) now support command, prompt, and skill configuration.
-- Consecutive task-detected activity events are grouped into a single feed entry with per-item detail rows.
-- Worktree branch-ref collision errors now surface recovery choices (reuse existing or recreate fresh) in "Code with" flows.
-- Worktree deletion now clears transient state and prunes stale git worktree metadata so the same worktree ID can be recreated immediately.
-- Base-branch auto-detection now prefers local branch names (for example `main` instead of `origin/main`).
+You can experiment, analyze the results, and continuously refine your approach until it works exactly the way you need. We believe this flexibility is the true strength of OpenKit—especially in a landscape where AI best practices are evolving so quickly.
 
 Check the official [docs](https://openkit.work/) for more info and usage patterns.
 

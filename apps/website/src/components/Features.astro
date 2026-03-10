@@ -123,75 +123,108 @@ const chapters = [
 <div class="section-divider"></div>
 <section id="features">
   <div class="container">
-    <div class="section-route-icon fade-in" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="6" cy="19" r="3"></circle>
-        <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7H15"></path>
-        <circle cx="18" cy="5" r="3"></circle>
-        <path d="M15 5H6.5a3.5 3.5 0 0 0 0 7H9"></path>
-      </svg>
+    <div>
+      <div class="section-route-icon fade-in" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6" cy="19" r="3"></circle>
+          <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7H15"></path>
+          <circle cx="18" cy="5" r="3"></circle>
+          <path d="M15 5H6.5a3.5 3.5 0 0 0 0 7H9"></path>
+        </svg>
+      </div>
+      <h2 class="section-title fade-in">From ticket to pull request. Your way.</h2>
+      <p class="section-sub fade-in" data-delay="80">
+        A continuous story: capture work, execute in isolation, coordinate tooling, and ship with visibility and confidence. Set up your <span class="highlight">own workflow</span> based on your <span class="highlight">actual needs</span>.
+      </p>
+      <div class="flow-strip fade-in" data-delay="120" aria-label="Issue tracker to deployment flow">
+        <ol class="flow-steps">
+          <li class="step-issue" style="--flow-color: #60a5fa;">
+            <span class="flow-icon">
+              <span class="vendor-mark linear-mark" aria-hidden="true" set:html={linearIcon}></span>
+              <span class="vendor-mark jira-mark" aria-hidden="true" set:html={jiraIcon}></span>
+            </span>
+            <span class="flow-stop"></span>
+            <strong>Issue Tracker</strong>
+          </li>
+          <li class="step-agents" style="--flow-color: #a78bfa;">
+            <span class="flow-icon">
+              <span class="vendor-mark codex-mark" aria-hidden="true" set:html={codexIcon}></span>
+              <span class="vendor-mark claude-mark" aria-hidden="true" set:html={claudeIcon}></span>
+              <span class="vendor-mark gemini-mark" aria-hidden="true" set:html={geminiIcon}></span>
+            </span>
+            <span class="flow-stop"></span>
+            <strong>Agents</strong>
+          </li>
+          <li class="step-verify" style="--flow-color: #f59e0b;">
+            <span class="flow-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <path
+                  d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+                  fill="currentColor"
+                  stroke="none"
+                ></path>
+                <path d="m9 12 2 2 4-4" stroke="var(--bg-page)" stroke-width="2.2"></path>
+              </svg>
+            </span>
+            <span class="flow-stop"></span>
+            <strong>Validation</strong>
+          </li>
+          <li class="step-shipped" style="--flow-color: #34d399;">
+            <span class="flow-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" fill="currentColor" stroke="none"></circle>
+                <path d="m8.3 12.2 2.5 2.5 4.9-4.9" stroke="var(--bg-page)" stroke-width="2.2"></path>
+              </svg>
+            </span>
+            <span class="flow-stop"></span>
+            <strong>Delivery</strong>
+          </li>
+        </ol>
+      </div>
+      <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
+        Experiment, analyze, and refine your approach until it works the way you need.
+      </p>
+      <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
+        Let's be clear:
+      </p>
+      <h3 class="flow-bridge-subtitle fade-in" data-delay="280">
+        <strong>It's your workflow.</strong>
+      </h3>
+      <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
+        OpenKit just provides an easy way to manage it.
+      </p>
     </div>
-    <h2 class="section-title fade-in">From ticket to pull request. Confidently.</h2>
-    <p class="section-sub fade-in" data-delay="80">
-      A continuous story: capture work, execute in isolation, coordinate tooling, and ship with visibility and confidence. Set up your <span class="highlight">own workflow</span> based on your <span class="highlight">actual needs</span>.
-    </p>
-    <div class="flow-strip fade-in" data-delay="120" aria-label="Issue tracker to deployment flow">
-      <ol class="flow-steps">
-        <li class="step-issue" style="--flow-color: #60a5fa;">
-          <span class="flow-icon">
-            <span class="vendor-mark linear-mark" aria-hidden="true" set:html={linearIcon}></span>
-            <span class="vendor-mark jira-mark" aria-hidden="true" set:html={jiraIcon}></span>
-          </span>
-          <span class="flow-stop"></span>
-          <strong>Issue Tracker</strong>
-        </li>
-        <li class="step-agents" style="--flow-color: #a78bfa;">
-          <span class="flow-icon">
-            <span class="vendor-mark codex-mark" aria-hidden="true" set:html={codexIcon}></span>
-            <span class="vendor-mark claude-mark" aria-hidden="true" set:html={claudeIcon}></span>
-            <span class="vendor-mark gemini-mark" aria-hidden="true" set:html={geminiIcon}></span>
-          </span>
-          <span class="flow-stop"></span>
-          <strong>Agents</strong>
-        </li>
-        <li class="step-verify" style="--flow-color: #f59e0b;">
-          <span class="flow-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path
-                d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
-                fill="currentColor"
-                stroke="none"
-              ></path>
-              <path d="m9 12 2 2 4-4" stroke="var(--bg-page)" stroke-width="2.2"></path>
-            </svg>
-          </span>
-          <span class="flow-stop"></span>
-          <strong>Validation</strong>
-        </li>
-        <li class="step-shipped" style="--flow-color: #34d399;">
-          <span class="flow-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="9" fill="currentColor" stroke="none"></circle>
-              <path d="m8.3 12.2 2.5 2.5 4.9-4.9" stroke="var(--bg-page)" stroke-width="2.2"></path>
-            </svg>
-          </span>
-          <span class="flow-stop"></span>
-          <strong>Delivery</strong>
-        </li>
-      </ol>
+    <div class="flow-bridge">
+      <div class="flow-bridge-icon fade-in" data-delay="140" aria-hidden="true">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M6 3h12l4 6-10 13L2 9Z"></path>
+          <path d="M11 3 8 9l4 13 4-13-3-6"></path>
+          <path d="M2 9h20"></path>
+        </svg>
+      </div>
+      <h2 class="section-title flow-bridge-heading fade-in" data-delay="160">
+        Agent tooling is still a gold rush.
+      </h2>
+      <p class="flow-bridge-body fade-in" data-delay="220">
+        Configs, skills, agents, plugins, and MCP servers scatter in every direction. What should be reusable ends up as guesswork, duplicated setup, and fragile handoffs.
+      </p>
+      <h3 class="flow-bridge-subtitle fade-in" data-delay="280">
+        OpenKit helps you dig through the chaos.
+      </h3>
+      <p class="flow-bridge-body fade-in" data-delay="340">
+        Track what each project actually uses, standardize your tooling once, and run workflows predictably—without forcing your team into one rigid setup.
+      </p>
     </div>
-    <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
-      Visualize and adapt your workflow until you are confident in it.
-    </p>
-    <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
-      Let's be clear:
-    </p>
-    <h3 class="flow-bridge-subtitle fade-in" data-delay="280">
-      <strong>It's your workflow.</strong>
-    </h3>
-    <p class="section-sub fade-in" data-delay="160" style="margin-bottom: 5px">
-      OpenKit just provides an easy way to manage it.
-    </p>
     <div class="flow-bridge">
       <div class="flow-bridge-icon fade-in" data-delay="140" aria-hidden="true">
         <svg
@@ -220,7 +253,7 @@ const chapters = [
       <h3 class="flow-bridge-subtitle fade-in" data-delay="280">
         Set up your workflow once, then use any agent interface you like.
       </h3>
-      <p class="flow-bridge-body fade-in">Use Claude Code in your favorite terminal, Codex, OpenCode, or OpenKit's own UI.
+      <p class="flow-bridge-body fade-in" data-delay="340">Use Claude Code in your favorite terminal, Codex, OpenCode, or OpenKit's own UI.
         <br />
         No need to change how you or your team operates.
       </p>
@@ -302,7 +335,7 @@ const chapters = [
 
   .flow-bridge {
     max-width: 860px;
-    margin: 320px auto 400px;
+    margin: 300px auto 300px;
     padding: 24px 28px 26px;
     border-radius: 14px;
     border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border-subtle));
@@ -363,7 +396,7 @@ const chapters = [
     text-align: center;
     font-size: 16px;
     line-height: 1.7;
-    color: var(--text-secondary);
+    color: var(--text-muted);
   }
 
   .flow-strip::before {
@@ -533,7 +566,7 @@ const chapters = [
     display: grid;
     grid-template-columns: 1fr;
     gap: var(--story-gap);
-    margin-top: 240px;
+    margin-top: 400px;
   }
 
   .story-chapter {
@@ -801,6 +834,10 @@ const chapters = [
       margin: 44px auto 172px;
       padding: 18px 16px 20px;
       border-radius: 12px;
+    }
+
+    .tooling-clarity {
+      margin: 32px auto 0;
     }
 
     .flow-bridge-icon {
