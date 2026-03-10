@@ -333,6 +333,36 @@ Check which per-integration commit message rule overrides exist.
 
 ---
 
+## Local Config
+
+Manage `.openkit/local-config.json` -- local-only, non-committed settings including agent git policy and keyboard shortcuts.
+
+#### `GET /api/local-config`
+
+Get the current local configuration.
+
+- **Response**: `{ config: LocalConfig }`
+
+Returns the full local config object, including `allowAgentCommits`, `allowAgentPushes`, `allowAgentPRs`, and `shortcuts`.
+
+#### `PATCH /api/local-config`
+
+Merge updates into the local configuration.
+
+- **Request**: Partial `LocalConfig` object (any fields to update)
+  ```json
+  {
+    "shortcuts": {
+      "nav-worktrees": "meta+shift+w"
+    }
+  }
+  ```
+  Fields are shallow-merged at the top level; nested objects like `shortcuts` are deep-merged.
+- **Response**: `{ success: true, config: LocalConfig }`
+- **Error** (400): `{ success: false, error: "..." }`
+
+---
+
 ## GitHub Integration
 
 GitHub operations via the `gh` CLI. Requires `gh` to be installed and authenticated.

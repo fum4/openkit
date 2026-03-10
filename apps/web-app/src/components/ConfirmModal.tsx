@@ -32,6 +32,7 @@ export function ConfirmModal({
     <div
       className={`fixed inset-0 z-50 flex items-center justify-center ${surface.overlay}`}
       onClick={onCancel}
+      data-modal-open
     >
       <div
         className={`${surface.modal} border ${border.modal} rounded-xl p-5 max-w-sm w-full mx-4 shadow-2xl`}

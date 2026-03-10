@@ -44,6 +44,7 @@ There is no test runner configured.
 
 - Never use Prettier in this repository.
 - Use `oxlint` for linting and `oxfmt` for formatting.
+- **Always use scripts from `package.json` for checks** (e.g. `pnpm check:*`, `pnpm fix:*`). Do not invoke tools directly via `npx` or bare binary names — use `pnpm <script>` to ensure the correct versions and configuration are used.
 
 ## Error Handling
 

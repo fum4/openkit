@@ -446,6 +446,13 @@ export const errorBanner = {
   border: "border-red-900/30",
 } as const;
 
+// ─── Keyboard shortcut badges ───────────────────────────────────
+export const shortcut = {
+  badge: "bg-white/[0.06] border border-white/[0.08] text-[#9ca3af]",
+  badgeRecording: "border-accent/50 bg-accent/[0.06] text-accent",
+  badgeModified: "border-accent/30 text-accent/80",
+} as const;
+
 // ─── Info banner (teal accent) ───────────────────────────────────
 export const infoBanner = {
   bg: "bg-[#2dd4bf]/[0.04]",

@@ -11,6 +11,7 @@ export interface LocalConfig {
   allowAgentCommits?: boolean;
   allowAgentPushes?: boolean;
   allowAgentPRs?: boolean;
+  shortcuts?: Record<string, string>;
 }
 
 function getLocalConfigPath(configDir: string): string {
@@ -31,7 +32,61 @@ function sanitizeLocalConfig(value: unknown): LocalConfig {
   if (typeof raw.allowAgentPRs === "boolean") {
     next.allowAgentPRs = raw.allowAgentPRs;
   }
+  if (raw.shortcuts && typeof raw.shortcuts === "object") {
+    const shortcuts: Record<string, string> = {};
+    for (const [key, val] of Object.entries(raw.shortcuts as Record<string, unknown>)) {
+      if (typeof val === "string") shortcuts[key] = val;
+    }
+    if (Object.keys(shortcuts).length > 0) next.shortcuts = shortcuts;
+  }
   return next;
+}
+
+const DEFAULT_SHORTCUTS: Record<string, string> = {
+  "project-tab": "meta",
+  "nav-worktrees": "meta+w",
+  "nav-issues": "meta+i",
+  "nav-agents": "meta+a",
+  "nav-activity": "meta+l",
+  "nav-integrations": "meta+e",
+  "nav-settings": "meta+s",
+};
+
+export function ensureLocalConfigDefaults(configDir: string): void {
+  const current = loadLocalConfig(configDir);
+  let needsWrite = false;
+
+  if (current.allowAgentCommits === undefined) {
+    current.allowAgentCommits = false;
+    needsWrite = true;
+  }
+  if (current.allowAgentPushes === undefined) {
+    current.allowAgentPushes = false;
+    needsWrite = true;
+  }
+  if (current.allowAgentPRs === undefined) {
+    current.allowAgentPRs = false;
+    needsWrite = true;
+  }
+  if (!current.shortcuts) {
+    current.shortcuts = { ...DEFAULT_SHORTCUTS };
+    needsWrite = true;
+  } else {
+    for (const [key, val] of Object.entries(DEFAULT_SHORTCUTS)) {
+      if (!(key in current.shortcuts)) {
+        current.shortcuts[key] = val;
+        needsWrite = true;
+      }
+    }
+  }
+
+  if (needsWrite) {
+    const configDirPath = path.join(configDir, CONFIG_DIR_NAME);
+    if (!existsSync(configDirPath)) {
+      mkdirSync(configDirPath, { recursive: true });
+    }
+    writeFileSync(getLocalConfigPath(configDir), JSON.stringify(current, null, 2) + "\n");
+  }
 }
 
 export function loadLocalConfig(configDir: string): LocalConfig {

@@ -3945,3 +3945,36 @@ export async function createOpsLogEvent(
     };
   }
 }
+
+// -- Local Config API --
+
+export async function fetchLocalConfig(
+  serverUrl: string | null = null,
+): Promise<Record<string, unknown>> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/local-config`);
+    if (!res.ok) throw new Error("Failed to fetch local config");
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+export async function saveLocalConfig(
+  updates: Record<string, unknown>,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/local-config`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to save local config",
+    };
+  }
+}

@@ -7,5 +7,13 @@
     "discovered": [],
     "offsetStep": 1
   },
-  "showDiffStats": true
+  "showDiffStats": true,
+  "projectDir": ".",
+  "autoInstall": true,
+  "localIssuePrefix": "LOCAL",
+  "localAutoStartAgent": "claude",
+  "localAutoStartClaudeOnNewIssue": false,
+  "localAutoStartClaudeSkipPermissions": true,
+  "localAutoStartClaudeFocusTerminal": true,
+  "envMapping": {}
 }

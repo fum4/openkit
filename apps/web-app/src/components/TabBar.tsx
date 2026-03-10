@@ -92,10 +92,11 @@ export function TabBar({ onOpenSettings, onOverlapChange }: TabBarProps) {
       className={`flex-shrink-0 flex items-center z-40 pl-5 pr-4 pb-5 pt-4 gap-1 ${overlaps ? "bg-[#0c0e12]/60 backdrop-blur-md" : ""}`}
     >
       <div ref={tabsRef} className="flex items-center gap-1">
-        {projects.map((project) => (
+        {projects.map((project, index) => (
           <Tab
             key={project.id}
             project={project}
+            index={index + 1}
             isActive={project.id === activeProject?.id}
             onSelect={() => switchProject(project.id)}
             onClose={() => closeProject(project.id)}
@@ -168,12 +169,13 @@ export function TabBar({ onOpenSettings, onOverlapChange }: TabBarProps) {
 
 interface TabProps {
   project: Project;
+  index: number;
   isActive: boolean;
   onSelect: () => void;
   onClose: () => void;
 }
 
-function Tab({ project, isActive, onSelect, onClose }: TabProps) {
+function Tab({ project, index, isActive, onSelect, onClose }: TabProps) {
   const isStarting = project.status === "starting";
   const hasError = project.status === "error";
 
@@ -201,20 +203,33 @@ function Tab({ project, isActive, onSelect, onClose }: TabProps) {
       {/* Project name */}
       <span className="text-xs font-medium truncate max-w-[120px]">{project.name}</span>
 
-      {/* Close button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
-        className={`
-          flex items-center justify-center w-4 h-4 rounded -mr-1
-          opacity-0 group-hover:opacity-100
-          hover:bg-white/10 ${hasError ? "" : "hover:text-[#e5e7eb]"} transition-all duration-150
-        `}
-      >
-        <X className="w-3 h-3" />
-      </button>
+      {/* Tab number (visible when inactive) / Close button (visible on hover) */}
+      <div className="relative flex items-center justify-center w-4 h-4 -mr-1">
+        {!isActive && (
+          <span
+            className={`
+              absolute inset-0 flex items-center justify-center rounded
+              text-[10px] font-mono text-[#4b5563] bg-white/[0.06]
+              group-hover:opacity-0 transition-opacity duration-150
+            `}
+          >
+            {index}
+          </span>
+        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className={`
+            absolute inset-0 flex items-center justify-center rounded
+            opacity-0 group-hover:opacity-100
+            hover:bg-white/10 ${hasError ? "" : "hover:text-[#e5e7eb]"} transition-all duration-150
+          `}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
     </div>
   );
 }

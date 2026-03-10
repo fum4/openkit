@@ -632,6 +632,12 @@ export function useApi() {
 
       createOpsLogEvent: (event: Parameters<typeof api.createOpsLogEvent>[0]) =>
         api.createOpsLogEvent(event, serverUrl),
+
+      // Local config
+      fetchLocalConfig: () => api.fetchLocalConfig(serverUrl),
+
+      saveLocalConfig: (updates: Record<string, unknown>) =>
+        api.saveLocalConfig(updates, serverUrl),
     }),
     [serverUrl],
   );

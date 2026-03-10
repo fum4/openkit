@@ -20,6 +20,7 @@ import { type WorktreeConfig } from "../hooks/useConfig";
 import { useApi } from "../hooks/useApi";
 import { button, infoBanner, input, settings, surface, tab, text } from "../theme";
 import { AgentModelDropdown } from "./AgentModelDropdown";
+import { ShortcutsSection } from "./ShortcutsSection";
 import { Spinner } from "./Spinner";
 import { ToggleSwitch } from "./ToggleSwitch";
 import { Tooltip } from "./Tooltip";
@@ -288,6 +289,8 @@ export function ConfigurationPanel({
   jiraConfigured,
   linearConfigured,
   onNavigateToIntegrations,
+  shortcuts,
+  onShortcutsSaved,
 }: {
   config: WorktreeConfig | null;
   onSaved: () => void;
@@ -295,6 +298,8 @@ export function ConfigurationPanel({
   jiraConfigured: boolean;
   linearConfigured: boolean;
   onNavigateToIntegrations: () => void;
+  shortcuts?: Record<string, string>;
+  onShortcutsSaved: () => void;
 }) {
   const api = useApi();
   const [form, setForm] = useState<WorktreeConfig | null>(null);
@@ -1207,6 +1212,11 @@ export function ConfigurationPanel({
               );
             })}
           </div>
+        </div>
+
+        {/* Keyboard Shortcuts */}
+        <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
+          <ShortcutsSection shortcuts={shortcuts} onSaved={onShortcutsSaved} />
         </div>
 
         {/* Connection status */}

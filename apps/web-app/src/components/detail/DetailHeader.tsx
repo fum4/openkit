@@ -265,7 +265,6 @@ export function DetailHeader({
   selectedOpenTarget,
   onSelectOpenTarget,
   onOpenProjectIn,
-  showDiffStats,
   onSelectJiraIssue,
   onSelectLinearIssue,
   onSelectLocalIssue,

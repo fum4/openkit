@@ -19,6 +19,7 @@ import {
 } from "../commit-message";
 import { isMcpSetupEnabled } from "../feature-flags";
 import { enableDefaultProjectSkills } from "../lib/project-skill-bootstrap";
+import { ensureLocalConfigDefaults, loadLocalConfig, updateLocalConfig } from "../local-config";
 import type { WorktreeManager } from "../manager";
 
 const AGENT_RULE_FILES: Record<string, (dir: string) => string> = {
@@ -509,5 +510,31 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
         local: hasCustomCommitMessageRule(configDir, "local"),
       },
     });
+  });
+
+  // -- Local Config API (local-config.json — not synced to git) --
+
+  app.get("/api/local-config", (c) => {
+    const configDir = manager.getConfigDir();
+    ensureLocalConfigDefaults(configDir);
+    const localConfig = loadLocalConfig(configDir);
+    return c.json(localConfig);
+  });
+
+  app.patch("/api/local-config", async (c) => {
+    try {
+      const body = await c.req.json();
+      const configDir = manager.getConfigDir();
+      updateLocalConfig(configDir, body);
+      return c.json({ success: true });
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to update local config",
+        },
+        500,
+      );
+    }
   });
 }

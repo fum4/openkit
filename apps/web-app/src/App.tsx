@@ -53,6 +53,9 @@ import { useServer } from "./contexts/ServerContext";
 import { createOpsLogEvent as createOpsLogEventRaw } from "./hooks/api";
 import { useApi } from "./hooks/useApi";
 import { useConfig } from "./hooks/useConfig";
+import { useLocalConfig } from "./hooks/useLocalConfig";
+import { useShortcuts } from "./hooks/useShortcuts";
+import type { ShortcutEvent } from "./shortcuts";
 import { useCustomTasks } from "./hooks/useCustomTasks";
 import { useJiraIssues } from "./hooks/useJiraIssues";
 import { useLinearIssues } from "./hooks/useLinearIssues";
@@ -366,6 +369,7 @@ export default function App() {
     isLoading: configLoading,
     refetch: refetchConfig,
   } = useConfig();
+  const { localConfig, refetch: refetchLocalConfig } = useLocalConfig();
   const { jiraStatus, refetchJiraStatus } = useJiraStatus();
   const { linearStatus, refetchLinearStatus } = useLinearStatus();
   const githubStatus = useGitHubStatus();
@@ -839,6 +843,46 @@ export default function App() {
       setActiveCreateTabState("branch");
     }
   }, [readWorkspaceStorageValue, workspaceStorageScope]);
+
+  // Global keyboard shortcuts
+  const handleShortcutAction = useCallback(
+    (event: ShortcutEvent) => {
+      if (event.action === "project-tab") {
+        const project = projects[event.tabIndex];
+        if (project) switchProject(project.id);
+        return;
+      }
+      switch (event.action) {
+        case "nav-worktrees":
+          setActiveView("workspace");
+          setActiveCreateTab("branch");
+          break;
+        case "nav-issues":
+          setActiveView("workspace");
+          setActiveCreateTab("issues");
+          break;
+        case "nav-agents":
+          setActiveView("agents");
+          break;
+        case "nav-activity":
+          setActiveView("activity");
+          break;
+        case "nav-integrations":
+          setActiveView("integrations");
+          break;
+        case "nav-settings":
+          setActiveView("configuration");
+          break;
+      }
+    },
+    [projects, switchProject, setActiveView, setActiveCreateTab],
+  );
+
+  useShortcuts({
+    shortcuts: localConfig?.shortcuts,
+    onAction: handleShortcutAction,
+  });
+
   const [defaultCodingAgent, setDefaultCodingAgent] = useState<CodingAgent>(() => {
     const saved = localStorage.getItem(CODING_AGENT_PREF_KEY);
     return saved === "claude" || saved === "codex" || saved === "gemini" || saved === "opencode"
@@ -3159,6 +3203,8 @@ export default function App() {
               jiraConfigured={jiraStatus?.configured ?? false}
               linearConfigured={linearStatus?.configured ?? false}
               onNavigateToIntegrations={() => setActiveView("integrations")}
+              shortcuts={localConfig?.shortcuts}
+              onShortcutsSaved={refetchLocalConfig}
             />
           )}
 
