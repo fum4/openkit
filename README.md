@@ -19,15 +19,13 @@ Check the official [docs](https://openkit.work/) for more info and usage pattern
 ## 🏗 Setup
 
 > [!TIP]
-> The easiest way to setup OpenKit is to [download](https://www.openkit.work/) the app and follow the instructions.
+> The easiest way to set up OpenKit is to [download](https://www.openkit.work/) the app and follow the instructions.
 >
 > You will be up and running in no time. 👍
 
-<br />
+<br /><br />
 
 Alternatively, you can clone the repo and set it up locally:
-
-<br />
 
 ### Prerequisites:
 
