@@ -111,7 +111,7 @@ export const handlers = [
   }),
 
   http.patch("/api/config", async ({ request }) => {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({ success: true, ...body });
   }),
 
