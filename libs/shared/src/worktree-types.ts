@@ -52,6 +52,8 @@ export interface WorktreeConfig {
   allowAgentPushes?: boolean;
   /** User preference: whether MCP agents are allowed to create PRs (default: false) */
   allowAgentPRs?: boolean;
+  /** Whether to use native (Zig) port hook for runtime-agnostic port resolution (default: false) */
+  useNativePortHook?: boolean;
   /** Activity feed configuration */
   activity?: {
     retentionDays?: number;

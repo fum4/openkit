@@ -26,8 +26,8 @@ jobs:
       - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
 
-      - name: Build desktop artifacts (signed/notarized)
-        uses: ./.github/actions/package-desktop-macos
+      - name: Build artifacts (signed/notarized)
+        uses: ./.github/actions/package-macos
         with:
           sign-and-notarize: "true"
           mac-certificate: ${{ secrets.MAC_CERTIFICATE }}
@@ -60,7 +60,7 @@ jobs:
       - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
 
-      - name: Build desktop artifacts
+      - name: Build artifacts
         run: pnpm package:linux
 
       - name: Upload assets to release

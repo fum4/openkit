@@ -1,9 +1,9 @@
 name: Package (macOS)
-description: Build macOS desktop artifacts, optionally with signing and notarization.
+description: Build macOS artifacts, optionally with signing and notarization.
 
 inputs:
   package-command:
-    description: Command used to build macOS desktop artifacts.
+    description: Command used to build macOS artifacts.
     required: false
     default: pnpm package:mac
   sign-and-notarize:
@@ -79,7 +79,7 @@ runs:
         security set-key-partition-list -S apple-tool:,apple: -s -k actions build.keychain
         security find-identity -v -p codesigning build.keychain
 
-    - name: Build desktop artifacts (signed/notarized)
+    - name: Build artifacts (signed/notarized)
       if: ${{ inputs.sign-and-notarize == 'true' }}
       shell: bash
       env:
@@ -89,7 +89,7 @@ runs:
         APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.apple-app-specific-password }}
       run: ${{ inputs.package-command }}
 
-    - name: Build desktop artifacts (unsigned)
+    - name: Build artifacts (unsigned)
       if: ${{ inputs.sign-and-notarize != 'true' }}
       shell: bash
       env:

@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       cli_startup: ${{ steps.affected.outputs.cli_startup }}
+      test: ${{ steps.test-affected.outputs.affected }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -26,6 +27,12 @@ jobs:
           targets: build
           project-type: app
           include-projects: cli,server
+      - id: test-affected
+        uses: ./.github/actions/check-affected-target
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          targets: test
       - id: affected
         shell: bash
         env:
@@ -102,3 +109,18 @@ jobs:
           echo "OpenKit failed to become ready within timeout"
           cat "${{ matrix.log_file }}" || true
           exit 1
+
+  test:
+    needs: check-affected
+    if: needs.check-affected.outputs.test == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-pnpm-node
+      - run: pnpm nx affected -t test --base="${BASE_SHA}" --head="${HEAD_SHA}"

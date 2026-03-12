@@ -245,9 +245,61 @@ When a worktree is started, the following happens in `WorktreeManager.startWorkt
 5. **Track process** -- The PID, ports, offset, and child process reference are stored in `runningProcesses`.
 6. **On exit** -- When the process exits, `portManager.releaseOffset(offset)` frees the offset for reuse.
 
-## Limitations
+## Native Port Hook (`libport-hook`)
 
-- **Node.js processes only** -- The `--require` hook mechanism is specific to Node.js. Applications running on other runtimes (Python, Go, Ruby, etc.) will not have their ports offset. If your dev server spawns non-Node subprocesses that listen on ports, those ports will not be intercepted.
+In addition to the Node.js `--require` hook, OpenKit includes a **native shared library hook** that intercepts `bind()` and `connect()` at the POSIX libc level. This enables transparent port offsetting for **any runtime** -- Python, Ruby, Java, Go (on macOS), and more.
+
+### How it works
+
+The native hook is a Zig-compiled shared library (`libport-hook.dylib` on macOS, `libport-hook.so` on Linux) that is injected into processes via `DYLD_INSERT_LIBRARIES` (macOS) or `LD_PRELOAD` (Linux). It interposes two POSIX functions:
+
+- **`bind(fd, addr, addrlen)`** -- Intercepts server listen calls. When the target port is in the known ports set, the port is rewritten to `port + offset`.
+- **`connect(fd, addr, addrlen)`** -- Intercepts outgoing connections. Same port check, plus a localhost-only guard (only `127.0.0.1`, `::1`, `0.0.0.0`, `::` are offset).
+
+Both IPv4 (`AF_INET`) and IPv6 (`AF_INET6`) are handled.
+
+### Interaction with the Node.js hook
+
+Both hooks run simultaneously when a Node.js process is spawned. There is **no double-offset risk**:
+
+1. The native hook intercepts the `bind()` syscall and rewrites port `3000` -> `3010`
+2. The Node.js hook sees the `listen(3010)` call, checks if `3010` is in `knownPortSet`
+3. Since `3010` is NOT in the known ports set (only `3000` is), the JS hook is a no-op
+
+### Interaction with env mapping
+
+The native hook and env mapping are complementary:
+
+| System          | What it catches                          | Example                                    |
+| --------------- | ---------------------------------------- | ------------------------------------------ |
+| **Native hook** | Ports passed as integers to socket calls | `server.listen(3000)`, `http.server(8000)` |
+| **Env mapping** | Ports embedded in string-valued env vars | `VITE_API_URL=http://localhost:3000/api`   |
+
+When both offset the same port, the native hook sees the already-offset port (not in the known set) and is a no-op.
+
+### Runtime compatibility
+
+| Runtime | macOS           | Linux           | Notes                                |
+| ------- | --------------- | --------------- | ------------------------------------ |
+| Node.js | Yes (+ JS hook) | Yes (+ JS hook) | Both hooks run, no double-offset     |
+| Python  | Yes             | Yes             | Use non-system Python on macOS (SIP) |
+| Ruby    | Yes             | Yes             | Use non-system Ruby on macOS (SIP)   |
+| Java    | Yes             | Yes             | JVM uses libc for sockets            |
+| Go      | Yes             | **No**          | Go on Linux uses raw syscalls        |
+
+### Building
+
+The native hook requires the [Zig](https://ziglang.org/) toolchain:
+
+```bash
+cd libs/port-resolution && zig build -Doptimize=ReleaseFast
+```
+
+The hook is **optional** -- if the built library is not found, only the Node.js hook is used.
+
+For full documentation, see [`libs/port-resolution/README.md`](../libs/port-resolution/README.md).
+
+## Limitations
 
 - **Localhost connections only** -- Outgoing connections are only offset when targeting localhost addresses (`127.0.0.1`, `::1`, `localhost`, `0.0.0.0`). Connections to remote hosts or IP addresses other than loopback are passed through unchanged.
 
@@ -258,3 +310,9 @@ When a worktree is started, the following happens in `WorktreeManager.startWorkt
 - **Process tree detection has a time window** -- Discovery waits 15 seconds for processes to stabilize. If a server takes longer than that to start listening, its ports may be missed.
 
 - **The `offsetStep` must account for port count** -- If your application uses N discovered ports and `offsetStep` is less than N, the offset ranges of adjacent worktrees will overlap. Set `offsetStep >= N` to avoid this, or use a value like 10 or 100 for comfortable spacing.
+
+- **macOS SIP** -- System Integrity Protection prevents `DYLD_INSERT_LIBRARIES` from affecting system binaries (e.g. `/usr/bin/python3`). Use a user-installed Python/Ruby/etc.
+
+- **Go on Linux** -- Go's runtime makes raw syscalls instead of going through libc, so `LD_PRELOAD` interposition does not work. Go on macOS uses libc and works fine.
+
+- **Zig toolchain** -- Building the native hook requires Zig. The hook is optional; if the library is not found, only the Node.js hook is used.

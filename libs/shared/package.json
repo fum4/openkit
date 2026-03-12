@@ -2,6 +2,11 @@
   "name": "@openkit/shared",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
   "dependencies": {
     "picocolors": "^1.1.1"
   }

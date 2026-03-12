@@ -11,6 +11,7 @@ export interface LocalConfig {
   allowAgentCommits?: boolean;
   allowAgentPushes?: boolean;
   allowAgentPRs?: boolean;
+  useNativePortHook?: boolean;
 }
 
 function getLocalConfigPath(configDir: string): string {
@@ -30,6 +31,9 @@ function sanitizeLocalConfig(value: unknown): LocalConfig {
   }
   if (typeof raw.allowAgentPRs === "boolean") {
     next.allowAgentPRs = raw.allowAgentPRs;
+  }
+  if (typeof raw.useNativePortHook === "boolean") {
+    next.useNativePortHook = raw.useNativePortHook;
   }
   return next;
 }

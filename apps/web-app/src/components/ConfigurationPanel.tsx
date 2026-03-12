@@ -736,6 +736,20 @@ export function ConfigurationPanel({
               />
             </Field>
           </div>
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">
+            <div className="flex flex-col gap-0.5">
+              <span className={`text-xs font-medium ${settings.label}`}>
+                Use experimental port resolution
+              </span>
+              <span className={`text-[11px] ${settings.description}`}>
+                Use native hook for runtime-agnostic port offsetting (Python, Ruby, Go)
+              </span>
+            </div>
+            <ToggleSwitch
+              checked={form.useNativePortHook === true}
+              onToggle={() => setForm({ ...form, useNativePortHook: !form.useNativePortHook })}
+            />
+          </div>
         </div>
 
         {/* Branches Card */}
