@@ -1,6 +1,6 @@
 {
   "name": "OpenKit-website",
-  "version": "0.0.43",
+  "version": "0.0.44",
   "type": "module",
   "scripts": {
     "dev": "astro dev",
