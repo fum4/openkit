@@ -11,6 +11,7 @@ export interface LocalConfig {
   allowAgentCommits?: boolean;
   allowAgentPushes?: boolean;
   allowAgentPRs?: boolean;
+  useNativePortHook?: boolean;
   shortcuts?: Record<string, string>;
   arrowNavEnabled?: boolean;
 }
@@ -32,6 +33,9 @@ function sanitizeLocalConfig(value: unknown): LocalConfig {
   }
   if (typeof raw.allowAgentPRs === "boolean") {
     next.allowAgentPRs = raw.allowAgentPRs;
+  }
+  if (typeof raw.useNativePortHook === "boolean") {
+    next.useNativePortHook = raw.useNativePortHook;
   }
   if (typeof raw.arrowNavEnabled === "boolean") {
     next.arrowNavEnabled = raw.arrowNavEnabled;

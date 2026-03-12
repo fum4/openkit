@@ -52,6 +52,8 @@ export interface WorktreeConfig {
   allowAgentPushes?: boolean;
   /** User preference: whether MCP agents are allowed to create PRs (default: false) */
   allowAgentPRs?: boolean;
+  /** Whether to use native (Zig) port hook for runtime-agnostic port resolution (default: false) */
+  useNativePortHook?: boolean;
   /** Whether to show diff stats (lines added/removed) in sidebar and detail view (default: true) */
   showDiffStats?: boolean;
   /** Activity feed configuration */

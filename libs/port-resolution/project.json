@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "port-resolution",
+  "projectType": "library",
+  "sourceRoot": "libs/port-resolution/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "zig build -Doptimize=ReleaseFast",
+        "cwd": "libs/port-resolution"
+      }
+    }
+  }
+}

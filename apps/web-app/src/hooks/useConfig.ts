@@ -24,6 +24,7 @@ export interface WorktreeConfig {
   allowAgentCommits?: boolean;
   allowAgentPushes?: boolean;
   allowAgentPRs?: boolean;
+  useNativePortHook?: boolean;
   showDiffStats?: boolean;
   activity?: {
     retentionDays?: number;

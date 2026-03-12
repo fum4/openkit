@@ -2,7 +2,7 @@
 
 ## System Overview
 
-OpenKit is a CLI tool, web UI, and optional Electron desktop app for managing multiple git worktrees with automatic port offsetting. It solves the problem of port conflicts when running multiple dev server instances concurrently by monkey-patching Node.js `net.Server.listen` and `net.Socket.connect` at runtime via `--require`.
+OpenKit is a CLI tool, web UI, and optional Electron desktop app for managing multiple git worktrees with automatic port offsetting. It solves the problem of port conflicts when running multiple dev server instances concurrently using two complementary hooks: a Node.js `--require` hook that monkey-patches `net.Server.listen` and `net.Socket.connect`, and a native shared library hook (`libs/port-resolution`) that intercepts `bind()` and `connect()` at the POSIX libc level via `LD_PRELOAD`/`DYLD_INSERT_LIBRARIES` to support any runtime (Python, Ruby, Java, Go on macOS).
 
 The system is organized into three primary layers:
 
@@ -45,7 +45,8 @@ flowchart TB
     VM["HooksManager\n(hooks: commands + skills)"]
     NC["Ngrok Connect Routes\n(qr pairing + gateway proxy)"]
     GH["GitHubManager\n(PR status, git operations)"]
-    Hook["port-hook.cjs\n(runtime port patching)"]
+    Hook["port-hook.cjs\n(Node.js port patching)"]
+    NativeHook["libport-hook\n(native libc interposition)"]
     Actions["Actions Registry\n(MCP tool definitions)"]
     McpFactory["MCP Server Factory\n(creates MCP server from actions)"]
     Routes["HTTP Routes\n(REST API endpoints)"]
@@ -70,6 +71,7 @@ flowchart TB
     CM --> OL
     McpFactory --> Actions
     PM -->|env vars| Hook
+    PM -->|env vars| NativeHook
 ```
 
 ### WorktreeManager
@@ -97,7 +99,7 @@ Key responsibilities:
 
 - **Port discovery**: `discoverPorts()` spawns the project's start command, waits for stabilization (15 seconds), walks the process tree via `pgrep`, and scans for listening ports via `lsof`
 - **Offset allocation**: `allocateOffset()` hands out sequential multiples of `offsetStep` (e.g., 1, 2, 3...); `releaseOffset()` frees them
-- **Env var generation**: `getEnvForOffset()` builds the environment variables that activate the port hook: `NODE_OPTIONS` (with `--require port-hook.cjs`), `__WM_PORT_OFFSET__`, `__WM_KNOWN_PORTS__`, plus any user-defined `envMapping` templates
+- **Env var generation**: `getEnvForOffset()` builds the environment variables that activate both port hooks: `NODE_OPTIONS` (with `--require port-hook.cjs`), `DYLD_INSERT_LIBRARIES`/`LD_PRELOAD` (with `libport-hook`), `__WM_PORT_OFFSET__`, `__WM_KNOWN_PORTS__`, plus any user-defined `envMapping` templates
 - **Env mapping detection**: `detectEnvMapping()` scans `.env*` files for references to discovered ports and generates template strings like `http://localhost:${3000}`
 - **Persistence**: Discovered ports and env mappings are written back to `.openkit/config.json`
 
@@ -338,9 +340,11 @@ The marketing website (`apps/website`) builds with Astro to `apps/website/dist/`
 
 The Expo app (`apps/mobile-app`) exports platform bundles to `apps/mobile-app/dist/ios/` and `apps/mobile-app/dist/android/`.
 
-### Runtime artifact: port-hook.cjs
+### Runtime artifacts: port hooks
 
-`apps/server/src/runtime/port-hook.cjs` is a pure CommonJS file with zero dependencies. It is copied verbatim to `apps/server/dist/runtime/port-hook.cjs` during the build. It cannot be bundled because it must be loadable via Node's `--require` flag in any process.
+**`apps/server/src/runtime/port-hook.cjs`** is a pure CommonJS file with zero dependencies. It is copied verbatim to `apps/server/dist/runtime/port-hook.cjs` during the build. It cannot be bundled because it must be loadable via Node's `--require` flag in any process.
+
+**`libs/port-resolution/`** contains a Zig-compiled shared library (`libport-hook.dylib`/`libport-hook.so`) that intercepts `bind()` and `connect()` at the POSIX libc level for runtime-agnostic port offsetting. If built, it is copied to `apps/server/dist/runtime/` during the server build. The native hook is optional -- if not found, only the Node.js hook is used. See [`libs/port-resolution/README.md`](../libs/port-resolution/README.md) for details.
 
 ### Full build pipeline
 

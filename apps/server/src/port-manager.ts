@@ -36,6 +36,8 @@ export class PortManager {
 
   private debugLogger: PortDebugLogger | null = null;
 
+  useNativeHook = false;
+
   constructor(config: WorktreeConfig, configFilePath: string | null = null) {
     this.config = config;
     this.configFilePath = configFilePath;
@@ -96,6 +98,42 @@ export class PortManager {
     return this.config.ports.discovered.map((port) => port + offset);
   }
 
+  getNativeHookPath(): string | null {
+    const ext = process.platform === "darwin" ? "dylib" : "so";
+    const filename = `libport-hook.${ext}`;
+
+    // Dev: built from libs/port-resolution
+    const devHook = path.resolve(
+      currentDir,
+      "..",
+      "..",
+      "..",
+      "libs",
+      "port-resolution",
+      "zig-out",
+      "lib",
+      filename,
+    );
+    if (existsSync(devHook)) {
+      return devHook;
+    }
+
+    // Packaged: bundled alongside port-hook.cjs
+    const projectRoot = resolveProjectRoot(currentDir);
+    const bundledHook = path.resolve(projectRoot, "runtime", filename);
+    if (existsSync(bundledHook)) {
+      return bundledHook;
+    }
+
+    // Built: dist/runtime/
+    const distHook = path.resolve(projectRoot, "apps", "server", "dist", "runtime", filename);
+    if (existsSync(distHook)) {
+      return distHook;
+    }
+
+    return null;
+  }
+
   getHookPath(): string {
     const srcHook = path.resolve(currentDir, "runtime", "port-hook.cjs");
     if (existsSync(srcHook)) {
@@ -123,17 +161,26 @@ export class PortManager {
       return {};
     }
 
-    const hookPath = this.getHookPath();
-    const existingNodeOptions = process.env.NODE_OPTIONS || "";
-    const requireFlag = `--require ${hookPath}`;
-
-    const nodeOptions = existingNodeOptions ? `${existingNodeOptions} ${requireFlag}` : requireFlag;
-
     const env: Record<string, string> = {
-      NODE_OPTIONS: nodeOptions,
       __WM_PORT_OFFSET__: String(offset),
       __WM_KNOWN_PORTS__: JSON.stringify(this.config.ports.discovered),
     };
+
+    // Native hook (runtime-agnostic: Python, Ruby, Go on macOS, etc.)
+    const nativeHook = this.useNativeHook ? this.getNativeHookPath() : null;
+    if (nativeHook) {
+      if (process.platform === "darwin") {
+        env.DYLD_INSERT_LIBRARIES = nativeHook;
+      } else {
+        env.LD_PRELOAD = nativeHook;
+      }
+    }
+
+    // Node.js hook (keep as safety net for Node-specific patching)
+    const hookPath = this.getHookPath();
+    const existingNodeOptions = process.env.NODE_OPTIONS || "";
+    const requireFlag = `--require ${hookPath}`;
+    env.NODE_OPTIONS = existingNodeOptions ? `${existingNodeOptions} ${requireFlag}` : requireFlag;
 
     // Resolve env var templates with offset ports
     const envMapping = this.config.envMapping;

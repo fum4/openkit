@@ -56,7 +56,46 @@ pnpm dev
 | `pnpm fix:lint`          | Run oxlint with `--fix`                                                                                  |
 | `pnpm fix:all`           | Run format + lint auto-fixes                                                                             |
 
-There is no test runner configured.
+## Testing
+
+OpenKit uses **Vitest** for unit and component testing across the workspace.
+
+| Command                         | Description                          |
+| ------------------------------- | ------------------------------------ |
+| `pnpm test`                     | Run all tests via Nx                 |
+| `pnpm test:affected`            | Run tests only for affected projects |
+| `pnpm test:coverage`            | Run all tests with V8 coverage       |
+| `pnpm nx run server:test`       | Run server tests                     |
+| `pnpm nx run web-app:test`      | Run web-app tests                    |
+| `pnpm nx run shared:test`       | Run shared lib tests                 |
+| `pnpm nx run server:test:watch` | Run server tests in watch mode       |
+
+### Test Organization
+
+Tests are **co-located** with source files (`foo.ts` -> `foo.test.ts`, `Component.tsx` -> `Component.test.tsx`).
+
+Test utilities:
+
+- `apps/server/src/test/fixtures.ts` — factory functions for test data
+- `apps/web-app/src/test/setup.ts` — global setup (jest-dom matchers, EventSource mock)
+- `apps/web-app/src/test/render.tsx` — custom render wrapper with providers
+- `apps/web-app/src/test/mocks/handlers.ts` — MSW request handlers
+
+### Configuration
+
+- `vitest.workspace.ts` (root) — defines workspace projects
+- `apps/server/vitest.config.ts` — node environment, path aliases
+- `apps/web-app/vitest.config.ts` — happy-dom environment, React plugin
+- `libs/shared/vitest.config.ts` — node environment
+
+### Conventions
+
+- One behavior per test — each `it()` tests one thing
+- Name tests as behavior specs — `it('returns error when branch name contains spaces')`
+- Arrange-Act-Assert structure with blank lines between sections
+- Mock at the boundary — mock `child_process`, `fs`, HTTP, not internal helpers
+- Use `userEvent` (not `fireEvent`) in component tests
+- Query by `role`, `label`, `text` — never by test-id or CSS class as first resort
 
 Runtime note: UI assets are optional in core installs. The CLI can install optional UI components with `openkit ui` (web bundle and/or desktop app).
 

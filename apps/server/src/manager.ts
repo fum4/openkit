@@ -44,7 +44,7 @@ import type { LinearTaskData } from "@openkit/integrations/linear/types";
 
 import { ActivityLog } from "./activity-log";
 import { ACTIVITY_TYPES } from "./activity-event";
-import { loadLocalGitPolicyConfig, updateLocalConfig } from "./local-config";
+import { loadLocalConfig, loadLocalGitPolicyConfig, updateLocalConfig } from "./local-config";
 import { NotesManager } from "./notes-manager";
 import { OpsLog } from "./ops-log";
 import { PortManager } from "./port-manager";
@@ -92,6 +92,7 @@ const OPEN_PROJECT_TARGETS = new Set<NonNullable<WorktreeConfig["openProjectTarg
 ]);
 
 const AGENT_GIT_POLICY_KEYS = ["allowAgentCommits", "allowAgentPushes", "allowAgentPRs"] as const;
+const LOCAL_CONFIG_KEYS = [...AGENT_GIT_POLICY_KEYS, "useNativePortHook"] as const;
 
 function isConfiguredOpenProjectTarget(
   value: unknown,
@@ -228,13 +229,15 @@ export class WorktreeManager {
     return loadLocalGitPolicyConfig(this.configDir);
   }
 
-  private withAgentGitPolicyConfig(config: WorktreeConfig): WorktreeConfig {
+  private withLocalConfig(config: WorktreeConfig): WorktreeConfig {
     const policy = this.readAgentGitPolicyConfig();
+    const local = loadLocalConfig(this.configDir);
     return {
       ...config,
       allowAgentCommits: policy.allowAgentCommits,
       allowAgentPushes: policy.allowAgentPushes,
       allowAgentPRs: policy.allowAgentPRs,
+      useNativePortHook: local.useNativePortHook === true,
     };
   }
 
@@ -245,8 +248,9 @@ export class WorktreeManager {
       ...config,
       activity: sanitizeActivityConfig(config.activity),
     };
-    this.config = this.withAgentGitPolicyConfig(this.config);
+    this.config = this.withLocalConfig(this.config);
     this.portManager = new PortManager(config, configFilePath);
+    this.portManager.useNativeHook = this.config.useNativePortHook === true;
     this.notesManager = new NotesManager(this.configDir);
     this.activityLog = new ActivityLog(this.configDir, this.config.activity);
     this.opsLog = new OpsLog(this.configDir, {
@@ -285,7 +289,7 @@ export class WorktreeManager {
       const fileConfig = JSON.parse(content);
 
       // Update the config
-      this.config = this.withAgentGitPolicyConfig({
+      this.config = this.withLocalConfig({
         projectDir: fileConfig.projectDir ?? this.config.projectDir,
         startCommand: fileConfig.startCommand ?? this.config.startCommand,
         installCommand: fileConfig.installCommand ?? this.config.installCommand,
@@ -1780,7 +1784,7 @@ export class WorktreeManager {
   }
 
   getConfig(): WorktreeConfig {
-    return this.withAgentGitPolicyConfig(this.config);
+    return this.withLocalConfig(this.config);
   }
 
   getConfigDir(): string {
@@ -1797,22 +1801,23 @@ export class WorktreeManager {
         existing = JSON.parse(readFileSync(configPath, "utf-8"));
       }
 
-      const policyUpdates: Partial<{
+      const localConfigUpdates: Partial<{
         allowAgentCommits: boolean;
         allowAgentPushes: boolean;
         allowAgentPRs: boolean;
+        useNativePortHook: boolean;
       }> = {};
 
-      for (const key of AGENT_GIT_POLICY_KEYS) {
+      for (const key of LOCAL_CONFIG_KEYS) {
         if (!(key in partial) || partial[key] === undefined) continue;
         if (typeof partial[key] !== "boolean") {
           return { success: false, error: `Invalid value for ${key}` };
         }
-        policyUpdates[key] = partial[key];
+        localConfigUpdates[key] = partial[key];
       }
 
-      if (Object.keys(policyUpdates).length > 0) {
-        updateLocalConfig(this.configDir, policyUpdates);
+      if (Object.keys(localConfigUpdates).length > 0) {
+        updateLocalConfig(this.configDir, localConfigUpdates);
       }
 
       // Merge allowed top-level fields
@@ -1889,7 +1894,7 @@ export class WorktreeManager {
         this.activityLog.updateConfig(mergedActivity ?? {});
       }
 
-      for (const key of AGENT_GIT_POLICY_KEYS) {
+      for (const key of LOCAL_CONFIG_KEYS) {
         delete existing[key];
       }
 
@@ -1897,7 +1902,8 @@ export class WorktreeManager {
         writeFileSync(configPath, JSON.stringify(existing, null, 2) + "\n");
       }
 
-      this.config = this.withAgentGitPolicyConfig(this.config);
+      this.config = this.withLocalConfig(this.config);
+      this.portManager.useNativeHook = this.config.useNativePortHook === true;
       return { success: true };
     } catch (error) {
       return {

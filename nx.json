@@ -39,6 +39,10 @@
       "cache": true,
       "dependsOn": ["^lint"],
       "inputs": ["default", "^default"]
+    },
+    "test": {
+      "cache": true,
+      "inputs": ["default", "^default"]
     }
   }
 }

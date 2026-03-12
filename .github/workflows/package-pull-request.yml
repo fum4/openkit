@@ -181,8 +181,8 @@ jobs:
       - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
 
-      - name: Build desktop artifacts (macOS)
-        uses: ./.github/actions/package-desktop-macos
+      - name: Build artifacts (macOS)
+        uses: ./.github/actions/package-macos
         with:
           sign-and-notarize: ${{ needs.notify-package-start.outputs.sign_mac }}
           mac-certificate: ${{ needs.notify-package-start.outputs.sign_mac == 'true' && secrets.MAC_CERTIFICATE || '' }}
@@ -259,7 +259,7 @@ jobs:
       - name: Setup pnpm + Node
         uses: ./.github/actions/setup-pnpm-node
 
-      - name: Build desktop artifacts (Linux)
+      - name: Build artifacts (Linux)
         run: pnpm package:linux
 
       - name: Upload Linux artifacts

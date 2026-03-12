@@ -8,3 +8,5 @@ release/
 .env
 .env.*
 !.env.example
+*.log
+coverage/

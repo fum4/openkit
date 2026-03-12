@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.apps.json",
   "compilerOptions": {
-    "types": ["node"],
+    "types": ["node", "vitest/globals"],
     "paths": {
       "@openkit/agents/*": ["../../libs/agents/src/*"],
       "@openkit/agents": ["../../libs/agents/src/index.ts"],

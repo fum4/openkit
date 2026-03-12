@@ -36,7 +36,18 @@ MCP is legacy in this repository.
 
 **Package manager**: pnpm
 
-There is no test runner configured.
+**Test runner**: Vitest (co-located tests: `foo.ts` -> `foo.test.ts`). Run `pnpm test` for all, `pnpm nx run <project>:test` for one project.
+
+## Testing
+
+**Tests are the most important aspect of this codebase.** They are the safety net for refactoring, bug prevention, and CI/CD readiness. Every code change — feature, bugfix, or refactor — must include corresponding tests. Writing tests is not optional or secondary; it is the primary deliverable alongside working code.
+
+- When writing or modifying tests, **always use the testing skill** (`.claude/skills/testing/`) if available. It contains the canonical patterns, query priorities, and conventions for this project.
+- **Do not modify existing tests lightly.** If a test fails, first verify whether the test caught a real bug before changing it. Changing a test to make it pass defeats the purpose — investigate first.
+- Put real effort into test quality. Tests should be thorough, covering edge cases, error paths, and boundary conditions — not just the happy path.
+- Write tests carefully — one behavior per `it()`, Arrange-Act-Assert structure, behavior-spec naming.
+- Mock at the boundary (fs, child_process, HTTP), not internal helpers.
+- Component tests use React Testing Library: query by role/label/text, use `userEvent`, never test implementation details.
 
 ## Code Quality
 
