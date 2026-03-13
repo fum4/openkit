@@ -23,11 +23,10 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
-      - name: Setup pnpm + Node
-        uses: ./.github/actions/setup-pnpm-node
-
-      - name: Setup native port resolution
-        uses: ./.github/actions/setup-native-port-resolution
+      - name: Setup dependencies
+        uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node,go,zig
 
       - name: Build artifacts (signed/notarized)
         uses: ./.github/actions/package-macos
@@ -60,11 +59,10 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
-      - name: Setup pnpm + Node
-        uses: ./.github/actions/setup-pnpm-node
-
-      - name: Setup Zig + build native port hook
-        uses: ./.github/actions/setup-native-port-resolution
+      - name: Setup dependencies
+        uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node,go,zig
 
       - name: Build artifacts
         run: pnpm package:linux

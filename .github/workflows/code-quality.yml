@@ -18,7 +18,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - id: lint-affected
         uses: ./.github/actions/check-affected-target
         with:
@@ -37,7 +39,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - run: pnpm check:format
 
   lint:
@@ -52,7 +56,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - run: pnpm nx affected -t lint --base="${BASE_SHA}" --head="${HEAD_SHA}"
 
   type-check:
@@ -67,5 +73,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - run: pnpm nx affected -t typecheck --base="${BASE_SHA}" --head="${HEAD_SHA}"
