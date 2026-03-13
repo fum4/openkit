@@ -1,7 +1,11 @@
 name: Setup Native Port Resolution
-description: Install Zig toolchain and build the native port-resolution library.
+description: Install Go and Zig toolchains and build the native port-resolution library (includes logger).
 
 inputs:
+  go-version:
+    description: Go version to install.
+    required: false
+    default: "1.23"
   zig-version:
     description: Zig version to install.
     required: false
@@ -10,6 +14,10 @@ inputs:
 runs:
   using: composite
   steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+
     - uses: mlugg/setup-zig@v2
       with:
         version: ${{ inputs.zig-version }}

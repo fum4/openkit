@@ -38,6 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-native-port-resolution
       - run: pnpm build:cli
 
   server:
@@ -69,6 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-native-port-resolution
       - run: pnpm build:web-app
 
   mobile-app:
