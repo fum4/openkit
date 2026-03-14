@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { reportPersistentErrorToast } from "../errorToasts";
 import type { WorktreeInfo, PortsInfo, JiraStatus, GitHubStatus, LinearStatus } from "../types";
@@ -22,13 +22,21 @@ export function useWorktrees(
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track which serverUrl produced the current worktrees so we return []
+  // synchronously during the render where serverUrl changes but the clearing
+  // effect hasn't run yet. Without this, stale worktrees from the previous
+  // project leak into one render and trigger API calls against the wrong server.
+  const worktreesSourceRef = useRef<string | null>(serverUrl);
+
   const fetchWorktrees = useCallback(async () => {
     if (serverUrl === null) return; // No active project in Electron mode
     try {
       const data = await apiFetchWorktrees(serverUrl);
+      if (worktreesSourceRef.current !== serverUrl) return;
       setWorktrees((data.worktrees || []) as WorktreeInfo[]);
       setError(null);
     } catch (err) {
+      if (worktreesSourceRef.current !== serverUrl) return;
       const message = err instanceof Error ? err.message : "Failed to fetch worktrees";
       setError(message);
       reportPersistentErrorToast(err, "Failed to fetch worktrees", { scope: "worktrees:fetch" });
@@ -52,11 +60,14 @@ export function useWorktrees(
 
   useEffect(() => {
     if (serverUrl === null) {
+      worktreesSourceRef.current = null;
       setWorktrees([]);
       setIsConnected(false);
       return;
     }
 
+    worktreesSourceRef.current = serverUrl;
+    setWorktrees([]);
     fetchWorktrees();
 
     const eventSource = new EventSource(getEventsUrl(serverUrl));
@@ -87,6 +98,8 @@ export function useWorktrees(
       }
     };
 
+    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
     eventSource.onerror = () => {
       setIsConnected(false);
       setError("Live updates disconnected");
@@ -94,17 +107,20 @@ export function useWorktrees(
         scope: "worktrees:sse",
       });
       eventSource.close();
-      setTimeout(() => {
+      retryTimeoutId = setTimeout(() => {
         fetchWorktrees();
       }, 5000);
     };
 
     return () => {
       eventSource.close();
+      if (retryTimeoutId !== null) clearTimeout(retryTimeoutId);
     };
   }, [fetchWorktrees, notificationRef, hookUpdateRef, serverUrl]);
 
-  return { worktrees, isConnected, error, refetch: fetchWorktrees };
+  const effectiveWorktrees = worktreesSourceRef.current === serverUrl ? worktrees : [];
+
+  return { worktrees: effectiveWorktrees, isConnected, error, refetch: fetchWorktrees };
 }
 
 export function useProjectName() {
@@ -117,15 +133,21 @@ export function useProjectName() {
       return;
     }
 
+    let cancelled = false;
     apiFetchConfig(serverUrl)
       .then((data) => {
-        if (data.projectName) setProjectName(data.projectName);
+        if (!cancelled && data.projectName) setProjectName(data.projectName);
       })
       .catch((error) => {
+        if (cancelled) return;
         reportPersistentErrorToast(error, "Failed to load project name", {
           scope: "project-name:fetch",
         });
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [serverUrl]);
 
   return projectName;
@@ -166,13 +188,21 @@ export function useJiraStatus() {
       return;
     }
 
+    let cancelled = false;
     apiFetchJiraStatus(serverUrl)
-      .then((data) => setJiraStatus(data))
+      .then((data) => {
+        if (!cancelled) setJiraStatus(data);
+      })
       .catch((error) => {
+        if (cancelled) return;
         reportPersistentErrorToast(error, "Failed to fetch Jira status", {
           scope: "jira-status:fetch",
         });
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [refreshKey, serverUrl]);
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -191,13 +221,21 @@ export function useLinearStatus() {
       return;
     }
 
+    let cancelled = false;
     apiFetchLinearStatus(serverUrl)
-      .then((data) => setLinearStatus(data))
+      .then((data) => {
+        if (!cancelled) setLinearStatus(data);
+      })
       .catch((error) => {
+        if (cancelled) return;
         reportPersistentErrorToast(error, "Failed to fetch Linear status", {
           scope: "linear-status:fetch",
         });
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [refreshKey, serverUrl]);
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -215,13 +253,21 @@ export function useGitHubStatus() {
       return;
     }
 
+    let cancelled = false;
     apiFetchGitHubStatus(serverUrl)
-      .then((data) => setStatus(data))
+      .then((data) => {
+        if (!cancelled) setStatus(data);
+      })
       .catch((error) => {
+        if (cancelled) return;
         reportPersistentErrorToast(error, "Failed to fetch GitHub status", {
           scope: "github-status:fetch",
         });
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [serverUrl]);
 
   return status;

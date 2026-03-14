@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useRef, useMemo } from "react";
 
 import { reportPersistentErrorToast, showPersistentErrorToast } from "../errorToasts";
 import { useServerUrlOptional } from "../contexts/ServerContext";
@@ -81,7 +81,10 @@ function shouldSuppressRecoverableWorktreeConflictToast(
   return error.includes("cannot lock ref 'refs/heads/");
 }
 
-function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(client: T): ApiClient<T> {
+function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(
+  client: T,
+  isStale: () => boolean,
+): ApiClient<T> {
   const wrappedClient = {} as ApiClient<T>;
 
   (Object.keys(client) as Array<keyof T>).forEach((key) => {
@@ -92,6 +95,7 @@ function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(client: 
 
       return result
         .then((resolved) => {
+          if (isStale()) return resolved;
           if (
             hasErrorResult(resolved) &&
             (resolved.success === false ||
@@ -105,7 +109,9 @@ function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(client: 
           return resolved;
         })
         .catch((error) => {
-          reportPersistentErrorToast(error, "Request failed", { scope: `api:${String(key)}` });
+          if (!isStale()) {
+            reportPersistentErrorToast(error, "Request failed", { scope: `api:${String(key)}` });
+          }
           throw error;
         }) as ReturnType<T[typeof key]>;
     }) as ApiClient<T>[typeof key];
@@ -118,6 +124,8 @@ function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(client: 
 // This makes it easy for components to use API functions without worrying about serverUrl
 export function useApi() {
   const serverUrl = useServerUrlOptional();
+  const serverUrlRef = useRef(serverUrl);
+  serverUrlRef.current = serverUrl;
 
   const client = useMemo(
     () => ({
@@ -648,5 +656,8 @@ export function useApi() {
     [serverUrl],
   );
 
-  return useMemo(() => wrapClientWithErrorToasts(client), [client]);
+  return useMemo(() => {
+    const boundServerUrl = serverUrl;
+    return wrapClientWithErrorToasts(client, () => serverUrlRef.current !== boundServerUrl);
+  }, [client, serverUrl]);
 }

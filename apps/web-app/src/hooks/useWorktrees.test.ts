@@ -1,88 +1,278 @@
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
 
-import { renderHook, waitFor, act } from "../test/render";
 import { useWorktrees } from "./useWorktrees";
 
-let mockServerUrl: string | null = "";
+// ─── Mocks ──────────────────────────────────────────────────────
+
+let mockServerUrl: string | null = "http://localhost:3000";
 
 vi.mock("../contexts/ServerContext", () => ({
-  useServer: () => ({
-    serverUrl: null,
-    projects: [],
-    activeProject: null,
-    openProject: async () => ({ success: true }),
-    closeProject: async () => {},
-    switchProject: () => {},
-    isElectron: false,
-    projectsLoading: false,
-    selectFolder: async () => null,
-  }),
-  useServerUrl: () => "",
   useServerUrlOptional: () => mockServerUrl,
-  ServerProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+vi.mock("../errorToasts", () => ({
+  reportPersistentErrorToast: vi.fn(),
+  showPersistentErrorToast: vi.fn(),
+}));
+
+const mockFetchWorktrees = vi.fn();
+
+vi.mock("./api", () => ({
+  fetchWorktrees: (...args: unknown[]) => mockFetchWorktrees(...args),
+  getEventsUrl: (url: string) => `${url}/api/events`,
+  fetchPorts: vi.fn().mockResolvedValue({ discovered: [], offsetStep: 1 }),
+  fetchJiraStatus: vi.fn().mockResolvedValue(null),
+  fetchGitHubStatus: vi.fn().mockResolvedValue(null),
+  fetchLinearStatus: vi.fn().mockResolvedValue(null),
+  fetchConfig: vi.fn().mockResolvedValue({}),
+}));
+
+// ─── EventSource stub ──────────────────────────────────────────
+
+interface MockEventSource {
+  onopen: (() => void) | null;
+  onmessage: ((event: { data: string }) => void) | null;
+  onerror: (() => void) | null;
+  close: ReturnType<typeof vi.fn>;
+  readyState: number;
+}
+
+let latestEventSource: MockEventSource;
+let eventSourceConstructCount = 0;
+
+class FakeEventSource implements MockEventSource {
+  onopen: (() => void) | null = null;
+  onmessage: ((event: { data: string }) => void) | null = null;
+  onerror: (() => void) | null = null;
+  close = vi.fn();
+  readyState = 0;
+
+  constructor(_url: string) {
+    latestEventSource = this;
+    eventSourceConstructCount++;
+  }
+}
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+  delete (globalThis as Record<string, unknown>).EventSource;
+} catch {
+  // Some environments don't allow delete; fall through to assignment.
+}
+(globalThis as Record<string, unknown>).EventSource = FakeEventSource;
+
+// ─── Helpers ───────────────────────────────────────────────────
+
+const worktreeA = { id: "wt-a", name: "worktree-a", branch: "main", path: "/a", status: "running" };
+const worktreeB = { id: "wt-b", name: "worktree-b", branch: "dev", path: "/b", status: "running" };
+
+function setServerUrl(url: string | null) {
+  mockServerUrl = url;
+}
+
+// ─── Tests ─────────────────────────────────────────────────────
+
+beforeEach(() => {
+  mockServerUrl = "http://localhost:3000";
+  mockFetchWorktrees.mockReset();
+  mockFetchWorktrees.mockResolvedValue({ worktrees: [worktreeA] });
+  latestEventSource = undefined as unknown as MockEventSource;
+  eventSourceConstructCount = 0;
+});
+
 describe("useWorktrees", () => {
-  beforeEach(() => {
-    mockServerUrl = "";
+  it("fetches worktrees on mount", async () => {
+    const { result } = renderHook(() => useWorktrees());
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeA]);
+    });
+
+    expect(mockFetchWorktrees).toHaveBeenCalledWith("http://localhost:3000");
   });
 
-  it("returns empty worktrees initially", () => {
+  it("returns empty worktrees when serverUrl is null", () => {
+    setServerUrl(null);
     const { result } = renderHook(() => useWorktrees());
 
     expect(result.current.worktrees).toEqual([]);
-    expect(result.current.isConnected).toBe(false);
-    expect(result.current.error).toBeNull();
+    expect(mockFetchWorktrees).not.toHaveBeenCalled();
   });
 
-  it("creates EventSource on mount", async () => {
-    renderHook(() => useWorktrees());
+  it("discards stale fetch response when serverUrl changes before response arrives", async () => {
+    let resolveA!: (value: { worktrees: (typeof worktreeA)[] }) => void;
+    let resolveB!: (value: { worktrees: (typeof worktreeB)[] }) => void;
+
+    mockFetchWorktrees
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveA = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveB = resolve;
+          }),
+      );
+
+    const { result, rerender } = renderHook(() => useWorktrees());
+
+    expect(mockFetchWorktrees).toHaveBeenCalledTimes(1);
+
+    // Switch to server B before A's response arrives
+    setServerUrl("http://localhost:4000");
+    rerender();
 
     await waitFor(() => {
-      expect((globalThis.EventSource as any).instances.length).toBeGreaterThan(0);
+      expect(mockFetchWorktrees).toHaveBeenCalledTimes(2);
     });
 
-    expect((globalThis.EventSource as any).instances[0].url).toContain("/api/events");
+    // A's response arrives late — should be discarded
+    await act(async () => {
+      resolveA({ worktrees: [worktreeA] });
+    });
+
+    expect(result.current.worktrees).toEqual([]);
+
+    // B's response arrives — should be accepted
+    await act(async () => {
+      resolveB({ worktrees: [worktreeB] });
+    });
+
+    expect(result.current.worktrees).toEqual([worktreeB]);
   });
 
-  it("parses SSE worktrees message and updates state", async () => {
+  it("clears retry timeout when serverUrl changes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    mockFetchWorktrees.mockResolvedValue({ worktrees: [worktreeA] });
+
+    const { result, rerender } = renderHook(() => useWorktrees());
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeA]);
+    });
+
+    // Simulate SSE error, which schedules a 5s retry
+    act(() => {
+      latestEventSource.onerror?.();
+    });
+
+    expect(latestEventSource.close).toHaveBeenCalled();
+
+    // Switch projects before retry fires
+    mockFetchWorktrees.mockResolvedValue({ worktrees: [worktreeB] });
+    setServerUrl("http://localhost:4000");
+    rerender();
+
+    // Advance past the 5s retry window — stale retry should NOT fire
+    const callCountBeforeTimer = mockFetchWorktrees.mock.calls.length;
+    await act(async () => {
+      vi.advanceTimersByTime(6000);
+    });
+
+    // Only the new server's fetch should have fired, not the stale retry
+    const callsAfterTimer = mockFetchWorktrees.mock.calls.slice(callCountBeforeTimer);
+    for (const call of callsAfterTimer) {
+      expect(call[0]).not.toBe("http://localhost:3000");
+    }
+
+    vi.useRealTimers();
+  });
+
+  it("stale refetch does not inject old worktrees after serverUrl changes", async () => {
+    let resolveRefetch!: (value: { worktrees: (typeof worktreeA)[] }) => void;
+
+    mockFetchWorktrees.mockResolvedValueOnce({ worktrees: [worktreeA] });
+
+    const { result, rerender } = renderHook(() => useWorktrees());
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeA]);
+    });
+
+    // Capture refetch (bound to server A's serverUrl)
+    const staleRefetch = result.current.refetch;
+
+    // Switch to server B
+    mockFetchWorktrees.mockImplementation((url: string) => {
+      if (url === "http://localhost:3000") {
+        return new Promise((resolve) => {
+          resolveRefetch = resolve;
+        });
+      }
+      return Promise.resolve({ worktrees: [worktreeB] });
+    });
+    setServerUrl("http://localhost:4000");
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeB]);
+    });
+
+    // Call stale refetch (bound to old serverUrl) — simulates the SSE retry race
+    await act(async () => {
+      void staleRefetch();
+    });
+
+    // Resolve the stale fetch with old worktrees
+    await act(async () => {
+      resolveRefetch({ worktrees: [worktreeA] });
+    });
+
+    // Worktrees should still be Project B's, not A's
+    expect(result.current.worktrees).toEqual([worktreeB]);
+  });
+
+  it("returns empty worktrees synchronously when serverUrl changes", async () => {
+    mockFetchWorktrees.mockResolvedValue({ worktrees: [worktreeA] });
+
+    const { result, rerender } = renderHook(() => useWorktrees());
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeA]);
+    });
+
+    // Switch serverUrl — should immediately return [] via effectiveWorktrees
+    setServerUrl("http://localhost:4000");
+    rerender();
+
+    expect(result.current.worktrees).toEqual([]);
+  });
+
+  it("updates worktrees from SSE message", async () => {
     const { result } = renderHook(() => useWorktrees());
 
     await waitFor(() => {
-      expect((globalThis.EventSource as any).instances.length).toBeGreaterThan(0);
+      expect(result.current.worktrees).toEqual([worktreeA]);
     });
-
-    const es = (globalThis.EventSource as any).instances[0];
-    const worktreeData = [
-      { id: "wt-1", name: "feature-a", branch: "feature-a", path: "/tmp/wt-1" },
-      { id: "wt-2", name: "feature-b", branch: "feature-b", path: "/tmp/wt-2" },
-    ];
 
     act(() => {
-      es.simulateMessage(JSON.stringify({ type: "worktrees", worktrees: worktreeData }));
+      latestEventSource.onmessage?.({
+        data: JSON.stringify({ type: "worktrees", worktrees: [worktreeB] }),
+      });
     });
 
-    await waitFor(() => {
-      expect(result.current.worktrees).toHaveLength(2);
-    });
-
-    expect(result.current.worktrees[0]).toMatchObject({ id: "wt-1", name: "feature-a" });
-    expect(result.current.worktrees[1]).toMatchObject({ id: "wt-2", name: "feature-b" });
+    expect(result.current.worktrees).toEqual([worktreeB]);
   });
 
   it("dispatches custom activity window event on SSE activity message", async () => {
     const dispatchSpy = vi.spyOn(window, "dispatchEvent");
-    renderHook(() => useWorktrees());
+
+    const { result } = renderHook(() => useWorktrees());
 
     await waitFor(() => {
-      expect((globalThis.EventSource as any).instances.length).toBeGreaterThan(0);
+      expect(result.current.worktrees).toEqual([worktreeA]);
     });
 
-    const es = (globalThis.EventSource as any).instances[0];
     const activityEvent = { type: "commit", message: "test commit" };
 
     act(() => {
-      es.simulateMessage(JSON.stringify({ type: "activity", event: activityEvent }));
+      latestEventSource.onmessage?.({
+        data: JSON.stringify({ type: "activity", event: activityEvent }),
+      });
     });
 
     const customEvent = dispatchSpy.mock.calls.find(
@@ -96,20 +286,22 @@ describe("useWorktrees", () => {
 
   it("dispatches custom activity-history window event on SSE activity-history message", async () => {
     const dispatchSpy = vi.spyOn(window, "dispatchEvent");
-    renderHook(() => useWorktrees());
+
+    const { result } = renderHook(() => useWorktrees());
 
     await waitFor(() => {
-      expect((globalThis.EventSource as any).instances.length).toBeGreaterThan(0);
+      expect(result.current.worktrees).toEqual([worktreeA]);
     });
 
-    const es = (globalThis.EventSource as any).instances[0];
     const events = [
       { type: "commit", message: "first" },
       { type: "commit", message: "second" },
     ];
 
     act(() => {
-      es.simulateMessage(JSON.stringify({ type: "activity-history", events }));
+      latestEventSource.onmessage?.({
+        data: JSON.stringify({ type: "activity-history", events }),
+      });
     });
 
     const customEvent = dispatchSpy.mock.calls.find(
@@ -124,39 +316,42 @@ describe("useWorktrees", () => {
   it("sets isConnected to true on EventSource open", async () => {
     const { result } = renderHook(() => useWorktrees());
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true);
+    expect(result.current.isConnected).toBe(false);
+
+    act(() => {
+      latestEventSource.onopen?.();
     });
+
+    expect(result.current.isConnected).toBe(true);
   });
 
   it("cleans up EventSource on unmount", async () => {
-    const { unmount } = renderHook(() => useWorktrees());
+    const { result, unmount } = renderHook(() => useWorktrees());
 
     await waitFor(() => {
-      expect((globalThis.EventSource as any).instances.length).toBeGreaterThan(0);
+      expect(result.current.worktrees).toEqual([worktreeA]);
     });
 
-    const es = (globalThis.EventSource as any).instances[0];
+    const es = latestEventSource;
 
     unmount();
 
-    expect(es.readyState).toBe(2);
+    expect(es.close).toHaveBeenCalled();
   });
 
   it("invokes notification callback on SSE notification message", async () => {
     const onNotification = vi.fn();
-    renderHook(() => useWorktrees(onNotification));
+
+    const { result } = renderHook(() => useWorktrees(onNotification));
 
     await waitFor(() => {
-      expect((globalThis.EventSource as any).instances.length).toBeGreaterThan(0);
+      expect(result.current.worktrees).toEqual([worktreeA]);
     });
 
-    const es = (globalThis.EventSource as any).instances[0];
-
     act(() => {
-      es.simulateMessage(
-        JSON.stringify({ type: "notification", message: "Build failed", level: "error" }),
-      );
+      latestEventSource.onmessage?.({
+        data: JSON.stringify({ type: "notification", message: "Build failed", level: "error" }),
+      });
     });
 
     expect(onNotification).toHaveBeenCalledWith("Build failed", "error");
@@ -164,25 +359,26 @@ describe("useWorktrees", () => {
 
   it("invokes hook-update callback on SSE hook-update message", async () => {
     const onHookUpdate = vi.fn();
-    renderHook(() => useWorktrees(undefined, onHookUpdate));
+
+    const { result } = renderHook(() => useWorktrees(undefined, onHookUpdate));
 
     await waitFor(() => {
-      expect((globalThis.EventSource as any).instances.length).toBeGreaterThan(0);
+      expect(result.current.worktrees).toEqual([worktreeA]);
     });
 
-    const es = (globalThis.EventSource as any).instances[0];
-
     act(() => {
-      es.simulateMessage(JSON.stringify({ type: "hook-update", worktreeId: "wt-123" }));
+      latestEventSource.onmessage?.({
+        data: JSON.stringify({ type: "hook-update", worktreeId: "wt-123" }),
+      });
     });
 
     expect(onHookUpdate).toHaveBeenCalledWith("wt-123");
   });
 
   it("does not create EventSource when serverUrl is null", () => {
-    mockServerUrl = null;
+    setServerUrl(null);
     renderHook(() => useWorktrees());
 
-    expect((globalThis.EventSource as any).instances).toHaveLength(0);
+    expect(eventSourceConstructCount).toBe(0);
   });
 });

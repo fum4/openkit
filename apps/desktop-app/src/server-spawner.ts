@@ -43,10 +43,26 @@ export function spawnServer(projectDir: string, port: number): ChildProcess {
   debug(`port: ${port}`);
   debug(`PATH: ${process.env.PATH}`);
 
+  // Strip IDE/Claude Code nesting markers so the server's child processes
+  // (especially the Claude CLI) don't detect a nested context and suppress output.
+  const cleanEnv = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([k]) =>
+        !k.startsWith("CLAUDECODE") &&
+        !k.startsWith("CLAUDE_CODE_") &&
+        !k.startsWith("CLAUDE_AGENT_") &&
+        !k.startsWith("CURSOR_SPAWN") &&
+        !k.startsWith("CURSOR_TRACE") &&
+        !k.startsWith("CURSOR_EXTENSION") &&
+        !k.startsWith("CURSOR_WORKSPACE") &&
+        !k.startsWith("VSCODE_"),
+    ),
+  );
+
   const child = spawn(runtime, [cliPath, ...args], {
     cwd: projectDir,
     env: {
-      ...process.env,
+      ...cleanEnv,
       OPENKIT_SERVER_PORT: String(port),
       OPENKIT_NO_OPEN: "1",
       ...(isPackaged ? { OPENKIT_BUNDLED_ROOT: process.resourcesPath } : {}),

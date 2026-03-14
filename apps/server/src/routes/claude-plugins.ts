@@ -1,4 +1,4 @@
-import { execFile as execFileCb } from "child_process";
+import { execFile as execFileCb, spawn } from "child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
@@ -21,24 +21,6 @@ interface CliResult {
   success: boolean;
   stdout: string;
   stderr: string;
-}
-
-async function runClaude(args: string[], timeout = 15_000): Promise<CliResult> {
-  try {
-    const { stdout, stderr } = await execFile(resolveCommandPath("claude"), args, {
-      encoding: "utf-8",
-      timeout,
-      env: withAugmentedPathEnv(),
-    });
-    return { success: true, stdout: stdout.trim(), stderr: stderr.trim() };
-  } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string; message?: string };
-    return {
-      success: false,
-      stdout: (e.stdout ?? "").trim(),
-      stderr: (e.stderr ?? e.message ?? "Unknown error").trim(),
-    };
-  }
 }
 
 function tryParseJson<T>(text: string, fallback: T): T {
@@ -480,6 +462,120 @@ async function checkPluginHealth(
 
 export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) {
   const projectDir = manager.getConfigDir();
+  const opsLog = manager.getOpsLog();
+
+  async function runClaude(args: string[], timeout = 15_000, cwd?: string): Promise<CliResult> {
+    const resolvedPath = resolveCommandPath("claude");
+    const binaryExists = existsSync(resolvedPath);
+    // Build a clean env so no IDE/Claude Code nesting markers leak through.
+    // The Claude CLI suppresses output when it detects a nested context via
+    // env vars like CLAUDECODE, VSCODE_*, CURSOR_*, etc.
+    const baseEnv = withAugmentedPathEnv();
+    const env = Object.fromEntries(
+      Object.entries(baseEnv).filter(
+        ([k]) =>
+          !k.startsWith("CLAUDECODE") &&
+          !k.startsWith("CLAUDE_CODE_") &&
+          !k.startsWith("CLAUDE_AGENT_") &&
+          !k.startsWith("CURSOR_") &&
+          !k.startsWith("VSCODE_"),
+      ),
+    );
+    env.NO_COLOR = "1";
+    env.TERM = "xterm-256color";
+
+    opsLog.addEvent({
+      source: "claude-cli",
+      action: "cli.exec",
+      message: `Starting: claude ${args.join(" ")}`,
+      level: "debug",
+      status: "started",
+      command: { command: resolvedPath, args, cwd },
+      metadata: {
+        binaryExists,
+        HOME: env.HOME,
+        SHELL: env.SHELL,
+        TERM: env.TERM,
+        claudeEnvVars: Object.fromEntries(
+          Object.entries(env).filter(([k]) => k.startsWith("CLAUDE_")),
+        ),
+      },
+    });
+
+    const startMs = Date.now();
+    return new Promise<CliResult>((resolve) => {
+      const child = spawn(resolvedPath, args, {
+        env,
+        ...(cwd ? { cwd } : {}),
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: true,
+      });
+      child.unref();
+
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+
+      const timer = setTimeout(() => {
+        child.kill("SIGTERM");
+      }, timeout);
+
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        const durationMs = Date.now() - startMs;
+        const trimmedOut = stdout.trim();
+        const trimmedErr = stderr.trim();
+
+        opsLog.addEvent({
+          source: "claude-cli",
+          action: "cli.exec",
+          message: `${code === 0 ? "Succeeded" : "Failed"}: claude ${args.join(" ")} (${durationMs}ms, stdout=${trimmedOut.length}b, stderr=${trimmedErr.length}b)`,
+          level: code === 0 && trimmedOut.length === 0 ? "warning" : code === 0 ? "info" : "error",
+          status: code === 0 ? "succeeded" : "failed",
+          command: {
+            command: resolvedPath,
+            args,
+            cwd,
+            durationMs,
+            exitCode: code ?? null,
+            stdout: trimmedOut.slice(0, 500),
+            stderr: trimmedErr.slice(0, 500),
+          },
+        });
+
+        resolve({
+          success: code === 0,
+          stdout: trimmedOut,
+          stderr: trimmedErr || (code !== 0 ? `Exit code ${code}` : ""),
+        });
+      });
+
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        const durationMs = Date.now() - startMs;
+        opsLog.addEvent({
+          source: "claude-cli",
+          action: "cli.exec",
+          message: `Failed: claude ${args.join(" ")} (${durationMs}ms)`,
+          level: "error",
+          status: "failed",
+          command: {
+            command: resolvedPath,
+            args,
+            cwd,
+            durationMs,
+            stderr: err.message.slice(0, 500),
+          },
+        });
+        resolve({ success: false, stdout: "", stderr: err.message });
+      });
+    });
+  }
 
   // Check CLI availability once
   let cliAvailable: boolean | null = null;
@@ -491,15 +587,51 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     return cliAvailable;
   }
 
-  // ── Debug: raw CLI output ────────────────────────────────────
+  // ── Debug: CLI diagnostics ───────────────────────────────────
 
   app.get("/api/claude/plugins/debug", async (c) => {
-    const result = await runClaude(["plugin", "list", "--json"]);
+    const resolvedPath = resolveCommandPath("claude");
+    const binaryExists = existsSync(resolvedPath);
+    const env = withAugmentedPathEnv();
+
+    // Run the command 3 times to check for intermittent behavior
+    const runs = [];
+    for (let i = 0; i < 3; i++) {
+      const startMs = Date.now();
+      const result = await runClaude(["plugin", "list", "--json"]);
+      runs.push({
+        attempt: i + 1,
+        durationMs: Date.now() - startMs,
+        success: result.success,
+        stdoutLength: result.stdout.length,
+        stderrLength: result.stderr.length,
+        raw: result.stdout,
+        stderr: result.stderr || undefined,
+        parsed: result.success ? tryParseJson<unknown>(result.stdout, null) : null,
+      });
+    }
+
+    const versionResult = await runClaude(["--version"], 5_000);
+
     return c.json({
-      success: result.success,
-      raw: result.stdout,
-      parsed: result.success ? tryParseJson<unknown>(result.stdout, null) : null,
-      stderr: result.stderr || undefined,
+      diagnostic: {
+        resolvedBinaryPath: resolvedPath,
+        binaryExists,
+        HOME: env.HOME ?? null,
+        SHELL: env.SHELL ?? null,
+        TERM: env.TERM ?? null,
+        claudeEnvVars: Object.fromEntries(
+          Object.entries(env).filter(([k]) => k.startsWith("CLAUDE_")),
+        ),
+        nodeVersion: process.version,
+        platform: process.platform,
+      },
+      versionCheck: {
+        success: versionResult.success,
+        output: versionResult.stdout,
+        stderr: versionResult.stderr || undefined,
+      },
+      runs,
     });
   });
 
@@ -948,9 +1080,30 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     const cached = getCached<unknown>("plugins:available");
     if (cached) return c.json(cached);
 
-    const result = await runClaude(["plugin", "list", "--available", "--json"], 30_000);
-    if (!result.success) {
-      return c.json({ available: [], error: result.stderr });
+    // The Claude CLI can intermittently fail when spawned as a child process
+    // (e.g. "Cannot read properties of undefined (reading 'trim')").
+    // Retry up to 2 extra times to work around transient CLI failures.
+    let result: CliResult | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      result = await runClaude(["plugin", "list", "--available", "--json"], 30_000, projectDir);
+      if (result.success && result.stdout.length > 0) break;
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
+    }
+
+    if (!result || !result.success) {
+      console.error("[OpenKit] claude plugin list --available failed:", result?.stderr);
+      return c.json({
+        available: [],
+        error: "Failed to load available plugins from the Claude CLI. Please try again.",
+      });
+    }
+
+    if (result.stdout.length === 0) {
+      console.warn("[OpenKit] claude plugin list --available returned empty output");
+      return c.json({
+        available: [],
+        error: "The Claude CLI returned no plugin data. Please try again.",
+      });
     }
 
     const parsed = tryParseJson<unknown>(result.stdout, {});

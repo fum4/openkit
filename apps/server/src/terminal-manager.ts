@@ -136,7 +136,7 @@ export class TerminalManager {
       cols,
       rows,
       scrollback: TerminalManager.RESTORE_SCROLLBACK_LINES,
-      allowProposedApi: false,
+      allowProposedApi: true,
     });
     const serializeAddon = new SerializeAddon();
     restoreTerminal.loadAddon(serializeAddon);

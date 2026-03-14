@@ -2,12 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useServer, useServerUrlOptional } from "../contexts/ServerContext";
 import { showPersistentErrorToast } from "../errorToasts";
-import {
-  createTerminalSession,
-  destroyTerminalSession,
-  fetchActiveTerminalSession,
-  getTerminalWsUrl,
-} from "./api";
+import { createTerminalSession, destroyTerminalSession, getTerminalWsUrl } from "./api";
 
 type TerminalSessionScope = "terminal" | "claude" | "codex" | "gemini" | "opencode";
 type TerminalConnectSource = "new" | "reused" | null;
@@ -307,41 +302,6 @@ export function useTerminal({
     [runtimeScopeKey, serverUrl, sessionScope, worktreeId],
   );
 
-  const destroyScopedSessionIfPresent = useCallback(
-    async (candidateSessionId: string | null) => {
-      const destroyedIds = new Set<string>();
-      const destroyIfPresent = async (sid: string | null) => {
-        if (!sid || destroyedIds.has(sid)) return;
-        destroyedIds.add(sid);
-        const destroyResult = await destroyTerminalSession(sid, serverUrl);
-        if (!destroyResult.success) {
-          const missingSession = destroyResult.error?.toLowerCase().includes("session not found");
-          if (missingSession) {
-            console.info("[terminal][TEMP] destroy skipped for stale session", {
-              worktreeId,
-              sessionScope,
-              sessionId: sid,
-            });
-            return;
-          }
-          console.info("[terminal][TEMP] destroy failed during scoped cleanup", {
-            worktreeId,
-            sessionScope,
-            sessionId: sid,
-            error: destroyResult.error ?? "unknown",
-          });
-        }
-      };
-
-      await destroyIfPresent(candidateSessionId);
-      const active = await fetchActiveTerminalSession(worktreeId, sessionScope, serverUrl);
-      if (active.success && active.sessionId) {
-        await destroyIfPresent(active.sessionId);
-      }
-    },
-    [serverUrl, sessionScope, worktreeId],
-  );
-
   const connect = useCallback(
     async (options?: TerminalConnectOptions): Promise<TerminalConnectResult> => {
       const reason = options?.reason ?? "visible-reconnect";
@@ -416,9 +376,6 @@ export function useTerminal({
           terminalSessionCache.delete(key);
           sessionIdRef.current = null;
           setSessionId(null);
-          if (!explicitLaunch) {
-            await destroyScopedSessionIfPresent(staleCandidateSessionId);
-          }
           console.info("[terminal][TEMP] skipping cache; fresh session required", {
             worktreeId,
             sessionScope,
@@ -481,7 +438,6 @@ export function useTerminal({
             terminalSessionCache.delete(key);
             sessionIdRef.current = null;
             setSessionId(null);
-            await destroyScopedSessionIfPresent(cachedSessionId);
             console.info("[terminal][TEMP] cached session unusable; creating new session", {
               worktreeId,
               sessionScope,
@@ -552,7 +508,7 @@ export function useTerminal({
 
         const opened = await openSessionWebSocket(sid, gen);
         if (!opened && gen === connectGenRef.current) {
-          await destroyScopedSessionIfPresent(sid);
+          await destroyTerminalSession(sid, serverUrl);
           terminalSessionCache.delete(key);
           sessionIdRef.current = null;
           setSessionId(null);
@@ -680,7 +636,6 @@ export function useTerminal({
       sessionScope,
       createSessionStartupCommand,
       disconnect,
-      destroyScopedSessionIfPresent,
       runtimeScopeKey,
       serverUrl,
       openSessionWebSocket,
@@ -760,11 +715,20 @@ export function useTerminal({
 
   useEffect(() => {
     if (!error) return;
+    if (!visible) {
+      console.warn("[PROJECT-SWITCH] Suppressing terminal error toast (not visible)", {
+        worktreeId,
+        sessionScope,
+        serverUrl,
+        error,
+      });
+      return;
+    }
     showPersistentErrorToast(error, {
       scope: `terminal:${sessionScope}:${worktreeId}`,
       dedupeWindowMs: 250,
     });
-  }, [error, sessionScope, worktreeId]);
+  }, [error, sessionScope, serverUrl, visible, worktreeId]);
 
   return {
     sessionId,

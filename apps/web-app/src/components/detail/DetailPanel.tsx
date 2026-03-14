@@ -409,6 +409,11 @@ export function DetailPanel({
 
   useEffect(() => {
     const scopeCache = getScopeCache();
+    console.warn("[PROJECT-SWITCH] DetailPanel scope cache reset", {
+      detailScopeKey,
+      claudeTabsFromCache: [...scopeCache.openClaudeTabs],
+      codexTabsFromCache: [...scopeCache.openCodexTabs],
+    });
     setTabPerWorktree({ ...scopeCache.tabCache });
     setOpenTerminals(new Set());
     setOpenClaudeTabs(new Set(scopeCache.openClaudeTabs));
@@ -1303,6 +1308,12 @@ export function DetailPanel({
 
   // Keep all hooks above this guard; adding hooks below it breaks hook ordering between renders.
   if (!worktree) {
+    console.warn("[PROJECT-SWITCH] DetailPanel returning early (worktree=null)", {
+      detailScopeKey,
+      openClaudeTabCount: openClaudeTabs.size,
+      openClaudeTabIds: [...openClaudeTabs],
+      openTerminalCount: openTerminals.size,
+    });
     return (
       <div className={`flex-1 flex items-center justify-center ${text.dimmed} text-sm`}>
         Select a worktree or create a new one
