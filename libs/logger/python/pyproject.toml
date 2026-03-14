@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "logger"
+version = "1.0.0"
+description = "Shared logger for monorepo with Go FFI bindings"
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+include = ["."]
+exclude = ["__pycache__"]

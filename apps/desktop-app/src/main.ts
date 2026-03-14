@@ -11,6 +11,7 @@ import {
   type AppPreferences,
   type SetupPreference,
 } from "./preferences-manager.js";
+import { detectOpenkitRepoPath } from "./dev-mode.js";
 
 const { autoUpdater } = electronUpdater as { autoUpdater: AppUpdater };
 
@@ -377,6 +378,21 @@ function setupIpcHandlers() {
         emitAppUpdateState();
       }
     }
+  });
+
+  ipcMain.handle("detect-openkit-repo", () => {
+    return detectOpenkitRepoPath(devWorkspaceRoot);
+  });
+
+  ipcMain.handle("select-dev-repo-folder", async () => {
+    if (!mainWindow) return null;
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openDirectory"],
+      title: "Select OpenKit Repository",
+    });
+
+    return result.canceled ? null : result.filePaths[0];
   });
 
   ipcMain.handle("get-app-update-state", () => {

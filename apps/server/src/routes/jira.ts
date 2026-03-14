@@ -27,7 +27,7 @@ import {
   updateIssueSummary,
 } from "@openkit/integrations/jira/api";
 import type { DataLifecycleConfig, JiraCredentials } from "@openkit/integrations/jira/types";
-import { log } from "@openkit/shared/logger";
+import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 
 function resolveAutoStartAgent(value: unknown): "claude" | "codex" | "gemini" | "opencode" {

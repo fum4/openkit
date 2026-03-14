@@ -4,7 +4,7 @@ import path from "path";
 import { promisify } from "util";
 
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import type { WorktreeManager } from "./manager";
 import type { NotesManager } from "./notes-manager";
 import type {

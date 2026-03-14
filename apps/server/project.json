@@ -3,7 +3,7 @@
   "name": "server",
   "projectType": "application",
   "sourceRoot": "apps/server/src",
-  "implicitDependencies": ["agents", "integrations", "shared"],
+  "implicitDependencies": ["agents", "integrations", "shared", "native-port-resolution"],
   "targets": {
     "dev": {
       "executor": "nx:run-commands",
@@ -46,6 +46,13 @@
       "options": {
         "cwd": "apps/server",
         "command": "pnpm lint"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/server",
+        "command": "pnpm test"
       }
     }
   }

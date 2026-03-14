@@ -6,6 +6,8 @@ This document covers everything you need to develop, build, and extend OpenKit.
 
 - **Node.js** >= 18
 - **pnpm** >= 10 (package manager)
+- **Go** >= 1.23 — for building `libs/logger` shared library (`brew install go`)
+- **Zig** >= 0.15 — for the native port hook (`brew install zig`)
 - **macOS or Linux** (Unix-only -- depends on `lsof` and `pgrep`)
 - **Optional:** `gh` CLI for GitHub integration (PR creation, status checks)
 - **Optional:** Electron for desktop app development (`electron` and `electron-builder` are dev dependencies)

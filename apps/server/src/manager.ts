@@ -17,7 +17,7 @@ const execFile = promisify(execFileCb);
 import pc from "picocolors";
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { copyEnvFiles } from "@openkit/shared/env-files";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import { generateBranchName } from "./branch-name";
 import { getGitRoot, getWorktreeBranch, validateBranchName } from "@openkit/shared/git";
 import { GitHubManager } from "@openkit/integrations/github/github-manager";
@@ -253,9 +253,7 @@ export class WorktreeManager {
     this.portManager.useNativeHook = this.config.useNativePortHook === true;
     this.notesManager = new NotesManager(this.configDir);
     this.activityLog = new ActivityLog(this.configDir, this.config.activity);
-    this.opsLog = new OpsLog(this.configDir, {
-      retentionDays: this.config.activity?.retentionDays,
-    });
+    this.opsLog = new OpsLog(this.configDir, this.config.opsLog);
     this.portManager.setDebugLogger((event) => {
       this.opsLog.addEvent({
         source: "port",
@@ -357,14 +355,14 @@ export class WorktreeManager {
       );
       const status = this.githubManager.getStatus();
       if (status.repo) {
-        log.info(`GitHub: connected to ${status.repo}`);
+        log.info(`Connected to ${status.repo}`, { domain: "GitHub" });
       } else if (!status.installed) {
-        log.warn("GitHub: gh CLI not found, GitHub features disabled");
+        log.warn("gh CLI not found, GitHub features disabled", { domain: "GitHub" });
       } else if (!status.authenticated) {
-        log.warn('GitHub: not authenticated, run "gh auth login"');
+        log.warn('Not authenticated, run "gh auth login"', { domain: "GitHub" });
       }
     } catch {
-      log.warn("GitHub: initialization failed, features disabled");
+      log.warn("Initialization failed, features disabled", { domain: "GitHub" });
       this.githubManager = null;
     }
   }
@@ -1892,6 +1890,18 @@ export class WorktreeManager {
         existing.activity = (mergedActivity ?? {}) as Record<string, unknown>;
         this.config.activity = mergedActivity;
         this.activityLog.updateConfig(mergedActivity ?? {});
+      }
+
+      // Handle ops log settings
+      if (partial.opsLog !== undefined) {
+        hasConfigUpdates = true;
+        const mergedOpsLog = {
+          ...(existing.opsLog as Record<string, unknown>),
+          ...partial.opsLog,
+        };
+        existing.opsLog = mergedOpsLog;
+        this.config.opsLog = partial.opsLog;
+        this.opsLog.updateConfig(partial.opsLog ?? {});
       }
 
       for (const key of LOCAL_CONFIG_KEYS) {

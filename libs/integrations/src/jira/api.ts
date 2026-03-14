@@ -4,7 +4,7 @@ import { Readable } from "stream";
 import path from "path";
 
 import { APP_NAME } from "@openkit/shared/constants";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import { adfToMarkdown } from "./adf-to-markdown";
 import { getApiBase, getAuthHeaders } from "./auth";
 import type {

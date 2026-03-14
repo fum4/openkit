@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, statSync } from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
 
@@ -15,7 +15,6 @@ export class ActivityLog {
   private filePath: string;
   private listeners: Set<(event: ActivityEvent) => void> = new Set();
   private config: ActivityConfig;
-  private pruneTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(configDir: string, config?: Partial<ActivityConfig>) {
     const OpenKitDir = path.join(configDir, CONFIG_DIR_NAME);
@@ -38,16 +37,10 @@ export class ActivityLog {
 
     // Prune on startup
     this.prune();
-
-    // Prune every hour
-    this.pruneTimer = setInterval(() => this.prune(), 60 * 60 * 1000);
   }
 
   dispose(): void {
-    if (this.pruneTimer) {
-      clearInterval(this.pruneTimer);
-      this.pruneTimer = null;
-    }
+    // No-op: kept for interface compatibility
   }
 
   subscribe(listener: (event: ActivityEvent) => void): () => void {
@@ -86,6 +79,8 @@ export class ActivityLog {
     } catch {
       // Non-critical — event is still emitted to listeners
     }
+
+    this.pruneIfNeeded();
 
     // Notify SSE listeners
     this.listeners.forEach((listener) => {
@@ -150,19 +145,83 @@ export class ActivityLog {
     if (!existsSync(this.filePath)) return;
 
     try {
-      const cutoff = Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000;
       const content = readFileSync(this.filePath, "utf-8");
-      const lines = content.split("\n").filter((line) => {
-        if (!line.trim()) return false;
-        try {
-          const event = JSON.parse(line) as ActivityEvent;
-          return new Date(event.timestamp).getTime() > cutoff;
-        } catch {
-          return false;
-        }
-      });
+
+      let lines = content.split("\n").filter((line) => line.trim());
+
+      // Time-based pruning (only if retentionDays is set)
+      if (this.config.retentionDays !== undefined) {
+        const cutoff = Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000;
+        lines = lines.filter((line) => {
+          try {
+            const event = JSON.parse(line) as ActivityEvent;
+            return new Date(event.timestamp).getTime() > cutoff;
+          } catch {
+            return false;
+          }
+        });
+      } else {
+        // Still discard corrupt lines
+        lines = lines.filter((line) => {
+          try {
+            JSON.parse(line);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+      }
 
       writeFileSync(this.filePath, lines.join("\n") + (lines.length > 0 ? "\n" : ""));
+
+      // Size-based pruning after time-based
+      if (this.config.maxSizeMB !== undefined) {
+        this.pruneBySizeSync();
+      }
+    } catch {
+      // Ignore prune errors
+    }
+  }
+
+  private pruneIfNeeded(): void {
+    if (this.config.maxSizeMB === undefined) return;
+
+    try {
+      const stat = statSync(this.filePath);
+      const limitBytes = this.config.maxSizeMB * 1024 * 1024;
+      if (stat.size > limitBytes) {
+        this.pruneBySizeSync();
+      }
+    } catch {
+      // Ignore stat errors
+    }
+  }
+
+  private pruneBySizeSync(): void {
+    try {
+      if (!existsSync(this.filePath)) return;
+
+      const content = readFileSync(this.filePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim());
+      const limitBytes = (this.config.maxSizeMB ?? 0) * 1024 * 1024;
+
+      // Keep entries from newest to oldest that fit within the limit
+      // Lines are assumed to be in chronological order (oldest first)
+      // We keep the newest entries
+      let totalBytes = 0;
+      const kept: string[] = [];
+
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const lineBytes = Buffer.byteLength(lines[i]! + "\n", "utf-8");
+        if (totalBytes + lineBytes <= limitBytes) {
+          kept.unshift(lines[i]!);
+          totalBytes += lineBytes;
+        } else {
+          break;
+        }
+      }
+
+      writeFileSync(this.filePath, kept.join("\n") + (kept.length > 0 ? "\n" : ""));
     } catch {
       // Ignore prune errors
     }
@@ -192,5 +251,71 @@ export class ActivityLog {
 
   isOsNotificationEvent(eventType: string): boolean {
     return this.config.osNotificationEvents.includes(eventType);
+  }
+
+  estimateImpact(proposed: { retentionDays?: number; maxSizeMB?: number }): {
+    entriesToRemove: number;
+    bytesToRemove: number;
+    currentEntries: number;
+    currentBytes: number;
+  } {
+    if (!existsSync(this.filePath)) {
+      return { entriesToRemove: 0, bytesToRemove: 0, currentEntries: 0, currentBytes: 0 };
+    }
+
+    try {
+      const content = readFileSync(this.filePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim());
+
+      const currentEntries = lines.length;
+      const currentBytes = Buffer.byteLength(content, "utf-8");
+
+      // Simulate pruning with proposed config
+      let remaining = lines;
+
+      // Time-based simulation
+      if (proposed.retentionDays !== undefined) {
+        const cutoff = Date.now() - proposed.retentionDays * 24 * 60 * 60 * 1000;
+        remaining = remaining.filter((line) => {
+          try {
+            const event = JSON.parse(line) as ActivityEvent;
+            return new Date(event.timestamp).getTime() > cutoff;
+          } catch {
+            return false;
+          }
+        });
+      }
+
+      // Size-based simulation
+      if (proposed.maxSizeMB !== undefined) {
+        const limitBytes = proposed.maxSizeMB * 1024 * 1024;
+        let totalBytes = 0;
+        const kept: string[] = [];
+
+        for (let i = remaining.length - 1; i >= 0; i--) {
+          const lineBytes = Buffer.byteLength(remaining[i]! + "\n", "utf-8");
+          if (totalBytes + lineBytes <= limitBytes) {
+            kept.unshift(remaining[i]!);
+            totalBytes += lineBytes;
+          } else {
+            break;
+          }
+        }
+
+        remaining = kept;
+      }
+
+      const remainingContent = remaining.join("\n") + (remaining.length > 0 ? "\n" : "");
+      const remainingBytes = Buffer.byteLength(remainingContent, "utf-8");
+
+      return {
+        entriesToRemove: currentEntries - remaining.length,
+        bytesToRemove: currentBytes - remainingBytes,
+        currentEntries,
+        currentBytes,
+      };
+    } catch {
+      return { entriesToRemove: 0, bytesToRemove: 0, currentEntries: 0, currentBytes: 0 };
+    }
   }
 }

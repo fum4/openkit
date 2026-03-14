@@ -38,6 +38,7 @@ interface MockEventSource {
 }
 
 let latestEventSource: MockEventSource;
+let eventSourceConstructCount = 0;
 
 class FakeEventSource implements MockEventSource {
   onopen: (() => void) | null = null;
@@ -48,6 +49,7 @@ class FakeEventSource implements MockEventSource {
 
   constructor(_url: string) {
     latestEventSource = this;
+    eventSourceConstructCount++;
   }
 }
 
@@ -74,6 +76,8 @@ beforeEach(() => {
   mockServerUrl = "http://localhost:3000";
   mockFetchWorktrees.mockReset();
   mockFetchWorktrees.mockResolvedValue({ worktrees: [worktreeA] });
+  latestEventSource = undefined as unknown as MockEventSource;
+  eventSourceConstructCount = 0;
 });
 
 describe("useWorktrees", () => {
@@ -252,5 +256,129 @@ describe("useWorktrees", () => {
     });
 
     expect(result.current.worktrees).toEqual([worktreeB]);
+  });
+
+  it("dispatches custom activity window event on SSE activity message", async () => {
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+
+    const { result } = renderHook(() => useWorktrees());
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeA]);
+    });
+
+    const activityEvent = { type: "commit", message: "test commit" };
+
+    act(() => {
+      latestEventSource.onmessage?.({
+        data: JSON.stringify({ type: "activity", event: activityEvent }),
+      });
+    });
+
+    const customEvent = dispatchSpy.mock.calls.find(
+      ([evt]) => evt instanceof CustomEvent && evt.type === "OpenKit:activity",
+    );
+    expect(customEvent).toBeDefined();
+    expect((customEvent![0] as CustomEvent).detail).toEqual(activityEvent);
+
+    dispatchSpy.mockRestore();
+  });
+
+  it("dispatches custom activity-history window event on SSE activity-history message", async () => {
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+
+    const { result } = renderHook(() => useWorktrees());
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeA]);
+    });
+
+    const events = [
+      { type: "commit", message: "first" },
+      { type: "commit", message: "second" },
+    ];
+
+    act(() => {
+      latestEventSource.onmessage?.({
+        data: JSON.stringify({ type: "activity-history", events }),
+      });
+    });
+
+    const customEvent = dispatchSpy.mock.calls.find(
+      ([evt]) => evt instanceof CustomEvent && evt.type === "OpenKit:activity-history",
+    );
+    expect(customEvent).toBeDefined();
+    expect((customEvent![0] as CustomEvent).detail).toEqual(events);
+
+    dispatchSpy.mockRestore();
+  });
+
+  it("sets isConnected to true on EventSource open", async () => {
+    const { result } = renderHook(() => useWorktrees());
+
+    expect(result.current.isConnected).toBe(false);
+
+    act(() => {
+      latestEventSource.onopen?.();
+    });
+
+    expect(result.current.isConnected).toBe(true);
+  });
+
+  it("cleans up EventSource on unmount", async () => {
+    const { result, unmount } = renderHook(() => useWorktrees());
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeA]);
+    });
+
+    const es = latestEventSource;
+
+    unmount();
+
+    expect(es.close).toHaveBeenCalled();
+  });
+
+  it("invokes notification callback on SSE notification message", async () => {
+    const onNotification = vi.fn();
+
+    const { result } = renderHook(() => useWorktrees(onNotification));
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeA]);
+    });
+
+    act(() => {
+      latestEventSource.onmessage?.({
+        data: JSON.stringify({ type: "notification", message: "Build failed", level: "error" }),
+      });
+    });
+
+    expect(onNotification).toHaveBeenCalledWith("Build failed", "error");
+  });
+
+  it("invokes hook-update callback on SSE hook-update message", async () => {
+    const onHookUpdate = vi.fn();
+
+    const { result } = renderHook(() => useWorktrees(undefined, onHookUpdate));
+
+    await waitFor(() => {
+      expect(result.current.worktrees).toEqual([worktreeA]);
+    });
+
+    act(() => {
+      latestEventSource.onmessage?.({
+        data: JSON.stringify({ type: "hook-update", worktreeId: "wt-123" }),
+      });
+    });
+
+    expect(onHookUpdate).toHaveBeenCalledWith("wt-123");
+  });
+
+  it("does not create EventSource when serverUrl is null", () => {
+    setServerUrl(null);
+    renderHook(() => useWorktrees());
+
+    expect(eventSourceConstructCount).toBe(0);
   });
 });

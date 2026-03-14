@@ -7,6 +7,8 @@ import { DEFAULT_PORT } from "./constants";
 export interface GlobalPreferences {
   basePort: number;
   setupPreference: "auto" | "manual" | "ask";
+  devMode: boolean;
+  devModeRepoPath: string;
   sidebarWidth: number;
   windowBounds: {
     x?: number;
@@ -22,6 +24,8 @@ const PREFERENCES_FILE = path.join(STATE_DIR, "app-preferences.json");
 const DEFAULT_PREFERENCES: GlobalPreferences = {
   basePort: DEFAULT_PORT,
   setupPreference: "ask",
+  devMode: false,
+  devModeRepoPath: "",
   sidebarWidth: 300,
   windowBounds: null,
 };

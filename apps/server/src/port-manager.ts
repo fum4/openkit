@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import { log } from "./logger";
 import type { WorktreeConfig } from "./types";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
@@ -267,7 +268,7 @@ export class PortManager {
       const config = JSON.parse(content);
       config.envMapping = mapping;
       writeFileSync(this.configFilePath, JSON.stringify(config, null, 2) + "\n");
-      console.log(`[port-discovery] Saved env mapping to ${this.configFilePath}`);
+      log.debug(`[port-discovery] Saved env mapping to ${this.configFilePath}`);
     } catch (err) {
       this.emitDebugEvent({
         action: "port.discovery.persist-env-mapping",
@@ -285,9 +286,9 @@ export class PortManager {
   async discoverPorts(
     onLog?: (message: string) => void,
   ): Promise<{ ports: number[]; error?: string }> {
-    const log = onLog || console.log;
+    const emit = onLog || ((msg: string) => log.info(msg));
 
-    log("[port-discovery] Starting dev command to discover ports...");
+    emit("[port-discovery] Starting dev command to discover ports...");
 
     const [cmd, ...args] = this.config.startCommand.split(" ");
     const workingDir = this.getProjectDir();
@@ -312,7 +313,7 @@ export class PortManager {
       return { ports: [], error: "Failed to spawn discovery process" };
     }
 
-    log(`[port-discovery] Spawned process (PID: ${pid}), waiting for stabilization...`);
+    emit(`[port-discovery] Spawned process (PID: ${pid}), waiting for stabilization...`);
 
     child.stdout?.on("data", (data) => {
       const lines = data
@@ -320,7 +321,7 @@ export class PortManager {
         .split("\n")
         .filter((l: string) => l.trim());
       for (const line of lines) {
-        log(`[port-discovery:stdout] ${line}`);
+        emit(`[port-discovery:stdout] ${line}`);
       }
     });
 
@@ -330,7 +331,7 @@ export class PortManager {
         .split("\n")
         .filter((l: string) => l.trim());
       for (const line of lines) {
-        log(`[port-discovery:stderr] ${line}`);
+        emit(`[port-discovery:stderr] ${line}`);
       }
     });
 
@@ -339,26 +340,26 @@ export class PortManager {
       setTimeout(resolve, DISCOVERY_STABILIZE_MS);
     });
 
-    log("[port-discovery] Scanning for listening ports...");
+    emit("[port-discovery] Scanning for listening ports...");
 
     let ports: number[] = [];
     try {
       // Get all child PIDs recursively
       const allPids = this.getProcessTree(pid);
-      log(`[port-discovery] Process tree PIDs: ${allPids.join(", ")}`);
+      emit(`[port-discovery] Process tree PIDs: ${allPids.join(", ")}`);
 
       if (allPids.length > 0) {
         ports = this.getListeningPorts(allPids);
-        log(`[port-discovery] Discovered ports: ${ports.join(", ") || "(none)"}`);
+        emit(`[port-discovery] Discovered ports: ${ports.join(", ") || "(none)"}`);
       }
     } catch (err) {
-      log(
+      emit(
         `[port-discovery] Error scanning ports: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 
     // Kill the discovery process tree
-    log("[port-discovery] Cleaning up discovery process...");
+    emit("[port-discovery] Cleaning up discovery process...");
     try {
       process.kill(-pid, "SIGTERM");
     } catch {
@@ -389,7 +390,7 @@ export class PortManager {
       const envMapping = this.detectEnvMapping(workingDir);
       if (Object.keys(envMapping).length > 0) {
         this.persistEnvMapping(envMapping);
-        log(`[port-discovery] Detected env var mappings: ${Object.keys(envMapping).join(", ")}`);
+        emit(`[port-discovery] Detected env var mappings: ${Object.keys(envMapping).join(", ")}`);
       }
     }
 
@@ -463,7 +464,7 @@ export class PortManager {
       }
       config.ports.discovered = ports;
       writeFileSync(this.configFilePath, JSON.stringify(config, null, 2) + "\n");
-      console.log(`[port-discovery] Saved discovered ports to ${this.configFilePath}`);
+      log.debug(`[port-discovery] Saved discovered ports to ${this.configFilePath}`);
     } catch (err) {
       this.emitDebugEvent({
         action: "port.discovery.persist-discovered-ports",

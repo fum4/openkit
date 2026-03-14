@@ -249,6 +249,37 @@ Check whether `.openkit` config files need to be committed and/or pushed to the 
 
 - **Response**: `{ needsPush: boolean, files: string[] }`
 
+#### `POST /api/config/retention-impact`
+
+Preview the impact of applying retention settings before committing. Returns how many entries and bytes would be removed without actually modifying the log files.
+
+- **Request**:
+
+  ```json
+  {
+    "logType": "activity",
+    "retentionDays": 7,
+    "maxSizeMB": 50
+  }
+  ```
+
+  | Field           | Type                       | Required | Description                                 |
+  | --------------- | -------------------------- | -------- | ------------------------------------------- |
+  | `logType`       | `"activity"` \| `"opsLog"` | Yes      | Which log to estimate impact for            |
+  | `retentionDays` | `number`                   | No       | Days threshold for time-based pruning       |
+  | `maxSizeMB`     | `number`                   | No       | Size threshold in MB for size-based pruning |
+
+- **Response**:
+  ```json
+  {
+    "entriesToRemove": 142,
+    "bytesToRemove": 28400,
+    "currentEntries": 500,
+    "currentBytes": 102400
+  }
+  ```
+- **Error** (400): `{ error: "Invalid logType" }`
+
 #### `POST /api/config/commit-setup`
 
 Commit and push the `.openkit/config.json` and `.openkit/.gitignore` files.

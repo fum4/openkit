@@ -759,6 +759,26 @@ export async function saveConfig(
   }
 }
 
+export interface RetentionImpact {
+  entriesToRemove: number;
+  bytesToRemove: number;
+  currentEntries: number;
+  currentBytes: number;
+}
+
+export async function fetchRetentionImpact(
+  target: "activity" | "opsLog",
+  config: { retentionDays?: number; maxSizeMB?: number },
+  serverUrl: string | null = null,
+): Promise<RetentionImpact> {
+  const res = await fetch(`${getBaseUrl(serverUrl)}/api/config/retention-impact`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target, ...config }),
+  });
+  return res.json();
+}
+
 export interface NgrokConnectStatus {
   success: boolean;
   project: {

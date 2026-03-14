@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
 import path from "path";
 
 import { APP_NAME } from "@openkit/shared/constants";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import { PortManager } from "@openkit/server/port-manager";
 import { enableDefaultProjectSkills } from "@openkit/server/lib/project-skill-bootstrap";
 import type { PortConfig, WorktreeConfig } from "@openkit/shared/worktree-types";
@@ -141,7 +141,7 @@ export async function runInit() {
       )) ||
       detectedStartCommand ||
       "";
-    if (!startCommand) console.log("  Start command is required.");
+    if (!startCommand) log.plain("  Start command is required.");
   }
 
   const detectedInstallCommand = detectInstallCommand(resolvedProjectDir);
@@ -156,7 +156,7 @@ export async function runInit() {
       )) ||
       detectedInstallCommand ||
       "";
-    if (!installCommand) console.log("  Install command is required.");
+    if (!installCommand) log.plain("  Install command is required.");
   }
 
   rl.close();
@@ -219,12 +219,12 @@ export async function runInit() {
     const envMapping = pm.detectEnvMapping(resolvedProjectDir);
     if (Object.keys(envMapping).length > 0) {
       pm.persistEnvMapping(envMapping);
-      console.log("\nFound env var mappings:");
+      log.plain("\nFound env var mappings:");
       for (const [key, template] of Object.entries(envMapping)) {
         const original = template.replace(/\$\{(\d+)\}/g, (_, p) => p);
-        console.log(`  ${key}=${original} → ${template}`);
+        log.plain(`  ${key}=${original} → ${template}`);
       }
-      console.log("Saved to config.");
+      log.plain("Saved to config.");
     }
   }
 

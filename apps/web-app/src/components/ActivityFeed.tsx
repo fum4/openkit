@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { ACTIVITY_TYPES } from "@openkit/shared/activity-event";
 import type { ActivityEvent } from "../hooks/api";
@@ -262,6 +263,12 @@ export function ActivityFeedPanel({
     () => [...actionRequiredEvents, ...regularEvents],
     [actionRequiredEvents, regularEvents],
   );
+  const virtualizer = useVirtualizer({
+    count: prioritizedEvents.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 72,
+    overscan: 10,
+  });
   const hasActionRequired = actionRequiredEvents.length > 0;
   const dividerColorClass = hasActionRequired ? "border-amber-300/20" : "border-white/[0.06]";
   const shouldShowBackToTop = showBackToTop && filteredEvents.length > 0;
@@ -381,18 +388,34 @@ export function ActivityFeedPanel({
               <p className={`text-xs ${text.dimmed}`}>No activity matches selected types</p>
             </div>
           ) : (
-            <div>
-              {prioritizedEvents.map((event, index) => (
-                <ActivityRow
-                  key={event.id}
-                  event={event}
-                  showUnreadDot={unseenEventIds.has(event.id)}
-                  showAttentionDivider={index === 0 && isActionRequiredEvent(event)}
-                  onNavigateToWorktree={onNavigateToWorktree}
-                  onNavigateToIssue={onNavigateToIssue}
-                  onResolveActionRequired={onResolveActionRequired}
-                />
-              ))}
+            <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const event = prioritizedEvents[virtualRow.index];
+                const index = virtualRow.index;
+                return (
+                  <div
+                    key={event.id}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <ActivityRow
+                      event={event}
+                      showUnreadDot={unseenEventIds.has(event.id)}
+                      showAttentionDivider={index === 0 && isActionRequiredEvent(event)}
+                      onNavigateToWorktree={onNavigateToWorktree}
+                      onNavigateToIssue={onNavigateToIssue}
+                      onResolveActionRequired={onResolveActionRequired}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

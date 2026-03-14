@@ -47,6 +47,13 @@
         "cwd": "apps/web-app",
         "command": "pnpm lint"
       }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/web-app",
+        "command": "pnpm test"
+      }
     }
   }
 }

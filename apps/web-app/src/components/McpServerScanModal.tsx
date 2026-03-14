@@ -356,7 +356,7 @@ export function McpServerScanModal({
                   : `${text.dimmed} hover:${text.muted}`
               }`}
             >
-              MCP Servers{mcpCount > 0 ? ` (${mcpCount})` : ""}
+              MCP Servers ({mcpCount})
             </button>
             <button
               type="button"
@@ -367,7 +367,7 @@ export function McpServerScanModal({
                   : `${text.dimmed} hover:${text.muted}`
               }`}
             >
-              Skills{skillCount > 0 ? ` (${skillCount})` : ""}
+              Skills ({skillCount})
             </button>
             {agentResults !== null && (
               <button
@@ -379,36 +379,34 @@ export function McpServerScanModal({
                     : `${text.dimmed} hover:${text.muted}`
                 }`}
               >
-                <>Agents{agentCount > 0 ? ` (${agentCount})` : ""}</>
+                <>Agents ({agentCount})</>
               </button>
             )}
-            {(pluginsLoading || plugins.length > 0) && (
-              <button
-                type="button"
-                disabled={pluginsLoading}
-                onClick={() => setTab("plugins")}
-                className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors inline-flex items-center gap-1.5 ${
-                  tab === "plugins"
-                    ? "text-[#d1d5db] bg-white/[0.06]"
-                    : `${text.dimmed} hover:${text.muted}`
-                } ${pluginsLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                {pluginsLoading ? (
-                  <>
-                    <Spinner size="xs" className={text.muted} />
-                    Claude Plugins
-                  </>
-                ) : (
-                  <>Claude Plugins ({plugins.length})</>
-                )}
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={pluginsLoading}
+              onClick={() => setTab("plugins")}
+              className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors inline-flex items-center gap-1.5 ${
+                tab === "plugins"
+                  ? "text-[#d1d5db] bg-white/[0.06]"
+                  : `${text.dimmed} hover:${text.muted}`
+              } ${pluginsLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              {pluginsLoading ? (
+                <>
+                  <Spinner size="xs" className={text.muted} />
+                  Claude Plugins
+                </>
+              ) : (
+                <>Claude Plugins ({plugins.length})</>
+              )}
+            </button>
           </div>
 
           {tab === "servers" ? (
             <div key="servers-tab">
               {mcpCount === 0 ? (
-                <p className={`${text.muted} text-xs py-6 text-center`}>
+                <p className={`${text.muted} text-xs pt-6 pb-8 text-center`}>
                   No new MCP servers found.
                 </p>
               ) : (
@@ -451,7 +449,9 @@ export function McpServerScanModal({
           ) : tab === "skills" ? (
             <div key="skills-tab">
               {skillCount === 0 ? (
-                <p className={`${text.muted} text-xs py-6 text-center`}>No new skills found.</p>
+                <p className={`${text.muted} text-xs pt-6 pb-8 text-center`}>
+                  No new skills found.
+                </p>
               ) : (
                 <div className="space-y-1 max-h-72 overflow-y-auto pb-5">
                   {skillResults!.map((r) => (
@@ -484,7 +484,9 @@ export function McpServerScanModal({
           ) : tab === "agents" ? (
             <div key="agents-tab">
               {agentCount === 0 ? (
-                <p className={`${text.muted} text-xs py-6 text-center`}>No new agents found.</p>
+                <p className={`${text.muted} text-xs pt-6 pb-8 text-center`}>
+                  No new agents found.
+                </p>
               ) : (
                 <div className="space-y-1 max-h-72 overflow-y-auto pb-5">
                   {agentResults!.map((agent) => (
@@ -516,33 +518,43 @@ export function McpServerScanModal({
             </div>
           ) : (
             <div key="plugins-tab">
-              <p className={`${text.dimmed} text-[11px] mb-3`}>
-                Claude Plugins are managed by Claude CLI and appear automatically in the sidebar. No
-                import needed.
-              </p>
-              <div className="space-y-1 max-h-72 overflow-y-auto pb-5">
-                {plugins.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02]"
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.enabled ? "bg-teal-400" : "bg-white/20"}`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className={`text-xs font-medium ${text.primary}`}>
-                        {p.name.replace(/@.*$/, "")}
-                      </span>
-                      {p.description && (
-                        <div className={`text-[11px] ${text.muted} truncate`}>{p.description}</div>
-                      )}
-                    </div>
-                    <span className={`text-[10px] ${text.dimmed} flex-shrink-0`}>
-                      {p.enabled ? "enabled" : "disabled"}
-                    </span>
+              {plugins.length === 0 ? (
+                <p className={`${text.muted} text-xs pt-6 pb-8 text-center`}>
+                  No Claude plugins found.
+                </p>
+              ) : (
+                <>
+                  <p className={`${text.dimmed} text-[11px] mb-3`}>
+                    Claude Plugins are managed by Claude CLI and appear automatically in the
+                    sidebar. No import needed.
+                  </p>
+                  <div className="space-y-1 max-h-72 overflow-y-auto pb-5">
+                    {plugins.map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02]"
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.enabled ? "bg-teal-400" : "bg-white/20"}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-xs font-medium ${text.primary}`}>
+                            {p.name.replace(/@.*$/, "")}
+                          </span>
+                          {p.description && (
+                            <div className={`text-[11px] ${text.muted} truncate`}>
+                              {p.description}
+                            </div>
+                          )}
+                        </div>
+                        <span className={`text-[10px] ${text.dimmed} flex-shrink-0`}>
+                          {p.enabled ? "enabled" : "disabled"}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </div>
           )}
 
@@ -550,7 +562,7 @@ export function McpServerScanModal({
         </div>
       ) : (
         /* Mode selection */
-        <div className="space-y-3">
+        <div className="space-y-3 pb-4">
           {MODES.map((m) => {
             const Icon = m.icon;
             const isActive = mode === m.id;

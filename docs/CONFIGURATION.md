@@ -240,6 +240,7 @@ Activity feed configuration. Controls event retention plus per-category/per-even
 {
   "activity": {
     "retentionDays": 7,
+    "maxSizeMB": 50,
     "categories": {
       "agent": true,
       "worktree": true,
@@ -251,15 +252,18 @@ Activity feed configuration. Controls event retention plus per-category/per-even
 }
 ```
 
-| Sub-field              | Type                      | Default    | Description                                                                            |
-| ---------------------- | ------------------------- | ---------- | -------------------------------------------------------------------------------------- |
-| `retentionDays`        | `number`                  | `7`        | How many days to keep activity events before pruning                                   |
-| `categories`           | `Record<string, boolean>` | All `true` | Per-category toggles for which events appear in the feed                               |
-| `disabledEvents`       | `string[]`                | `[]`       | Event-type toggles. Any listed event type is disabled for the Activity feed/SSE stream |
-| `toastEvents`          | `string[]`                | See above  | Legacy compatibility field; do not use it for workflow/agent/live updates              |
-| `osNotificationEvents` | `string[]`                | See above  | Default notification event list (`agent_awaiting_input`) kept in activity config       |
+| Sub-field              | Type                      | Default     | Description                                                                            |
+| ---------------------- | ------------------------- | ----------- | -------------------------------------------------------------------------------------- |
+| `retentionDays`        | `number`                  | `undefined` | How many days to keep activity events before pruning (unlimited when unset)            |
+| `maxSizeMB`            | `number`                  | `undefined` | Maximum file size in MB for the activity log (unlimited when unset)                    |
+| `categories`           | `Record<string, boolean>` | All `true`  | Per-category toggles for which events appear in the feed                               |
+| `disabledEvents`       | `string[]`                | `[]`        | Event-type toggles. Any listed event type is disabled for the Activity feed/SSE stream |
+| `toastEvents`          | `string[]`                | See above   | Legacy compatibility field; do not use it for workflow/agent/live updates              |
+| `osNotificationEvents` | `string[]`                | See above   | Default notification event list (`agent_awaiting_input`) kept in activity config       |
 
-Activity events are persisted to `.openkit/activity.jsonl` in JSONL format. The file is pruned on server startup and periodically (every hour).
+Both `retentionDays` and `maxSizeMB` default to unlimited. When both are set, the first limit hit triggers pruning (oldest entries are dropped). Changing retention settings requires explicit confirmation via an "Apply" button with impact estimation — these fields are not auto-saved to prevent accidental data loss.
+
+Activity events are persisted to `.openkit/activity.jsonl` in JSONL format. The file is pruned on server startup and after each new event is added.
 
 #### `envMapping`
 
@@ -285,6 +289,32 @@ Port references use the `${PORT}` syntax where `PORT` is the original (base) por
 If the worktree gets offset 1, `${3001}` becomes `3002` and `${5432}` becomes `5433`.
 
 The UI includes a "Detect Env Mapping" button that scans your project's `.env` files and source code to find references to discovered ports.
+
+#### `opsLog`
+
+| Property     | Value       |
+| ------------ | ----------- |
+| **Type**     | `object`    |
+| **Default**  | `undefined` |
+| **Required** | No          |
+
+Ops log (debug log) retention configuration. Controls how long operational trace events are kept and the maximum log file size.
+
+```json
+{
+  "opsLog": {
+    "retentionDays": 30,
+    "maxSizeMB": 100
+  }
+}
+```
+
+| Sub-field       | Type     | Default     | Description                                                                 |
+| --------------- | -------- | ----------- | --------------------------------------------------------------------------- |
+| `retentionDays` | `number` | `undefined` | How many days to keep ops log entries before pruning (unlimited when unset) |
+| `maxSizeMB`     | `number` | `undefined` | Maximum file size in MB for the ops log (unlimited when unset)              |
+
+Both fields default to unlimited. When both are set, the first limit hit triggers pruning (oldest entries are dropped). Ops log events are persisted to `.openkit/ops-log.jsonl` in JSONL format. Like activity retention, changing these settings requires explicit confirmation via an "Apply" button with impact estimation.
 
 ---
 

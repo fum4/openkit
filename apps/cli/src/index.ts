@@ -11,7 +11,7 @@ import {
   CLI_COMMAND_ALIAS,
   CONFIG_DIR_NAME,
 } from "@openkit/shared/constants";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import { loadGlobalPreferences } from "@openkit/shared/global-preferences";
 import { resolveAvailableWebUiPath } from "@openkit/shared/ui-components";
 import { startWorktreeServer } from "@openkit/server/index";

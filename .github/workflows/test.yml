@@ -21,7 +21,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - id: smoke-affected
         uses: ./.github/actions/check-affected-target
         with:
@@ -59,7 +61,7 @@ jobs:
           # CLI startup smoke test — also runs when CI infra files change
           cli_startup="${SMOKE_AFFECTED}"
           changed="$(git diff --name-only --no-renames "${BASE_SHA}" "${HEAD_SHA}")"
-          if echo "${changed}" | grep -Eq '^(\.github/workflows/test\.yml$|\.github/actions/setup-pnpm-node/|\.github/actions/check-affected-target/)'; then
+          if echo "${changed}" | grep -Eq '^(\.github/workflows/test\.yml$|\.github/actions/setup-deps/|\.github/actions/check-affected-target/)'; then
             cli_startup="true"
           fi
           echo "cli_startup=${cli_startup}" >> "${GITHUB_OUTPUT}"
@@ -85,7 +87,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node,go,zig
       - run: pnpm run build:cli && pnpm run build:server
       - name: Smoke test CLI startup
         run: |
@@ -129,7 +133,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - run: pnpm nx run server:test
 
   unit-web-app:
@@ -140,7 +146,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - run: pnpm nx run web-app:test
 
   unit-shared:
@@ -151,5 +159,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - run: pnpm nx run shared:test

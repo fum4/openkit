@@ -6,7 +6,8 @@
       "@openkit/agents": ["./src/index.ts"],
       "@openkit/integrations/*": ["../integrations/src/*"],
       "@openkit/server/*": ["../../apps/server/src/*"],
-      "@openkit/shared/*": ["../shared/src/*"]
+      "@openkit/shared/*": ["../shared/src/*"],
+      "@openkit/logger": ["../logger/node/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "../../md.d.ts"]

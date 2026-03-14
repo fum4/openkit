@@ -113,7 +113,18 @@ libs/
 │   ├── project.json
 │   └── src/
 │
-└── shared/              Shared constants, contracts/types, logger, preferences, git/env helpers
+├── logger/              Go-based structured logging (C-shared lib + FFI adapters)
+│   ├── project.json
+│   ├── go/              Go core — compiles to liblogger.dylib/.so
+│   ├── ts/              TypeScript adapter (koffi FFI)
+│   ├── py/              Python adapter (ctypes)
+│   └── zig/             Zig adapter (dlopen)
+│
+├── native-port-resolution/  Zig native port hook (DYLD_INSERT_LIBRARIES)
+│   ├── project.json
+│   └── src/
+│
+└── shared/              Shared constants, contracts/types, preferences, git/env helpers
     ├── project.json
     └── src/
 ```
@@ -122,7 +133,7 @@ libs/
 
 - `package.json` at the repo root is the workspace orchestration package (marked `private` while npm publishing is paused).
 - App-level `package.json` files exist for `apps/cli`, `apps/server`, `apps/web-app`, and `apps/desktop-app` so each app is directly runnable from its own directory.
-- `libs/shared/package.json` provides direct dependencies for shared runtime helpers (for example logger formatting).
+- `libs/shared/package.json` provides direct dependencies for shared runtime helpers.
 - `apps/website/package.json` is isolated for Astro website tooling.
 - `apps/mobile-app/package.json` is isolated for Expo/React Native tooling.
 - Shared runtime code in `libs/*` uses Nx `project.json` and TypeScript path aliases.

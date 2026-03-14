@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setSidebarWidth: (width) => ipcRenderer.invoke("set-sidebar-width", width),
   updatePreferences: (updates) => ipcRenderer.invoke("update-preferences", updates),
 
+  // Dev mode
+  detectOpenkitRepo: () => ipcRenderer.invoke("detect-openkit-repo"),
+  selectDevRepoFolder: () => ipcRenderer.invoke("select-dev-repo-folder"),
+
   // App updates
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
   getAppUpdateState: () => ipcRenderer.invoke("get-app-update-state"),

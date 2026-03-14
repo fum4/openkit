@@ -23,7 +23,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - id: build-affected
         uses: ./.github/actions/check-affected-build
         with:
@@ -37,7 +39,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node,go,zig
       - run: pnpm build:cli
 
   server:
@@ -47,7 +51,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node,go,zig
       - run: pnpm build:server
 
   website:
@@ -57,7 +63,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - run: pnpm build:website
 
   web-app:
@@ -67,7 +75,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node,go,zig
       - run: pnpm build:web-app
 
   mobile-app:
@@ -77,7 +87,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
       - run: pnpm build:mobile-app
 
   desktop-app:
@@ -87,5 +99,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-pnpm-node
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node,go,zig
       - run: pnpm build:desktop-app

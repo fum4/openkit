@@ -3,7 +3,7 @@ import os from "os";
 import path from "path";
 import type { Hono } from "hono";
 
-import { log } from "@openkit/shared/logger";
+import { log } from "../logger";
 import { ACTIVITY_TYPES, type ActivityEvent } from "../activity-event";
 import type { WorktreeManager } from "../manager";
 import type { NotesManager } from "../notes-manager";

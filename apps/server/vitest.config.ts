@@ -17,6 +17,7 @@ export default defineConfig({
       "@openkit/shared": path.resolve(__dirname, "../../libs/shared/src"),
       "@openkit/integrations": path.resolve(__dirname, "../../libs/integrations/src"),
       "@openkit/agents": path.resolve(__dirname, "../../libs/agents/src"),
+      "@openkit/logger": path.resolve(__dirname, "../../libs/logger/node/src"),
       "@openkit/server": path.resolve(__dirname, "./src"),
     },
   },

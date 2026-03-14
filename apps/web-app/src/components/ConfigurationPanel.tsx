@@ -20,6 +20,7 @@ import { type WorktreeConfig } from "../hooks/useConfig";
 import { useApi } from "../hooks/useApi";
 import { button, infoBanner, input, settings, surface, tab, text } from "../theme";
 import { AgentModelDropdown } from "./AgentModelDropdown";
+import { Modal } from "./Modal";
 import { ShortcutsSection } from "./ShortcutsSection";
 import { Spinner } from "./Spinner";
 import { ToggleSwitch } from "./ToggleSwitch";
@@ -347,6 +348,19 @@ export function ConfigurationPanel({
   const [commitRuleLoading, setCommitRuleLoading] = useState(true);
   const commitLoadedTabs = useRef(new Set<string>());
 
+  const [draftOpsLog, setDraftOpsLog] = useState<{ retentionDays?: number; maxSizeMB?: number }>(
+    {},
+  );
+  const [draftActivity, setDraftActivity] = useState<{
+    retentionDays?: number;
+    maxSizeMB?: number;
+  }>({});
+  const [retentionWarning, setRetentionWarning] = useState<{
+    target: "activity" | "opsLog";
+    impact: { entriesToRemove: number; bytesToRemove: number };
+    config: { retentionDays?: number; maxSizeMB?: number };
+  } | null>(null);
+
   const [showBanner, setShowBanner] = useState(() => {
     return localStorage.getItem(SETTINGS_BANNER_DISMISSED_KEY) !== "true";
   });
@@ -365,13 +379,27 @@ export function ConfigurationPanel({
     }
   }, [config]);
 
+  useEffect(() => {
+    if (config) {
+      setDraftOpsLog({
+        retentionDays: config.opsLog?.retentionDays,
+        maxSizeMB: config.opsLog?.maxSizeMB,
+      });
+      setDraftActivity({
+        retentionDays: config.activity?.retentionDays,
+        maxSizeMB: config.activity?.maxSizeMB,
+      });
+    }
+  }, [config]);
+
   // Auto-save config on form changes (debounced)
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const prevFormJson = useRef<string>("");
 
   useEffect(() => {
     if (!form || !config) return;
-    const json = JSON.stringify(form);
+    const { opsLog: _opsLog, ...formForAutoSave } = form;
+    const json = JSON.stringify(formForAutoSave);
     // Skip initial load and no-change scenarios
     if (!prevFormJson.current) {
       prevFormJson.current = json;
@@ -382,7 +410,7 @@ export function ConfigurationPanel({
 
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      await api.saveConfig(form as unknown as Record<string, unknown>);
+      await api.saveConfig(formForAutoSave as unknown as Record<string, unknown>);
       onSaved();
     }, 500);
 
@@ -510,6 +538,38 @@ export function ConfigurationPanel({
     }
   };
 
+  function hasRetentionChanges(
+    draft: { retentionDays?: number; maxSizeMB?: number },
+    saved: { retentionDays?: number; maxSizeMB?: number } | undefined,
+  ): boolean {
+    return draft.retentionDays !== saved?.retentionDays || draft.maxSizeMB !== saved?.maxSizeMB;
+  }
+
+  async function handleApplyRetention(target: "activity" | "opsLog") {
+    const draft = target === "opsLog" ? draftOpsLog : draftActivity;
+    const impact = await api.fetchRetentionImpact(target, draft);
+
+    if (impact.entriesToRemove > 0) {
+      setRetentionWarning({ target, impact, config: draft });
+      return;
+    }
+
+    await applyRetentionConfig(target, draft);
+  }
+
+  async function applyRetentionConfig(
+    target: "activity" | "opsLog",
+    retentionConfig: { retentionDays?: number; maxSizeMB?: number },
+  ) {
+    if (target === "opsLog") {
+      await api.saveConfig({ opsLog: retentionConfig });
+    } else {
+      await api.saveConfig({ activity: { ...config?.activity, ...retentionConfig } });
+    }
+    onSaved();
+    setRetentionWarning(null);
+  }
+
   return (
     <div>
       <div className="max-w-2xl mx-auto p-6 flex flex-col gap-8">
@@ -564,6 +624,51 @@ export function ConfigurationPanel({
                 onChange={(v) => setForm({ ...form, projectDir: v })}
               />
             </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/[0.06]">
+            <Field label="Debug log retention (days)" description="Leave empty for unlimited">
+              <input
+                type="number"
+                min={1}
+                className={fieldInputClass}
+                placeholder="Unlimited"
+                value={draftOpsLog.retentionDays ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : undefined;
+                  setDraftOpsLog((prev) => ({
+                    ...prev,
+                    retentionDays: val && val > 0 ? val : undefined,
+                  }));
+                }}
+              />
+            </Field>
+            <Field label="Debug log max size (MB)" description="Leave empty for unlimited">
+              <input
+                type="number"
+                min={1}
+                className={fieldInputClass}
+                placeholder="Unlimited"
+                value={draftOpsLog.maxSizeMB ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : undefined;
+                  setDraftOpsLog((prev) => ({
+                    ...prev,
+                    maxSizeMB: val && val > 0 ? val : undefined,
+                  }));
+                }}
+              />
+            </Field>
+            {hasRetentionChanges(draftOpsLog, config?.opsLog) && (
+              <div className="col-span-2 flex justify-end">
+                <button
+                  type="button"
+                  className={`${button.primary} px-3 py-1.5 text-xs rounded-md`}
+                  onClick={() => handleApplyRetention("opsLog")}
+                >
+                  Apply
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">
             <div className="flex flex-col gap-0.5">
@@ -749,7 +854,7 @@ export function ConfigurationPanel({
                 Use experimental port resolution
               </span>
               <span className={`text-[11px] ${settings.description}`}>
-                Use native hook for runtime-agnostic port offsetting (Python, Ruby, Go)
+                Use native hook for runtime-agnostic port offsetting (Python, Ruby, Go, ...)
               </span>
             </div>
             <ToggleSwitch
@@ -1228,6 +1333,51 @@ export function ConfigurationPanel({
               );
             })}
           </div>
+          <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/[0.06]">
+            <Field label="Activity log retention (days)" description="Leave empty for unlimited">
+              <input
+                type="number"
+                min={1}
+                className={fieldInputClass}
+                placeholder="Unlimited"
+                value={draftActivity.retentionDays ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : undefined;
+                  setDraftActivity((prev) => ({
+                    ...prev,
+                    retentionDays: val && val > 0 ? val : undefined,
+                  }));
+                }}
+              />
+            </Field>
+            <Field label="Activity log max size (MB)" description="Leave empty for unlimited">
+              <input
+                type="number"
+                min={1}
+                className={fieldInputClass}
+                placeholder="Unlimited"
+                value={draftActivity.maxSizeMB ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : undefined;
+                  setDraftActivity((prev) => ({
+                    ...prev,
+                    maxSizeMB: val && val > 0 ? val : undefined,
+                  }));
+                }}
+              />
+            </Field>
+            {hasRetentionChanges(draftActivity, config?.activity) && (
+              <div className="col-span-2 flex justify-end">
+                <button
+                  type="button"
+                  className={`${button.primary} px-3 py-1.5 text-xs rounded-md`}
+                  onClick={() => handleApplyRetention("activity")}
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Keyboard Shortcuts */}
@@ -1251,6 +1401,40 @@ export function ConfigurationPanel({
           </span>
         </div>
       </div>
+      {retentionWarning && (
+        <Modal
+          title="Apply retention limits?"
+          width="sm"
+          onClose={() => setRetentionWarning(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                className={`${button.secondary} px-3 py-1.5 text-xs rounded-md`}
+                onClick={() => setRetentionWarning(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 text-xs rounded-md bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
+                onClick={() =>
+                  applyRetentionConfig(retentionWarning.target, retentionWarning.config)
+                }
+              >
+                Apply
+              </button>
+            </>
+          }
+        >
+          <p className={`text-xs ${text.secondary}`}>
+            This will remove {retentionWarning.impact.entriesToRemove} entries (
+            {(retentionWarning.impact.bytesToRemove / 1024).toFixed(1)} KB) from{" "}
+            {retentionWarning.target === "opsLog" ? "debug logs" : "activity logs"}. This cannot be
+            undone.
+          </p>
+        </Modal>
+      )}
     </div>
   );
 }

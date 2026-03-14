@@ -1,0 +1,50 @@
+{
+  "name": "logger",
+  "sourceRoot": "libs/logger",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd cgo && ./build.sh",
+        "cwd": "libs/logger"
+      },
+      "inputs": [
+        "{projectRoot}/*.go",
+        "{projectRoot}/go.mod",
+        "{projectRoot}/cgo/**/*.go",
+        "{projectRoot}/cgo/go.mod",
+        "{projectRoot}/cgo/build.sh",
+        "{projectRoot}/node/src/**/*.ts",
+        "{projectRoot}/zig/**/*.zig"
+      ],
+      "outputs": [
+        "{projectRoot}/liblogger.dylib",
+        "{projectRoot}/liblogger.so",
+        "{projectRoot}/liblogger.h"
+      ]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/logger/node",
+        "command": "pnpm typecheck"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/logger/node",
+        "command": "pnpm lint"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/logger/node",
+        "command": "pnpm test"
+      }
+    }
+  },
+  "tags": ["type:library", "lang:go", "lang:typescript", "lang:python", "lang:zig"]
+}

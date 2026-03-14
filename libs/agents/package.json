@@ -1,4 +1,9 @@
 {
+  "name": "@openkit/agents",
+  "scripts": {
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
+    "lint": "oxlint src"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1"
   }

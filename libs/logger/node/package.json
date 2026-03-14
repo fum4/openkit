@@ -1,0 +1,12 @@
+{
+  "name": "@openkit/logger",
+  "version": "0.0.1",
+  "scripts": {
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
+    "lint": "oxlint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "koffi": "^2.15.2"
+  }
+}

@@ -1,4 +1,5 @@
 const std = @import("std");
+const logger = @import("logger");
 const c = @cImport({
     @cInclude("sys/socket.h");
     @cInclude("netinet/in.h");
@@ -19,6 +20,7 @@ var known_ports: [MAX_KNOWN_PORTS]u16 = undefined;
 var known_ports_len: usize = 0;
 var debug_enabled: bool = false;
 var initialized: bool = false;
+var log: logger.Logger = .{ .handle = 0, .available = false };
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -31,7 +33,20 @@ fn isKnownPort(port: u16) bool {
 
 fn debugLog(comptime fmt: []const u8, args: anytype) void {
     if (!debug_enabled) return;
-    std.debug.print("[port-hook] " ++ fmt ++ "\n", args);
+
+    // Use structured logger if available, fall back to stderr
+    if (log.available) {
+        // Format the context as JSON using a stack buffer
+        var buf: [1024]u8 = undefined;
+        const msg = std.fmt.bufPrint(&buf, fmt, args) catch return;
+        var msg_z: [1024]u8 = undefined;
+        const msg_len = @min(msg.len, msg_z.len - 1);
+        @memcpy(msg_z[0..msg_len], msg[0..msg_len]);
+        msg_z[msg_len] = 0;
+        log.debug(@ptrCast(msg_z[0..msg_len :0]), "");
+    } else {
+        std.debug.print("[port-hook] " ++ fmt ++ "\n", args);
+    }
 }
 
 fn isLocalhostV6(addr: *const c.struct_sockaddr_in6) bool {
@@ -87,6 +102,11 @@ fn ensureInit() void {
     if (c.getenv("__WM_DEBUG__")) |_| {
         debug_enabled = true;
     }
+
+    // Initialize structured logger (dlopen-based, no-op if library unavailable).
+    // Level follows debug flag — if debug is on, log everything; otherwise info.
+    const level: [*:0]const u8 = if (debug_enabled) "debug" else "info";
+    log = logger.Logger.init("port-hook", "", level, "dev");
 
     const offset_env = c.getenv("__WM_PORT_OFFSET__") orelse return;
     const offset_slice = std.mem.span(offset_env);

@@ -1,0 +1,45 @@
+name: Setup Dependencies
+description: Install project toolchains listed in "deps". Override default versions via individual inputs.
+
+inputs:
+  deps:
+    description: Comma-separated list of dependencies to install (e.g. "pnpm,node,go,zig").
+    required: true
+  node:
+    description: Node.js version.
+    required: false
+    default: "24.14.0"
+  go:
+    description: Go version.
+    required: false
+    default: "1.26.1"
+  zig:
+    description: Zig version.
+    required: false
+    default: "0.15.2"
+
+runs:
+  using: composite
+  steps:
+    - if: ${{ contains(inputs.deps, 'pnpm') }}
+      uses: pnpm/action-setup@v4
+
+    - if: ${{ contains(inputs.deps, 'node') }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node }}
+        cache: pnpm
+
+    - if: ${{ contains(inputs.deps, 'pnpm') }}
+      run: pnpm install --frozen-lockfile
+      shell: bash
+
+    - if: ${{ contains(inputs.deps, 'go') }}
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go }}
+
+    - if: ${{ contains(inputs.deps, 'zig') }}
+      uses: mlugg/setup-zig@v2
+      with:
+        version: ${{ inputs.zig }}

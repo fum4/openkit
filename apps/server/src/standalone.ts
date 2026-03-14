@@ -5,7 +5,7 @@ import path from "path";
 
 import { CONFIG_DIR_NAME, DEFAULT_PORT } from "@openkit/shared/constants";
 import { loadGlobalPreferences } from "@openkit/shared/global-preferences";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import type { WorktreeConfig } from "@openkit/shared/worktree-types";
 
 import { startWorktreeServer } from "./index";

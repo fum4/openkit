@@ -8,7 +8,7 @@ OpenKit has a unified notification system that tracks events across worktrees, a
 2. **Toast notifications** — in-app popups using `react-hot-toast`; UI error toasts auto-dismiss after 5s
 3. **OS notifications** — native desktop notifications (Electron only) when the app is unfocused
 
-In parallel, operational traces are captured in backend `OpsLog` (`.openkit/ops-log.jsonl`) and shown in per-project debug mode on the `Activity` page. Error toasts emit a client event that is mirrored into this operational log stream. HTTP traces include request/response payload metadata when available for both inbound API requests and outbound integration calls.
+In parallel, operational traces are captured in backend `OpsLog` (`.openkit/ops-log.jsonl`) and shown in per-project debug mode on the `Activity` page. Error toasts emit a client event that is mirrored into this operational log stream. HTTP traces include request/response payload metadata when available for both inbound API requests and outbound integration calls. Both activity and ops log lists use `@tanstack/react-virtual` for virtualized rendering.
 
 The Jira/Linear/local auto-start flow emits two activity events: one when a new issue is detected and one when the selected coding agent starts working on it.
 
@@ -161,10 +161,12 @@ Listeners are registered via `subscribe(callback)`, which returns an unsubscribe
 
 ### Pruning
 
-Events older than `retentionDays` (default: 7) are automatically pruned:
+Events are pruned based on two optional limits — `retentionDays` (time-based) and `maxSizeMB` (size-based). Both default to unlimited. When both are set, the first limit hit triggers pruning (oldest entries are dropped first).
+
+Pruning runs:
 
 - On startup
-- Every hour via `setInterval`
+- After each new event is added (`pruneIfNeeded`)
 
 ### Category Filtering
 
@@ -174,7 +176,8 @@ Each category can be individually enabled/disabled via config. Disabled categori
 
 ```typescript
 interface ActivityConfig {
-  retentionDays: number; // default: 7
+  retentionDays?: number; // undefined = unlimited
+  maxSizeMB?: number; // undefined = unlimited
   categories: Record<ActivityCategory, boolean>; // all true by default
   disabledEvents: string[]; // event types to suppress entirely
   toastEvents?: string[]; // legacy compatibility field

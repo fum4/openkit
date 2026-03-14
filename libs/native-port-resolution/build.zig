@@ -9,6 +9,14 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .imports = &.{
+            .{ .name = "logger", .module = b.createModule(.{
+                .root_source_file = .{ .cwd_relative = "../logger/zig/logger.zig" },
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }) },
+        },
     });
 
     // On macOS, add the DYLD_INTERPOSE table (interpose.c) so that the hook

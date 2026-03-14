@@ -29,6 +29,8 @@ interface AppPreferences {
   basePort: number;
   setupPreference: SetupPreference;
   autoDownloadUpdates: boolean;
+  devMode: boolean;
+  devModeRepoPath: string;
   sidebarWidth: number;
   windowBounds: {
     x?: number;
@@ -65,6 +67,8 @@ interface ElectronAPI {
   getSidebarWidth: () => Promise<number>;
   setSidebarWidth: (width: number) => Promise<void>;
   updatePreferences: (updates: Partial<AppPreferences>) => Promise<void>;
+  detectOpenkitRepo: () => Promise<string | null>;
+  selectDevRepoFolder: () => Promise<string | null>;
 
   // App updates
   getAppVersion: () => Promise<string>;

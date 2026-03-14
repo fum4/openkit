@@ -1,7 +1,7 @@
 import { createServer } from "http";
 import { execFile as execFileCb } from "child_process";
 
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import type { JiraCredentials, JiraOAuthCredentials } from "./types";
 import { saveJiraCredentials } from "./credentials";
 

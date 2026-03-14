@@ -1,21 +1,58 @@
+// System boundary mocks — MUST be imported first (vi.mock is hoisted)
+import "./mocks/child-process";
+import "./mocks/integrations";
+
 import "@testing-library/jest-dom/vitest";
+
+// ─── Mock @tanstack/react-virtual ───────────────────────────
+// jsdom has no layout engine, so useVirtualizer returns zero-height items.
+// This mock renders all items without measurement.
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: (opts: { count: number; estimateSize: () => number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: opts.count }, (_, i) => ({
+        index: i,
+        start: i * opts.estimateSize(),
+        size: opts.estimateSize(),
+        key: i,
+      })),
+    getTotalSize: () => opts.count * opts.estimateSize(),
+    measureElement: () => {},
+  }),
+}));
 
 import { setupServer } from "msw/node";
 
-import { handlers, resetWorktreeStore } from "./mocks/handlers";
+import { createServerBridge, createBridgeHandler, type ServerBridge } from "./server-bridge";
 
-// ─── MSW server ──────────────────────────────────────────────────
+// ─── Server bridge + MSW ─────────────────────────────────────
 
-export const server = setupServer(...handlers);
+let bridge: ServerBridge;
 
-beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
+export const server = setupServer();
+
+export function getTestBridge(): ServerBridge {
+  return bridge;
+}
+
+beforeAll(() => {
+  bridge = createServerBridge();
+  server.use(createBridgeHandler(bridge.app));
+  server.listen({ onUnhandledRequest: "bypass" });
+});
+
 afterEach(() => {
   server.resetHandlers();
-  resetWorktreeStore();
+  // Re-add bridge handler since resetHandlers removes it
+  server.use(createBridgeHandler(bridge.app));
 });
-afterAll(() => server.close());
 
-// ─── Mock EventSource for SSE ────────────────────────────────────
+afterAll(() => {
+  server.close();
+  bridge.cleanup();
+});
+
+// ─── Mock EventSource for SSE ────────────────────────────────
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -74,7 +111,7 @@ class MockEventSource {
 
 Object.defineProperty(globalThis, "EventSource", { value: MockEventSource, writable: true });
 
-// ─── Mock ServerContext ──────────────────────────────────────────
+// ─── Mock ServerContext ──────────────────────────────────────
 // Components use useServerUrlOptional() which needs ServerContext.
 // Mock the module to return null (relative URL mode — MSW intercepts fetch).
 
@@ -95,7 +132,7 @@ vi.mock("../contexts/ServerContext", () => ({
   ServerProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// ─── Cleanup ─────────────────────────────────────────────────────
+// ─── Cleanup ─────────────────────────────────────────────────
 
 afterEach(() => {
   MockEventSource.reset();

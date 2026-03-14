@@ -5,7 +5,7 @@ import { input, select } from "@inquirer/prompts";
 
 import { APP_NAME, CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { copyEnvFiles } from "@openkit/shared/env-files";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import {
   loadJiraCredentials,
   loadJiraProjectConfig,
@@ -825,15 +825,15 @@ function printSummary(
   labels: string[],
   url: string | null,
 ) {
-  console.log("");
-  console.log(`  ${key}: ${title}`);
+  log.plain("");
+  log.plain(`  ${key}: ${title}`);
   const parts = [`Status: ${status}`];
   if (priority) parts.push(`Priority: ${priority}`);
-  console.log(`  ${parts.join("  |  ")}`);
-  if (assignee) console.log(`  Assignee: ${assignee}`);
-  if (labels.length > 0) console.log(`  Labels: ${labels.join(", ")}`);
-  if (url) console.log(`  URL: ${url}`);
-  console.log("");
+  log.plain(`  ${parts.join("  |  ")}`);
+  if (assignee) log.plain(`  Assignee: ${assignee}`);
+  if (labels.length > 0) log.plain(`  Labels: ${labels.join(", ")}`);
+  if (url) log.plain(`  URL: ${url}`);
+  log.plain("");
 }
 
 async function handleWorktreeAction(
@@ -878,7 +878,7 @@ async function handleWorktreeAction(
     return;
   }
 
-  console.log("");
+  log.plain("");
   const action = await select({
     message: "What would you like to do?",
     choices: [

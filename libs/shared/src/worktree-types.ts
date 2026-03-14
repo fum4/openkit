@@ -59,10 +59,16 @@ export interface WorktreeConfig {
   /** Activity feed configuration */
   activity?: {
     retentionDays?: number;
+    maxSizeMB?: number;
     categories?: Record<string, boolean>;
     disabledEvents?: string[];
     toastEvents?: string[];
     osNotificationEvents?: string[];
+  };
+  /** Ops log (debug log) configuration */
+  opsLog?: {
+    retentionDays?: number;
+    maxSizeMB?: number;
   };
 }
 

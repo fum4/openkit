@@ -5,11 +5,37 @@ import path from "path";
 const webAppPort = Number.parseInt(process.env.OPENKIT_WEB_APP_PORT ?? "5173");
 const serverPort = Number.parseInt(process.env.OPENKIT_SERVER_PORT ?? "6969");
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Stub modules that the server imports but that aren't needed in web-app tests.
+    // vi.mock alone doesn't prevent Vite's static analysis from resolving them.
+    // Stub modules that the server imports but aren't needed in web-app tests.
+    // Uses prefix matching so subpath imports (e.g. @openkit/agents/actions) are caught too.
+    {
+      name: "test-stubs",
+      resolveId(id: string) {
+        const prefixes = [
+          "@openkit/agents",
+          "@modelcontextprotocol/",
+          "node-pty",
+          "@hono/node-ws",
+          "@hono/node-server",
+        ];
+        if (prefixes.some((p) => id === p || id.startsWith(p + "/"))) {
+          return `\0stub:${id}`;
+        }
+      },
+      load(id: string) {
+        if (id.startsWith("\0stub:")) return "export default {}";
+      },
+    },
+  ],
   root: path.resolve(__dirname, "src"),
   resolve: {
     alias: {
       "@openkit/shared": path.resolve(__dirname, "../../libs/shared/src"),
+      "@openkit/integrations": path.resolve(__dirname, "../../libs/integrations/src"),
+      "@openkit/logger": path.resolve(__dirname, "../../libs/logger/node/src"),
     },
   },
   base: "./",
@@ -32,6 +58,9 @@ export default defineConfig({
     globals: true,
     include: ["**/*.test.{ts,tsx}"],
     setupFiles: ["test/setup.ts"],
+    alias: [
+      { find: /^@openkit\/server\/(.*)/, replacement: path.resolve(__dirname, "../server/src/$1") },
+    ],
     coverage: {
       provider: "v8",
       include: ["**/*.{ts,tsx}"],

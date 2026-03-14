@@ -16,7 +16,7 @@ import { select } from "@inquirer/prompts";
 
 import { APP_NAME } from "@openkit/shared/constants";
 import { getComponentsDir, resolveAvailableWebUiPath } from "@openkit/shared/ui-components";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 
 import { installDesktopApp } from "./install-app";
 import { getProjectRoot } from "./runtime-paths";

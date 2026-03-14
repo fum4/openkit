@@ -4,6 +4,7 @@ import os from "os";
 import type { ChildProcess } from "child_process";
 import { spawnServer, stopServer, waitForServerReady } from "./server-spawner.js";
 import { preferencesManager } from "./preferences-manager.js";
+import { symlinkOpsLog } from "./dev-mode.js";
 
 export interface Project {
   id: string;
@@ -218,6 +219,7 @@ export class ProjectManager {
       this.notifyChange();
 
       this.saveState();
+      this.trySymlinkOpsLog(project);
       return { success: true, project: this.toPublicProject(project) };
     } catch (err) {
       project.status = "error";
@@ -305,6 +307,19 @@ export class ProjectManager {
   getProject(id: string): Project | null {
     const project = this.projects.get(id);
     return project ? this.toPublicProject(project) : null;
+  }
+
+  private trySymlinkOpsLog(project: ProjectInternal) {
+    if (!preferencesManager.isDevMode()) return;
+
+    const repoPath = preferencesManager.getDevModeRepoPath();
+    if (!repoPath) return;
+
+    try {
+      symlinkOpsLog(project.projectDir, project.name, repoPath);
+    } catch {
+      // Dev-mode symlink is best-effort — don't block project opening
+    }
   }
 
   private toPublicProject(project: ProjectInternal): Project {

@@ -26,7 +26,7 @@ import {
   updateIssueTitle,
 } from "@openkit/integrations/linear/api";
 import type { DataLifecycleConfig } from "@openkit/integrations/linear/types";
-import { log } from "@openkit/shared/logger";
+import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 
 function resolveAutoStartAgent(value: unknown): "claude" | "codex" | "gemini" | "opencode" {

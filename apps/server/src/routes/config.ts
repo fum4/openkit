@@ -105,6 +105,30 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
     }
   });
 
+  app.post("/api/config/retention-impact", async (c) => {
+    try {
+      const { target, retentionDays, maxSizeMB } = await c.req.json<{
+        target: "activity" | "opsLog";
+        retentionDays?: number;
+        maxSizeMB?: number;
+      }>();
+
+      if (target !== "activity" && target !== "opsLog") {
+        return c.json({ error: "target must be 'activity' or 'opsLog'" }, 400);
+      }
+
+      const proposed = { retentionDays, maxSizeMB };
+      const impact =
+        target === "activity"
+          ? manager.getActivityLog().estimateImpact(proposed)
+          : manager.getOpsLog().estimateImpact(proposed);
+
+      return c.json(impact);
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : "Invalid request" }, 400);
+    }
+  });
+
   app.get("/api/ports", (c) => {
     const portManager = manager.getPortManager();
     return c.json({

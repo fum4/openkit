@@ -3,6 +3,9 @@ import type { ActivityFilterGroup } from "../components/ActivityFeed";
 const FILTERS_KEY_PREFIX = "OpenKit:activityFeedFiltersByScope:";
 const LEGACY_FILTERS_KEY = "OpenKit:activityFeedFilters";
 const DEBUG_MODE_KEY_PREFIX = "OpenKit:activityDebugModeByScope:";
+const LOG_LEVELS_KEY_PREFIX = "OpenKit:logLevelsByScope:";
+const LOG_DOMAINS_KEY_PREFIX = "OpenKit:logDomainsByScope:";
+const LOG_SURFACES_KEY_PREFIX = "OpenKit:logSurfacesByScope:";
 
 function normalizeActivityFilterGroups(value: unknown): ActivityFilterGroup[] {
   if (!Array.isArray(value)) return [];
@@ -114,4 +117,60 @@ export function writePersistedActivityDebugMode(scope: string, enabled: boolean)
   } catch {
     // Ignore localStorage write failures.
   }
+}
+
+function readStringArray(key: string): string[] | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return null;
+  }
+}
+
+function writeStringArray(key: string, values: string[], defaults: string[]): void {
+  try {
+    if (values.length === defaults.length && defaults.every((d) => values.includes(d))) {
+      localStorage.removeItem(key);
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(values));
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
+export function readPersistedLogLevels(scope: string): string[] | null {
+  return readStringArray(`${LOG_LEVELS_KEY_PREFIX}${scope}`);
+}
+
+export function writePersistedLogLevels(scope: string, values: string[], defaults: string[]): void {
+  writeStringArray(`${LOG_LEVELS_KEY_PREFIX}${scope}`, values, defaults);
+}
+
+export function readPersistedLogDomains(scope: string): string[] | null {
+  return readStringArray(`${LOG_DOMAINS_KEY_PREFIX}${scope}`);
+}
+
+export function writePersistedLogDomains(
+  scope: string,
+  values: string[],
+  defaults: string[],
+): void {
+  writeStringArray(`${LOG_DOMAINS_KEY_PREFIX}${scope}`, values, defaults);
+}
+
+export function readPersistedLogSurfaces(scope: string): string[] | null {
+  return readStringArray(`${LOG_SURFACES_KEY_PREFIX}${scope}`);
+}
+
+export function writePersistedLogSurfaces(
+  scope: string,
+  values: string[],
+  defaults: string[],
+): void {
+  writeStringArray(`${LOG_SURFACES_KEY_PREFIX}${scope}`, values, defaults);
 }

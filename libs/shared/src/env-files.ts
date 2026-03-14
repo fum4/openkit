@@ -2,7 +2,6 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import path from "path";
 
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
-import { log } from "@openkit/shared/logger";
 
 export function copyEnvFiles(sourceDir: string, targetDir: string, worktreesDir: string): void {
   const copyEnvRecursive = (src: string, dest: string, relPath = "") => {
@@ -29,7 +28,6 @@ export function copyEnvFiles(sourceDir: string, targetDir: string, worktreesDir:
               mkdirSync(destDir, { recursive: true });
             }
             copyFileSync(srcPath, destPath);
-            log.info(`Copied ${displayPath} to worktree`);
           }
         }
       }

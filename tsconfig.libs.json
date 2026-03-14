@@ -2,7 +2,8 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "paths": {
-      "@openkit/shared/*": ["./libs/shared/src/*"]
+      "@openkit/shared/*": ["./libs/shared/src/*"],
+      "@openkit/logger": ["./libs/logger/node/src/index.ts"]
     }
   },
   "include": [

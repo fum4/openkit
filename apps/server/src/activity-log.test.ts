@@ -6,6 +6,7 @@ vi.mock("fs", () => ({
   appendFileSync: vi.fn(),
   readFileSync: vi.fn().mockReturnValue(""),
   writeFileSync: vi.fn(),
+  statSync: vi.fn().mockReturnValue({ size: 0 }),
 }));
 
 vi.mock("nanoid", () => {
@@ -24,6 +25,7 @@ const mockedMkdirSync = fs.mkdirSync as ReturnType<typeof vi.fn>;
 const mockedAppendFileSync = fs.appendFileSync as ReturnType<typeof vi.fn>;
 const mockedReadFileSync = fs.readFileSync as ReturnType<typeof vi.fn>;
 const mockedWriteFileSync = fs.writeFileSync as ReturnType<typeof vi.fn>;
+const mockedStatSync = fs.statSync as ReturnType<typeof vi.fn>;
 
 function makeEvent(overrides: Record<string, unknown> = {}) {
   return {
@@ -49,6 +51,7 @@ describe("ActivityLog", () => {
     vi.useFakeTimers();
     mockedExistsSync.mockReturnValue(false);
     mockedReadFileSync.mockReturnValue("");
+    mockedStatSync.mockReturnValue({ size: 0 });
     (nanoid as ReturnType<typeof vi.fn>).mockImplementation(
       (() => {
         let c = 0;
@@ -101,36 +104,26 @@ describe("ActivityLog", () => {
     });
     mockedReadFileSync.mockReturnValue(JSON.stringify(oldEvent) + "\n");
 
-    log = new ActivityLog("/home/user");
+    log = new ActivityLog("/home/user", { retentionDays: 7 });
 
     expect(mockedWriteFileSync).toHaveBeenCalled();
   });
 
-  it("starts an hourly prune interval", () => {
+  it("does not start an interval timer", () => {
+    const setIntervalSpy = vi.spyOn(global, "setInterval");
     log = new ActivityLog("/home/user");
 
-    mockedExistsSync.mockReturnValue(true);
-    mockedReadFileSync.mockReturnValue("");
-
-    vi.advanceTimersByTime(60 * 60 * 1000);
-    // prune was called on construction + once by interval
-    // On construction the file didn't exist so writeFileSync wasn't called,
-    // but after advancing the timer with existsSync returning true, it should be called
-    expect(mockedWriteFileSync).toHaveBeenCalled();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    setIntervalSpy.mockRestore();
   });
 
   // --- dispose ---
 
-  it("clears prune interval on dispose", () => {
+  it("dispose is a no-op and does not throw", () => {
     log = new ActivityLog("/home/user");
-    log.dispose();
-
-    mockedExistsSync.mockReturnValue(true);
-    mockedReadFileSync.mockReturnValue("");
-    mockedWriteFileSync.mockClear();
-
-    vi.advanceTimersByTime(2 * 60 * 60 * 1000);
-    expect(mockedWriteFileSync).not.toHaveBeenCalled();
+    expect(() => log.dispose()).not.toThrow();
+    // Can be called multiple times
+    expect(() => log.dispose()).not.toThrow();
   });
 
   // --- addEvent ---
@@ -230,6 +223,44 @@ describe("ActivityLog", () => {
 
     expect(event.id).toBeDefined();
     expect(listener).toHaveBeenCalledWith(event);
+  });
+
+  it("calls pruneIfNeeded after writing when maxSizeMB is set", () => {
+    const limitBytes = 100;
+    log = new ActivityLog("/home/user", { maxSizeMB: limitBytes / (1024 * 1024) });
+
+    // File is over the limit
+    mockedStatSync.mockReturnValue({ size: limitBytes + 1 });
+    mockedExistsSync.mockReturnValue(true);
+    const existingEvent = makeEvent({ id: "old-1" });
+    const existingEvent2 = makeEvent({ id: "old-2" });
+    mockedReadFileSync.mockReturnValue(jsonlLines(existingEvent, existingEvent2));
+    mockedWriteFileSync.mockClear();
+
+    log.addEvent({
+      category: "agent",
+      type: "agent_connected",
+      severity: "info",
+      title: "Trigger prune",
+    });
+
+    // pruneBySizeSync should have been called, writing the file
+    expect(mockedWriteFileSync).toHaveBeenCalled();
+  });
+
+  it("does not call pruneIfNeeded when maxSizeMB is not set", () => {
+    log = new ActivityLog("/home/user");
+    mockedWriteFileSync.mockClear();
+
+    log.addEvent({
+      category: "agent",
+      type: "agent_connected",
+      severity: "info",
+      title: "No prune",
+    });
+
+    // writeFileSync should NOT be called (no size pruning)
+    expect(mockedWriteFileSync).not.toHaveBeenCalled();
   });
 
   // --- subscribe / unsubscribe ---
@@ -377,6 +408,31 @@ describe("ActivityLog", () => {
 
   // --- prune ---
 
+  it("does not prune when no limits are set (old entries survive)", () => {
+    const now = new Date("2025-06-15T00:00:00.000Z").getTime();
+    vi.setSystemTime(now);
+
+    log = new ActivityLog("/home/user");
+    mockedWriteFileSync.mockClear();
+
+    const veryOld = makeEvent({
+      id: "very-old",
+      timestamp: new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    const old = makeEvent({
+      id: "old",
+      timestamp: new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(jsonlLines(veryOld, old));
+
+    log.prune();
+
+    const written = mockedWriteFileSync.mock.calls[0][1] as string;
+    expect(written).toContain(veryOld.id);
+    expect(written).toContain(old.id);
+  });
+
   it("removes events older than retentionDays", () => {
     const now = new Date("2025-06-15T00:00:00.000Z").getTime();
     vi.setSystemTime(now);
@@ -407,7 +463,7 @@ describe("ActivityLog", () => {
     const now = new Date("2025-06-15T00:00:00.000Z").getTime();
     vi.setSystemTime(now);
 
-    log = new ActivityLog("/home/user");
+    log = new ActivityLog("/home/user", { retentionDays: 7 });
     mockedWriteFileSync.mockClear();
 
     const old = makeEvent({
@@ -420,6 +476,101 @@ describe("ActivityLog", () => {
 
     const written = mockedWriteFileSync.mock.calls[0][1] as string;
     expect(written).toBe("");
+  });
+
+  it("prune skips time-based pruning when retentionDays is undefined", () => {
+    const now = new Date("2025-06-15T00:00:00.000Z").getTime();
+    vi.setSystemTime(now);
+
+    // No retentionDays
+    log = new ActivityLog("/home/user");
+    mockedWriteFileSync.mockClear();
+
+    const oldEvent = makeEvent({
+      id: "ancient",
+      timestamp: new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(jsonlLines(oldEvent));
+
+    log.prune();
+
+    const written = mockedWriteFileSync.mock.calls[0][1] as string;
+    expect(written).toContain("ancient");
+  });
+
+  it("prune applies size-based pruning after time-based when maxSizeMB is set", () => {
+    const now = new Date("2025-06-15T00:00:00.000Z").getTime();
+    vi.setSystemTime(now);
+
+    // Very small limit (1 byte) — everything should be pruned by size
+    log = new ActivityLog("/home/user", { retentionDays: 365, maxSizeMB: 0.000001 });
+    mockedWriteFileSync.mockClear();
+
+    const event1 = makeEvent({ id: "e1", timestamp: new Date(now - 1000).toISOString() });
+    const event2 = makeEvent({ id: "e2", timestamp: new Date(now - 500).toISOString() });
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(jsonlLines(event1, event2));
+
+    log.prune();
+
+    // Size prune should remove entries — writeFileSync called twice (time prune + size prune)
+    expect(mockedWriteFileSync).toHaveBeenCalledTimes(2);
+    // The last write should be an empty file (all removed by size)
+    const lastWritten = mockedWriteFileSync.mock.calls[1][1] as string;
+    expect(lastWritten).toBe("");
+  });
+
+  // --- size-based pruning ---
+
+  it("pruneBySizeSync keeps newest entries that fit within maxSizeMB", () => {
+    const now = new Date("2025-06-15T00:00:00.000Z").getTime();
+    vi.setSystemTime(now);
+
+    // Large enough to hold a few events but not all
+    const oneMB = 1024 * 1024;
+    log = new ActivityLog("/home/user", { maxSizeMB: oneMB / (1024 * 1024) }); // 1MB
+
+    // File is over limit
+    mockedStatSync.mockReturnValue({ size: oneMB + 1 });
+    mockedExistsSync.mockReturnValue(true);
+    mockedWriteFileSync.mockClear();
+
+    // Create events - oldest first
+    const events = [
+      makeEvent({ id: "oldest", timestamp: new Date(now - 3000).toISOString() }),
+      makeEvent({ id: "middle", timestamp: new Date(now - 2000).toISOString() }),
+      makeEvent({ id: "newest", timestamp: new Date(now - 1000).toISOString() }),
+    ];
+    mockedReadFileSync.mockReturnValue(jsonlLines(...events));
+
+    log.addEvent({
+      category: "agent",
+      type: "agent_connected",
+      severity: "info",
+      title: "Trigger prune",
+    });
+
+    // Should have written the file keeping newest entries
+    expect(mockedWriteFileSync).toHaveBeenCalled();
+  });
+
+  it("size-based pruning: file under limit does not trigger pruneIfNeeded write", () => {
+    log = new ActivityLog("/home/user", { maxSizeMB: 10 });
+
+    // File is under the limit
+    mockedStatSync.mockReturnValue({ size: 100 });
+    mockedWriteFileSync.mockClear();
+
+    log.addEvent({
+      category: "agent",
+      type: "agent_connected",
+      severity: "info",
+      title: "No prune needed",
+    });
+
+    // writeFileSync should NOT be called (file under limit)
+    expect(mockedWriteFileSync).not.toHaveBeenCalled();
   });
 
   // --- updateConfig ---
@@ -453,14 +604,54 @@ describe("ActivityLog", () => {
     expect(mockedAppendFileSync).not.toHaveBeenCalled();
   });
 
+  it("updateConfig with maxSizeMB changes pruning behavior on next addEvent", () => {
+    log = new ActivityLog("/home/user");
+
+    // Initially no size limit — file over any limit, but no pruning
+    mockedStatSync.mockReturnValue({ size: 999999999 });
+    mockedWriteFileSync.mockClear();
+
+    log.addEvent({
+      category: "agent",
+      type: "agent_connected",
+      severity: "info",
+      title: "Before update",
+    });
+    expect(mockedWriteFileSync).not.toHaveBeenCalled();
+
+    // Now set a very small maxSizeMB
+    log.updateConfig({ maxSizeMB: 0.000001 });
+
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(jsonlLines(makeEvent({ id: "e1" })));
+    mockedWriteFileSync.mockClear();
+
+    log.addEvent({
+      category: "agent",
+      type: "agent_connected",
+      severity: "info",
+      title: "After update",
+    });
+
+    // Now writeFileSync should be called due to size pruning
+    expect(mockedWriteFileSync).toHaveBeenCalled();
+  });
+
   // --- getConfig ---
 
   it("returns current config", () => {
     log = new ActivityLog("/home/user");
     const config = log.getConfig();
-    expect(config.retentionDays).toBe(7);
+    expect(config.retentionDays).toBeUndefined();
+    expect(config.maxSizeMB).toBeUndefined();
     expect(config.categories.agent).toBe(true);
     expect(config.disabledEvents).toEqual([]);
+  });
+
+  it("returns config with retentionDays when specified", () => {
+    log = new ActivityLog("/home/user", { retentionDays: 14 });
+    const config = log.getConfig();
+    expect(config.retentionDays).toBe(14);
   });
 
   // --- isToastEvent / isOsNotificationEvent ---
@@ -499,5 +690,130 @@ describe("ActivityLog", () => {
     expect(log.isToastEvent("custom_event")).toBe(true);
     // Previous defaults should be gone since the array is replaced
     expect(log.isToastEvent("creation_started")).toBe(false);
+  });
+
+  // --- estimateImpact ---
+
+  it("estimateImpact returns zeros when file does not exist", () => {
+    mockedExistsSync.mockReturnValue(false);
+    log = new ActivityLog("/home/user");
+
+    const result = log.estimateImpact({ retentionDays: 7 });
+    expect(result).toEqual({
+      entriesToRemove: 0,
+      bytesToRemove: 0,
+      currentEntries: 0,
+      currentBytes: 0,
+    });
+  });
+
+  it("estimateImpact returns correct counts for time-based pruning", () => {
+    const now = new Date("2025-06-15T00:00:00.000Z").getTime();
+    vi.setSystemTime(now);
+
+    log = new ActivityLog("/home/user");
+
+    const oldEvent = makeEvent({
+      id: "old",
+      timestamp: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    const recentEvent = makeEvent({
+      id: "recent",
+      timestamp: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    const content = jsonlLines(oldEvent, recentEvent);
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(content);
+
+    const result = log.estimateImpact({ retentionDays: 7 });
+
+    expect(result.currentEntries).toBe(2);
+    expect(result.entriesToRemove).toBe(1); // only the old one
+    expect(result.bytesToRemove).toBeGreaterThan(0);
+    expect(result.currentBytes).toBeGreaterThan(result.bytesToRemove);
+  });
+
+  it("estimateImpact returns correct counts for size-based pruning", () => {
+    log = new ActivityLog("/home/user");
+
+    const event1 = makeEvent({ id: "e1", timestamp: "2025-01-01T00:00:00.000Z" });
+    const event2 = makeEvent({ id: "e2", timestamp: "2025-06-01T00:00:00.000Z" });
+    const content = jsonlLines(event1, event2);
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(content);
+
+    // Very small limit — should remove all or most entries
+    const result = log.estimateImpact({ maxSizeMB: 0.000001 });
+
+    expect(result.currentEntries).toBe(2);
+    expect(result.entriesToRemove).toBe(2); // all removed
+    expect(result.bytesToRemove).toBeGreaterThan(0);
+  });
+
+  it("estimateImpact does not modify the file", () => {
+    log = new ActivityLog("/home/user");
+
+    const event = makeEvent({ id: "keep-me" });
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(jsonlLines(event));
+    mockedWriteFileSync.mockClear();
+
+    log.estimateImpact({ retentionDays: 1 });
+
+    expect(mockedWriteFileSync).not.toHaveBeenCalled();
+  });
+
+  it("estimateImpact with no proposed limits returns zero removals", () => {
+    log = new ActivityLog("/home/user");
+
+    const event1 = makeEvent({ id: "e1", timestamp: "2025-01-01T00:00:00.000Z" });
+    const event2 = makeEvent({ id: "e2", timestamp: "2025-06-01T00:00:00.000Z" });
+    const content = jsonlLines(event1, event2);
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(content);
+
+    const result = log.estimateImpact({});
+
+    expect(result.currentEntries).toBe(2);
+    expect(result.entriesToRemove).toBe(0);
+    expect(result.bytesToRemove).toBe(0);
+  });
+
+  it("estimateImpact combines time and size pruning", () => {
+    const now = new Date("2025-06-15T00:00:00.000Z").getTime();
+    vi.setSystemTime(now);
+
+    log = new ActivityLog("/home/user");
+
+    // 3 events: 2 old (would survive time prune with 30 days but fail size), 1 recent
+    const events = [
+      makeEvent({ id: "e1", timestamp: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString() }),
+      makeEvent({ id: "e2", timestamp: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString() }),
+      makeEvent({ id: "e3", timestamp: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString() }),
+    ];
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(jsonlLines(...events));
+
+    // Prune by time (keep 30 days — all survive), then by size (tiny — removes all)
+    const result = log.estimateImpact({ retentionDays: 30, maxSizeMB: 0.000001 });
+
+    expect(result.currentEntries).toBe(3);
+    expect(result.entriesToRemove).toBe(3);
+  });
+
+  it("estimateImpact returns zeros when readFileSync throws", () => {
+    log = new ActivityLog("/home/user");
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockImplementation(() => {
+      throw new Error("read error");
+    });
+
+    const result = log.estimateImpact({ retentionDays: 7 });
+    expect(result).toEqual({
+      entriesToRemove: 0,
+      bytesToRemove: 0,
+      currentEntries: 0,
+      currentBytes: 0,
+    });
   });
 });

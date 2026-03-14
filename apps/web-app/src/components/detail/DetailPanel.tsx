@@ -1,14 +1,14 @@
-import { AlertTriangle, GitBranch, Link, ListTodo, Plus, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { GitBranch, Info, Link, ListTodo, Plus, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
-import type { AgentHistoryMatch, RestorableAgent } from "../../hooks/api";
+import type { AgentHistoryMatch, CodingAgent, RestorableAgent } from "../../hooks/api";
 import type { WorktreeInfo } from "../../types";
 import { useErrorToast } from "../../hooks/useErrorToast";
 import { useApi } from "../../hooks/useApi";
 import { clearTerminalSessionCacheForRuntimeWorktree } from "../../hooks/useTerminal";
 import { useServer, useServerUrlOptional } from "../../contexts/ServerContext";
-import { action, border, detailTab, errorBanner, input, text } from "../../theme";
+import { action, border, button, detailTab, errorBanner, input, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { GitHubIcon } from "../../icons";
 import { Modal } from "../Modal";
@@ -150,6 +150,116 @@ interface AgentRestoreModalState {
   selectedSessionId: string | null;
 }
 
+const AGENT_OPTIONS: { id: CodingAgent; label: string }[] = [
+  { id: "claude", label: "Claude" },
+  { id: "codex", label: "Codex" },
+  { id: "gemini", label: "Gemini" },
+  { id: "opencode", label: "OpenCode" },
+];
+
+function AddAgentDropdown({
+  worktreeId,
+  installedAgents,
+  openClaudeTabs,
+  openCodexTabs,
+  openGeminiTabs,
+  openOpenCodeTabs,
+  isResolvingAgentRestore,
+  onOpenAgent,
+}: {
+  worktreeId: string;
+  installedAgents: Set<CodingAgent> | null;
+  openClaudeTabs: Set<string>;
+  openCodexTabs: Set<string>;
+  openGeminiTabs: Set<string>;
+  openOpenCodeTabs: Set<string>;
+  isResolvingAgentRestore: CodingAgent | null;
+  onOpenAgent: (agent: CodingAgent) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const availableAgents = useMemo(() => {
+    const openSets: Record<CodingAgent, Set<string>> = {
+      claude: openClaudeTabs,
+      codex: openCodexTabs,
+      gemini: openGeminiTabs,
+      opencode: openOpenCodeTabs,
+    };
+    return AGENT_OPTIONS.filter(
+      (option) =>
+        !openSets[option.id].has(worktreeId) &&
+        (installedAgents === null || installedAgents.has(option.id)),
+    );
+  }, [
+    worktreeId,
+    installedAgents,
+    openClaudeTabs,
+    openCodexTabs,
+    openGeminiTabs,
+    openOpenCodeTabs,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
+  if (availableAgents.length === 0) return null;
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        disabled={isResolvingAgentRestore !== null}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        className={`inline-flex items-center gap-1 pl-2 pr-2 py-1 text-xs font-medium rounded-md transition-colors duration-150 ${
+          isOpen ? detailTab.active : "text-[#3f4651] hover:text-[#9ca3af] hover:bg-white/[0.06]"
+        } disabled:opacity-50`}
+      >
+        <Plus className="w-3 h-3" />
+        Agent
+      </button>
+      {isOpen && (
+        <div
+          role="menu"
+          className="absolute left-0 top-full mt-1 w-36 rounded-lg border border-white/[0.08] bg-[#11151d] shadow-xl p-1 z-20"
+        >
+          {availableAgents.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenAgent(option.id);
+              }}
+              className="w-full text-left px-2.5 py-1.5 text-[11px] rounded-md text-[#9ca3af] hover:text-white hover:bg-white/[0.06] transition-colors duration-150"
+            >
+              {isResolvingAgentRestore === option.id ? "Restoring..." : option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
 
 export function DetailPanel({
@@ -194,11 +304,11 @@ export function DetailPanel({
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [isDeletingWorktree, setIsDeletingWorktree] = useState(false);
+  const [installedAgents, setInstalledAgents] = useState<Set<CodingAgent> | null>(null);
   const [isResolvingAgentRestore, setIsResolvingAgentRestore] = useState<RestorableAgent | null>(
     null,
   );
   const [agentRestoreModal, setAgentRestoreModal] = useState<AgentRestoreModalState | null>(null);
-  const [missingHistoryAgent, setMissingHistoryAgent] = useState<RestorableAgent | null>(null);
   const [openTargetOptions, setOpenTargetOptions] = useState<OpenProjectTargetOption[]>([]);
   const [selectedOpenTarget, setSelectedOpenTarget] = useState<OpenProjectTarget | null>(null);
   const [tabPerWorktree, setTabPerWorktree] = useState<Record<string, WorktreeTab>>(() => ({
@@ -842,13 +952,25 @@ export function DetailPanel({
     [api, detailScopeKey, getAgentTabLabel, logAutoClaude, launchAgentIntent, worktree],
   );
 
+  const handleStartNewConversation = useCallback(
+    (agent: RestorableAgent) => {
+      if (!worktree) return;
+      launchAgentIntent(agent, {
+        worktreeId: worktree.id,
+        mode: "start-new",
+        tabLabel: getAgentTabLabel(agent),
+      });
+      setAgentRestoreModal(null);
+    },
+    [getAgentTabLabel, launchAgentIntent, worktree],
+  );
+
   const handleOpenClaudeTab = useCallback(() => {
     if (!worktree || isResolvingAgentRestore) return;
 
     void (async () => {
       setIsResolvingAgentRestore("claude");
       setAgentRestoreModal(null);
-      setMissingHistoryAgent(null);
 
       const restore = await api.fetchRestorableAgentSessions(worktree.id, "claude");
       setIsResolvingAgentRestore((prev) => (prev === "claude" ? null : prev));
@@ -885,9 +1007,16 @@ export function DetailPanel({
         return;
       }
 
-      setMissingHistoryAgent("claude");
+      handleStartNewConversation("claude");
     })();
-  }, [api, getAgentTabLabel, isResolvingAgentRestore, launchAgentIntent, worktree]);
+  }, [
+    api,
+    getAgentTabLabel,
+    handleStartNewConversation,
+    isResolvingAgentRestore,
+    launchAgentIntent,
+    worktree,
+  ]);
 
   const requestCloseClaudeTab = useCallback((worktreeId: string) => {
     closeClaudeRequestIdRef.current += 1;
@@ -901,7 +1030,6 @@ export function DetailPanel({
     void (async () => {
       setIsResolvingAgentRestore("codex");
       setAgentRestoreModal(null);
-      setMissingHistoryAgent(null);
 
       const restore = await api.fetchRestorableAgentSessions(worktree.id, "codex");
       setIsResolvingAgentRestore((prev) => (prev === "codex" ? null : prev));
@@ -938,9 +1066,16 @@ export function DetailPanel({
         return;
       }
 
-      setMissingHistoryAgent("codex");
+      handleStartNewConversation("codex");
     })();
-  }, [api, getAgentTabLabel, isResolvingAgentRestore, launchAgentIntent, worktree]);
+  }, [
+    api,
+    getAgentTabLabel,
+    handleStartNewConversation,
+    isResolvingAgentRestore,
+    launchAgentIntent,
+    worktree,
+  ]);
 
   const requestCloseCodexTab = useCallback((worktreeId: string) => {
     closeCodexRequestIdRef.current += 1;
@@ -958,20 +1093,6 @@ export function DetailPanel({
     });
     setAgentRestoreModal(null);
   }, [agentRestoreModal, getAgentTabLabel, launchAgentIntent, worktree]);
-
-  const handleStartNewConversation = useCallback(
-    (agent: RestorableAgent) => {
-      if (!worktree) return;
-      launchAgentIntent(agent, {
-        worktreeId: worktree.id,
-        mode: "start-new",
-        tabLabel: getAgentTabLabel(agent),
-      });
-      setAgentRestoreModal(null);
-      setMissingHistoryAgent(null);
-    },
-    [getAgentTabLabel, launchAgentIntent, worktree],
-  );
 
   const handleOpenGeminiTab = useCallback(() => {
     void launchWorktreeAgent("gemini");
@@ -993,6 +1114,28 @@ export function DetailPanel({
     setCloseOpenCodeRequestIdByWorktree((prev) => ({ ...prev, [worktreeId]: requestId }));
   }, []);
 
+  const handleOpenAgentTab = useCallback(
+    (agent: CodingAgent) => {
+      if (agent === "claude") handleOpenClaudeTab();
+      else if (agent === "codex") handleOpenCodexTab();
+      else if (agent === "gemini") handleOpenGeminiTab();
+      else if (agent === "opencode") handleOpenOpenCodeTab();
+    },
+    [handleOpenClaudeTab, handleOpenCodexTab, handleOpenGeminiTab, handleOpenOpenCodeTab],
+  );
+
+  useEffect(() => {
+    void (async () => {
+      const results = await Promise.all(
+        AGENT_OPTIONS.map(async (option) => {
+          const status = await api.fetchAgentCliStatus(option.id);
+          return status.success && status.installed ? option.id : null;
+        }),
+      );
+      setInstalledAgents(new Set(results.filter((id): id is CodingAgent => id !== null)));
+    })();
+  }, [api]);
+
   // Reset form state when worktree changes (but NOT tab or terminal state)
   useEffect(() => {
     setError(null);
@@ -1003,7 +1146,6 @@ export function DetailPanel({
     setGitAction(null);
     setIsResolvingAgentRestore(null);
     setAgentRestoreModal(null);
-    setMissingHistoryAgent(null);
   }, [worktree?.id]);
 
   useEffect(() => {
@@ -1473,7 +1615,7 @@ export function DetailPanel({
         <div
           className={`flex-shrink-0 px-5 py-2 ${errorBanner.panelBg} border-b ${errorBanner.border} flex items-center justify-between`}
         >
-          <p className={`${text.error} text-xs`}>{error}</p>
+          <p className={`${text.error} text-xs break-all min-w-0`}>{error}</p>
           {error.includes("integration not available") && onNavigateToIntegrations && (
             <button
               type="button"
@@ -1643,48 +1785,16 @@ export function DetailPanel({
                 </button>
               </div>
             )}
-            {!openClaudeTabs.has(worktree.id) && (
-              <button
-                type="button"
-                onClick={handleOpenClaudeTab}
-                disabled={isResolvingAgentRestore !== null}
-                className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 text-xs font-medium rounded-md text-[#3f4651] hover:text-[#9ca3af] hover:bg-white/[0.06] transition-colors duration-150"
-              >
-                <Plus className="w-3 h-3" />
-                {isResolvingAgentRestore === "claude" ? "Restoring..." : "Claude"}
-              </button>
-            )}
-            {!openCodexTabs.has(worktree.id) && (
-              <button
-                type="button"
-                onClick={handleOpenCodexTab}
-                disabled={isResolvingAgentRestore !== null}
-                className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 text-xs font-medium rounded-md text-[#3f4651] hover:text-[#9ca3af] hover:bg-white/[0.06] transition-colors duration-150"
-              >
-                <Plus className="w-3 h-3" />
-                {isResolvingAgentRestore === "codex" ? "Restoring..." : "Codex"}
-              </button>
-            )}
-            {!openGeminiTabs.has(worktree.id) && (
-              <button
-                type="button"
-                onClick={handleOpenGeminiTab}
-                className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 text-xs font-medium rounded-md text-[#3f4651] hover:text-[#9ca3af] hover:bg-white/[0.06] transition-colors duration-150"
-              >
-                <Plus className="w-3 h-3" />
-                Gemini
-              </button>
-            )}
-            {!openOpenCodeTabs.has(worktree.id) && (
-              <button
-                type="button"
-                onClick={handleOpenOpenCodeTab}
-                className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 text-xs font-medium rounded-md text-[#3f4651] hover:text-[#9ca3af] hover:bg-white/[0.06] transition-colors duration-150"
-              >
-                <Plus className="w-3 h-3" />
-                OpenCode
-              </button>
-            )}
+            <AddAgentDropdown
+              worktreeId={worktree.id}
+              installedAgents={installedAgents}
+              openClaudeTabs={openClaudeTabs}
+              openCodexTabs={openCodexTabs}
+              openGeminiTabs={openGeminiTabs}
+              openOpenCodeTabs={openOpenCodeTabs}
+              isResolvingAgentRestore={isResolvingAgentRestore}
+              onOpenAgent={handleOpenAgentTab}
+            />
           </div>
 
           <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end ml-3">
@@ -2081,7 +2191,7 @@ export function DetailPanel({
       {agentRestoreModal && (
         <Modal
           title={`Choose ${agentRestoreModal.agent === "claude" ? "Claude" : "Codex"} Conversation`}
-          icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}
+          icon={<Info className="w-4 h-4 text-[#9ca3af]" />}
           width="lg"
           onClose={() => setAgentRestoreModal(null)}
           footer={
@@ -2096,7 +2206,7 @@ export function DetailPanel({
               <button
                 type="button"
                 onClick={() => handleStartNewConversation(agentRestoreModal.agent)}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg text-[#cbd5e1] hover:text-white bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg ${button.secondary} transition-colors`}
               >
                 Start New Conversation
               </button>
@@ -2154,39 +2264,6 @@ export function DetailPanel({
               );
             })}
           </div>
-        </Modal>
-      )}
-
-      {missingHistoryAgent && (
-        <Modal
-          title={`No ${missingHistoryAgent === "claude" ? "Claude" : "Codex"} Conversation Found`}
-          icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}
-          width="md"
-          onClose={() => setMissingHistoryAgent(null)}
-          footer={
-            <>
-              <button
-                type="button"
-                onClick={() => setMissingHistoryAgent(null)}
-                className={`px-3 py-1.5 text-xs rounded-lg ${action.cancel.text} ${action.cancel.textHover} transition-colors`}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStartNewConversation(missingHistoryAgent)}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent-muted transition-colors"
-              >
-                Start New Conversation
-              </button>
-            </>
-          }
-        >
-          <p className={`text-xs ${text.secondary} leading-relaxed`}>
-            OpenKit could not find a live or saved{" "}
-            {missingHistoryAgent === "claude" ? "Claude" : "Codex"} conversation for this exact
-            worktree path.
-          </p>
         </Modal>
       )}
     </div>

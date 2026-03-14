@@ -1,4 +1,4 @@
-# Native Port Hook (`libs/port-resolution`)
+# Native Port Resolution (`libs/native-port-resolution`)
 
 Runtime-agnostic port offsetting via libc symbol interposition. This shared library intercepts `bind()` and `connect()` at the POSIX level, allowing OpenKit to transparently remap ports for **any runtime** -- Python, Ruby, Java, Go (on macOS), and others -- not just Node.js.
 

@@ -1,6 +1,6 @@
 {
-  "name": "server",
-  "version": "0.0.46",
+  "name": "@openkit/server",
+  "version": "0.0.47",
   "private": true,
   "type": "module",
   "scripts": {
@@ -21,6 +21,7 @@
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/headless": "^6.0.0",
     "hono": "^4.12.2",
+    "koffi": "^2.15.2",
     "nanoid": "^5.1.6",
     "node-pty": "1.2.0-beta.10",
     "picocolors": "^1.1.1",

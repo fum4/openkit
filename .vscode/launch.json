@@ -123,6 +123,27 @@
     {
       "type": "node-terminal",
       "request": "launch",
+      "name": "🧪 Test (all)",
+      "command": "pnpm test",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🧪 Test (affected)",
+      "command": "pnpm test:affected",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🧪 Test (coverage)",
+      "command": "pnpm test:coverage",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
       "name": "👀 Check (affected)",
       "command": "pnpm check:affected",
       "cwd": "${workspaceFolder}"

@@ -53,7 +53,8 @@ export const ACTIVITY_TYPES = {
 export type ActivityType = (typeof ACTIVITY_TYPES)[keyof typeof ACTIVITY_TYPES];
 
 export interface ActivityConfig {
-  retentionDays: number;
+  retentionDays?: number;
+  maxSizeMB?: number;
   categories: Record<ActivityCategory, boolean>;
   disabledEvents: string[];
   toastEvents: string[];
@@ -61,7 +62,6 @@ export interface ActivityConfig {
 }
 
 export const DEFAULT_ACTIVITY_CONFIG: ActivityConfig = {
-  retentionDays: 7,
   categories: {
     agent: true,
     worktree: true,

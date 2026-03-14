@@ -4,6 +4,10 @@
 
 Integrate package to help with resizing and dragging activity panels around the screen
 
+## Marketplace page
+
+New marketplace page that integrates 3rd party marketplaces (skills, agents, mcps, etc.) and maybe also have some recommended section
+
 ## ✅ Worktree Hooks
 
 Add hooks to worktree creation/removal, configurable from settings page

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Settings } from "lucide-react";
+import { FolderOpen, Loader2, Settings } from "lucide-react";
 
 import { DEFAULT_PORT } from "@openkit/shared/constants";
 import { reportPersistentErrorToast } from "../errorToasts";
@@ -15,11 +15,16 @@ export function AppSettingsModal({ onClose }: AppSettingsModalProps) {
   const [basePort, setBasePort] = useState(DEFAULT_PORT);
   const [setupPreference, setSetupPreference] = useState<"ask" | "auto" | "manual">("ask");
   const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(true);
+  const [devMode, setDevMode] = useState(false);
+  const [devModeRepoPath, setDevModeRepoPath] = useState("");
   const [initialBasePort, setInitialBasePort] = useState(DEFAULT_PORT);
   const [initialSetupPreference, setInitialSetupPreference] = useState<"ask" | "auto" | "manual">(
     "ask",
   );
   const [initialAutoDownloadUpdates, setInitialAutoDownloadUpdates] = useState(true);
+  const [initialDevMode, setInitialDevMode] = useState(false);
+  const [initialDevModeRepoPath, setInitialDevModeRepoPath] = useState("");
+  const [detecting, setDetecting] = useState(false);
 
   useEffect(() => {
     window.electronAPI
@@ -28,9 +33,13 @@ export function AppSettingsModal({ onClose }: AppSettingsModalProps) {
         setBasePort(prefs.basePort);
         setSetupPreference(prefs.setupPreference);
         setAutoDownloadUpdates(prefs.autoDownloadUpdates ?? true);
+        setDevMode(prefs.devMode ?? false);
+        setDevModeRepoPath(prefs.devModeRepoPath ?? "");
         setInitialBasePort(prefs.basePort);
         setInitialSetupPreference(prefs.setupPreference);
         setInitialAutoDownloadUpdates(prefs.autoDownloadUpdates ?? true);
+        setInitialDevMode(prefs.devMode ?? false);
+        setInitialDevModeRepoPath(prefs.devModeRepoPath ?? "");
       })
       .catch((error) => {
         reportPersistentErrorToast(error, "Failed to load app preferences", {
@@ -42,7 +51,9 @@ export function AppSettingsModal({ onClose }: AppSettingsModalProps) {
   const hasChanges =
     basePort !== initialBasePort ||
     setupPreference !== initialSetupPreference ||
-    autoDownloadUpdates !== initialAutoDownloadUpdates;
+    autoDownloadUpdates !== initialAutoDownloadUpdates ||
+    devMode !== initialDevMode ||
+    devModeRepoPath !== initialDevModeRepoPath;
 
   const handleSave = async () => {
     try {
@@ -50,12 +61,42 @@ export function AppSettingsModal({ onClose }: AppSettingsModalProps) {
         basePort,
         setupPreference,
         autoDownloadUpdates,
+        devMode,
+        devModeRepoPath,
       });
       onClose();
     } catch (error) {
       reportPersistentErrorToast(error, "Failed to save app preferences", {
         scope: "app-settings:save-preferences",
       });
+    }
+  };
+
+  const handleToggleDevMode = async () => {
+    const enabling = !devMode;
+    setDevMode(enabling);
+
+    if (enabling && !devModeRepoPath) {
+      setDetecting(true);
+      try {
+        const detected = await window.electronAPI?.detectOpenkitRepo();
+        if (detected) {
+          setDevModeRepoPath(detected);
+        }
+      } catch (error) {
+        reportPersistentErrorToast(error, "Failed to detect OpenKit repo", {
+          scope: "app-settings:detect-repo",
+        });
+      } finally {
+        setDetecting(false);
+      }
+    }
+  };
+
+  const handleBrowseRepo = async () => {
+    const folder = await window.electronAPI?.selectDevRepoFolder();
+    if (folder) {
+      setDevModeRepoPath(folder);
     }
   };
 
@@ -137,6 +178,62 @@ export function AppSettingsModal({ onClose }: AppSettingsModalProps) {
             checkedThumbClassName="bg-accent"
             uncheckedThumbClassName="bg-white/40"
           />
+        </div>
+
+        <div className="border-t border-white/[0.06] pt-4 flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1.5 min-w-0">
+              <label className={`text-xs font-medium ${settings.label}`}>Dev Mode</label>
+              <span className={`text-[11px] ${settings.description}`}>
+                Symlink project ops-logs into the OpenKit repo for debugging
+              </span>
+            </div>
+            <ToggleSwitch
+              checked={devMode}
+              onToggle={handleToggleDevMode}
+              ariaLabel="Dev mode"
+              size="md"
+              checkedTrackClassName="bg-accent/35"
+              uncheckedTrackClassName="bg-white/[0.08]"
+              checkedThumbClassName="bg-accent"
+              uncheckedThumbClassName="bg-white/40"
+            />
+          </div>
+
+          {devMode && (
+            <div className="flex flex-col gap-1.5">
+              <label className={`text-xs font-medium ${settings.label}`}>OpenKit Repo Path</label>
+              <div className="flex gap-1.5">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={devModeRepoPath}
+                    onChange={(e) => setDevModeRepoPath(e.target.value)}
+                    placeholder={detecting ? "" : "/path/to/openkit"}
+                    disabled={detecting}
+                    className={`${fieldInputClass} w-full ${detecting ? "opacity-50" : ""}`}
+                  />
+                  {detecting && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <Loader2 className={`w-3.5 h-3.5 ${text.muted} animate-spin`} />
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBrowseRepo}
+                  disabled={detecting}
+                  className={`px-2 py-1.5 bg-white/[0.04] border border-white/[0.06] rounded-md ${text.muted} hover:bg-white/[0.08] hover:${text.secondary} transition-colors disabled:opacity-50 shrink-0`}
+                  title="Browse"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <span className={`text-[10px] ${text.dimmed}`}>
+                Ops-logs will be symlinked to .openkit/ops-log/ in this repo
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </Modal>

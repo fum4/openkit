@@ -47,6 +47,7 @@ flowchart TB
     GH["GitHubManager\n(PR status, git operations)"]
     Hook["port-hook.cjs\n(Node.js port patching)"]
     NativeHook["libport-hook\n(native libc interposition)"]
+    LoggerLib["liblogger\n(Go structured logging)"]
     Actions["Actions Registry\n(MCP tool definitions)"]
     McpFactory["MCP Server Factory\n(creates MCP server from actions)"]
     Routes["HTTP Routes\n(REST API endpoints)"]
@@ -72,6 +73,7 @@ flowchart TB
     McpFactory --> Actions
     PM -->|env vars| Hook
     PM -->|env vars| NativeHook
+    NativeHook -->|dlopen| LoggerLib
 ```
 
 ### WorktreeManager
@@ -345,6 +347,8 @@ The Expo app (`apps/mobile-app`) exports platform bundles to `apps/mobile-app/di
 **`apps/server/src/runtime/port-hook.cjs`** is a pure CommonJS file with zero dependencies. It is copied verbatim to `apps/server/dist/runtime/port-hook.cjs` during the build. It cannot be bundled because it must be loadable via Node's `--require` flag in any process.
 
 **`libs/port-resolution/`** contains a Zig-compiled shared library (`libport-hook.dylib`/`libport-hook.so`) that intercepts `bind()` and `connect()` at the POSIX libc level for runtime-agnostic port offsetting. If built, it is copied to `apps/server/dist/runtime/` during the server build. The native hook is optional -- if not found, only the Node.js hook is used. See [`libs/port-resolution/README.md`](../libs/port-resolution/README.md) for details.
+
+**`libs/logger/`** is a Go-based structured logging library compiled as a C-shared library (`liblogger.dylib`/`.so`) with FFI bindings for TypeScript (koffi), Python (ctypes), and Zig (dlopen). The native port hook uses the Zig bindings to emit structured log output when the library is available, falling back to `std.debug.print` when it is not. See [`libs/logger/README.md`](../libs/logger/README.md) for details.
 
 ### Full build pipeline
 

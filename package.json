@@ -1,6 +1,6 @@
 {
   "name": "openkit",
-  "version": "0.0.52",
+  "version": "0.0.53",
   "private": true,
   "description": "Your local kit for agentic development",
   "homepage": "https://dawg-chi.vercel.app/",
@@ -73,11 +73,15 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "electron",
-      "electron-winstaller",
       "esbuild",
-      "msw",
-      "nx",
+      "koffi",
+      "node-pty",
       "sharp"
+    ],
+    "ignoredBuiltDependencies": [
+      "electron-winstaller",
+      "msw",
+      "nx"
     ]
   }
 }

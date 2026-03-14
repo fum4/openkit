@@ -8,6 +8,8 @@ export interface AppPreferences {
   basePort: number;
   setupPreference: SetupPreference;
   autoDownloadUpdates: boolean;
+  devMode: boolean;
+  devModeRepoPath: string;
   sidebarWidth: number;
   windowBounds: {
     x?: number;
@@ -26,6 +28,8 @@ const DEFAULT_PREFERENCES: AppPreferences = {
   basePort: DEFAULT_PORT,
   setupPreference: "ask",
   autoDownloadUpdates: true,
+  devMode: false,
+  devModeRepoPath: "",
   sidebarWidth: 300,
   windowBounds: null,
 };
@@ -93,6 +97,14 @@ class PreferencesManager {
   setSidebarWidth(width: number) {
     this.preferences.sidebarWidth = width;
     this.save();
+  }
+
+  isDevMode(): boolean {
+    return this.preferences.devMode && this.preferences.devModeRepoPath !== "";
+  }
+
+  getDevModeRepoPath(): string {
+    return this.preferences.devModeRepoPath;
   }
 
   getWindowBounds(): AppPreferences["windowBounds"] {

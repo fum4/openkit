@@ -6,7 +6,7 @@ import path from "path";
 import { confirm } from "@inquirer/prompts";
 import pc from "picocolors";
 
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 
 interface GithubAsset {
   name: string;

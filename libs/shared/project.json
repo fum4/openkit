@@ -7,13 +7,22 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm exec tsgo --noEmit -p libs/shared/tsconfig.json"
+        "cwd": "libs/shared",
+        "command": "pnpm typecheck"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm exec oxlint libs/shared/src"
+        "cwd": "libs/shared",
+        "command": "pnpm lint"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/shared",
+        "command": "pnpm test"
       }
     }
   }

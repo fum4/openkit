@@ -21,7 +21,7 @@ import {
 } from "@openkit/shared/constants";
 import { isCommandOnPath } from "@openkit/shared/command-path";
 import { resolveAvailableWebUiPath } from "@openkit/shared/ui-components";
-import { log } from "@openkit/shared/logger";
+import { log, Logger, type LogEntry } from "./logger";
 import { checkGhAuth } from "@openkit/integrations/github/gh-client";
 import { testConnection as testJiraConnection } from "@openkit/integrations/jira/auth";
 import { loadJiraCredentials } from "@openkit/integrations/jira/credentials";
@@ -494,6 +494,20 @@ export async function startWorktreeServer(
   });
   setFetchMonitorSink((event) => {
     manager.getOpsLog().addFetchEvent(event, manager.getProjectName() ?? undefined);
+  });
+  Logger.addSink((entry: LogEntry) => {
+    const metadata: Record<string, unknown> = { ...entry.metadata };
+    if (entry.domain) metadata.domain = entry.domain;
+
+    manager.getOpsLog().addEvent({
+      source: entry.subsystem ? `${entry.system}.${entry.subsystem}` : entry.system,
+      action: "log",
+      message: entry.message,
+      level: entry.level === "warn" ? "warning" : entry.level,
+      status: entry.level === "error" ? "failed" : "info",
+      projectName: manager.getProjectName() ?? undefined,
+      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+    });
   });
   ensureCliInPath();
   const { app, injectWebSocket, terminalManager } = createWorktreeServer(manager);

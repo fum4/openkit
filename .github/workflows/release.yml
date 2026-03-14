@@ -41,7 +41,9 @@ jobs:
 
       - name: Setup workspace
         if: steps.release-commit-check.outputs.is_release_commit != 'true'
-        uses: ./.github/actions/setup-pnpm-node
+        uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
 
       - name: Resolve comparison SHAs
         if: steps.release-commit-check.outputs.is_release_commit != 'true'
@@ -108,7 +110,9 @@ jobs:
           token: ${{ secrets.RELEASE_BOT_PAT }}
 
       - name: Setup workspace
-        uses: ./.github/actions/setup-pnpm-node
+        uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
 
       - name: Release verification
         run: pnpm check:all

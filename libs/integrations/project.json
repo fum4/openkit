@@ -8,13 +8,15 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm exec tsgo --noEmit -p libs/integrations/tsconfig.json"
+        "cwd": "libs/integrations",
+        "command": "pnpm typecheck"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm exec oxlint libs/integrations/src"
+        "cwd": "libs/integrations",
+        "command": "pnpm lint"
       }
     }
   }

@@ -3,7 +3,7 @@ import { select, input, password } from "@inquirer/prompts";
 
 import { APP_NAME, CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { checkGhAuth, checkGhInstalled, getRepoInfo } from "@openkit/integrations/github/gh-client";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import {
   loadJiraCredentials,
   saveJiraCredentials,
@@ -79,7 +79,7 @@ export async function runAdd() {
     const match = INTEGRATIONS.find((i) => i.name === integration);
     if (!match) {
       log.error(`Unknown integration: ${integration}`);
-      console.log(`Available: ${INTEGRATIONS.map((i) => i.name).join(", ")}`);
+      log.plain(`Available: ${INTEGRATIONS.map((i) => i.name).join(", ")}`);
       process.exit(1);
     }
     await match.setup();
@@ -111,25 +111,25 @@ async function runConnectGitHub() {
 
   const installed = await checkGhInstalled();
   if (!installed) {
-    console.log("  The GitHub CLI (gh) is not installed.\n");
-    console.log("  Install it:");
-    console.log("    macOS:   brew install gh");
-    console.log("    Linux:   https://github.com/cli/cli/blob/trunk/docs/install_linux.md");
-    console.log("    Windows: winget install --id GitHub.cli\n");
-    console.log("  Then run: gh auth login");
+    log.plain("  The GitHub CLI (gh) is not installed.\n");
+    log.plain("  Install it:");
+    log.plain("    macOS:   brew install gh");
+    log.plain("    Linux:   https://github.com/cli/cli/blob/trunk/docs/install_linux.md");
+    log.plain("    Windows: winget install --id GitHub.cli\n");
+    log.plain("  Then run: gh auth login");
     return;
   }
 
-  console.log("  ✓ gh CLI installed");
+  log.plain("  ✓ gh CLI installed");
 
   const authenticated = await checkGhAuth();
   if (!authenticated) {
-    console.log("  ✗ Not authenticated\n");
-    console.log("  Run: gh auth login");
+    log.plain("  ✗ Not authenticated\n");
+    log.plain("  Run: gh auth login");
     return;
   }
 
-  console.log("  ✓ Authenticated");
+  log.plain("  ✓ Authenticated");
 
   try {
     const gitRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
@@ -139,15 +139,15 @@ async function runConnectGitHub() {
 
     const repo = await getRepoInfo(gitRoot);
     if (repo) {
-      console.log(
+      log.plain(
         `  ✓ Repository: ${repo.owner}/${repo.repo} (default branch: ${repo.defaultBranch})`,
       );
     } else {
-      console.log("  ✗ Could not detect repository. Make sure this is a GitHub repo.");
+      log.plain("  ✗ Could not detect repository. Make sure this is a GitHub repo.");
       return;
     }
   } catch {
-    console.log("  ✗ Not inside a git repository.");
+    log.plain("  ✗ Not inside a git repository.");
     return;
   }
 
@@ -162,7 +162,7 @@ async function runConnectLinear() {
   }
 
   log.info("Connect to Linear\n");
-  console.log("Create an API key at: https://linear.app/settings/account/security/api-keys/new\n");
+  log.plain("Create an API key at: https://linear.app/settings/account/security/api-keys/new\n");
 
   const apiKey = await password({
     message: "API Key",
@@ -221,7 +221,7 @@ async function runConnectJira() {
 
   if (authMethod === "api-token") {
     log.info("\nAPI Token setup");
-    console.log("Create a token at: https://id.atlassian.com/manage-profile/security/api-tokens\n");
+    log.plain("Create a token at: https://id.atlassian.com/manage-profile/security/api-tokens\n");
 
     const baseUrl = (
       await input({
@@ -248,7 +248,7 @@ async function runConnectJira() {
     };
   } else {
     log.info("\nOAuth 2.0 setup");
-    console.log("Create an OAuth app at: https://developer.atlassian.com/console\n");
+    log.plain("Create an OAuth app at: https://developer.atlassian.com/console\n");
 
     const clientId = await input({
       message: "Client ID",

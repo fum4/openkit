@@ -641,6 +641,12 @@ export function useApi() {
       createOpsLogEvent: (event: Parameters<typeof api.createOpsLogEvent>[0]) =>
         api.createOpsLogEvent(event, serverUrl),
 
+      // Retention impact
+      fetchRetentionImpact: (
+        target: "activity" | "opsLog",
+        config: { retentionDays?: number; maxSizeMB?: number },
+      ) => api.fetchRetentionImpact(target, config, serverUrl),
+
       // Local config
       fetchLocalConfig: () => api.fetchLocalConfig(serverUrl),
 

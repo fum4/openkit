@@ -287,6 +287,12 @@ When both offset the same port, the native hook sees the already-offset port (no
 | Java    | Yes             | Yes             | JVM uses libc for sockets            |
 | Go      | Yes             | **No**          | Go on Linux uses raw syscalls        |
 
+### Structured logging
+
+The native hook integrates with `libs/logger` (a Go-based structured logging library) via Zig bindings that use `dlopen` at runtime. When `__WM_DEBUG__` is set and `liblogger.dylib`/`.so` is available (via `__WM_LIBLOGGER_PATH` env var or default library search path), the hook emits structured log output through the Go logger with system `"port-hook"`. When the library is not present, it falls back to `std.debug.print` for basic stderr output.
+
+The `PortManager.getEnvForOffset()` in the server can set `__WM_LIBLOGGER_PATH` to point to the built `liblogger.dylib` location, enabling structured logging automatically for spawned worktree processes.
+
 ### Building
 
 The native hook requires the [Zig](https://ziglang.org/) toolchain:
@@ -295,7 +301,7 @@ The native hook requires the [Zig](https://ziglang.org/) toolchain:
 cd libs/port-resolution && zig build -Doptimize=ReleaseFast
 ```
 
-The hook is **optional** -- if the built library is not found, only the Node.js hook is used.
+The hook is **optional** -- if the built library is not found, only the Node.js hook is used. Building the hook requires `libs/logger` to be built first (Nx handles this dependency automatically via `dependsOn`).
 
 For full documentation, see [`libs/port-resolution/README.md`](../libs/port-resolution/README.md).
 

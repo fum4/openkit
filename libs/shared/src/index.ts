@@ -4,7 +4,6 @@ export * from "./detect-config";
 export * from "./env-files";
 export * from "./git";
 export * from "./global-preferences";
-export * from "./logger";
 export * from "./ui-components";
 export * from "./version";
 export * from "./worktree-types";

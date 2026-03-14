@@ -6,7 +6,7 @@ import type { NotesManager } from "../notes-manager";
 import type { HooksManager } from "../verification-manager";
 import type { ActionContext } from "@openkit/agents/actions";
 import { createMcpServer } from "../mcp-server-factory";
-import { log } from "@openkit/shared/logger";
+import { log } from "../logger";
 
 export function registerMcpTransportRoute(
   app: Hono,

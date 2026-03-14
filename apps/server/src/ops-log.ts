@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
 
@@ -36,13 +36,12 @@ export interface OpsLogEvent {
   metadata?: Record<string, unknown>;
 }
 
-interface OpsLogConfig {
-  retentionDays: number;
+export interface OpsLogConfig {
+  retentionDays?: number; // undefined = unlimited
+  maxSizeMB?: number; // undefined = unlimited
 }
 
-const DEFAULT_CONFIG: OpsLogConfig = {
-  retentionDays: 7,
-};
+const DEFAULT_CONFIG: OpsLogConfig = {};
 
 function toLogLevel(severity: "error" | "warning" | "info"): OpsLogLevel {
   if (severity === "error") return "error";
@@ -65,8 +64,7 @@ function normalizeHttpMethod(value: string | undefined): string {
 export class OpsLog {
   private readonly filePath: string;
   private readonly listeners: Set<(event: OpsLogEvent) => void> = new Set();
-  private readonly config: OpsLogConfig;
-  private pruneTimer: ReturnType<typeof setInterval> | null = null;
+  private config: OpsLogConfig;
 
   constructor(configDir: string, config?: Partial<OpsLogConfig>) {
     const openkitDir = path.join(configDir, CONFIG_DIR_NAME);
@@ -81,14 +79,12 @@ export class OpsLog {
     };
 
     this.prune();
-    this.pruneTimer = setInterval(() => this.prune(), 60 * 60 * 1000);
   }
 
-  dispose(): void {
-    if (this.pruneTimer) {
-      clearInterval(this.pruneTimer);
-      this.pruneTimer = null;
-    }
+  dispose(): void {}
+
+  updateConfig(config: Partial<OpsLogConfig>): void {
+    this.config = { ...this.config, ...config };
   }
 
   subscribe(listener: (event: OpsLogEvent) => void): () => void {
@@ -108,6 +104,8 @@ export class OpsLog {
     } catch {
       // Non-critical: event still streams to listeners.
     }
+
+    this.pruneIfNeeded();
 
     this.listeners.forEach((listener) => {
       try {
@@ -312,21 +310,157 @@ export class OpsLog {
     if (!existsSync(this.filePath)) return;
 
     try {
-      const cutoff = Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000;
-      const content = readFileSync(this.filePath, "utf-8");
-      const lines = content.split("\n").filter((line) => {
-        if (!line.trim()) return false;
-        try {
-          const parsed = JSON.parse(line) as OpsLogEvent;
-          return new Date(parsed.timestamp).getTime() > cutoff;
-        } catch {
-          return false;
-        }
-      });
+      // Time-based pruning (skip if retentionDays is undefined)
+      if (this.config.retentionDays !== undefined) {
+        const cutoff = Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000;
+        const content = readFileSync(this.filePath, "utf-8");
+        const lines = content.split("\n").filter((line) => {
+          if (!line.trim()) return false;
+          try {
+            const parsed = JSON.parse(line) as OpsLogEvent;
+            return new Date(parsed.timestamp).getTime() > cutoff;
+          } catch {
+            return false;
+          }
+        });
 
-      writeFileSync(this.filePath, lines.join("\n") + (lines.length > 0 ? "\n" : ""));
+        writeFileSync(this.filePath, lines.join("\n") + (lines.length > 0 ? "\n" : ""));
+      }
+
+      // Size-based pruning
+      this.pruneBySizeSync();
     } catch {
       // Ignore pruning failures.
+    }
+  }
+
+  private pruneIfNeeded(): void {
+    if (this.config.maxSizeMB === undefined) return;
+    if (!existsSync(this.filePath)) return;
+
+    try {
+      const stat = statSync(this.filePath);
+      const maxBytes = this.config.maxSizeMB * 1024 * 1024;
+      if (stat.size > maxBytes) {
+        this.pruneBySizeSync();
+      }
+    } catch {
+      // Ignore errors.
+    }
+  }
+
+  private pruneBySizeSync(): void {
+    if (this.config.maxSizeMB === undefined) return;
+    if (!existsSync(this.filePath)) return;
+
+    try {
+      const maxBytes = this.config.maxSizeMB * 1024 * 1024;
+      const content = readFileSync(this.filePath, "utf-8");
+      const lines = content
+        .split("\n")
+        .filter((line) => line.trim())
+        .filter((line) => {
+          try {
+            JSON.parse(line);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+
+      // Keep entries from newest to oldest until we're within the size limit.
+      // Lines are stored oldest-first, so we iterate from the end.
+      const kept: string[] = [];
+      let totalBytes = 0;
+
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const lineBytes = Buffer.byteLength(lines[i] + "\n", "utf-8");
+        if (totalBytes + lineBytes > maxBytes) break;
+        kept.unshift(lines[i]);
+        totalBytes += lineBytes;
+      }
+
+      writeFileSync(this.filePath, kept.join("\n") + (kept.length > 0 ? "\n" : ""));
+    } catch {
+      // Ignore pruning failures.
+    }
+  }
+
+  estimateImpact(proposed: Partial<OpsLogConfig>): {
+    entriesToRemove: number;
+    bytesToRemove: number;
+    currentEntries: number;
+    currentBytes: number;
+  } {
+    const zero = { entriesToRemove: 0, bytesToRemove: 0, currentEntries: 0, currentBytes: 0 };
+
+    if (!existsSync(this.filePath)) return zero;
+
+    try {
+      const content = readFileSync(this.filePath, "utf-8");
+      const allLines = content
+        .split("\n")
+        .filter((line) => line.trim())
+        .filter((line) => {
+          try {
+            JSON.parse(line);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+
+      const currentEntries = allLines.length;
+      const currentBytes = Buffer.byteLength(
+        allLines.join("\n") + (allLines.length > 0 ? "\n" : ""),
+        "utf-8",
+      );
+
+      // Simulate time-based pruning with proposed config
+      const mergedConfig: OpsLogConfig = { ...this.config, ...proposed };
+      let surviving = allLines;
+
+      if (mergedConfig.retentionDays !== undefined) {
+        const cutoff = Date.now() - mergedConfig.retentionDays * 24 * 60 * 60 * 1000;
+        surviving = surviving.filter((line) => {
+          try {
+            const parsed = JSON.parse(line) as OpsLogEvent;
+            return new Date(parsed.timestamp).getTime() > cutoff;
+          } catch {
+            return false;
+          }
+        });
+      }
+
+      // Simulate size-based pruning with proposed config
+      if (mergedConfig.maxSizeMB !== undefined) {
+        const maxBytes = mergedConfig.maxSizeMB * 1024 * 1024;
+        const kept: string[] = [];
+        let totalBytes = 0;
+
+        for (let i = surviving.length - 1; i >= 0; i--) {
+          const lineBytes = Buffer.byteLength(surviving[i] + "\n", "utf-8");
+          if (totalBytes + lineBytes > maxBytes) break;
+          kept.unshift(surviving[i]);
+          totalBytes += lineBytes;
+        }
+
+        surviving = kept;
+      }
+
+      const survivingBytes = Buffer.byteLength(
+        surviving.join("\n") + (surviving.length > 0 ? "\n" : ""),
+        "utf-8",
+      );
+
+      return {
+        entriesToRemove: currentEntries - surviving.length,
+        bytesToRemove: currentBytes - survivingBytes,
+        currentEntries,
+        currentBytes,
+      };
+    } catch {
+      return zero;
     }
   }
 }

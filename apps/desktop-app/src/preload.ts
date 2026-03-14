@@ -57,6 +57,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("active-project-changed", handler);
   },
 
+  // Dev mode
+  detectOpenkitRepo: (): Promise<string | null> => ipcRenderer.invoke("detect-openkit-repo"),
+  selectDevRepoFolder: (): Promise<string | null> => ipcRenderer.invoke("select-dev-repo-folder"),
+
   // App updates
   getAppVersion: (): Promise<string> => ipcRenderer.invoke("get-app-version"),
   getAppUpdateState: (): Promise<AppUpdateState> => ipcRenderer.invoke("get-app-update-state"),

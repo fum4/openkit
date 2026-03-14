@@ -3,7 +3,7 @@ import path from "path";
 
 import { ACTIVITY_TYPES } from "@openkit/shared/activity-event";
 import { APP_NAME, CONFIG_DIR_NAME } from "@openkit/shared/constants";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 
 type ActivitySeverity = "info" | "success" | "warning" | "error";
 type IssueSource = "jira" | "linear" | "local";

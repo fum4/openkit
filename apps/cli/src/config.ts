@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import path from "path";
 
 import { APP_NAME, CONFIG_DIR_NAME } from "@openkit/shared/constants";
-import { log } from "@openkit/shared/logger";
+import { log } from "./logger";
 import type { PortConfig, WorktreeConfig } from "@openkit/shared/worktree-types";
 
 export { CONFIG_DIR_NAME };

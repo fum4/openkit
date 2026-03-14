@@ -78,6 +78,13 @@ export function EditableTextareaCard({
     }
   }, [editing, value]);
 
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
   useEffect(() => {
     if (!editing || !textareaRef.current) return;
     const el = textareaRef.current;
@@ -85,8 +92,9 @@ export function EditableTextareaCard({
       const end = el.value.length;
       el.focus();
       el.setSelectionRange(end, end);
+      autoResize();
     });
-  }, [editing]);
+  }, [editing, autoResize]);
 
   useEffect(
     () => () => {
@@ -183,6 +191,7 @@ export function EditableTextareaCard({
               setDraft(nextValue);
               if (saved) setSaved(false);
               schedulePersist(nextValue);
+              autoResize();
             }}
             onBlur={() => {
               void finishEditing();
@@ -193,7 +202,7 @@ export function EditableTextareaCard({
               }
             }}
             rows={rows}
-            className={`block w-full p-0 text-xs bg-transparent border-0 rounded-none focus:outline-none resize-y ${monospace ? `font-mono ${text.secondary}` : text.primary}${textareaClassName ? ` ${textareaClassName}` : ""}`}
+            className={`block w-full p-0 text-xs bg-transparent border-0 rounded-none focus:outline-none resize-none overflow-hidden ${monospace ? `font-mono ${text.secondary}` : text.primary}${textareaClassName ? ` ${textareaClassName}` : ""}`}
           />
           {showInlineSaveError && saveError && (
             <div className="flex items-center gap-2 mt-1">

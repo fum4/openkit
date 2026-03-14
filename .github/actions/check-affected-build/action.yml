@@ -69,7 +69,7 @@ runs:
         }
 
         global="false"
-        if echo "${changed}" | grep -Eq '^(libs/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|nx\.json$|tsconfig.*\.json$|\.github/actions/setup-pnpm-node/|\.github/actions/check-affected-target/|\.github/actions/check-affected-build/|\.github/workflows/build\.yml$)'; then
+        if echo "${changed}" | grep -Eq '^(libs/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|nx\.json$|tsconfig.*\.json$|\.github/actions/setup-deps/|\.github/actions/check-affected-target/|\.github/actions/check-affected-build/|\.github/workflows/build\.yml$)'; then
           global="true"
         fi
 
