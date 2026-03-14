@@ -43,7 +43,7 @@ flowchart TB
     OL["OpsLog\n(operational traces + command logs)"]
     CM["Command Monitor\n(execFile/execFileSync/spawn patch)"]
     VM["HooksManager\n(hooks: commands + skills)"]
-    NC["Ngrok Connect Routes\n(qr pairing + gateway proxy)"]
+    NC["Ngrok Connect Routes\n(qr pairing + mobile gateway)"]
     GH["GitHubManager\n(PR status, git operations)"]
     Hook["port-hook.cjs\n(Node.js port patching)"]
     NativeHook["libport-hook\n(native libc interposition)"]
@@ -202,7 +202,8 @@ Hooks are configured via `.openkit/hooks.json` with `steps` and `skills` arrays.
 
 - Tunnel lifecycle endpoints (`/api/ngrok/tunnel/enable`, `/api/ngrok/tunnel/disable`, `/api/ngrok/status`)
 - QR pairing endpoints (`/api/ngrok/pairing/start`, `/api/ngrok/pairing/exchange`, `/_ok/pair`)
-- Authenticated gateway proxy (`/_ok/p/:projectId/*`) that forwards allowlisted internal routes (`/api/*`, `/mcp`)
+- Dedicated mobile gateway endpoints (`/_ok/mobile/v1/*`) for project context, worktrees, agent session connect/list, and scoped session WebSocket attach
+- Server-level ngrok host gating in `apps/server/src/index.ts` that blocks non-ngrok routes from being accessed through ngrok tunnel hostnames
 
 ## Data Flow
 
@@ -279,10 +280,20 @@ Local task IDs remain monotonic via `.openkit/issues/local/.counter`. If metadat
 
 ### 5. Ngrok Connect Mobile Routing
 
-1. Laptop user enables the tunnel from the bottom-right Wi-Fi button (Electron tab bar), then creates a one-time pairing session (`/api/ngrok/pairing/start`).
-2. Mobile scans QR and opens `/_ok/pair?token=...` on that ngrok host.
-3. `/_ok/pair` validates token (single-use, short TTL), sets `ok_session`, and redirects.
-4. Programmatic clients call `/_ok/p/:projectId/...` (or `/mcp` through that prefix); gateway validates session and project, then proxies to internal OpenKit routes.
+1. Laptop user clicks the bottom-right Wi-Fi button (Electron tab bar).
+2. If tunnel is enabled, OpenKit disables it (`/api/ngrok/tunnel/disable`).
+3. If tunnel is disabled, OpenKit creates a one-time pairing session (`/api/ngrok/pairing/start`), ensuring ngrok is running, and returns both browser URL (`pairUrl`) and mobile handoff URL (`mobilePairUrl`).
+4. Desktop renders QR from `mobilePairUrl`, an HTTPS handoff URL (`/_ok/mobile/connect?token=...`) hosted on the ngrok origin.
+5. The handoff URL redirects to the mobile deep link route (`mobileapp://connect?origin=...&token=...`).
+6. The mobile app reads `origin` + `token` from deep-link params and exchanges the token via `POST /api/ngrok/pairing/exchange` for a short-lived bearer session (`sessionJwt`).
+   Exchange is one-time but supports a short replay tolerance for duplicate deep-link opens from the same client.
+7. Mobile calls dedicated gateway APIs (`/_ok/mobile/v1/context`, `/_ok/mobile/v1/worktrees`, `/_ok/mobile/v1/agent-sessions`) to discover scoped agent sessions in the paired project.
+8. Mobile connects to an existing scoped agent session (or starts one) via `POST /_ok/mobile/v1/agent-sessions/connect`, then attaches terminal stream using `GET /_ok/mobile/v1/agent-sessions/:sessionId/ws` (shared PTY, concurrent attach supported).
+9. Terminal lifecycle changes are pushed over `/api/events` (`terminal-session`) so desktop agent tabs update immediately when sessions are created or closed from mobile.
+10. Mobile refreshes bearer sessions through `POST /_ok/refresh` before expiry, enabling long-lived connected sessions.
+11. Laptop polls `GET /api/ngrok/pairing/status/:pairingId` while modal is open; it auto-closes modal on `used` and auto-regenerates QR on `expired`.
+12. Browser-based pairing can still use `/_ok/pair`, which validates token (single-use, short TTL), sets `ok_session`, and redirects.
+13. Through ngrok hosts, only pairing/auth/mobile-specific routes are exposed; broad `/_ok/p/:projectId/*` proxy access is intentionally blocked.
 
 ## Build System
 

@@ -1015,6 +1015,18 @@ Servers in this registry can be deployed (written to agent config files) or unde
 
 ---
 
+## Environment Variables
+
+| Variable                           | Default       | Description                                                                 |
+| ---------------------------------- | ------------- | --------------------------------------------------------------------------- |
+| `OPENKIT_SERVER_PORT`              | `6969`        | Base HTTP port for the OpenKit server.                                      |
+| `OPENKIT_WEB_APP_PORT`             | `5173`        | Vite dev server port for `apps/web-app`.                                    |
+| `OPENKIT_NGROK_MOBILE_SCHEME`      | `"mobileapp"` | Deep-link scheme used when generating `mobilePairUrl` for ngrok pairing QR. |
+| `OPENKIT_NGROK_PAIRING_RATE_LIMIT` | `0`           | Set to `1` to enable strict rate limiting for pairing exchange endpoints.   |
+| `OPENKIT_NGROK_SIGNING_SECRET`     | random value  | Optional signing secret for ngrok pairing/session tokens.                   |
+
+---
+
 ## Constants
 
 For reference, the following constants are defined in the codebase:

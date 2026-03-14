@@ -798,6 +798,8 @@ export interface NgrokConnectStatus {
 
 export interface NgrokPairingStartResponse {
   success: boolean;
+  pairingId?: string;
+  mobilePairUrl?: string;
   pairUrl?: string;
   gatewayApiBase?: string;
   expiresAt?: string;
@@ -805,6 +807,17 @@ export interface NgrokPairingStartResponse {
   project?: {
     id: string;
     name: string;
+  };
+  error?: string;
+}
+
+export interface NgrokPairingStatusResponse {
+  success: boolean;
+  pairing?: {
+    id: string;
+    status: "pending" | "used" | "expired";
+    expiresAt: string;
+    usedAt: string | null;
   };
   error?: string;
 }
@@ -904,6 +917,39 @@ export async function createNgrokPairingSession(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to create pairing session",
+    };
+  }
+}
+
+export async function fetchNgrokPairingStatus(
+  pairingId: string,
+  serverUrl: string | null = null,
+): Promise<NgrokPairingStatusResponse> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/ngrok/pairing/status/${pairingId}`);
+    const payload = (await res.json()) as {
+      success?: boolean;
+      pairing?: NgrokPairingStatusResponse["pairing"];
+      error?: { message?: string } | string;
+    };
+
+    if (!res.ok || payload.success !== true || !payload.pairing) {
+      const errorMessage =
+        typeof payload.error === "string" ? payload.error : payload.error?.message;
+      return {
+        success: false,
+        error: errorMessage ?? "Failed to fetch pairing status",
+      };
+    }
+
+    return {
+      success: true,
+      pairing: payload.pairing,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to fetch pairing status",
     };
   }
 }

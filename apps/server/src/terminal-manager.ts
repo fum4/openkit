@@ -554,6 +554,12 @@ export class TerminalManager {
     return this.sessions.get(sessionId)?.worktreeId ?? null;
   }
 
+  getSessionMetadata(sessionId: string): { worktreeId: string; scope: string | null } | null {
+    const session = this.sessions.get(sessionId);
+    if (!session) return null;
+    return { worktreeId: session.worktreeId, scope: session.scope };
+  }
+
   getSessionIdForScope(
     worktreeId: string,
     scope: "terminal" | "claude" | "codex" | "gemini" | "opencode",

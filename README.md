@@ -104,6 +104,8 @@ Environment variables:
 
 - `OPENKIT_SERVER_PORT` (default `6969`) — backend server base port
 - `OPENKIT_WEB_APP_PORT` (default `5173`) — web-app Vite dev server port
+- `OPENKIT_NGROK_MOBILE_SCHEME` (default `mobileapp`) — deep-link scheme for ngrok mobile pairing QR payloads
+- `OPENKIT_NGROK_PAIRING_RATE_LIMIT` (default `0`) — set to `1` to enable strict pairing rate limiting (`/api/ngrok/pairing/exchange` and `/_ok/pair`)
 
 <br /><br />
 

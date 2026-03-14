@@ -59,6 +59,50 @@ import { setFetchMonitorSink } from "./runtime/fetch-monitor";
 import type { WorktreeConfig } from "./types";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const NGROK_HOST_PATTERN = /(?:^|\.)ngrok(?:-free)?\.(?:app|io)$/i;
+
+function parseHostCandidate(rawValue: string | undefined): string | null {
+  if (!rawValue) return null;
+  const candidate = rawValue.split(",")[0]?.trim();
+  if (!candidate) return null;
+  const withoutPort = candidate.replace(/:\d+$/, "").toLowerCase();
+  return withoutPort || null;
+}
+
+function isNgrokHost(hostname: string): boolean {
+  return NGROK_HOST_PATTERN.test(hostname.toLowerCase());
+}
+
+function isNgrokRequest(url: string, headers: Headers): boolean {
+  const headerCandidates = [
+    parseHostCandidate(headers.get("x-forwarded-host") ?? undefined),
+    parseHostCandidate(headers.get("x-original-host") ?? undefined),
+    parseHostCandidate(headers.get("host") ?? undefined),
+  ].filter((value): value is string => Boolean(value));
+
+  const fromUrl = (() => {
+    try {
+      return new URL(url).hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+  })();
+  if (fromUrl) headerCandidates.push(fromUrl);
+
+  return headerCandidates.some((candidate) => isNgrokHost(candidate));
+}
+
+function isNgrokExposedPath(pathname: string): boolean {
+  if (pathname === "/api/ngrok/pairing/exchange") return true;
+  if (pathname === "/_ok/health") return true;
+  if (pathname === "/_ok/mobile/connect") return true;
+  if (pathname === "/_ok/mobile/v1" || pathname.startsWith("/_ok/mobile/v1/")) return true;
+  if (pathname === "/_ok/pair") return true;
+  if (pathname === "/_ok/me") return true;
+  if (pathname === "/_ok/refresh") return true;
+  if (pathname === "/_ok/logout") return true;
+  return false;
+}
 
 function resolveProjectRoot(startDir: string): string {
   const bundledRoot = process.env.OPENKIT_BUNDLED_ROOT;
@@ -286,6 +330,31 @@ export function createWorktreeServer(manager: WorktreeManager) {
 
   app.use("*", cors());
   app.use("*", async (c, next) => {
+    if (!isNgrokRequest(c.req.url, c.req.raw.headers)) {
+      return next();
+    }
+
+    if (isNgrokExposedPath(c.req.path)) {
+      return next();
+    }
+
+    const forwardedHost = parseHostCandidate(c.req.header("x-forwarded-host") ?? undefined);
+    const host = parseHostCandidate(c.req.header("host") ?? undefined);
+    log.warn(
+      `[ngrok] route forbidden method=${c.req.method} path=${c.req.path} host=${forwardedHost ?? host ?? "unknown"}`,
+    );
+
+    return c.json(
+      {
+        error: {
+          code: "ngrok_route_forbidden",
+          message: "Route is not exposed through ngrok.",
+        },
+      },
+      404,
+    );
+  });
+  app.use("*", async (c, next) => {
     const startedAt = Date.now();
     const requestPath = c.req.path;
     const shouldLog = shouldLogOpsRequestPath(requestPath);
@@ -344,7 +413,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
   registerJiraRoutes(app, manager);
   registerLinearRoutes(app, manager);
   registerAgentCliRoutes(app);
-  registerNgrokConnectRoutes(app, manager);
+  registerNgrokConnectRoutes(app, manager, terminalManager, upgradeWebSocket);
   registerEventRoutes(app, manager);
   registerActivityRoutes(app, manager.getActivityLog(), () => manager.getProjectName());
   registerLogsRoutes(app, manager);
