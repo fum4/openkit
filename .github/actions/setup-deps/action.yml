@@ -44,7 +44,7 @@ runs:
         go-version: ${{ inputs.go }}
 
     - if: ${{ contains(inputs.deps, 'tinygo') }}
-      uses: nicolo-ribaudo/setup-tinygo@v1
+      uses: acifani/setup-tinygo@v2
       with:
         tinygo-version: ${{ inputs.tinygo }}
 
