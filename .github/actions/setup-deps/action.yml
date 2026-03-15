@@ -3,7 +3,7 @@ description: Install project toolchains listed in "deps". Override default versi
 
 inputs:
   deps:
-    description: Comma-separated list of dependencies to install (e.g. "pnpm,node,go,zig").
+    description: Comma-separated list of dependencies to install (e.g. "pnpm,node,go,tinygo,zig").
     required: true
   node:
     description: Node.js version.
@@ -13,6 +13,10 @@ inputs:
     description: Go version.
     required: false
     default: "1.26.1"
+  tinygo:
+    description: TinyGo version (for WASM logger build).
+    required: false
+    default: "0.40.1"
   zig:
     description: Zig version.
     required: false
@@ -38,6 +42,11 @@ runs:
       uses: actions/setup-go@v5
       with:
         go-version: ${{ inputs.go }}
+
+    - if: ${{ contains(inputs.deps, 'tinygo') }}
+      uses: nicolo-ribaudo/setup-tinygo@v1
+      with:
+        tinygo-version: ${{ inputs.tinygo }}
 
     - if: ${{ contains(inputs.deps, 'zig') }}
       uses: mlugg/setup-zig@v2

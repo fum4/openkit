@@ -123,7 +123,7 @@ function loadConfig(): { config: WorktreeConfig; configPath: string | null } {
 
     return { config, configPath };
   } catch (error) {
-    log.error(`Failed to load config from ${configPath}:`, error);
+    log.error(`Failed to load config from ${configPath}`, { domain: "config", error });
     return { config: defaults, configPath: null };
   }
 }
@@ -163,6 +163,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  log.error("Failed to start standalone server:", error);
+  log.error("Failed to start standalone server", { domain: "server", error });
   process.exit(1);
 });

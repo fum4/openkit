@@ -87,21 +87,31 @@ describe("Logger", () => {
   });
 
   describe("context passing", () => {
-    it("accepts object context", () => {
+    it("accepts context with domain", () => {
       const logger = new Logger("test");
-      expect(() => logger.info("msg", { port: 3000 })).not.toThrow();
+      expect(() => logger.info("msg", { domain: "test", port: 3000 })).not.toThrow();
       logger.cleanup();
     });
 
-    it("accepts Error context", () => {
+    it("accepts context with string error", () => {
       const logger = new Logger("test");
-      expect(() => logger.error("failed", new Error("boom"))).not.toThrow();
+      expect(() => logger.error("failed", { domain: "test", error: "boom" })).not.toThrow();
       logger.cleanup();
     });
 
-    it("accepts multiple args", () => {
+    it("accepts context with Error object and extracts message + stack", () => {
+      const sink = vi.fn();
+      const unsub = Logger.addSink(sink);
       const logger = new Logger("test");
-      expect(() => logger.info("msg", "extra1", "extra2")).not.toThrow();
+
+      const err = new Error("something broke");
+      logger.error("failed", { domain: "test", error: err });
+
+      const entry = sink.mock.calls[0][0];
+      expect(entry.metadata.error).toBe("something broke");
+      expect(entry.metadata.stack).toContain("something broke");
+
+      unsub();
       logger.cleanup();
     });
   });
@@ -138,12 +148,12 @@ describe("Logger", () => {
       logger.cleanup();
     });
 
-    it("dispatches metadata from object args", () => {
+    it("dispatches metadata from context (excluding domain)", () => {
       const sink = vi.fn();
       const unsub = Logger.addSink(sink);
       const logger = new Logger("test");
 
-      logger.info("started", { port: 3000 });
+      logger.info("started", { domain: "server", port: 3000 });
 
       expect(sink.mock.calls[0][0].metadata).toEqual({ port: 3000 });
 
@@ -151,14 +161,31 @@ describe("Logger", () => {
       logger.cleanup();
     });
 
-    it("dispatches error metadata from Error args", () => {
+    it("extracts domain from context into dedicated field", () => {
       const sink = vi.fn();
       const unsub = Logger.addSink(sink);
       const logger = new Logger("test");
 
-      logger.error("failed", new Error("boom"));
+      logger.info("connected", { domain: "GitHub", repo: "foo/bar" });
 
-      expect(sink.mock.calls[0][0].metadata).toEqual({ errors: ["boom"] });
+      const entry: LogEntry = sink.mock.calls[0][0];
+      expect(entry.domain).toBe("GitHub");
+      expect(entry.metadata).toEqual({ repo: "foo/bar" });
+
+      unsub();
+      logger.cleanup();
+    });
+
+    it("sets metadata to undefined when context only has domain", () => {
+      const sink = vi.fn();
+      const unsub = Logger.addSink(sink);
+      const logger = new Logger("test");
+
+      logger.info("connected", { domain: "GitHub" });
+
+      const entry: LogEntry = sink.mock.calls[0][0];
+      expect(entry.domain).toBe("GitHub");
+      expect(entry.metadata).toBeUndefined();
 
       unsub();
       logger.cleanup();
@@ -279,7 +306,7 @@ describe("Logger", () => {
   });
 
   describe("context extraction", () => {
-    it("extracts no metadata when no args given", () => {
+    it("extracts no metadata when no context given", () => {
       const sink = vi.fn();
       const unsub = Logger.addSink(sink);
       const logger = new Logger("test");
@@ -287,32 +314,22 @@ describe("Logger", () => {
       logger.info("no context");
 
       expect(sink.mock.calls[0][0].metadata).toBeUndefined();
+      expect(sink.mock.calls[0][0].domain).toBeUndefined();
 
       unsub();
       logger.cleanup();
     });
 
-    it("extracts object as metadata from single object arg", () => {
+    it("extracts domain and metadata from context", () => {
       const sink = vi.fn();
       const unsub = Logger.addSink(sink);
       const logger = new Logger("test");
 
-      logger.info("with context", { key: "value", num: 42 });
+      logger.info("with context", { domain: "test-domain", key: "value", num: 42 });
 
-      expect(sink.mock.calls[0][0].metadata).toEqual({ key: "value", num: 42 });
-
-      unsub();
-      logger.cleanup();
-    });
-
-    it("stringifies non-object args", () => {
-      const sink = vi.fn();
-      const unsub = Logger.addSink(sink);
-      const logger = new Logger("test");
-
-      logger.info("with args", "extra1", "extra2");
-
-      expect(sink.mock.calls[0][0].metadata).toEqual({ args: ["extra1", "extra2"] });
+      const entry: LogEntry = sink.mock.calls[0][0];
+      expect(entry.domain).toBe("test-domain");
+      expect(entry.metadata).toEqual({ key: "value", num: 42 });
 
       unsub();
       logger.cleanup();

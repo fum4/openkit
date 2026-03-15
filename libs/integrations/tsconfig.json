@@ -1,4 +1,10 @@
 {
-  "extends": "../../tsconfig.libs.json",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@openkit/shared/*": ["../shared/src/*"],
+      "@openkit/logger/node": ["../logger/node/src/index.ts"]
+    }
+  },
   "include": ["src/**/*.ts"]
 }

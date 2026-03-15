@@ -1,6 +1,7 @@
 {
-  "name": "@openkit/logger",
+  "name": "@openkit/logger/node",
   "version": "0.0.1",
+  "private": true,
   "scripts": {
     "typecheck": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint src",

@@ -57,59 +57,67 @@ class Logger:
         # Create a new logger with the subsystem
         return Logger(self._system, name.upper(), self._level, self._format)
 
-    def info(self, message: str, **context: Any) -> None:
-        """Log info message."""
-        context_json = json.dumps(context) if context else "{}"
+    def _build_context(self, domain: str, context: dict[str, Any]) -> str:
+        merged = {"domain": domain, **context}
+        return json.dumps(merged)
+
+    def info(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log info message. ``domain`` is required to namespace logs by feature area."""
         lib.LoggerInfo(
             self.handle,
             message.encode("utf-8"),
-            context_json.encode("utf-8"),
+            self._build_context(domain, context).encode("utf-8"),
         )
 
-    def warn(self, message: str, **context: Any) -> None:
-        """Log warning message."""
-        context_json = json.dumps(context) if context else "{}"
+    def warn(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log warning message. ``domain`` is required to namespace logs by feature area."""
         lib.LoggerWarn(
             self.handle,
             message.encode("utf-8"),
-            context_json.encode("utf-8"),
+            self._build_context(domain, context).encode("utf-8"),
         )
 
-    def error(self, message: str, **context: Any) -> None:
-        """Log error message."""
-        context_json = json.dumps(context) if context else "{}"
+    def error(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log error message. ``domain`` is required to namespace logs by feature area."""
         lib.LoggerError(
             self.handle,
             message.encode("utf-8"),
-            context_json.encode("utf-8"),
+            self._build_context(domain, context).encode("utf-8"),
         )
 
-    def debug(self, message: str, **context: Any) -> None:
-        """Log debug message."""
-        context_json = json.dumps(context) if context else "{}"
+    def debug(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log debug message. ``domain`` is required to namespace logs by feature area."""
         lib.LoggerDebug(
             self.handle,
             message.encode("utf-8"),
-            context_json.encode("utf-8"),
+            self._build_context(domain, context).encode("utf-8"),
         )
 
-    def success(self, message: str, **context: Any) -> None:
-        """Log success message (green bullet, INFO level)."""
-        context_json = json.dumps(context) if context else "{}"
+    def success(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log success message (green bullet, INFO level). ``domain`` is required."""
         lib.LoggerSuccess(
             self.handle,
             message.encode("utf-8"),
-            context_json.encode("utf-8"),
+            self._build_context(domain, context).encode("utf-8"),
         )
 
-    def plain(self, message: str, **context: Any) -> None:
-        """Log plain message (no prefix, no color, INFO level)."""
-        context_json = json.dumps(context) if context else "{}"
+    def plain(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log plain message (no prefix, no color, INFO level). ``domain`` is required."""
         lib.LoggerPlain(
             self.handle,
             message.encode("utf-8"),
-            context_json.encode("utf-8"),
+            self._build_context(domain, context).encode("utf-8"),
         )
+
+    @staticmethod
+    def set_sink(server_url: str, project_name: str) -> None:
+        """Configure the Go logger to POST entries to a server endpoint."""
+        lib.LoggerSetSink(server_url.encode("utf-8"), project_name.encode("utf-8"))
+
+    @staticmethod
+    def close_sink() -> None:
+        """Flush remaining entries and stop the sink."""
+        lib.LoggerCloseSink()
 
     def _cleanup(self) -> None:
         """Cleanup logger on exit."""

@@ -8,27 +8,27 @@ LogFormat = Literal["dev", "prod"]
 class _LoggerProtocol(Protocol):
     """Protocol defining the logger interface for type checking."""
 
-    def info(self, message: str, **context: Any) -> None:
-        """Log info message."""
+    def info(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log info message. ``domain`` namespaces logs by feature area."""
         ...
 
-    def warn(self, message: str, **context: Any) -> None:
-        """Log warning message."""
+    def warn(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log warning message. ``domain`` namespaces logs by feature area."""
         ...
 
-    def error(self, message: str, **context: Any) -> None:
-        """Log error message."""
+    def error(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log error message. ``domain`` namespaces logs by feature area."""
         ...
 
-    def debug(self, message: str, **context: Any) -> None:
-        """Log debug message."""
+    def debug(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log debug message. ``domain`` namespaces logs by feature area."""
         ...
 
-    def success(self, message: str, **context: Any) -> None:
+    def success(self, message: str, *, domain: str, **context: Any) -> None:
         """Log success message (green bullet, INFO level)."""
         ...
 
-    def plain(self, message: str, **context: Any) -> None:
+    def plain(self, message: str, *, domain: str, **context: Any) -> None:
         """Log plain message (no prefix, no color, INFO level)."""
         ...
 
@@ -37,10 +37,11 @@ class Logger(_LoggerProtocol):
     Logger that calls Go shared library via ctypes.
 
     Supports dynamic subsystem creation via attribute access:
-        logger.nats.info("message")  # Creates subsystem logger
-        logger.db.error("error")     # Creates subsystem logger
+        logger.nats.info("message", domain="nats")
+        logger.db.error("error", domain="db")
 
-    All subsystem loggers have the same interface: info, warn, error, debug.
+    All log methods require a ``domain`` keyword argument to namespace logs
+    by feature area (e.g. "GitHub", "auto-launch", "project-switch").
     """
 
     handle: int
@@ -57,86 +58,90 @@ class Logger(_LoggerProtocol):
         format: Optional[LogFormat] = None,
     ) -> None: ...
 
-    # Log methods (inherited from Protocol but explicitly defined for better docs)
-    def info(self, message: str, **context: Any) -> None:
+    def info(self, message: str, *, domain: str, **context: Any) -> None:
         """
         Log an info-level message.
 
         Args:
             message: The log message
+            domain: Feature area namespace (required)
             **context: Additional context as keyword arguments (serialized to JSON)
 
         Example:
-            logger.info("User logged in", user_id=123, ip="192.168.1.1")
+            logger.info("User logged in", domain="auth", user_id=123)
         """
         ...
 
-    def warn(self, message: str, **context: Any) -> None:
+    def warn(self, message: str, *, domain: str, **context: Any) -> None:
         """
         Log a warning-level message.
 
         Args:
             message: The log message
+            domain: Feature area namespace (required)
             **context: Additional context as keyword arguments (serialized to JSON)
 
         Example:
-            logger.warn("Rate limit approaching", current=95, limit=100)
+            logger.warn("Rate limit approaching", domain="api", current=95)
         """
         ...
 
-    def error(self, message: str, **context: Any) -> None:
+    def error(self, message: str, *, domain: str, **context: Any) -> None:
         """
         Log an error-level message.
 
         Args:
             message: The log message
+            domain: Feature area namespace (required)
             **context: Additional context as keyword arguments (serialized to JSON)
 
         Example:
-            logger.error("Database connection failed", error=str(e))
+            logger.error("Connection failed", domain="db", error=str(e))
         """
         ...
 
-    def debug(self, message: str, **context: Any) -> None:
+    def debug(self, message: str, *, domain: str, **context: Any) -> None:
         """
         Log a debug-level message.
 
         Args:
             message: The log message
+            domain: Feature area namespace (required)
             **context: Additional context as keyword arguments (serialized to JSON)
 
         Example:
-            logger.debug("Query executed", query="SELECT * FROM users", time_ms=42)
+            logger.debug("Query executed", domain="db", query="SELECT *")
         """
         ...
 
-    def success(self, message: str, **context: Any) -> None:
+    def success(self, message: str, *, domain: str, **context: Any) -> None:
         """
         Log a success message (green bullet prefix, INFO level).
 
         Args:
             message: The log message
+            domain: Feature area namespace (required)
             **context: Additional context as keyword arguments (serialized to JSON)
 
         Example:
-            logger.success("Project initialized", path="/Users/dev/project")
+            logger.success("Initialized", domain="setup", path="/dev/project")
         """
         ...
 
-    def plain(self, message: str, **context: Any) -> None:
+    def plain(self, message: str, *, domain: str, **context: Any) -> None:
         """
         Log a plain message (no prefix, no color, INFO level).
 
         Args:
             message: The log message
+            domain: Feature area namespace (required)
             **context: Additional context as keyword arguments (serialized to JSON)
 
         Example:
-            logger.plain("Available commands: init, add, task")
+            logger.plain("Available: init, add, task", domain="cli")
         """
         ...
 
-    # Dynamic subsystem access - returns a Logger with all the same methods
     def __getattr__(self, name: str) -> Logger:
         """
         Create a subsystem logger dynamically.
@@ -148,8 +153,8 @@ class Logger(_LoggerProtocol):
             A new Logger instance with the subsystem set
 
         Example:
-            nats_logger = logger.nats  # Creates logger with NATS subsystem
-            nats_logger.info("Connected")  # Logs: SYSTEM | INFO | NATS | Connected
+            nats_logger = logger.nats
+            nats_logger.info("Connected", domain="nats")
         """
         ...
 

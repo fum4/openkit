@@ -107,6 +107,16 @@ func LoggerFree(id C.int) {
 	delete(loggers, int(id))
 }
 
+//export LoggerSetSink
+func LoggerSetSink(serverUrl, projectName *C.char) {
+	logger.SetSink(C.GoString(serverUrl), C.GoString(projectName))
+}
+
+//export LoggerCloseSink
+func LoggerCloseSink() {
+	logger.CloseSink()
+}
+
 func getLogger(id int) *logger.Logger {
 	loggersMu.Lock()
 	defer loggersMu.Unlock()

@@ -1,6 +1,7 @@
 {
   "name": "@openkit/website",
   "version": "0.0.45",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "astro dev",

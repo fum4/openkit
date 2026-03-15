@@ -16,6 +16,7 @@ const execFile = promisify(execFileCb);
 
 import pc from "picocolors";
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
+import { toErrorMessage } from "@openkit/shared/errors";
 import { copyEnvFiles } from "@openkit/shared/env-files";
 import { log } from "./logger";
 import { generateBranchName } from "./branch-name";
@@ -329,7 +330,7 @@ export class WorktreeManager {
         mkdirSync(worktreesPath, { recursive: true });
       }
     } catch (error) {
-      log.error("Failed to reload config:", error);
+      log.error("Failed to reload config", { domain: "config", error });
     }
   }
 
@@ -1432,7 +1433,7 @@ export class WorktreeManager {
       } catch (error) {
         logDeletePhase("destroy-terminals-for-target-worktree-only", "failure", {
           worktreeId,
-          error: error instanceof Error ? error.message : String(error),
+          error,
         });
         return finalize({
           success: false,
@@ -1516,7 +1517,7 @@ export class WorktreeManager {
     } catch (error) {
       logDeletePhase("remove-worktree-from-git/filesystem", "failure", {
         worktreeId,
-        error: error instanceof Error ? error.message : String(error),
+        error,
       });
       return finalize({
         success: false,
@@ -1654,7 +1655,7 @@ export class WorktreeManager {
         } catch (err) {
           return {
             success: false,
-            error: `Failed to restore worktree: ${err instanceof Error ? err.message : String(err)}`,
+            error: `Failed to restore worktree: ${toErrorMessage(err)}`,
           };
         }
 
@@ -1752,11 +1753,7 @@ export class WorktreeManager {
       await this.worktreeLifecycleHookRunner(trigger, worktreeId, worktreePath);
       log.info(`[hooks] Finished ${trigger} hooks for "${worktreeId}"`);
     } catch (error) {
-      log.warn(
-        `Failed running ${trigger} hooks for "${worktreeId}": ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      log.warn(`Failed running ${trigger} hooks for "${worktreeId}": ${toErrorMessage(error)}`);
     }
   }
 

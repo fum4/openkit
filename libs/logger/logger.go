@@ -2,7 +2,6 @@ package logger
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,9 +100,12 @@ func (l *Logger) log(level, message string, context map[string]any) {
 	}
 
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	emitOutput(l.formatter, entry)
+	l.mu.Unlock()
 
-	fmt.Println(l.formatter.Format(entry))
+	if sinkURL != "" {
+		bufferEntry(entry)
+	}
 }
 
 func (l *Logger) Debug(message string, context map[string]any) {
@@ -128,13 +130,23 @@ func (l *Logger) Success(message string, context map[string]any) {
 
 func (l *Logger) Plain(message string, context map[string]any) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	contextStr := ""
 	if len(context) > 0 {
 		contextJSON, _ := json.Marshal(context)
 		contextStr = " " + string(contextJSON)
 	}
+	emitPlain(message, contextStr)
+	l.mu.Unlock()
 
-	fmt.Println(message + contextStr)
+	if sinkURL != "" {
+		entry := LogEntry{
+			Timestamp: time.Now().UTC(),
+			System:    l.system,
+			Subsystem: l.subsystem,
+			Level:     "INFO",
+			Message:   message,
+			Context:   context,
+		}
+		bufferEntry(entry)
+	}
 }

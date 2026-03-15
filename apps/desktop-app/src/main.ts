@@ -4,6 +4,7 @@ import type { AppUpdater } from "electron-updater";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { log } from "./logger.js";
 import { ProjectManager, type Project } from "./project-manager.js";
 import { NotificationManager } from "./notification-manager.js";
 import {
@@ -123,9 +124,9 @@ function isTransientUpdateMetadataNotReadyError(error: unknown): boolean {
 
 function handleUpdateCheckError(error: unknown, context: string): { transient: boolean } {
   if (isTransientUpdateMetadataNotReadyError(error)) {
-    console.info(
-      `[auto-updater] ${context}: update metadata not ready yet (release assets still propagating); will retry later`,
-      error,
+    log.info(
+      `auto-updater ${context}: update metadata not ready yet (release assets still propagating); will retry later`,
+      { domain: "auto-updater", error },
     );
     setAppUpdateState({
       status: "idle",
@@ -135,7 +136,7 @@ function handleUpdateCheckError(error: unknown, context: string): { transient: b
     return { transient: true };
   }
 
-  console.error(`[auto-updater] ${context} failed`, error);
+  log.error(`auto-updater ${context} failed`, { domain: "auto-updater", error });
   setAppUpdateState({
     status: "error",
     error: toErrorMessage(error, "Failed to check for updates"),
@@ -167,9 +168,9 @@ async function downloadUpdateWithRetry(): Promise<boolean> {
             return false;
           }
 
-          console.warn(
-            `[auto-updater] download attempt ${attempt}/${UPDATE_DOWNLOAD_MAX_ATTEMPTS} failed; retrying...`,
-            error,
+          log.warn(
+            `auto-updater download attempt ${attempt}/${UPDATE_DOWNLOAD_MAX_ATTEMPTS} failed; retrying...`,
+            { domain: "auto-updater", error },
           );
           await wait(UPDATE_DOWNLOAD_RETRY_DELAY_MS);
         }

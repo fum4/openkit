@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 
+import { log } from "../logger";
 import { text } from "../theme";
 
 interface PanelErrorBoundaryProps {
@@ -23,8 +24,10 @@ export class PanelErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error): void {
-    // Keep detailed traces in browser devtools and persist last UI error for quick retrieval.
-    console.error("[OpenKit] Panel render error:", error);
+    log.error("Panel render error", {
+      domain: "web-app",
+      error,
+    });
     if (typeof window !== "undefined") {
       try {
         window.localStorage.setItem(

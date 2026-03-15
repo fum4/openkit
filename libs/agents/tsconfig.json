@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.libs.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "paths": {
       "@openkit/agents/*": ["./src/*"],
@@ -7,7 +7,7 @@
       "@openkit/integrations/*": ["../integrations/src/*"],
       "@openkit/server/*": ["../../apps/server/src/*"],
       "@openkit/shared/*": ["../shared/src/*"],
-      "@openkit/logger": ["../logger/node/src/index.ts"]
+      "@openkit/logger/node": ["../logger/node/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "../../md.d.ts"]

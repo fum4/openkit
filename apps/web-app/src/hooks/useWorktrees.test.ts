@@ -48,6 +48,7 @@ class FakeEventSource implements MockEventSource {
   readyState = 0;
 
   constructor(_url: string) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     latestEventSource = this;
     eventSourceConstructCount++;
   }

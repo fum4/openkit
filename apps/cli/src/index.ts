@@ -124,7 +124,7 @@ function openProjectInElectron(projectDir: string): void {
   if (process.platform === "darwin") {
     execFile("open", [url], (err) => {
       if (err) {
-        log.error("Failed to open in Electron:", err.message);
+        log.error("Failed to open in Electron", { domain: "cli", error: err });
       }
     });
   } else {
@@ -373,6 +373,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  log.error("Fatal error:", error);
+  log.error("Fatal error", { domain: "cli", error });
   process.exit(1);
 });

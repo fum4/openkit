@@ -7,7 +7,10 @@
     "rootDir": "src",
     "declaration": false,
     "sourceMap": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "@openkit/logger/node": ["../../libs/logger/node/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

@@ -98,14 +98,16 @@ OpenKit has a **Dev Mode** (App Settings → Dev Mode toggle) that symlinks each
 
 ## Logging
 
-**All TypeScript code must use the logger.** Do not use `console.log`, `console.warn`, `console.error`, or `console.debug` directly — the logger handles output formatting, level filtering, and sink dispatch.
+**All code must use the logger.** Do not use `console.log`, `console.warn`, `console.error`, or `console.debug` directly — the logger handles output formatting, level filtering, and sink dispatch.
 
-- `libs/logger` is a Go-based structured logging library compiled as a C-shared library with FFI bindings per language. Go is the single source of truth — all logging features are implemented in Go, bindings are thin FFI wrappers.
+- `libs/logger` is a Go-based structured logging library. Go is the single source of truth — all logging features are implemented in Go.
+- **Native apps** (server, CLI, desktop-app): Go is compiled as a C-shared library (`liblogger.dylib`/`.so`), loaded via FFI bindings — Node (koffi), Python (ctypes), Zig (dlopen).
+- **Browser** (web-app): Go is compiled to WASM via TinyGo. The browser logger (`libs/logger/browser/`) loads the WASM module and provides JS host functions for console output and HTTP transport.
 - Each app/lib has a local `logger.ts` that creates a project-scoped instance (for example `new Logger("server")`). Import `{ log }` from that local file, not from `@openkit/logger` directly. Only `logger.ts` files should import from `@openkit/logger`.
 - Use `log.info()` for informational output, `log.success()` for completion messages (green ● prefix), `log.warn()` for warnings, `log.error()` for errors, `log.debug()` for debug-only output, and `log.plain()` for unformatted output.
+- Always include a `domain` field in the metadata object to namespace logs by feature area (for example `{ domain: "GitHub" }`, `{ domain: "auto-launch" }`, `{ domain: "project-switch" }`). The logger extracts `domain` from metadata into a dedicated field on the `LogEntry`, keeping logs filterable by feature.
+- **Sink**: call `Logger.setSink(serverUrl, projectName)` at startup to POST log entries to the server. The server writes them to the ops-log and notifies real-time listeners. All processes (including the server itself) POST to the same endpoint — the server is the single ops-log writer.
 - The only exception is `console.log = console.error` in the MCP path (`apps/cli/src/index.ts`), which redirects stdout to stderr for JSON-RPC transport — this is infrastructure, not logging.
-- For native/Zig code (for example the port hook), use `libs/logger/zig` (dlopen fallback, no-ops if liblogger unavailable).
-- For Python code, use `libs/logger/python` (ctypes bindings).
 
 ## TypeScript Preference
 

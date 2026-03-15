@@ -1,8 +1,7 @@
-import { execFile as execFileCb, spawn } from "child_process";
+import { spawn } from "child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
-import { promisify } from "util";
 import type { Hono } from "hono";
 
 import {
@@ -10,10 +9,9 @@ import {
   resolveCommandPath,
   withAugmentedPathEnv,
 } from "@openkit/shared/command-path";
+import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 import { CUSTOM_AGENT_SPECS, type AgentId, resolveAgentDeployDir } from "../lib/tool-configs";
-
-const execFile = promisify(execFileCb);
 
 // ─── CLI helper ─────────────────────────────────────────────────
 
@@ -1091,7 +1089,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     }
 
     if (!result || !result.success) {
-      console.error("[OpenKit] claude plugin list --available failed:", result?.stderr);
+      log.error("claude plugin list --available failed", {
+        domain: "claude",
+        stderr: result?.stderr,
+      });
       return c.json({
         available: [],
         error: "Failed to load available plugins from the Claude CLI. Please try again.",
@@ -1099,7 +1100,7 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     }
 
     if (result.stdout.length === 0) {
-      console.warn("[OpenKit] claude plugin list --available returned empty output");
+      log.warn("claude plugin list --available returned empty output", { domain: "claude" });
       return c.json({
         available: [],
         error: "The Claude CLI returned no plugin data. Please try again.",

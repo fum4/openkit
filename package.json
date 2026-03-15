@@ -10,7 +10,7 @@
   },
   "type": "module",
   "scripts": {
-    "setup": "sh ./scripts/setup.sh",
+    "setup": "bash ./scripts/setup.sh",
     "dev": "pnpm nx run-many -t dev --parallel=6",
     "dev:cli": "pnpm nx run cli:dev",
     "dev:server": "pnpm nx run server:dev",
@@ -40,7 +40,8 @@
     "fix:lint": "oxlint --fix",
     "fix:all": "pnpm fix:format && pnpm fix:lint",
     "lint-staged": "lint-staged",
-    "prepare": "husky"
+    "prepare": "husky",
+    "claude:auth": "bash scripts/claude-auth/extract-credentials.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

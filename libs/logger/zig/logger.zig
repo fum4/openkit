@@ -12,6 +12,8 @@ const std = @import("std");
 const LoggerNewFn = *const fn ([*:0]const u8, [*:0]const u8, [*:0]const u8, [*:0]const u8) callconv(.c) c_int;
 const LoggerLogFn = *const fn (c_int, [*:0]const u8, [*:0]const u8) callconv(.c) void;
 const LoggerFreeFn = *const fn (c_int) callconv(.c) void;
+const LoggerSetSinkFn = *const fn ([*:0]const u8, [*:0]const u8) callconv(.c) void;
+const LoggerCloseSinkFn = *const fn () callconv(.c) void;
 
 // ── Resolved symbols (populated on first use) ────────────────────────
 
@@ -24,6 +26,8 @@ const Symbols = struct {
     success: LoggerLogFn,
     plain: LoggerLogFn,
     free: LoggerFreeFn,
+    set_sink: LoggerSetSinkFn,
+    close_sink: LoggerCloseSinkFn,
 };
 
 var resolved: ?Symbols = null;
@@ -56,6 +60,8 @@ fn resolveSymbols() ?Symbols {
         .success = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerSuccess") orelse return null)),
         .plain = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerPlain") orelse return null)),
         .free = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerFree") orelse return null)),
+        .set_sink = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerSetSink") orelse return null)),
+        .close_sink = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerCloseSink") orelse return null)),
     };
 
     return resolved;
@@ -125,6 +131,18 @@ pub const Logger = struct {
         if (!self.available) return;
         const syms = resolved orelse return;
         syms.free(self.handle);
+    }
+
+    /// Configure the Go logger to POST entries to a server endpoint.
+    pub fn setSink(server_url: [*:0]const u8, project_name: [*:0]const u8) void {
+        const syms = resolved orelse return;
+        syms.set_sink(server_url, project_name);
+    }
+
+    /// Flush remaining entries and stop the sink.
+    pub fn closeSink() void {
+        const syms = resolved orelse return;
+        syms.close_sink();
     }
 
     /// Returns true if the Go logger library was successfully loaded.

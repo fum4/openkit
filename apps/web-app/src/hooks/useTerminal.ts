@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useServer, useServerUrlOptional } from "../contexts/ServerContext";
 import { showPersistentErrorToast } from "../errorToasts";
+import { log } from "../logger";
 import { createTerminalSession, destroyTerminalSession, getTerminalWsUrl } from "./api";
 
 type TerminalSessionScope = "terminal" | "claude" | "codex" | "gemini" | "opencode";
@@ -193,12 +194,6 @@ export function useTerminal({
           openedAt = Date.now();
           setIsConnected(true);
           setError(null);
-          console.info("[terminal][TEMP] websocket opened", {
-            worktreeId,
-            sessionScope,
-            sessionId: sid,
-            generation: gen,
-          });
           stableTimer = window.setTimeout(() => {
             stableOpen = true;
             settle(true);
@@ -256,27 +251,8 @@ export function useTerminal({
               terminalSessionCache.delete(key);
               sessionIdRef.current = null;
               setSessionId(null);
-              console.info("[terminal][TEMP] rapid close detected; forcing fresh session", {
-                worktreeId,
-                sessionScope,
-                sessionId: sid,
-                generation: gen,
-                rapidCloseCount: rapidCloseCountRef.current,
-                elapsedMs,
-              });
             }
           }
-
-          console.info("[terminal][TEMP] websocket closed", {
-            worktreeId,
-            sessionScope,
-            sessionId: sid,
-            generation: gen,
-            code: event.code,
-            reason: event.reason,
-            opened,
-            stableOpen,
-          });
         };
 
         ws.onerror = () => {
@@ -288,14 +264,6 @@ export function useTerminal({
             settle(false);
             return;
           }
-          console.info("[terminal][TEMP] websocket error", {
-            worktreeId,
-            sessionScope,
-            sessionId: sid,
-            generation: gen,
-            opened,
-            stableOpen,
-          });
           setError("WebSocket connection failed");
         };
       }),
@@ -307,13 +275,6 @@ export function useTerminal({
       const reason = options?.reason ?? "visible-reconnect";
       const bypassClientCache = options?.bypassClientCache ?? false;
       if (isConnectingRef.current) {
-        console.info("[terminal][TEMP] connect skipped: already in progress", {
-          worktreeId,
-          sessionScope,
-          reason,
-          bypassClientCache,
-          sessionId: sessionIdRef.current,
-        });
         return {
           success: false,
           reason,
@@ -355,69 +316,21 @@ export function useTerminal({
           forceFreshSessionRef.current = false;
         }
         const shouldBypassClientCache = explicitLaunch || bypassClientCache || forceFreshSession;
-        const launchReason = createSessionStartupCommand ? "explicit_launch" : "passive_reconnect";
-
-        console.info("[terminal][TEMP] connect attempt", {
-          worktreeId,
-          sessionScope,
-          key,
-          generation: gen,
-          reason,
-          bypassClientCache,
-          hasStartupCommand: Boolean(createSessionStartupCommand),
-          launchReason,
-          forceFreshSession,
-          shouldBypassClientCache,
-        });
-
         if (forceFreshSession) {
-          const staleCandidateSessionId =
-            sessionIdRef.current ?? terminalSessionCache.get(key) ?? null;
           terminalSessionCache.delete(key);
           sessionIdRef.current = null;
           setSessionId(null);
-          console.info("[terminal][TEMP] skipping cache; fresh session required", {
-            worktreeId,
-            sessionScope,
-            key,
-            generation: gen,
-            reason,
-            path: explicitLaunch ? "explicit-launch" : "forced-fresh",
-            hasStartupCommand: Boolean(createSessionStartupCommand),
-            launchReason,
-            rapidCloseCount: rapidCloseCountRef.current,
-          });
         }
 
         if (!shouldBypassClientCache) {
           const cachedSessionId = sessionIdRef.current ?? terminalSessionCache.get(key) ?? null;
           if (cachedSessionId) {
-            console.info("[terminal][TEMP] attempting cached session", {
-              worktreeId,
-              sessionScope,
-              sessionId: cachedSessionId,
-              generation: gen,
-              reason,
-              path: "cached",
-              hasStartupCommand: Boolean(createSessionStartupCommand),
-              launchReason,
-            });
             sessionIdRef.current = cachedSessionId;
             setSessionId(cachedSessionId);
             const reused = await openSessionWebSocket(cachedSessionId, gen);
             if (reused) {
               rapidCloseCountRef.current = 0;
               setConnectionSource("reused");
-              console.info("[terminal][TEMP] reused cached session", {
-                worktreeId,
-                sessionScope,
-                sessionId: cachedSessionId,
-                generation: gen,
-                reason,
-                path: "cached",
-                hasStartupCommand: Boolean(createSessionStartupCommand),
-                launchReason,
-              });
               return {
                 success: true,
                 reason,
@@ -438,16 +351,6 @@ export function useTerminal({
             terminalSessionCache.delete(key);
             sessionIdRef.current = null;
             setSessionId(null);
-            console.info("[terminal][TEMP] cached session unusable; creating new session", {
-              worktreeId,
-              sessionScope,
-              sessionId: cachedSessionId,
-              generation: gen,
-              reason,
-              path: "fresh",
-              hasStartupCommand: Boolean(createSessionStartupCommand),
-              launchReason,
-            });
           }
         } else {
           terminalSessionCache.delete(key);
@@ -493,19 +396,6 @@ export function useTerminal({
         sessionIdRef.current = sid;
         setSessionId(sid);
         terminalSessionCache.set(key, sid);
-        console.info("[terminal][TEMP] created terminal session", {
-          worktreeId,
-          sessionScope,
-          sessionId: sid,
-          generation: gen,
-          reason,
-          path: createResult.reusedScopedSession ? "reused-scoped" : "fresh",
-          hasStartupCommand: Boolean(createSessionStartupCommand),
-          launchReason,
-          reusedScopedSession: createResult.reusedScopedSession ?? false,
-          replacedScopedShellSession: createResult.replacedScopedShellSession ?? false,
-        });
-
         const opened = await openSessionWebSocket(sid, gen);
         if (!opened && gen === connectGenRef.current) {
           await destroyTerminalSession(sid, serverUrl);
@@ -554,19 +444,6 @@ export function useTerminal({
           sessionIdRef.current = retrySid;
           setSessionId(retrySid);
           terminalSessionCache.set(key, retrySid);
-          console.info("[terminal][TEMP] retrying with fresh terminal session", {
-            worktreeId,
-            sessionScope,
-            sessionId: retrySid,
-            generation: gen,
-            reason,
-            path: "forced-fresh",
-            hasStartupCommand: Boolean(createSessionStartupCommand),
-            launchReason,
-            reusedScopedSession: retryResult.reusedScopedSession ?? false,
-            replacedScopedShellSession: retryResult.replacedScopedShellSession ?? false,
-          });
-
           const retryOpened = await openSessionWebSocket(retrySid, gen);
           if (!retryOpened && gen === connectGenRef.current) {
             const failureSuffix = lastConnectFailureRef.current
@@ -696,17 +573,11 @@ export function useTerminal({
       return;
     }
 
-    const key = cacheKey(runtimeScopeKey, worktreeId, sessionScope);
     const timeoutId = window.setTimeout(() => {
       if (visibleReconnectWatchdogTriggeredRef.current) return;
       visibleReconnectWatchdogTriggeredRef.current = true;
       forceFreshSessionRef.current = true;
       lastConnectFailureRef.current = "visible reconnect watchdog timeout";
-      console.info("[terminal][TEMP] visible reconnect watchdog forcing refresh", {
-        worktreeId,
-        sessionScope,
-        key,
-      });
       void connect({ reason: "watchdog-retry" });
     }, VISIBLE_RECONNECT_STUCK_MS);
 
@@ -716,7 +587,8 @@ export function useTerminal({
   useEffect(() => {
     if (!error) return;
     if (!visible) {
-      console.warn("[PROJECT-SWITCH] Suppressing terminal error toast (not visible)", {
+      log.debug("Suppressing terminal error toast (not visible)", {
+        domain: "terminal",
         worktreeId,
         sessionScope,
         serverUrl,

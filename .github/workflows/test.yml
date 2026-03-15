@@ -89,7 +89,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-deps
         with:
-          deps: pnpm,node,go,zig
+          deps: pnpm,node,go,tinygo,zig
       - run: pnpm run build:cli && pnpm run build:server
       - name: Smoke test CLI startup
         run: |

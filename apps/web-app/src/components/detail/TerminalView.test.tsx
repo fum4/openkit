@@ -94,10 +94,6 @@ function queryBootingOverlay() {
   return document.querySelector(".claude-rotating");
 }
 
-function queryReconnectingOverlay() {
-  return screen.queryByText("Reconnecting terminal...");
-}
-
 // ─── Tests ──────────────────────────────────────────────────────
 
 describe("TerminalView booting overlay", () => {

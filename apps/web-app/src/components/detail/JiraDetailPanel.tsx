@@ -366,7 +366,6 @@ export function JiraDetailPanel({
   const handleCreate = async () => {
     setIsCreating(true);
     const result = await api.createFromJira(issueKey);
-    console.log("createFromJira result:", result);
     setIsCreating(false);
     const createdWorktreeId = resolveCreatedWorktreeId(result);
     if (result.success && createdWorktreeId) {

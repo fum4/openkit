@@ -38,3 +38,9 @@ lib.LoggerPlain.restype = None
 
 lib.LoggerFree.argtypes = [ctypes.c_int]
 lib.LoggerFree.restype = None
+
+lib.LoggerSetSink.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+lib.LoggerSetSink.restype = None
+
+lib.LoggerCloseSink.argtypes = []
+lib.LoggerCloseSink.restype = None

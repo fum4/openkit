@@ -6,8 +6,9 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "cd cgo && ./build.sh",
-        "cwd": "libs/logger"
+        "commands": ["cd cgo && ./build.sh", "cd wasm && ./build.sh"],
+        "cwd": "libs/logger",
+        "parallel": true
       },
       "inputs": [
         "{projectRoot}/*.go",
@@ -16,26 +17,32 @@
         "{projectRoot}/cgo/go.mod",
         "{projectRoot}/cgo/build.sh",
         "{projectRoot}/node/src/**/*.ts",
+        "{projectRoot}/wasm/**/*.go",
+        "{projectRoot}/wasm/go.mod",
         "{projectRoot}/zig/**/*.zig"
       ],
       "outputs": [
         "{projectRoot}/liblogger.dylib",
         "{projectRoot}/liblogger.so",
-        "{projectRoot}/liblogger.h"
+        "{projectRoot}/liblogger.h",
+        "{projectRoot}/browser/src/logger.wasm",
+        "{projectRoot}/browser/src/wasm_exec.js"
       ]
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/logger/node",
-        "command": "pnpm typecheck"
+        "commands": ["cd node && pnpm typecheck", "cd browser && pnpm typecheck"],
+        "cwd": "libs/logger",
+        "parallel": true
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/logger/node",
-        "command": "pnpm lint"
+        "commands": ["cd node && pnpm lint", "cd browser && pnpm lint"],
+        "cwd": "libs/logger",
+        "parallel": true
       }
     },
     "test": {

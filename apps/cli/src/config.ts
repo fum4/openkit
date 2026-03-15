@@ -115,7 +115,7 @@ export function loadConfig(): { config: WorktreeConfig; configPath: string | nul
 
     return { config, configPath };
   } catch (error) {
-    log.error(`Failed to load config from ${configPath}:`, error);
+    log.error(`Failed to load config from ${configPath}`, { domain: "config", error });
     return { config: defaults, configPath: null };
   }
 }

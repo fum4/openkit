@@ -8,6 +8,7 @@ import { useTerminal } from "../../hooks/useTerminal";
 import { text } from "../../theme";
 import { ClaudeIcon, CodexIcon, GeminiIcon, OpenCodeIcon } from "../../icons";
 import { Spinner } from "../Spinner";
+import { log } from "../../logger";
 
 interface TerminalLaunchRequest {
   mode: "resume" | "resume-active" | "resume-history" | "start" | "start-new";
@@ -31,7 +32,6 @@ interface TerminalViewProps {
 
 const DEFAULT_AGENT_START_PROMPT =
   "You are already in the correct worktree. Read TASK.md first, then implement the task. Treat AI context and todo checklist as highest-priority instructions.";
-const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
 const LAUNCH_CONNECT_MAX_ATTEMPTS = 3;
 const LAUNCH_CONNECT_RETRY_DELAY_MS = 150;
 const BOOTING_SAFETY_TIMEOUT_MS = 30_000;
@@ -150,11 +150,7 @@ export function TerminalView({
     null,
   );
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
-    if (extra) {
-      console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
-      return;
-    }
-    console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
+    log.debug(message, { domain: "auto-launch", ...extra });
   }, []);
   const isAgentVariant = variant !== "terminal";
   const agentLabel =
@@ -228,12 +224,6 @@ export function TerminalView({
     if (handledLaunchRequestIdsRef.current.has(launchRequest.requestId)) return;
     setPendingLaunchRequest((prev) => {
       if (prev?.requestId === launchRequest.requestId) return prev;
-      console.info("[terminal][TEMP] launch request pending", {
-        worktreeId,
-        variant,
-        requestId: launchRequest.requestId,
-        mode: launchRequest.mode,
-      });
       return launchRequest;
     });
     logAutoClaude(`${agentLabel} terminal launch request received`, {
@@ -250,12 +240,6 @@ export function TerminalView({
       if (handledLaunchRequestIdsRef.current.has(requestId)) return;
       handledLaunchRequestIdsRef.current.add(requestId);
       setPendingLaunchRequest((prev) => (prev?.requestId === requestId ? null : prev));
-      console.info("[terminal][TEMP] launch request handled", {
-        worktreeId,
-        variant,
-        requestId,
-        outcome,
-      });
       onLaunchRequestHandled?.(requestId, outcome);
     },
     [onLaunchRequestHandled, variant, worktreeId],
@@ -383,7 +367,8 @@ export function TerminalView({
       terminal.open(containerRef.current);
       fitAddon.fit();
       if (!visible) {
-        console.warn("[PROJECT-SWITCH] TerminalView mounted hidden, deferring connect", {
+        log.debug("TerminalView mounted hidden, deferring connect", {
+          domain: "project-switch",
           worktreeId,
           variant,
           visible,
@@ -394,12 +379,6 @@ export function TerminalView({
           setIsAgentBooting(true);
         }
         void connect({ reason: "visible-reconnect" });
-      } else {
-        console.info("[terminal][TEMP] skipping initial passive connect due to launch intent", {
-          worktreeId,
-          variant,
-          requestId: launchRequest?.requestId ?? null,
-        });
       }
     }
 
@@ -477,12 +456,6 @@ export function TerminalView({
     const request = pendingLaunchRequest;
     let cancelled = false;
     void (async () => {
-      console.info("[terminal][TEMP] explicit launch connect requested", {
-        worktreeId,
-        variant,
-        requestId: request.requestId,
-        mode: request.mode,
-      });
       let attempt = 0;
       let result = await connect({ reason: "explicit-launch", bypassClientCache: true });
       while (
@@ -492,14 +465,6 @@ export function TerminalView({
         attempt < LAUNCH_CONNECT_MAX_ATTEMPTS - 1
       ) {
         attempt += 1;
-        console.info("[terminal][TEMP] explicit launch waiting for in-flight connect", {
-          worktreeId,
-          variant,
-          requestId: request.requestId,
-          mode: request.mode,
-          attempt: attempt + 1,
-          maxAttempts: LAUNCH_CONNECT_MAX_ATTEMPTS,
-        });
         await new Promise<void>((resolve) =>
           window.setTimeout(resolve, LAUNCH_CONNECT_RETRY_DELAY_MS),
         );
@@ -596,7 +561,8 @@ export function TerminalView({
     if (!isAgentVariant) return;
     if (pendingLaunchRequest || launchRequest) return;
     if (!error) return;
-    console.warn("[PROJECT-SWITCH] Silently closing stale agent tab", {
+    log.debug("Silently closing stale agent tab", {
+      domain: "project-switch",
       worktreeId,
       variant,
       error,

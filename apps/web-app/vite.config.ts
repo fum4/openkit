@@ -7,12 +7,10 @@ const serverPort = Number.parseInt(process.env.OPENKIT_SERVER_PORT ?? "6969");
 export default defineConfig({
   plugins: [
     react(),
-    // Stub modules that the server imports but that aren't needed in web-app tests.
-    // vi.mock alone doesn't prevent Vite's static analysis from resolving them.
-    // Stub modules that the server imports but aren't needed in web-app tests.
+    // Stub Node-only modules that the server imports but aren't needed in web-app tests.
     // Uses prefix matching so subpath imports (e.g. @openkit/agents/actions) are caught too.
     {
-      name: "test-stubs",
+      name: "node-module-stubs",
       resolveId(id: string) {
         const prefixes = [
           "@openkit/agents",
@@ -35,7 +33,7 @@ export default defineConfig({
     alias: {
       "@openkit/shared": path.resolve(__dirname, "../../libs/shared/src"),
       "@openkit/integrations": path.resolve(__dirname, "../../libs/integrations/src"),
-      "@openkit/logger": path.resolve(__dirname, "../../libs/logger/node/src"),
+      "@openkit/logger/browser": path.resolve(__dirname, "../../libs/logger/browser/src/index.ts"),
     },
   },
   base: "./",
@@ -60,6 +58,10 @@ export default defineConfig({
     setupFiles: ["test/setup.ts"],
     alias: [
       { find: /^@openkit\/server\/(.*)/, replacement: path.resolve(__dirname, "../server/src/$1") },
+      {
+        find: "@openkit/logger/node",
+        replacement: path.resolve(__dirname, "../../libs/logger/node/src/index.ts"),
+      },
     ],
     coverage: {
       provider: "v8",

@@ -16,8 +16,6 @@ import { CodeAgentSplitButton, type CodingAgent } from "./CodeAgentSplitButton";
 import { EditableTextareaCard } from "../EditableTextareaCard";
 import { WorktreeExistsModal } from "../WorktreeExistsModal";
 
-const TASK_DEBUG_PREFIX = "[tasks][TEMP]";
-
 interface CustomTaskDetailPanelProps {
   taskId: string;
   activeWorktreeIds: Set<string>;
@@ -203,23 +201,8 @@ export function CustomTaskDetailPanel({
 
   const handleCodeWithAgent = async (agent: CodingAgent) => {
     onSelectCodingAgent(agent);
-    console.info(`${TASK_DEBUG_PREFIX} code-with-agent requested`, {
-      taskId,
-      agent,
-      selectedCodingAgent,
-      activeLinkedWorktreeId,
-    });
     setIsCodingWithAgent(true);
     const result = await api.createWorktreeFromCustomTask(taskId);
-    console.info(`${TASK_DEBUG_PREFIX} create-worktree response for code-with-agent`, {
-      taskId,
-      agent,
-      success: result.success,
-      code: result.code,
-      reusedExisting: result.reusedExisting ?? false,
-      worktreeId: result.worktreeId ?? null,
-      error: result.error ?? null,
-    });
     setIsCodingWithAgent(false);
     const launchPrompt = `Implement local task ${taskId}${task?.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
     if (requiresWorktreeRecoveryPrompt(result)) {
@@ -237,12 +220,6 @@ export function CustomTaskDetailPanel({
         worktreeId: result.worktreeId ?? taskId,
         mode: reusingExistingWorktree ? "resume" : "start",
         prompt: reusingExistingWorktree ? undefined : launchPrompt,
-      });
-      console.info(`${TASK_DEBUG_PREFIX} launch intent dispatched`, {
-        taskId,
-        agent,
-        mode: reusingExistingWorktree ? "resume" : "start",
-        worktreeId: result.worktreeId ?? taskId,
       });
     } else {
       reportPersistentErrorToast(result.error, "Failed to create worktree", {

@@ -14,6 +14,7 @@ import QRCode from "qrcode";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { APP_NAME } from "@openkit/shared/constants";
+import { log } from "./logger";
 import { AppSettingsModal } from "./components/AppSettingsModal";
 import {
   OPENKIT_ERROR_TOAST_EVENT,
@@ -195,8 +196,6 @@ function createEmptyRuntimeScopedState(): RuntimeScopedState {
   };
 }
 
-const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
-const APP_DEBUG_PREFIX = "[app][TEMP]";
 const CODING_AGENT_PREF_KEY = `${APP_NAME}:defaultCodingAgent`;
 const AGENT_DISPLAY_NAMES: Record<CodingAgent, string> = {
   claude: "Claude Code",
@@ -579,7 +578,8 @@ export default function App() {
   // the async restore effect (below) sets the correct per-project selection.
   const prevWorkspaceScopeRef = useRef(workspaceStorageScope);
   if (prevWorkspaceScopeRef.current !== workspaceStorageScope) {
-    console.warn("[PROJECT-SWITCH] workspaceStorageScope changed, clearing selection", {
+    log.debug("workspaceStorageScope changed, clearing selection", {
+      domain: "project-switch",
       prev: prevWorkspaceScopeRef.current,
       next: workspaceStorageScope,
       staleSelection: selection,
@@ -634,18 +634,10 @@ export default function App() {
   const runtimeStateSnapshotRef = useRef<RuntimeScopedState>(createEmptyRuntimeScopedState());
   const launchMissingTargetSinceRef = useRef<Map<string, number>>(new Map());
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
-    if (extra) {
-      console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
-      return;
-    }
-    console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
+    log.debug(message, { domain: "auto-launch", ...extra });
   }, []);
   const logAppTemp = useCallback((message: string, extra?: Record<string, unknown>) => {
-    if (extra) {
-      console.info(`${APP_DEBUG_PREFIX} ${message}`, extra);
-      return;
-    }
-    console.info(`${APP_DEBUG_PREFIX} ${message}`);
+    log.debug(message, { domain: "web-app", ...extra });
   }, []);
 
   useEffect(() => {
@@ -826,7 +818,8 @@ export default function App() {
     try {
       const saved = readWorkspaceStorageValue("wsSel");
       const parsed = saved ? JSON.parse(saved) : null;
-      console.warn("[PROJECT-SWITCH] Restore effect: restoring selection from localStorage", {
+      log.debug("Restore effect: restoring selection from localStorage", {
+        domain: "project-switch",
         workspaceStorageScope,
         restoredSelection: parsed,
       });
@@ -1266,7 +1259,8 @@ export default function App() {
   useEffect(() => {
     if (worktrees.length === 0) return;
     if (!selection) {
-      console.warn("[PROJECT-SWITCH] Auto-selecting first worktree (no selection)", {
+      log.debug("Auto-selecting first worktree (no selection)", {
+        domain: "project-switch",
         firstWorktreeId: worktrees[0].id,
       });
       setSelection({ type: "worktree", id: worktrees[0].id });
@@ -1274,7 +1268,8 @@ export default function App() {
     }
     // Fix stale worktree selection (worktree was deleted)
     if (selection.type === "worktree" && !worktrees.find((w) => w.id === selection.id)) {
-      console.warn("[PROJECT-SWITCH] Fixing stale worktree selection", {
+      log.debug("Fixing stale worktree selection", {
+        domain: "project-switch",
         staleId: selection.id,
         newId: worktrees[0].id,
         worktreeIds: worktrees.map((w) => w.id),
@@ -2214,7 +2209,7 @@ export default function App() {
         reportDetailedErrorToast("Auto-launch queue failed", launchError, {
           scope: "auto-launch:queue",
         });
-        console.error("Auto Claude launch failed:", launchError);
+        log.error("Auto-launch queue failed", { domain: "auto-launch", error: launchError });
       });
     },
     [logAutoClaude],
@@ -2270,7 +2265,10 @@ export default function App() {
           },
           { scope: "auto-launch:jira" },
         );
-        console.error(`Failed to auto-launch Jira issue ${issue.key}: ${reason}`);
+        log.error(`Failed to auto-launch Jira issue ${issue.key}`, {
+          domain: "auto-launch",
+          reason,
+        });
         return;
       }
       const worktreeId = result.worktreeId ?? issue.key;
@@ -2353,7 +2351,10 @@ export default function App() {
           },
           { scope: "auto-launch:linear" },
         );
-        console.error(`Failed to auto-launch Linear issue ${issue.identifier}: ${reason}`);
+        log.error(`Failed to auto-launch Linear issue ${issue.identifier}`, {
+          domain: "auto-launch",
+          reason,
+        });
         return;
       }
       const worktreeId = result.worktreeId ?? issue.identifier;
@@ -2439,7 +2440,7 @@ export default function App() {
           },
           { scope: "auto-launch:local" },
         );
-        console.error(`Failed to auto-launch local task ${task.id}: ${reason}`);
+        log.error(`Failed to auto-launch local task ${task.id}`, { domain: "auto-launch", reason });
         return;
       }
 

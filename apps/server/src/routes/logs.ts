@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 
 import type { OpsLogLevel, OpsLogStatus } from "../ops-log";
+import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 
 const VALID_LEVELS = new Set<OpsLogLevel>(["debug", "info", "warning", "error"]);
@@ -71,6 +72,54 @@ export function registerLogsRoutes(app: Hono, manager: WorktreeManager) {
         },
         400,
       );
+    }
+  });
+
+  // Batch endpoint for browser (web-app) log entries.
+  // The browser logger buffers entries and flushes them here periodically.
+  app.post("/api/client-logs", async (c) => {
+    try {
+      const body = await c.req.json<{
+        entries: Array<{
+          timestamp: string;
+          system: string;
+          subsystem: string;
+          level: string;
+          message: string;
+          domain?: string;
+          metadata?: Record<string, unknown>;
+        }>;
+      }>();
+
+      if (!Array.isArray(body.entries)) {
+        return c.json({ success: false, error: "entries must be an array" }, 400);
+      }
+
+      const opsLog = manager.getOpsLog();
+      const projectName = manager.getProjectName() ?? undefined;
+
+      for (const entry of body.entries) {
+        const metadata: Record<string, unknown> = { ...entry.metadata };
+        if (entry.domain) metadata.domain = entry.domain;
+
+        opsLog.addEvent({
+          source: entry.subsystem ? `${entry.system}.${entry.subsystem}` : entry.system,
+          action: "log",
+          message: entry.message,
+          level: entry.level === "warn" ? "warning" : (entry.level as OpsLogLevel),
+          status: entry.level === "error" ? "failed" : "info",
+          projectName,
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        });
+      }
+
+      return c.json({ success: true, count: body.entries.length });
+    } catch (error) {
+      log.error("Failed to process client logs", {
+        domain: "logs",
+        error: error instanceof Error ? error.message : "Invalid request",
+      });
+      return c.json({ success: false, error: "Invalid request" }, 400);
     }
   });
 }

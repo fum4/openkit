@@ -1,5 +1,6 @@
 {
   "name": "@openkit/integrations",
+  "private": true,
   "scripts": {
     "typecheck": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint src"

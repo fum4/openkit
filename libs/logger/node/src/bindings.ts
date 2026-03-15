@@ -12,6 +12,8 @@ export interface LoggerBindings {
   LoggerSuccess: LogFn;
   LoggerPlain: LogFn;
   LoggerFree: (id: number) => void;
+  LoggerSetSink: (serverUrl: string, projectName: string) => void;
+  LoggerCloseSink: () => void;
   available: boolean;
 }
 
@@ -35,6 +37,8 @@ function loadNative(): LoggerBindings | null {
       LoggerSuccess: lib.func("LoggerSuccess", "void", ["int", "string", "string"]),
       LoggerPlain: lib.func("LoggerPlain", "void", ["int", "string", "string"]),
       LoggerFree: lib.func("LoggerFree", "void", ["int"]),
+      LoggerSetSink: lib.func("LoggerSetSink", "void", ["string", "string"]),
+      LoggerCloseSink: lib.func("LoggerCloseSink", "void", []),
       available: true,
     };
   } catch {
@@ -65,6 +69,8 @@ export function getBindings(): LoggerBindings {
     LoggerSuccess: noop,
     LoggerPlain: noop,
     LoggerFree: () => {},
+    LoggerSetSink: () => {},
+    LoggerCloseSink: () => {},
     available: false,
   };
 

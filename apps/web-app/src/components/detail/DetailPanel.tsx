@@ -16,6 +16,7 @@ import { DetailHeader } from "./DetailHeader";
 import { LogsViewer } from "./LogsViewer";
 import { TerminalView } from "./TerminalView";
 import { HooksTab } from "./HooksTab";
+import { log } from "../../logger";
 
 type WorktreeTab = "logs" | "terminal" | "claude" | "codex" | "gemini" | "opencode" | "hooks";
 
@@ -260,8 +261,6 @@ function AddAgentDropdown({
   );
 }
 
-const AUTO_CLAUDE_DEBUG_PREFIX = "[AUTO-CLAUDE][TEMP]";
-
 export function DetailPanel({
   worktree,
   onUpdate,
@@ -375,11 +374,7 @@ export function DetailPanel({
   const closeGeminiRequestIdRef = useRef(0);
   const closeOpenCodeRequestIdRef = useRef(0);
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
-    if (extra) {
-      console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`, extra);
-      return;
-    }
-    console.info(`${AUTO_CLAUDE_DEBUG_PREFIX} ${message}`);
+    log.debug(message, { domain: "auto-launch", ...extra });
   }, []);
 
   const getScopeCache = useCallback(
@@ -409,7 +404,8 @@ export function DetailPanel({
 
   useEffect(() => {
     const scopeCache = getScopeCache();
-    console.warn("[PROJECT-SWITCH] DetailPanel scope cache reset", {
+    log.debug("DetailPanel scope cache reset", {
+      domain: "project-switch",
       detailScopeKey,
       claudeTabsFromCache: [...scopeCache.openClaudeTabs],
       codexTabsFromCache: [...scopeCache.openCodexTabs],
@@ -1308,7 +1304,8 @@ export function DetailPanel({
 
   // Keep all hooks above this guard; adding hooks below it breaks hook ordering between renders.
   if (!worktree) {
-    console.warn("[PROJECT-SWITCH] DetailPanel returning early (worktree=null)", {
+    log.debug("DetailPanel returning early (worktree=null)", {
+      domain: "project-switch",
       detailScopeKey,
       openClaudeTabCount: openClaudeTabs.size,
       openClaudeTabIds: [...openClaudeTabs],
@@ -1351,17 +1348,7 @@ export function DetailPanel({
 
   const pruneDeletedWorktreeUiState = (deletedId: string) => {
     const scopeCache = getScopeCache();
-    const clearedTerminalCaches = clearTerminalSessionCacheForRuntimeWorktree(
-      detailScopeKey,
-      deletedId,
-    );
-    console.info("[delete][TEMP] applied scoped delete cleanup", {
-      scopeKey: detailScopeKey,
-      worktreeId: deletedId,
-      clearedTerminalCaches,
-      cleanupApplied: true,
-    });
-
+    clearTerminalSessionCacheForRuntimeWorktree(detailScopeKey, deletedId);
     // Clean up state for this worktree
     setOpenTerminals((prev) => {
       const next = new Set(prev);
@@ -1475,25 +1462,10 @@ export function DetailPanel({
     try {
       const result = await api.removeWorktree(deletedId);
       if (!result.success) {
-        console.info("[delete][TEMP] delete failed; rollback preserved local state", {
-          worktreeId: deletedId,
-          deleteOpId: result.deleteOpId ?? null,
-          code: result.code ?? null,
-          error: result.error ?? "unknown",
-          cleanupRolledBack: true,
-        });
         setError(result.error || "Failed to remove worktree");
         return;
       }
 
-      console.info("[delete][TEMP] delete succeeded", {
-        requestedWorktreeId: deletedId,
-        removedWorktreeId: result.worktreeId ?? deletedId,
-        deleteOpId: result.deleteOpId ?? null,
-        removedTerminalSessions: result.removedTerminalSessions ?? null,
-        removedRunningProcess: result.removedRunningProcess ?? null,
-        clearedLinks: result.clearedLinks ?? null,
-      });
       setShowRemoveModal(false);
       pruneDeletedWorktreeUiState(result.worktreeId ?? deletedId);
       onDeleted();

@@ -52,6 +52,22 @@ export class Logger {
     };
   }
 
+  /**
+   * Configure the Go logger to POST entries to a server endpoint.
+   * All log calls from all Logger instances will be batched and sent
+   * to {serverUrl}/api/client-logs periodically.
+   */
+  static setSink(serverUrl: string, projectName: string): void {
+    const bindings = getBindings();
+    bindings.LoggerSetSink(serverUrl, projectName);
+  }
+
+  /** Flush remaining entries and stop the sink. */
+  static closeSink(): void {
+    const bindings = getBindings();
+    bindings.LoggerCloseSink();
+  }
+
   get(subsystemName: string): Logger {
     const key = subsystemName.toUpperCase();
 
@@ -62,73 +78,73 @@ export class Logger {
     return this.subsystemCache.get(key)!;
   }
 
-  info(message: string, ...args: unknown[]): void {
-    const ctx = extractContext(args);
+  info(message: string, context?: LogContext): void {
+    const ctx = normalizeContext(context);
     const bindings = getBindings();
     bindings.LoggerInfo(this.handle, message, JSON.stringify(ctx || {}));
 
     if (!this.native) {
-      console.log(message, ...args);
+      console.log(message, ...(ctx ? [ctx] : []));
     }
 
     this.dispatch("info", message, ctx);
   }
 
-  warn(message: string, ...args: unknown[]): void {
-    const ctx = extractContext(args);
+  warn(message: string, context?: LogContext): void {
+    const ctx = normalizeContext(context);
     const bindings = getBindings();
     bindings.LoggerWarn(this.handle, message, JSON.stringify(ctx || {}));
 
     if (!this.native) {
-      console.warn(message, ...args);
+      console.warn(message, ...(ctx ? [ctx] : []));
     }
 
     this.dispatch("warn", message, ctx);
   }
 
-  error(message: string, ...args: unknown[]): void {
-    const ctx = extractContext(args);
+  error(message: string, context?: LogContext): void {
+    const ctx = normalizeContext(context);
     const bindings = getBindings();
     bindings.LoggerError(this.handle, message, JSON.stringify(ctx || {}));
 
     if (!this.native) {
-      console.error(message, ...args);
+      console.error(message, ...(ctx ? [ctx] : []));
     }
 
     this.dispatch("error", message, ctx);
   }
 
-  debug(message: string, ...args: unknown[]): void {
-    const ctx = extractContext(args);
+  debug(message: string, context?: LogContext): void {
+    const ctx = normalizeContext(context);
     const bindings = getBindings();
     bindings.LoggerDebug(this.handle, message, JSON.stringify(ctx || {}));
 
     if (!this.native) {
-      console.debug(message, ...args);
+      console.debug(message, ...(ctx ? [ctx] : []));
     }
 
     this.dispatch("debug", message, ctx);
   }
 
-  success(message: string, ...args: unknown[]): void {
-    const ctx = extractContext(args);
+  success(message: string, context?: LogContext): void {
+    const ctx = normalizeContext(context);
     const bindings = getBindings();
     bindings.LoggerSuccess(this.handle, message, JSON.stringify(ctx || {}));
 
     if (!this.native) {
-      console.log(`● ${message}`, ...args);
+      console.log(`● ${message}`, ...(ctx ? [ctx] : []));
     }
 
     this.dispatch("info", message, ctx);
   }
 
-  plain(message: string, ...args: unknown[]): void {
-    const ctx = extractContext(args);
+  plain(message: string, context?: LogContext): void {
+    const ctx = normalizeContext(context);
     const bindings = getBindings();
     bindings.LoggerPlain(this.handle, message, JSON.stringify(ctx || {}));
 
     if (!this.native) {
-      console.log(message, ...args);
+      console.log(message, ...(ctx ? [ctx] : []));
     }
 
     this.dispatch("info", message, ctx);
@@ -139,14 +155,14 @@ export class Logger {
     bindings.LoggerFree(this.handle);
   }
 
-  private dispatch(level: LogLevel, message: string, metadata?: Record<string, unknown>): void {
+  private dispatch(level: LogLevel, message: string, context?: Record<string, unknown>): void {
     if (sinks.length === 0) return;
 
     let domain: string | undefined;
-    let cleanMetadata = metadata;
-    if (metadata && typeof metadata.domain === "string") {
-      domain = metadata.domain;
-      const { domain: _, ...rest } = metadata;
+    let cleanMetadata: Record<string, unknown> | undefined;
+    if (context) {
+      const { domain: d, ...rest } = context;
+      domain = typeof d === "string" ? d : undefined;
       cleanMetadata = Object.keys(rest).length > 0 ? rest : undefined;
     }
 
@@ -170,20 +186,16 @@ export class Logger {
   }
 }
 
-function extractContext(args: unknown[]): Record<string, unknown> | undefined {
-  if (args.length === 0) return undefined;
-  if (
-    args.length === 1 &&
-    typeof args[0] === "object" &&
-    args[0] !== null &&
-    !(args[0] instanceof Error)
-  ) {
-    return args[0] as Record<string, unknown>;
+function normalizeContext(context: LogContext | undefined): Record<string, unknown> | undefined {
+  if (!context) return undefined;
+  if (!("error" in context) || typeof context.error === "string" || context.error === undefined) {
+    return context;
   }
-  if (args.some((a) => a instanceof Error)) {
-    return { errors: args.filter((a) => a instanceof Error).map((a) => (a as Error).message) };
+  const { error, ...rest } = context;
+  if (error instanceof Error) {
+    return { ...rest, error: error.message, ...(error.stack ? { stack: error.stack } : {}) };
   }
-  return { args: args.map((a) => String(a)) };
+  return { ...rest, error: String(error) };
 }
 
 export type { LogLevel, LogFormat, LogContext };

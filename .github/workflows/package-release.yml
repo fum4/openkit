@@ -26,7 +26,7 @@ jobs:
       - name: Setup dependencies
         uses: ./.github/actions/setup-deps
         with:
-          deps: pnpm,node,go,zig
+          deps: pnpm,node,go,tinygo,zig
 
       - name: Build artifacts (signed/notarized)
         uses: ./.github/actions/package-macos
@@ -62,7 +62,7 @@ jobs:
       - name: Setup dependencies
         uses: ./.github/actions/setup-deps
         with:
-          deps: pnpm,node,go,zig
+          deps: pnpm,node,go,tinygo,zig
 
       - name: Build artifacts
         run: pnpm package:linux

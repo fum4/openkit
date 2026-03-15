@@ -1,4 +1,5 @@
 export * from "./activity-event";
+export * from "./errors";
 export * from "./constants";
 export * from "./detect-config";
 export * from "./env-files";
