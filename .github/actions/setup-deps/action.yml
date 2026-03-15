@@ -12,7 +12,7 @@ inputs:
   go:
     description: Go version.
     required: false
-    default: "1.26.1"
+    default: "1.25.8"
   tinygo:
     description: TinyGo version (for WASM logger build).
     required: false
