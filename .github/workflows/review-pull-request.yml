@@ -68,16 +68,16 @@ jobs:
 
             After reviewing, format your output as follows:
 
-            ## 🔴 Major
+            ### 🔴 Major
             Issues that must be fixed — bugs, security vulnerabilities, data loss risks, broken logic.
 
-            ## 🟠 Medium
+            ### 🟠 Medium
             Issues that should be fixed — performance problems, error handling gaps, code smells, maintainability concerns.
 
-            ## 🟡 Minor
+            ### 🟡 Minor
             Suggestions for improvement — style, naming, documentation, minor simplifications.
 
-            If a category has no findings, write 'None.' under it.
+            Only include categories that have findings — omit any category with nothing to report.
             Be concise and actionable. Reference file paths and line numbers where applicable.
         run: |
           git diff "origin/$BASE_REF"...HEAD > /tmp/pr-diff.txt
