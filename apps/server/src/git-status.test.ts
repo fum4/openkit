@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { promisify } from "util";
 
 const mockExec = vi.fn();
 
 vi.mock("child_process", () => {
   // Node's promisify checks for [util.promisify.custom] on execFile.
   // We provide a mock that works with both callback and promisify forms.
-  const { promisify } = require("util");
   const execFileFn = (...args: unknown[]) => {
-    // Callback form: (cmd, args, opts, cb)
     const cb = args[args.length - 1];
     if (typeof cb === "function") {
       const result = mockExec(args[0], args[1], args[2]);
