@@ -555,11 +555,10 @@ For full documentation of the hooks system including trigger types, item types, 
 
 ### Run Results
 
-Hook run results are stored per-worktree at:
+Hook run results (command steps and skill results) are stored per-worktree at:
 
 ```
-.openkit/worktrees/<worktreeId>/hooks/latest-run.json
-.openkit/worktrees/<worktreeId>/hooks/skill-results.json
+.openkit/worktrees/<worktreeId>/hooks.json
 ```
 
 ---
@@ -875,9 +874,8 @@ The `TASK.md` file is automatically added to the worktree's git exclude file (`.
 ### Per-Worktree Hooks Data
 
 ```
-.openkit/worktrees/<worktreeId>/hooks/
-  latest-run.json       # Most recent command step run results
-  skill-results.json    # Agent-reported skill results
+.openkit/worktrees/<worktreeId>/
+  hooks.json            # Combined step run results + skill results
 ```
 
 ---

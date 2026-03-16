@@ -773,13 +773,6 @@ export function registerHooksRoutes(
     }
   });
 
-  // Get skill hook results for a worktree
-  app.get("/api/worktrees/:id/hooks/skill-results", (c) => {
-    const worktreeId = c.req.param("id");
-    const results = hooksManager.getSkillResults(worktreeId);
-    return c.json({ results });
-  });
-
   // Read a file by absolute path (used by the frontend to preview MD skill reports)
   app.get("/api/files/read", (c) => {
     const filePath = c.req.query("path");
