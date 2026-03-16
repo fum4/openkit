@@ -28,8 +28,24 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           npm install -g @anthropic-ai/claude-code
-          claude plugin marketplace add github:anthropics/claude-plugins-official
+          echo "::group::Claude version"
+          claude --version
+          echo "::endgroup::"
+          echo "::group::Marketplace list (before)"
+          claude plugin marketplace list || true
+          echo "::endgroup::"
+          echo "::group::Add marketplace"
+          claude plugin marketplace add anthropics/claude-plugins-official
+          echo "::endgroup::"
+          echo "::group::Marketplace list (after)"
+          claude plugin marketplace list
+          echo "::endgroup::"
+          echo "::group::Install code-review plugin"
           claude plugin install code-review@claude-plugins-official
+          echo "::endgroup::"
+          echo "::group::Installed plugins"
+          claude plugin list
+          echo "::endgroup::"
 
       - name: Find previous review
         id: previous
