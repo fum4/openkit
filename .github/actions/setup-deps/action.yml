@@ -25,30 +25,30 @@ inputs:
 runs:
   using: composite
   steps:
-    - if: ${{ contains(inputs.deps, 'pnpm') }}
+    - if: ${{ contains(format(',{0},', inputs.deps), ',pnpm,') }}
       uses: pnpm/action-setup@v4
 
-    - if: ${{ contains(inputs.deps, 'node') }}
+    - if: ${{ contains(format(',{0},', inputs.deps), ',node,') }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node }}
         cache: pnpm
 
-    - if: ${{ contains(inputs.deps, 'pnpm') }}
+    - if: ${{ contains(format(',{0},', inputs.deps), ',pnpm,') }}
       run: pnpm install --frozen-lockfile
       shell: bash
 
-    - if: ${{ contains(inputs.deps, 'go') }}
+    - if: ${{ contains(format(',{0},', inputs.deps), ',go,') }}
       uses: actions/setup-go@v5
       with:
         go-version: ${{ inputs.go }}
 
-    - if: ${{ contains(inputs.deps, 'tinygo') }}
+    - if: ${{ contains(format(',{0},', inputs.deps), ',tinygo,') }}
       uses: acifani/setup-tinygo@v2
       with:
         tinygo-version: ${{ inputs.tinygo }}
 
-    - if: ${{ contains(inputs.deps, 'zig') }}
+    - if: ${{ contains(format(',{0},', inputs.deps), ',zig,') }}
       uses: mlugg/setup-zig@v2
       with:
         version: ${{ inputs.zig }}

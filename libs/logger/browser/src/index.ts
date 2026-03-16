@@ -53,8 +53,8 @@ async function loadWasm(): Promise<void> {
 
       wasmReady = true;
     } catch {
-      // WASM loading failed (e.g., test environment without fetch/WASM support).
-      // Logger methods become no-ops — console output is unavailable without Go.
+      // WASM loading failed (e.g., missing build artifacts).
+      // Logger methods become no-ops.
     }
   })();
 

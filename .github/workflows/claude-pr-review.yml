@@ -23,12 +23,10 @@ jobs:
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          DIFF=$(git diff "origin/$BASE_REF"...HEAD)
-          claude --print \
+          git diff "origin/$BASE_REF"...HEAD > /tmp/pr-diff.txt
+          cat /tmp/pr-diff.txt | claude --print \
             --max-turns 5 \
-            "Review this pull request diff for code quality, bugs, security issues, and adherence to project conventions. Be concise and actionable.
-
-          ${DIFF}" \
+            "Review this pull request diff (provided via stdin) for code quality, bugs, security issues, and adherence to project conventions. Be concise and actionable." \
             > /tmp/review-output.txt
 
       - name: Post review comment

@@ -1,19 +1,3 @@
-/// <reference types="vite/client" />
-// Global type declarations
-
-interface ImportMetaEnv {
-  readonly BASE_URL: string;
-  readonly MODE: string;
-  readonly DEV: boolean;
-  readonly PROD: boolean;
-  readonly SSR: boolean;
-  readonly [key: string]: string | boolean | undefined;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
-
 interface ElectronProject {
   id: string;
   projectDir: string;
@@ -60,7 +44,6 @@ interface ElectronAPI {
   onProjectsChanged: (callback: (projects: ElectronProject[]) => void) => () => void;
   onActiveProjectChanged: (callback: (projectId: string | null) => void) => () => void;
 
-  // Preferences
   getPreferences: () => Promise<AppPreferences>;
   getSetupPreference: () => Promise<SetupPreference>;
   setSetupPreference: (preference: SetupPreference) => Promise<void>;
@@ -70,7 +53,6 @@ interface ElectronAPI {
   detectOpenkitRepo: () => Promise<string | null>;
   selectDevRepoFolder: () => Promise<string | null>;
 
-  // App updates
   getAppVersion: () => Promise<string>;
   getAppUpdateState: () => Promise<AppUpdateState>;
   checkAppUpdates: () => Promise<AppUpdateState>;
@@ -81,19 +63,4 @@ interface ElectronAPI {
 
 interface Window {
   electronAPI?: ElectronAPI;
-}
-
-declare module "*.svg" {
-  const src: string;
-  export default src;
-}
-
-declare module "*.svg?raw" {
-  const src: string;
-  export default src;
-}
-
-declare module "*.png" {
-  const src: string;
-  export default src;
 }
