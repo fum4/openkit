@@ -1,6 +1,9 @@
 {
   "permissions": {
     "allow": [
+      "Bash(echo:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
       "Bash(pnpm nx:*)",
       "Bash(pnpm add:*)",
       "Bash(pnpm build:*)",
@@ -15,7 +18,9 @@
       "Bash(git log:*)",
       "Bash(git add:*)",
       "Bash(git checkout -b:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(gh api:*)",
+      "Bash(gh pr:*)"
     ]
   }
 }
