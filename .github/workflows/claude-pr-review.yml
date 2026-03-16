@@ -19,17 +19,34 @@ jobs:
       - name: Restore Claude auth
         env:
           CLAUDE_AUTH_JSON: ${{ secrets.CLAUDE_AUTH_JSON }}
-        run: printenv CLAUDE_AUTH_JSON > ~/.claude.json
+        run: |
+          echo "::group::Auth debug"
+          echo "CLAUDE_AUTH_JSON length: ${#CLAUDE_AUTH_JSON}"
+          echo "CLAUDE_AUTH_JSON first 20 chars: ${CLAUDE_AUTH_JSON:0:20}..."
+          printenv CLAUDE_AUTH_JSON > ~/.claude.json
+          echo "Wrote ~/.claude.json ($(wc -c < ~/.claude.json) bytes)"
+          python3 -c "import json; d=json.load(open('$HOME/.claude.json')); print('Top-level keys:', sorted(d.keys()) if isinstance(d, dict) else type(d).__name__)"
+          echo "::endgroup::"
+
+      - name: Verify Claude auth
+        run: |
+          echo "Claude version: $(claude --version)"
+          echo "~/.claude.json exists: $(test -f ~/.claude.json && echo yes || echo no)"
+          echo "~/.claude/ contents:"
+          ls -la ~/.claude/ 2>/dev/null || echo "(no ~/.claude/ directory)"
+          echo "Attempting auth check..."
+          claude --print --verbose "Say hello" 2>&1 | head -50 || true
 
       - name: Run Claude review
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           git diff "origin/$BASE_REF"...HEAD > /tmp/pr-diff.txt
-          cat /tmp/pr-diff.txt | claude --print \
+          echo "Diff size: $(wc -l < /tmp/pr-diff.txt) lines"
+          cat /tmp/pr-diff.txt | claude --print --verbose \
             --max-turns 5 \
             "Review this pull request diff (provided via stdin) for code quality, bugs, security issues, and adherence to project conventions. Be concise and actionable." \
-            > /tmp/review-output.txt
+            2>&1 | tee /tmp/review-output.txt
 
       - name: Post review comment
         uses: actions/github-script@v7

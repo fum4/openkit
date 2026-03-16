@@ -23,8 +23,8 @@ has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 # ── Dependency checks ──────────────────────────────────────────────────────
 
-DEPS="node pnpm go tinygo zig"
-BREW_FORMULAS="node pnpm go tinygo zig"
+DEPS="node pnpm zig go tinygo"
+COREPACK_DEPS="pnpm"
 
 missing=()
 present=()
@@ -60,9 +60,21 @@ if [ ${#present[@]} -gt 0 ]; then
 fi
 
 # Show what's missing
+brew_missing=()
+
 if [ ${#missing[@]} -gt 0 ]; then
   for item in "${missing[@]}"; do
-    printf "  ${RED}✖${RESET} %s ${DIM}— not found${RESET}\n" "$item"
+    is_corepack=false
+    for cd in $COREPACK_DEPS; do
+      if [ "$item" = "$cd" ]; then is_corepack=true; break; fi
+    done
+
+    if $is_corepack; then
+      printf "  ${YELLOW}✖${RESET} %s ${DIM}— not found (will be enabled via Corepack)${RESET}\n" "$item"
+    else
+      printf "  ${RED}✖${RESET} %s ${DIM}— not found${RESET}\n" "$item"
+      brew_missing+=("$item")
+    fi
   done
 fi
 
@@ -70,7 +82,18 @@ echo ""
 
 # ── Install missing dependencies ───────────────────────────────────────────
 
-if [ ${#missing[@]} -gt 0 ]; then
+if [ ${#brew_missing[@]} -gt 0 ]; then
+  if [ "$(uname -s)" != "Darwin" ]; then
+    warn "Automatic installation is only supported on macOS."
+    warn "Please install the following manually and re-run this script:"
+    echo ""
+    for item in "${brew_missing[@]}"; do
+      printf "  ${RED}•${RESET} %s\n" "$item"
+    done
+    echo ""
+    exit 1
+  fi
+
   if ! has_cmd brew; then
     error "Homebrew is required to install missing dependencies."
     error "Install it from https://brew.sh and re-run this script."
@@ -82,7 +105,7 @@ if [ ${#missing[@]} -gt 0 ]; then
 
   # Build selection array — all selected by default
   selected=()
-  for i in "${!missing[@]}"; do
+  for i in "${!brew_missing[@]}"; do
     selected+=("1")
   done
 
@@ -90,7 +113,6 @@ if [ ${#missing[@]} -gt 0 ]; then
   brew_formula_for() {
     case "$1" in
       node)    echo "node" ;;
-      pnpm)    echo "pnpm" ;;
       go)      echo "go" ;;
       tinygo)  echo "tinygo-org/tools/tinygo" ;;
       zig)     echo "zig" ;;
@@ -100,15 +122,15 @@ if [ ${#missing[@]} -gt 0 ]; then
 
   # Interactive checklist
   print_checklist() {
-    for i in "${!missing[@]}"; do
+    for i in "${!brew_missing[@]}"; do
       if [ "${selected[$i]}" = "1" ]; then
-        printf "  ${GREEN}[x]${RESET} %s\n" "${missing[$i]}"
+        printf "  ${GREEN}[x]${RESET} %s\n" "${brew_missing[$i]}"
       else
-        printf "  ${DIM}[ ]${RESET} %s\n" "${missing[$i]}"
+        printf "  ${DIM}[ ]${RESET} %s\n" "${brew_missing[$i]}"
       fi
     done
     echo ""
-    printf "  ${DIM}Toggle: type the number (1-%d) and press Enter${RESET}\n" "${#missing[@]}"
+    printf "  ${DIM}Toggle: type the number (1-%d) and press Enter${RESET}\n" "${#brew_missing[@]}"
     printf "  ${DIM}Install selected: press Enter with no input${RESET}\n"
     printf "  ${DIM}Skip all: type 's' and press Enter${RESET}\n"
     echo ""
@@ -133,29 +155,29 @@ if [ ${#missing[@]} -gt 0 ]; then
     # Validate numeric input in range
     if echo "$choice" | grep -qE '^[0-9]+$'; then
       idx=$((choice - 1))
-      if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#missing[@]}" ]; then
+      if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#brew_missing[@]}" ]; then
         if [ "${selected[$idx]}" = "1" ]; then
           selected[$idx]="0"
         else
           selected[$idx]="1"
         fi
       else
-        warn "Invalid number. Pick 1-${#missing[@]}."
+        warn "Invalid number. Pick 1-${#brew_missing[@]}."
       fi
     else
       warn "Invalid input."
     fi
 
     # Move cursor up to redraw checklist (number of missing + 5 info lines)
-    lines=$(( ${#missing[@]} + 5 ))
+    lines=$(( ${#brew_missing[@]} + 5 ))
     printf "\033[%dA\033[J" "$lines"
   done
 
   # Install selected
   to_install=()
-  for i in "${!missing[@]}"; do
+  for i in "${!brew_missing[@]}"; do
     if [ "${selected[$i]}" = "1" ]; then
-      to_install+=("$(brew_formula_for "${missing[$i]}")")
+      to_install+=("$(brew_formula_for "${brew_missing[$i]}")")
     fi
   done
 
@@ -172,6 +194,14 @@ if [ ${#missing[@]} -gt 0 ]; then
 else
   success "All dependencies are available."
 fi
+
+# ── Enable Corepack (pnpm via packageManager field) ───────────────────────
+
+echo ""
+
+info "Enabling Corepack for pnpm..."
+corepack enable pnpm
+success "Corepack enabled — pnpm version managed via packageManager field."
 
 # ── Environment file ───────────────────────────────────────────────────────
 
@@ -193,16 +223,11 @@ fi
 
 echo ""
 
-if has_cmd pnpm; then
-  info "Installing pnpm dependencies..."
-  echo ""
-  pnpm install
-  echo ""
-  success "Dependencies installed."
-else
-  warn "pnpm not available — skipping dependency installation."
-  warn "Install pnpm and run 'pnpm install' manually."
-fi
+info "Installing pnpm dependencies..."
+echo ""
+pnpm install
+echo ""
+success "Dependencies installed."
 
 # ── Done ───────────────────────────────────────────────────────────────────
 
