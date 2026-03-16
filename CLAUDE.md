@@ -144,6 +144,10 @@ OpenKit has a **Dev Mode** (App Settings → Dev Mode toggle) that symlinks each
 
 For non-trivial features, write a design spec before implementation. Specs live in `docs/superpowers/specs/` with the naming convention `YYYY-MM-DD-<topic>-design.md`. Implementation plans live in `docs/superpowers/plans/` with `YYYY-MM-DD-<topic>.md`. Specs capture the _what/why_; plans capture the _how/order_.
 
+**Always create spec and plan files in the root project directory**, not in a worktree. These are shared artifacts that must be accessible across all branches and worktrees.
+
+**Never use absolute or user-specific paths in specs or plans.** Use repo-relative paths (e.g. `.openkit/worktrees/mcp-fixes/`) and project-relative commands (e.g. `pnpm nx run cli:test`). Docs must be portable across machines and contributors.
+
 ## Documentation
 
 Comprehensive documentation lives in `/docs/`. **Always check the relevant docs before working on unfamiliar areas** — they contain architectural context, component patterns, and API details that will help you make correct changes.
