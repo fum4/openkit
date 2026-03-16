@@ -1,6 +1,7 @@
 {
   "name": "@openkit/agents",
   "private": true,
+  "type": "module",
   "scripts": {
     "typecheck": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint src"

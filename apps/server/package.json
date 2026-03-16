@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/standalone.ts",
+    "dev": "tsup --watch --onSuccess 'node dist/standalone.js'",
     "build": "tsup && mkdir -p dist/runtime && cp src/runtime/port-hook.cjs dist/runtime/port-hook.cjs && cp ../../libs/port-resolution/zig-out/lib/libport-hook.* dist/runtime/ 2>/dev/null || true",
     "preview": "node dist/standalone.js",
     "start": "pnpm build && pnpm preview",
@@ -33,7 +33,6 @@
     "@types/ws": "^8.18.1",
     "memfs": "^4.56.11",
     "oxlint": "^1.50.0",
-    "tsup": "^8.5.1",
-    "tsx": "^4.21.0"
+    "tsup": "^8.5.1"
   }
 }
