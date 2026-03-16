@@ -38,9 +38,9 @@ Alternatively, you can clone the repo and set it up locally:
 
 <br />
 
-**1. Run the setup script**
+### Run the setup script
 
-This checks for all required dependencies (offering to install any missing ones via Homebrew), enables Corepack for pnpm, creates `.env.local` from `.env.example`, and installs pnpm dependencies:
+On macOS, the script handles everything — including installing any missing prerequisites via Homebrew. Just run:
 
 ```bash
 $ pnpm run setup
@@ -50,19 +50,19 @@ $ npm run setup
 $ bash scripts/setup.sh
 ```
 
-<br />
+The setup script will:
 
-**2. Build once (recommended for first run)**
-
-```bash
-$ pnpm build
-```
+- [x] Check for required dependencies and offer to install missing ones via Homebrew
+- [x] Enable Corepack for pnpm
+- [x] Create `.env.local` from `.env.example`
+- [x] Install pnpm dependencies
+- [x] Build all apps and shared libs
 
 <br /><br />
 
 ## 🏃🏻‍♂️ Run the app
 
-Run all first-class apps:
+Run all apps:
 
 ```bash
 $ pnpm dev
@@ -73,10 +73,10 @@ Run specific apps:
 ```bash
 $ pnpm dev:cli
 $ pnpm dev:server
+$ pnpm dev:website
+$ pnpm dev:web-app
 $ pnpm dev:desktop-app
 $ pnpm dev:mobile-app
-$ pnpm dev:web-app
-$ pnpm dev:website
 ```
 
 <br /><br />
@@ -87,9 +87,9 @@ $ pnpm dev:website
 $ pnpm build
 $ pnpm build:cli
 $ pnpm build:server
+$ pnpm build:website
 $ pnpm build:web-app
 $ pnpm build:desktop-app
-$ pnpm build:website
 $ pnpm build:mobile-app
 ```
 
@@ -132,7 +132,6 @@ Everything is released from `master`.
 - [Frontend](docs/FRONTEND.md)
 - [Hooks](docs/HOOKS.md)
 - [Integrations](docs/INTEGRATIONS.md)
-- [MCP](docs/MCP.md)
 - [Notifications](docs/NOTIFICATIONS.md)
 - [Port Mapping](docs/PORT-MAPPING.md)
 - [Project Structure](docs/PROJECT_STRUCTURE.md)
