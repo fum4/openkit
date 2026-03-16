@@ -72,7 +72,7 @@ if (portOffset > 0) {
 }
 
 // Custom protocol for opening projects
-const PROTOCOL = APP_NAME;
+const PROTOCOL = APP_NAME.toLowerCase();
 
 // Single main window and project manager
 let mainWindow: BrowserWindow | null = null;
