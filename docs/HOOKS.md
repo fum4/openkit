@@ -18,7 +18,7 @@ Every hook belongs to one of six trigger types:
 | `post-implementation` | Runs after agents finish implementing a task                     | CircleCheck       | emerald-400 |
 | `custom`              | Agent decides when to run, based on a natural-language condition | MessageSquareText | violet-400  |
 | `on-demand`           | Manually triggered from the worktree detail panel                | Hand              | amber-400   |
-| `worktree-created`    | Runs automatically after a worktree is created                   | FolderPlus        | cyan-400    |
+| `worktree-created`    | Runs automatically after a worktree is created                   | FolderPlus        | emerald-400 |
 | `worktree-removed`    | Runs automatically after a worktree is removed                   | FolderMinus       | rose-400    |
 
 Steps and skills default to `post-implementation` if no trigger is specified.
