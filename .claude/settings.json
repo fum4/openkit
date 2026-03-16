@@ -8,7 +8,7 @@
       "Bash(pnpm test:*)",
       "Bash(pnpm vitest:*)",
       "Bash(pnpm fix:*)",
-      "Bash(pnpm check:*",
+      "Bash(pnpm check:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git branch:*)",
