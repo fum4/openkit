@@ -40,8 +40,7 @@
     "fix:lint": "oxlint --fix",
     "fix:all": "pnpm fix:format && pnpm fix:lint",
     "lint-staged": "lint-staged",
-    "prepare": "husky",
-    "claude:auth": "bash scripts/claude-auth/extract-credentials.sh"
+    "prepare": "husky"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

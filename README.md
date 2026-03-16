@@ -30,36 +30,29 @@ Alternatively, you can clone the repo and set it up locally:
 ### Prerequisites:
 
 - Node.js >= 18 (LTS recommended)
-- pnpm >= 10
+- pnpm == 10.30.1
 - Zig >= 0.15
+- Go >= 1.21
+- TinyGo >= 0.30
+- Homebrew (optional, for automatic dependency installation on macOS)
 
 <br />
 
-**1. Enable Corepack**
+**1. Run the setup script**
 
-```bash
-$ corepack enable pnpm
-```
-
-<br />
-
-**2. Install dependencies**
-
-```bash
-$ pnpm install
-```
-
-<br />
-
-**3. Initialize local environment**
+This checks for all required dependencies (offering to install any missing ones via Homebrew), enables Corepack for pnpm, creates `.env.local` from `.env.example`, and installs pnpm dependencies:
 
 ```bash
 $ pnpm run setup
+# or
+$ npm run setup
+# or
+$ bash scripts/setup.sh
 ```
 
 <br />
 
-**4. Build once (recommended for first run)**
+**2. Build once (recommended for first run)**
 
 ```bash
 $ pnpm build
