@@ -10,7 +10,7 @@ export default defineConfig({
   target: "node18",
   clean: true,
   external: ["node-pty"],
-  noExternal: ["ws", "picocolors"],
+  noExternal: ["ws", "picocolors", "@xterm/headless", "@xterm/addon-serialize"],
   esbuildOptions(options) {
     options.banner = {
       ...options.banner,

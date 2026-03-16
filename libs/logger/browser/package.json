@@ -2,6 +2,7 @@
   "name": "@openkit/logger/browser",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
     "typecheck": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint src"
