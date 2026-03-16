@@ -3,7 +3,7 @@
   "name": "cli",
   "projectType": "application",
   "sourceRoot": "apps/cli/src",
-  "implicitDependencies": ["server", "agents", "integrations", "shared"],
+  "implicitDependencies": ["server", "agents", "integrations", "shared", "logger"],
   "targets": {
     "dev": {
       "executor": "nx:run-commands",

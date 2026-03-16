@@ -3,7 +3,7 @@
   "name": "desktop-app",
   "projectType": "application",
   "sourceRoot": "apps/desktop-app/src",
-  "implicitDependencies": ["web-app", "cli", "server"],
+  "implicitDependencies": ["web-app", "cli", "server", "logger"],
   "targets": {
     "dev": {
       "executor": "nx:run-commands",

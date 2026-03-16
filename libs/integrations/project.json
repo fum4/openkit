@@ -3,7 +3,7 @@
   "name": "integrations",
   "projectType": "library",
   "sourceRoot": "libs/integrations/src",
-  "implicitDependencies": ["shared"],
+  "implicitDependencies": ["shared", "logger"],
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",

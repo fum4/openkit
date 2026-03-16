@@ -3,7 +3,7 @@
   "name": "web-app",
   "projectType": "application",
   "sourceRoot": "apps/web-app/src",
-  "implicitDependencies": ["server", "shared"],
+  "implicitDependencies": ["server", "shared", "logger"],
   "targets": {
     "dev": {
       "executor": "nx:run-commands",
@@ -50,6 +50,7 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "dependsOn": ["logger:build"],
       "options": {
         "cwd": "apps/web-app",
         "command": "pnpm test"

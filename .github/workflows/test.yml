@@ -148,7 +148,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-deps
         with:
-          deps: pnpm,node
+          deps: pnpm,node,go,tinygo
       - run: pnpm nx run web-app:test
 
   unit-shared:

@@ -3,7 +3,7 @@
   "name": "agents",
   "projectType": "library",
   "sourceRoot": "libs/agents/src",
-  "implicitDependencies": ["shared"],
+  "implicitDependencies": ["shared", "logger"],
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",

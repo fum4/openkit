@@ -3,7 +3,7 @@
   "name": "server",
   "projectType": "application",
   "sourceRoot": "apps/server/src",
-  "implicitDependencies": ["agents", "integrations", "shared", "native-port-resolution"],
+  "implicitDependencies": ["agents", "integrations", "shared", "logger", "native-port-resolution"],
   "targets": {
     "dev": {
       "executor": "nx:run-commands",
