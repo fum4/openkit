@@ -229,6 +229,16 @@ pnpm install
 echo ""
 success "Dependencies installed."
 
+# ── Build ─────────────────────────────────────────────────────────────────
+
+echo ""
+
+info "Building all packages..."
+echo ""
+pnpm build
+echo ""
+success "Build complete."
+
 # ── Done ───────────────────────────────────────────────────────────────────
 
 echo ""
