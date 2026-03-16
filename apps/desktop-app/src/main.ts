@@ -62,9 +62,11 @@ const portOffset = process.env.__WM_PORT_OFFSET__
   : 0;
 
 if (portOffset > 0) {
+  // Resolve userData BEFORE setName, since setName changes the default path.
+  const baseUserData = app.getPath("userData");
   const suffix = `-worktree-${portOffset}`;
   app.setName(`${APP_NAME}${suffix}`);
-  app.setPath("userData", path.join(app.getPath("userData"), `worktree-${portOffset}`));
+  app.setPath("userData", path.join(baseUserData, `worktree-${portOffset}`));
 } else {
   app.setName(APP_NAME);
 }
@@ -256,9 +258,9 @@ function createMainWindow(): BrowserWindow {
   if (process.env.UI_DEV_SERVER_URL) {
     let devUrl = process.env.UI_DEV_SERVER_URL;
     if (portOffset > 0) {
-      devUrl = devUrl.replace(/:(\d+)(\/?)$/, (_, port, slash) => {
-        return `:${Number.parseInt(port, 10) + portOffset}${slash}`;
-      });
+      const u = new URL(devUrl);
+      u.port = String(Number(u.port) + portOffset);
+      devUrl = u.toString();
     }
     mainWindow.loadURL(devUrl);
   } else {
