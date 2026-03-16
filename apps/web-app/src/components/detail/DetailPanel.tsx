@@ -969,6 +969,7 @@ export function DetailPanel({
       setAgentRestoreModal(null);
 
       const restore = await api.fetchRestorableAgentSessions(worktree.id, "claude");
+
       setIsResolvingAgentRestore((prev) => (prev === "claude" ? null : prev));
       if (!restore.success) {
         setError(restore.error || "Failed to restore Claude conversation");
@@ -1028,6 +1029,7 @@ export function DetailPanel({
       setAgentRestoreModal(null);
 
       const restore = await api.fetchRestorableAgentSessions(worktree.id, "codex");
+
       setIsResolvingAgentRestore((prev) => (prev === "codex" ? null : prev));
       if (!restore.success) {
         setError(restore.error || "Failed to restore Codex conversation");
@@ -2194,7 +2196,10 @@ export function DetailPanel({
           }
         >
           <p className={`text-xs ${text.secondary} leading-relaxed`}>
-            Multiple saved conversations match this worktree. Choose which one to resume.
+            Multiple saved conversations match this worktree.
+            {activeProject?.name && (
+              <span className={`ml-1 ${text.muted}`}>Project: {activeProject.name}</span>
+            )}
           </p>
           <div className="mt-4 space-y-2 max-h-[320px] overflow-y-auto">
             {agentRestoreModal.matches.map((match) => {
@@ -2222,6 +2227,11 @@ export function DetailPanel({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className={`text-xs font-medium ${text.primary}`}>{match.title}</div>
+                      {match.gitBranch && (
+                        <div className={`mt-0.5 text-[10px] ${text.muted}`}>
+                          Branch: {match.gitBranch}
+                        </div>
+                      )}
                       {match.preview && (
                         <div className={`mt-1 text-[11px] ${text.muted} leading-relaxed`}>
                           {match.preview}

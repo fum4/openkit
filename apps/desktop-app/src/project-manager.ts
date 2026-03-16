@@ -1,10 +1,33 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import net from "net";
 import path from "path";
 import os from "os";
 import type { ChildProcess } from "child_process";
 import { spawnServer, stopServer, waitForServerReady } from "./server-spawner.js";
 import { preferencesManager } from "./preferences-manager.js";
 import { symlinkOpsLog } from "./dev-mode.js";
+import { log } from "./logger.js";
+
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      server.close();
+      resolve(false);
+    }, 5000);
+    const server = net.createServer();
+    server.once("error", () => {
+      clearTimeout(timeout);
+      resolve(false);
+    });
+    server.once("listening", () => {
+      server.close(() => {
+        clearTimeout(timeout);
+        resolve(true);
+      });
+    });
+    server.listen(port);
+  });
+}
 
 export interface Project {
   id: string;
@@ -90,11 +113,16 @@ export class ProjectManager {
     return path.basename(projectDir);
   }
 
-  private allocatePort(): number {
+  private async allocatePort(): Promise<number> {
     const usedPorts = new Set(Array.from(this.projects.values()).map((p) => p.port));
     let port = preferencesManager.getBasePort() + 1;
-    while (usedPorts.has(port)) {
+    // Skip ports claimed by other projects AND ports that are actually in use on
+    // the system (e.g. leftover server processes from a previous session).
+    while ((usedPorts.has(port) || !(await isPortFree(port))) && port <= 65535) {
       port++;
+    }
+    if (port > 65535) {
+      throw new Error("No available port found");
     }
     return port;
   }
@@ -135,7 +163,7 @@ export class ProjectManager {
     }
 
     const id = this.generateId(normalizedDir);
-    const port = this.allocatePort();
+    const port = await this.allocatePort();
     const name = this.getProjectName(normalizedDir);
 
     const project: ProjectInternal = {
@@ -172,6 +200,26 @@ export class ProjectManager {
           project.recentServerErrors = project.recentServerErrors.slice(-20);
         }
       };
+
+      // Listen for the server's actual port in case findAvailablePort() had to
+      // pick a different one (e.g. a leftover server still holds the requested port).
+      serverProcess.stdout?.on("data", (data: Buffer) => {
+        const text = data.toString();
+        for (const line of text.split("\n")) {
+          const portMatch = line.match(/^__OPENKIT_PORT__=(\d+)$/);
+          if (portMatch) {
+            const actualPort = parseInt(portMatch[1], 10);
+            if (actualPort !== project.port) {
+              log.debug(`Port corrected: requested ${project.port}, actual ${actualPort}`, {
+                domain: "port-allocation",
+              });
+              project.port = actualPort;
+              this.notifyChange();
+            }
+          }
+        }
+      });
+
       serverProcess.stderr?.on("data", (data: Buffer) => {
         const text = data.toString();
         for (const line of text.split("\n")) {
@@ -201,8 +249,9 @@ export class ProjectManager {
         }
       });
 
-      // Wait for server to be ready
-      const ready = await waitForServerReady(port);
+      // Pass a getter so waitForServerReady re-reads the port on each poll
+      // iteration — project.port may be updated by the stdout listener above.
+      const ready = await waitForServerReady(() => project.port);
       if (ready) {
         project.status = "running";
       } else {

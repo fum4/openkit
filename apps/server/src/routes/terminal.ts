@@ -159,10 +159,25 @@ export function registerTerminalRoutes(
     try {
       const activeSessionId = terminalManager.getSessionIdForScope(resolved.worktreeId, agent);
       const historyMatches = findHistoricalAgentSessions(agent, resolved.worktree.path);
+      logTerminalEvent({
+        action: "terminal.agent.restore.lookup",
+        message: "Resolved agent session history",
+        status: "succeeded",
+        worktreeId: resolved.worktreeId,
+        metadata: {
+          agent,
+          requestedWorktreeId: worktreeId,
+          resolvedWorktreePath: resolved.worktree.path,
+          activeSessionId,
+          matchCount: historyMatches.length,
+          matchedSessionIds: historyMatches.map((m) => m.sessionId),
+        },
+      });
       return c.json({
         success: true,
         activeSessionId,
         historyMatches,
+        resolvedWorktreePath: resolved.worktree.path,
       });
     } catch (error) {
       const message =

@@ -10,9 +10,12 @@ import {
 import { Hono } from "hono";
 import path from "path";
 
+import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import type { WorktreeManager } from "../manager";
 import type { NotesManager } from "../notes-manager";
 import { generateBranchName } from "../branch-name";
+import { regenerateTaskMd } from "../task-context";
+import type { HooksManager } from "../verification-manager";
 
 interface CustomTask {
   id: string;
@@ -185,10 +188,17 @@ export function registerTaskRoutes(
   app: Hono,
   manager: WorktreeManager,
   notesManager: NotesManager,
+  hooksManager?: HooksManager,
 ) {
   const configDir = manager.getConfigDir();
+  const worktreesPath = path.join(configDir, CONFIG_DIR_NAME, "worktrees");
   const opsLog = manager.getOpsLog();
   const getProjectName = () => manager.getProjectName() ?? undefined;
+  const getHooksSnapshot = (worktreeId: string) => {
+    if (!hooksManager) return undefined;
+    const config = hooksManager.getConfig();
+    return { config, worktreeId };
+  };
   const logTaskEvent = (options: {
     action: string;
     message: string;
@@ -432,6 +442,24 @@ export function registerTaskRoutes(
     task.updatedAt = new Date().toISOString();
     saveTask(configDir, task);
 
+    // Regenerate TASK.md in linked worktree when task content changes
+    const linkedWorktreeId = resolveActiveLinkedWorktreeId(task.id);
+    if (linkedWorktreeId) {
+      try {
+        regenerateTaskMd(
+          "local",
+          task.id,
+          linkedWorktreeId,
+          notesManager,
+          configDir,
+          worktreesPath,
+          getHooksSnapshot(linkedWorktreeId),
+        );
+      } catch {
+        // Non-critical — don't fail the task update
+      }
+    }
+
     logTaskEvent({
       action: "task.update",
       message: `Updated local task ${task.id}`,
@@ -446,7 +474,7 @@ export function registerTaskRoutes(
 
     return c.json({
       success: true,
-      task: { ...task, linkedWorktreeId: resolveActiveLinkedWorktreeId(task.id) },
+      task: { ...task, linkedWorktreeId },
     });
   });
 
