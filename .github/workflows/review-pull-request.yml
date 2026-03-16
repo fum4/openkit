@@ -17,7 +17,7 @@ permissions:
   issues: write
 
 env:
-  REVIEW_TITLE: '## <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/claude-color.png" width="20" height="20" align="absmiddle" /> Code Review'
+  REVIEW_TITLE: '## <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/claude-color.png" width="20" height="20" align="absmiddle" /> Clode Review'
 
 jobs:
   claude-pr-review:
@@ -77,6 +77,9 @@ jobs:
             ### 🟡 Minor
             Suggestions for improvement — style, naming, documentation, minor simplifications.
 
+            ### 🟢 Resolved
+            Issues from previous reviews that have been fixed. Keep all resolved issues from every prior review — never remove resolved items, even after multiple re-reviews. This section serves as a cumulative record of addressed feedback.
+
             Only include categories that have findings — omit any category with nothing to report.
             Be concise and actionable. Reference file paths and line numbers where applicable.
         run: |
@@ -84,7 +87,7 @@ jobs:
 
           printf '%s' "$REVIEW_PROMPT" > /tmp/prompt.txt
           if [ "$HAS_PREVIOUS" = "true" ]; then
-            printf '\nHere is your previous review for reference. Use it to track whether earlier issues have been addressed, and note any that are now resolved or still present:\n\n<previous-review>\n' >> /tmp/prompt.txt
+            printf '\nHere is your previous review for reference. Use it to track whether earlier issues have been addressed. Move fixed issues to the "🟢 Resolved" section — never delete resolved items from prior reviews, accumulate them across all re-reviews:\n\n<previous-review>\n' >> /tmp/prompt.txt
             cat /tmp/previous-review.txt >> /tmp/prompt.txt
             printf '\n</previous-review>' >> /tmp/prompt.txt
           fi
