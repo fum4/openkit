@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Node.js fetch API, Vitest for tests
 
-**Worktree:** All implementation happens in `/Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes/` (branch `chore/mcp-fixes`)
+**Worktree:** All implementation happens in `.openkit/worktrees/mcp-fixes/` (branch `chore/mcp-fixes`)
 
 **Spec:** `docs/superpowers/specs/2026-03-16-cli-agent-commands-design.md`
 
@@ -110,7 +110,7 @@ describe("findRunningServerUrl", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern server-client`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern server-client`
 Expected: FAIL — module not found
 
 - [ ] **Step 3: Write failing tests for `inferWorktreeIdFromCwd`**
@@ -261,7 +261,7 @@ All command modules import `parseFlag`, `hasFlag`, `outputResult` from `server-c
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern server-client`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern server-client`
 Expected: All PASS
 
 ### Task 2: Refactor activity.ts to use server-client.ts
@@ -288,7 +288,7 @@ Remove the two function definitions:
 
 - [ ] **Step 2: Run existing tests to verify no regressions**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm test`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm test`
 Expected: All existing tests pass
 
 ---
@@ -352,7 +352,7 @@ it("returns 404 for unknown worktree", async () => {
 
 - [ ] **Step 3: Verify server builds and tests pass**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run server:typecheck && pnpm nx run web-app:test`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run server:typecheck && pnpm nx run web-app:test`
 Expected: No errors
 
 ### Task 4: Create hooks.ts CLI command
@@ -458,7 +458,7 @@ describe("runHooks", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern hooks`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern hooks`
 Expected: FAIL — module not found
 
 - [ ] **Step 3: Implement hooks.ts**
@@ -596,7 +596,7 @@ export async function runHooks(rawArgs: string[]) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern hooks`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern hooks`
 Expected: All PASS
 
 ---
@@ -675,7 +675,7 @@ describe("runNotify", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern notify`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern notify`
 Expected: FAIL
 
 - [ ] **Step 3: Implement notify.ts**
@@ -743,7 +743,7 @@ export async function runNotify(rawArgs: string[]) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern notify`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern notify`
 Expected: All PASS
 
 ### Task 6: Create git-ops.ts CLI command
@@ -837,7 +837,7 @@ describe("runGitOps", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern git-ops`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern git-ops`
 Expected: FAIL
 
 - [ ] **Step 3: Implement git-ops.ts**
@@ -970,7 +970,7 @@ export async function runGitOps(command: string, rawArgs: string[]) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern git-ops`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern git-ops`
 Expected: All PASS
 
 ---
@@ -1074,7 +1074,7 @@ describe("runWorktree", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern worktree-cmd`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern worktree-cmd`
 Expected: FAIL
 
 - [ ] **Step 3: Implement worktree-cmd.ts**
@@ -1174,7 +1174,7 @@ export async function runWorktree(rawArgs: string[]) {
 
 - [ ] **Step 3: Run tests to verify they pass**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern worktree-cmd`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern worktree-cmd`
 Expected: All PASS
 
 ### Task 8: Create issues.ts CLI command
@@ -1238,7 +1238,7 @@ describe("runIssues", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern issues`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern issues`
 Expected: FAIL
 
 - [ ] **Step 3: Implement issues.ts**
@@ -1337,7 +1337,7 @@ export async function runIssues(rawArgs: string[]) {
 
 - [ ] **Step 3: Run tests to verify they pass**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern issues`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern issues`
 Expected: All PASS
 
 ### Task 9: Create context.ts CLI command
@@ -1409,7 +1409,7 @@ describe("runContext", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern context`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern context`
 Expected: FAIL
 
 - [ ] **Step 3: Implement context.ts**
@@ -1529,7 +1529,7 @@ export async function runContext(command: string, rawArgs: string[]) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern context`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern context`
 Expected: All PASS
 
 ---
@@ -1615,7 +1615,7 @@ if (subcommand === "context" || subcommand === "notes") {
 
 - [ ] **Step 3: Verify build**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:typecheck`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:typecheck`
 Expected: No errors
 
 ### Task 11: Fix skill deployment on project open
@@ -1639,7 +1639,7 @@ This avoids calling `ensureBundledSkills()` twice since `enableDefaultProjectSki
 
 - [ ] **Step 2: Run tests to verify no regressions**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm test`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm test`
 Expected: All pass
 
 ### Task 12: Update work-on-task skill
@@ -1716,15 +1716,15 @@ Update the CLI section to list all new command groups.
 
 - [ ] **Step 1: Run all tests**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm test`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm test`
 Expected: All pass
 
 - [ ] **Step 2: Run typecheck**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm nx run cli:typecheck && pnpm nx run server:typecheck`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:typecheck && pnpm nx run server:typecheck`
 Expected: No errors
 
 - [ ] **Step 3: Run lint + format**
 
-Run: `cd /Users/fum4/_work/dawg/.openkit/worktrees/mcp-fixes && pnpm check:lint && pnpm check:format`
+Run: `cd .openkit/worktrees/mcp-fixes && pnpm check:lint && pnpm check:format`
 Expected: Clean

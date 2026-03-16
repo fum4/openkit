@@ -146,6 +146,8 @@ For non-trivial features, write a design spec before implementation. Specs live 
 
 **Always create spec and plan files in the root project directory**, not in a worktree. These are shared artifacts that must be accessible across all branches and worktrees.
 
+**Never use absolute or user-specific paths in specs or plans.** Use repo-relative paths (e.g. `.openkit/worktrees/mcp-fixes/`) and project-relative commands (e.g. `pnpm nx run cli:test`). Docs must be portable across machines and contributors.
+
 ## Documentation
 
 Comprehensive documentation lives in `/docs/`. **Always check the relevant docs before working on unfamiliar areas** — they contain architectural context, component patterns, and API details that will help you make correct changes.
