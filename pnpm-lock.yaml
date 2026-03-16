@@ -351,12 +351,6 @@ importers:
 
   libs/integrations: {}
 
-  libs/logger/node:
-    dependencies:
-      koffi:
-        specifier: ^2.15.2
-        version: 2.15.2
-
   libs/shared:
     dependencies:
       picocolors:

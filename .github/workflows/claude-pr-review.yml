@@ -17,7 +17,9 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code
 
       - name: Restore Claude auth
-        run: echo '${{ secrets.CLAUDE_AUTH_JSON }}' > ~/.claude.json
+        env:
+          CLAUDE_AUTH_JSON: ${{ secrets.CLAUDE_AUTH_JSON }}
+        run: printenv CLAUDE_AUTH_JSON > ~/.claude.json
 
       - name: Run Claude review
         env:

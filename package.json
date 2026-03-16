@@ -41,7 +41,7 @@
     "fix:all": "pnpm fix:format && pnpm fix:lint",
     "lint-staged": "lint-staged",
     "prepare": "husky",
-    "claude:auth": "bash scripts/claude-auth/extract-credentials.sh"
+    "ci:claude:auth": "bash scripts/claude-auth/extract-credentials.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
