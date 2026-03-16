@@ -1,17 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "dist",
-    "rootDir": "src",
-    "declaration": false,
-    "sourceMap": true,
     "types": ["node", "vitest/globals"],
     "paths": {
       "@openkit/logger/node": ["../../libs/logger/node/src/index.ts"],
       "@openkit/shared/*": ["../../libs/shared/src/*"]
     }
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
 }
