@@ -5,9 +5,27 @@ description: Stage, generate a WHY-focused commit message from the diff, commit,
 
 # Commit Skill
 
-Handle the full commit workflow: check staging state, prompt when needed, generate a WHY-focused commit message, commit, and optionally push.
+Immediately dispatch the **entire** commit workflow to a **haiku subagent** using the Agent tool with `model: "haiku"`.
 
-## Step 0: Check current branch
+## How to invoke
+
+Use the Agent tool with these parameters:
+
+- `model: "haiku"`
+- `description: "commit workflow"`
+- `prompt`: paste the full workflow instructions below (everything under "Subagent prompt") into the prompt field
+
+Do NOT do any git commands or analysis yourself — haiku handles the whole flow.
+
+When the subagent finishes, relay its result to the user.
+
+---
+
+## Subagent prompt
+
+You are handling a git commit workflow. Follow these steps exactly.
+
+### Step 0: Check current branch
 
 Run `git branch --show-current`.
 
@@ -23,7 +41,7 @@ If on `master`:
 
 If **not** on `master`, proceed directly to Step 1.
 
-## Step 1: Check staging state
+### Step 1: Check staging state
 
 Run `git status --porcelain` and categorize output:
 
@@ -42,7 +60,7 @@ If user picks "recheck", loop back to Step 1.
 
 When staging all, use `git add -A`.
 
-## Step 2: Generate commit message & commit
+### Step 2: Generate commit message & commit
 
 1. Run `git diff --cached` to get the staged diff.
 2. Analyze the diff to understand the **intent** behind the changes — focus on WHY, not WHAT.
@@ -51,14 +69,14 @@ When staging all, use `git add -A`.
 5. Show the user the resulting commit (hash + message).
 6. Proceed to Step 3.
 
-## Step 3: Offer to push
+### Step 3: Offer to push
 
 After a successful commit, prompt the user with AskUserQuestion: **"Yes"** / **"No"**.
 
 - If **Yes**: run `git push` (with `-u origin <branch>` if the branch has no upstream yet).
 - If **No**: end the workflow.
 
-## Commit message format
+### Commit message format
 
 - **Prefix:** short, lowercase word that captures the intent. Common: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `style` — but pick whatever fits best.
 - **Scope:** add `(scope)` when changes are localized to one module/app (e.g., `server`, `cli`, `web-app`).
@@ -66,13 +84,13 @@ After a successful commit, prompt the user with AskUserQuestion: **"Yes"** / **"
 - **Single-concern changes:** subject line only, no body.
 - **Multi-concern changes:** subject line + blank line + bullet body. Each bullet explains reasoning, with optional context in parentheses.
 
-### Single-concern example
+#### Single-concern example
 
 ```
 fix(server): prevent stale worktree state from leaking across projects
 ```
 
-### Multi-concern example
+#### Multi-concern example
 
 ```
 feat: improve error recovery and port handling
@@ -83,7 +101,7 @@ feat: improve error recovery and port handling
   (users were seeing cryptic EADDRINUSE errors)
 ```
 
-## Rules
+### Rules
 
 - Only push if the user explicitly chooses to in Step 3.
 - Do not add `Co-Authored-By` trailers.
