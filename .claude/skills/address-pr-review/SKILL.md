@@ -50,20 +50,27 @@ From the results:
 
 Parse the comment body — it contains structured markdown with severity sections (e.g. `### 🟠 Medium`, `### 🟡 Minor`) and numbered items describing issues with file references.
 
-### Step 5: Present summary
+### Step 4: Analyze and recommend
 
-Show the user:
+For each issue in the review, form your own opinion on whether it's worth fixing. Consider:
+
+- Is this a real bug or a meaningful improvement, or is the reviewer being pedantic?
+- Does the suggestion align with the project's conventions (check CLAUDE.md)?
+- Is it about actual implementation code, or about plan/spec text that hasn't been implemented yet?
+- Would the fix improve the codebase, or is it churn?
+
+Present the user with:
 
 - **Review metadata**: comment date
 - **Issues by severity**: list each numbered item with:
   - Severity level (from section header, e.g. Medium, Minor)
   - File path referenced
   - The issue description
-  - Classification: **actionable** (clear code change requested) vs **informational** (observation, question, or style preference)
+  - **Your recommendation**: fix (with brief reasoning) or skip (with why you think it's not worth it)
 
-Ask the user to confirm before proceeding with changes, or let them select which comments to address.
+Ask the user to confirm which items to address before making any changes.
 
-### Step 6: Address actionable comments
+### Step 5: Address approved comments
 
 For each actionable comment:
 
@@ -72,7 +79,7 @@ For each actionable comment:
 3. Make targeted edits using the Edit tool
 4. If the comment is ambiguous or you're unsure about the correct fix, **skip it** and flag it for the user
 
-### Step 7: Post-change summary
+### Step 6: Post-change summary
 
 Present a summary:
 

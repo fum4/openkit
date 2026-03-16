@@ -77,14 +77,14 @@ openkit policy [--worktree <id>]
 
 ```
 openkit worktree list
-openkit worktree create --name <name> [--branch <branch>]
+openkit worktree create --branch <branch>
 openkit worktree start <id>
 openkit worktree stop <id>
 openkit worktree remove <id>
 ```
 
 - `list`: Maps to `GET /api/worktrees`.
-- `create`: Maps to `POST /api/worktrees` with `{ name, branch }`.
+- `create`: Maps to `POST /api/worktrees` with `{ branch }`.
 - `start`: Maps to `POST /api/worktrees/:id/start`.
 - `stop`: Maps to `POST /api/worktrees/:id/stop`.
 - `remove`: Maps to `DELETE /api/worktrees/:id`.
@@ -135,7 +135,7 @@ One file per command group, each exporting a single `run*` entry function:
 | `apps/cli/src/hooks.ts`         | `runHooks(args)`    | run, status, report, config       |
 | `apps/cli/src/notify.ts`        | `runNotify(args)`   | (single command)                  |
 | `apps/cli/src/git-ops.ts`       | `runGitOps(args)`   | commit, push, pr, policy          |
-| `apps/cli/src/worktree.ts`      | `runWorktree(args)` | list, create, start, stop, remove |
+| `apps/cli/src/worktree-cmd.ts`  | `runWorktree(args)` | list, create, start, stop, remove |
 | `apps/cli/src/issues.ts`        | `runIssues(args)`   | list, get                         |
 | `apps/cli/src/context.ts`       | `runContext(args)`  | context, notes                    |
 

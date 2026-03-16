@@ -1172,7 +1172,7 @@ export async function runWorktree(rawArgs: string[]) {
 }
 ```
 
-- [ ] **Step 3: Run tests to verify they pass**
+- [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern worktree-cmd`
 Expected: All PASS
@@ -1335,7 +1335,7 @@ export async function runIssues(rawArgs: string[]) {
 }
 ```
 
-- [ ] **Step 3: Run tests to verify they pass**
+- [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd .openkit/worktrees/mcp-fixes && pnpm nx run cli:test -- --testPathPattern issues`
 Expected: All PASS
