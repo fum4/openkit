@@ -192,7 +192,7 @@ Key responsibilities:
 
 Six trigger types: `pre-implementation` (before agent work), `post-implementation` (after agent work), `custom` (agent decides based on condition), `on-demand` (manually triggered), `worktree-created` (auto-run after worktree creation), and `worktree-removed` (auto-run after worktree removal). Lifecycle triggers are command-only.
 
-Command step runs are persisted to `.openkit/worktrees/{id}/hooks/latest-run.json`. Skill results reported by agents are stored at `.openkit/worktrees/{id}/hooks/skill-results.json`.
+Command step runs and skill results are persisted together to `.openkit/worktrees/{id}/hooks.json`.
 
 Hooks are configured via `.openkit/hooks.json` with `steps` and `skills` arrays.
 

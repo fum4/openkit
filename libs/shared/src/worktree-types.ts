@@ -217,6 +217,7 @@ export interface PipelineRun {
   startedAt: string;
   completedAt?: string;
   steps: StepResult[];
+  skills?: SkillHookResult[];
 }
 
 export interface RunningProcess {

@@ -3512,6 +3512,7 @@ export interface PipelineRun {
   startedAt: string;
   completedAt?: string;
   steps: StepResult[];
+  skills?: SkillHookResult[];
 }
 
 export async function fetchHooksConfig(serverUrl: string | null = null): Promise<HooksConfig> {
@@ -3789,22 +3790,6 @@ export async function reportHookSkillResult(
       success: false,
       error: err instanceof Error ? err.message : "Failed to report result",
     };
-  }
-}
-
-export async function fetchHookSkillResults(
-  worktreeId: string,
-  serverUrl: string | null = null,
-): Promise<{ results: SkillHookResult[] }> {
-  try {
-    const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(
-        worktreeId,
-      )}/hooks/skill-results`,
-    );
-    return await res.json();
-  } catch {
-    return { results: [] };
   }
 }
 

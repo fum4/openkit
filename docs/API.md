@@ -2279,12 +2279,6 @@ Report a skill hook result from an agent.
   ```
 - **Response**: `{ success: true }`
 
-#### `GET /api/worktrees/:id/hooks/skill-results`
-
-Get skill hook results for a worktree.
-
-- **Response**: `{ results: SkillHookResult[] }`
-
 ---
 
 ## Ngrok Connect (Experimental)
