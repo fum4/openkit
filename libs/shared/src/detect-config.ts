@@ -1,5 +1,5 @@
 import { execFileSync } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
 
 export interface DetectedConfig {
@@ -71,9 +71,25 @@ export function detectInstallCommand(projectDir: string): string | null {
   return pm ? `${pm} install` : null;
 }
 
+function isReactNativeProject(projectDir: string): boolean {
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(projectDir, "package.json"), "utf-8"));
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    return "react-native" in deps || "expo" in deps;
+  } catch {
+    return false;
+  }
+}
+
 export function detectStartCommand(projectDir: string): string | null {
   const pm = detectPackageManager(projectDir);
   if (!pm) return null;
+
+  // React Native / Expo projects use "start" (Metro bundler), not "dev"
+  if (isReactNativeProject(projectDir)) {
+    return pm === "npm" ? "npm start" : `${pm} start`;
+  }
+
   // yarn and pnpm can run scripts directly, npm needs "run"
   return pm === "npm" ? "npm run dev" : `${pm} dev`;
 }

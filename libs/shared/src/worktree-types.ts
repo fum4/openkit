@@ -1,5 +1,3 @@
-import type { ChildProcess } from "child_process";
-
 export type OpenProjectTarget =
   | "file-manager"
   | "cursor"
@@ -54,6 +52,8 @@ export interface WorktreeConfig {
   allowAgentPRs?: boolean;
   /** Whether to use native (Zig) port hook for runtime-agnostic port resolution (default: false) */
   useNativePortHook?: boolean;
+  /** Detected project framework for port defaults (auto-set during discovery) */
+  framework?: "react-native" | "expo" | "generic";
   /** Whether to show diff stats (lines added/removed) in sidebar and detail view (default: true) */
   showDiffStats?: boolean;
   /** Activity feed configuration */
@@ -224,7 +224,8 @@ export interface RunningProcess {
   pid: number;
   ports: number[];
   offset: number;
-  process: ChildProcess;
+  /** Sends signal to the process. Works with both ChildProcess and node-pty IPty. */
+  kill: (signal?: string) => void;
   lastActivity: number;
   logs: string[];
   logNotifyTimer?: ReturnType<typeof setTimeout>;
