@@ -1,7 +1,5 @@
 import { APP_NAME } from "@openkit/shared/constants";
 
-import mcpServerMd from "./mcp/mcp-server.md";
-import mcpWorkOnTaskMd from "./mcp/mcp-work-on-task.md";
 import workflowInstructionsMd from "./mcp/instructions.md";
 import claudeSkillMd from "./mcp/claude-skill.md";
 import cursorRuleMd from "./mcp/cursor-rule.md";
@@ -30,12 +28,6 @@ const shared = { APP_NAME };
 const withWorkflow = { ...shared, WORKFLOW: workflowInstructionsMd };
 
 // ─── Exports ─────────────────────────────────────────────────────
-
-/** MCP server-level instructions (sent as McpServer `instructions` option) */
-export const MCP_INSTRUCTIONS = resolve(mcpServerMd, shared);
-
-/** Prompt text for the "work-on-task" MCP prompt. Call `.replace('{{ISSUE_ID}}', id)` at runtime. */
-export const MCP_WORK_ON_TASK_PROMPT = mcpWorkOnTaskMd;
 
 /** Claude Code SKILL.md content (deployed to ~/.claude/skills/work/SKILL.md) */
 export const CLAUDE_SKILL = resolve(claudeSkillMd, withWorkflow);

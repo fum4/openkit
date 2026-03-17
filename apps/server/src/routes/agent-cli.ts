@@ -75,15 +75,31 @@ export function registerAgentCliRoutes(app: Hono) {
       return c.json({ success: false, error: "Unknown agent" }, 404);
     }
 
-    const installed = await commandExists(config.command);
-    return c.json({
-      success: true,
-      agent: config.agent,
-      label: config.label,
-      command: config.command,
-      installed,
-      brewPackage: config.brewPackages[0],
-    });
+    try {
+      const installed = await commandExists(config.command);
+      return c.json({
+        success: true,
+        agent: config.agent,
+        label: config.label,
+        command: config.command,
+        installed,
+        brewPackage: config.brewPackages[0],
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to check CLI status";
+      return c.json(
+        {
+          success: false,
+          agent: config.agent,
+          label: config.label,
+          command: config.command,
+          installed: false,
+          brewPackage: config.brewPackages[0],
+          error: message,
+        },
+        500,
+      );
+    }
   });
 
   app.post("/api/agents/:agent/cli/install", async (c) => {

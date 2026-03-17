@@ -538,7 +538,6 @@ For reference, these are the CLI entry points (all in `apps/cli/src/`):
 | `OpenKit`             | Start the server and open UI (Electron or browser)        |
 | `openkit init`        | Interactive setup wizard to create `.openkit/config.json` |
 | `openkit connect`     | Connect to an existing running OpenKit server             |
-| `openkit mcp`         | Start as an MCP server (for Claude Code integration)      |
 | `openkit task [source | resolve] [ID...]`                                         | Resolve issues and create worktrees (jira, linear, local) |
 
 ## Configuration

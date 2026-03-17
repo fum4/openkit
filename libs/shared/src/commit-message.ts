@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 
-import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
+import { CONFIG_DIR_NAME } from "./constants";
 
 export type CommitMessageSource = "jira" | "linear" | "local";
 

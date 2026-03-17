@@ -3,11 +3,7 @@
   "compilerOptions": {
     "paths": {
       "@openkit/agents/*": ["./src/*"],
-      "@openkit/agents": ["./src/index.ts"],
-      "@openkit/integrations/*": ["../integrations/src/*"],
-      "@openkit/server/*": ["../../apps/server/src/*"],
-      "@openkit/shared/*": ["../shared/src/*"],
-      "@openkit/logger/node": ["../logger/node/src/index.ts"]
+      "@openkit/agents": ["./src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "../../md.d.ts"]

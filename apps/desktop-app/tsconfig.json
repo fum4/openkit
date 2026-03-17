@@ -1,11 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node", "vitest/globals"],
-    "paths": {
-      "@openkit/logger/node": ["../../libs/logger/node/src/index.ts"],
-      "@openkit/shared/*": ["../../libs/shared/src/*"]
-    }
+    "types": ["node", "vitest/globals"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules"]

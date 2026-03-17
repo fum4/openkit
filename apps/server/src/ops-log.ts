@@ -3,8 +3,6 @@ import path from "path";
 import { nanoid } from "nanoid";
 
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
-import type { CommandMonitorEvent } from "./runtime/command-monitor";
-import type { FetchMonitorEvent } from "./runtime/fetch-monitor";
 
 export type OpsLogLevel = "debug" | "info" | "warning" | "error";
 export type OpsLogStatus = "started" | "success" | "failed" | "info";
@@ -42,24 +40,6 @@ export interface OpsLogConfig {
 }
 
 const DEFAULT_CONFIG: OpsLogConfig = {};
-
-function toLogLevel(severity: "error" | "warning" | "info"): OpsLogLevel {
-  if (severity === "error") return "error";
-  if (severity === "warning") return "warning";
-  return "info";
-}
-
-function normalizeText(value: unknown, fallback = ""): string {
-  if (typeof value !== "string") return fallback;
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
-function normalizeHttpMethod(value: string | undefined): string {
-  if (!value) return "GET";
-  const normalized = value.trim().toUpperCase();
-  return normalized.length > 0 ? normalized : "GET";
-}
 
 export class OpsLog {
   private readonly filePath: string;
@@ -116,111 +96,6 @@ export class OpsLog {
     });
 
     return event;
-  }
-
-  addCommandEvent(event: CommandMonitorEvent, projectName?: string): OpsLogEvent {
-    const isStart = event.phase === "start";
-    const isFailure = event.phase === "failure";
-
-    const status: OpsLogStatus = isStart ? "started" : isFailure ? "failed" : "success";
-    const level: OpsLogLevel = isStart ? "info" : isFailure ? "error" : "info";
-
-    const commandText = [event.command, ...event.args].join(" ");
-    const message = isStart
-      ? `Started: ${commandText}`
-      : isFailure
-        ? `Failed: ${commandText}${event.error ? ` (${event.error})` : ""}`
-        : `Succeeded: ${commandText}`;
-
-    return this.addEvent({
-      source: normalizeText(event.source, "command"),
-      action: "command.exec",
-      message,
-      level,
-      status,
-      runId: event.runId,
-      projectName,
-      command: {
-        command: event.command,
-        args: event.args,
-        cwd: event.cwd,
-        pid: event.pid ?? null,
-        exitCode: event.exitCode ?? null,
-        signal: event.signal ?? null,
-        durationMs: event.durationMs,
-        stdout: event.stdout,
-        stderr: event.stderr,
-      },
-      metadata: {
-        phase: event.phase,
-        ...(event.error ? { error: event.error } : {}),
-      },
-    });
-  }
-
-  addFetchEvent(event: FetchMonitorEvent, projectName?: string): OpsLogEvent {
-    const method = normalizeHttpMethod(event.method);
-    const path = normalizeText(event.path, normalizeText(event.url, "/"));
-    const statusCode = typeof event.statusCode === "number" ? event.statusCode : undefined;
-
-    const isFailure =
-      event.phase === "failure" || (typeof statusCode === "number" && statusCode >= 400);
-    const isServerFailure = typeof statusCode === "number" && statusCode >= 500;
-    const level: OpsLogLevel =
-      event.phase === "failure" || isServerFailure ? "error" : isFailure ? "warning" : "info";
-    const status: OpsLogStatus = isFailure ? "failed" : "success";
-
-    const message =
-      event.phase === "failure"
-        ? `${method} ${path} -> ${event.error ?? "request failed"}`
-        : `${method} ${path} -> ${statusCode ?? 0}`;
-
-    return this.addEvent({
-      source: "http",
-      action: "http.client",
-      message,
-      level,
-      status,
-      runId: event.runId,
-      projectName,
-      metadata: {
-        direction: "outbound",
-        method,
-        url: event.url,
-        path,
-        ...(typeof statusCode === "number" ? { statusCode } : {}),
-        durationMs: event.durationMs,
-        source: event.source,
-        ...(event.requestContentType ? { requestContentType: event.requestContentType } : {}),
-        ...(event.requestPayload ? { requestPayload: event.requestPayload } : {}),
-        ...(event.requestPayloadTruncated ? { requestPayloadTruncated: true } : {}),
-        ...(event.requestPayloadOmitted ? { requestPayloadOmitted: true } : {}),
-        ...(event.requestPayloadError ? { requestPayloadError: event.requestPayloadError } : {}),
-        ...(event.requestTransport ? { requestTransport: event.requestTransport } : {}),
-        ...(event.responseContentType ? { responseContentType: event.responseContentType } : {}),
-        ...(event.responsePayload ? { responsePayload: event.responsePayload } : {}),
-        ...(event.responsePayloadTruncated ? { responsePayloadTruncated: true } : {}),
-        ...(event.responsePayloadOmitted ? { responsePayloadOmitted: true } : {}),
-        ...(event.responsePayloadError ? { responsePayloadError: event.responsePayloadError } : {}),
-        ...(event.responseTransport ? { responseTransport: event.responseTransport } : {}),
-        ...(event.error ? { error: event.error } : {}),
-      },
-    });
-  }
-
-  addNotificationEvent(
-    message: string,
-    level: "error" | "warning" | "info",
-    metadata?: Record<string, unknown>,
-  ): OpsLogEvent {
-    return this.addEvent({
-      source: "notification",
-      action: "notification.emit",
-      message,
-      level: toLogLevel(level),
-      status: level === "error" ? "failed" : "info",
-      metadata,
-    });
   }
 
   getEvents(filter?: {

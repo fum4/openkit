@@ -10,6 +10,8 @@ export default defineConfig({
   target: "node18",
   clean: true,
   external: ["electron", "electron-updater", "node-pty", "koffi"],
+  noExternal: [/^@openkit\//],
+  onSuccess: "cp src/preload.cjs dist/preload.cjs",
   esbuildOptions(options) {
     options.banner = {
       ...options.banner,

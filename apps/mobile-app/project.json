@@ -4,62 +4,8 @@
   "projectType": "application",
   "sourceRoot": "apps/mobile-app/app",
   "targets": {
-    "dev": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/mobile-app",
-        "command": "pnpm dev"
-      }
-    },
-    "dev:android": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/mobile-app",
-        "command": "pnpm dev:android"
-      }
-    },
-    "dev:ios": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/mobile-app",
-        "command": "pnpm dev:ios"
-      }
-    },
-    "dev:web": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/mobile-app",
-        "command": "pnpm dev:web"
-      }
-    },
     "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/apps/mobile-app/dist"],
-      "options": {
-        "cwd": "apps/mobile-app",
-        "command": "pnpm build"
-      }
-    },
-    "start": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/mobile-app",
-        "command": "pnpm start"
-      }
-    },
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/mobile-app",
-        "command": "pnpm typecheck"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/mobile-app",
-        "command": "pnpm lint"
-      }
+      "outputs": ["{workspaceRoot}/apps/mobile-app/dist"]
     }
   }
 }

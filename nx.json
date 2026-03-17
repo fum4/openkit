@@ -27,19 +27,25 @@
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"]
     },
-    "typecheck": {
-      "cache": true,
-      "dependsOn": ["^typecheck"],
-      "inputs": ["default", "^default"]
-    },
-    "lint": {
-      "cache": true,
-      "dependsOn": ["^lint"],
-      "inputs": ["default", "^default"]
-    },
     "test": {
       "cache": true,
       "inputs": ["default", "^default"]
+    },
+    "test:coverage": {
+      "cache": true,
+      "inputs": ["default", "^default"]
+    },
+    "check:types": {
+      "cache": true,
+      "inputs": ["default", "^default"]
+    },
+    "check:format": {
+      "cache": true,
+      "inputs": ["default"]
+    },
+    "check:lint": {
+      "cache": true,
+      "inputs": ["default"]
     }
   }
 }

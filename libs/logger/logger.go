@@ -124,8 +124,26 @@ func (l *Logger) Error(message string, context map[string]any) {
 	l.log("ERROR", message, context)
 }
 
+// Success logs at INFO level with status: success and a green ● prefix.
 func (l *Logger) Success(message string, context map[string]any) {
+	if context == nil {
+		context = map[string]any{}
+	}
+	if _, ok := context["status"]; !ok {
+		context["status"] = "success"
+	}
 	l.log("SUCCESS", message, context)
+}
+
+// Started logs at INFO level with status: started.
+func (l *Logger) Started(message string, context map[string]any) {
+	if context == nil {
+		context = map[string]any{}
+	}
+	if _, ok := context["status"]; !ok {
+		context["status"] = "started"
+	}
+	l.log("INFO", message, context)
 }
 
 func (l *Logger) Plain(message string, context map[string]any) {

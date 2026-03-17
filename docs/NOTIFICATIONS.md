@@ -53,8 +53,7 @@ OpsLog (backend)
 | `apps/server/src/routes/logs.ts`                      | REST endpoints `GET /api/logs` and `POST /api/logs`                                                              |
 | `apps/server/src/routes/events.ts`                    | SSE endpoint — streams `activity`/`activity-history` and `ops-log`/`ops-log-history` messages                    |
 | `apps/server/src/manager.ts`                          | Creates `ActivityLog` instance, emits events from worktree lifecycle                                             |
-| `libs/agents/src/actions.ts`                          | `notify` MCP action — lets agents send custom activity events                                                    |
-| `apps/cli/src/activity.ts`                            | CLI command for terminal agents to emit awaiting-input activity                                                  |
+| `apps/cli/src/activity.ts`                            | CLI commands for terminal agents to emit activity events (awaiting-input, phase, todo, check-flow)               |
 | `apps/web-app/src/components/ActivityFeed.tsx`        | Shared feed panel (`ActivityFeedPanel`) + dropdown wrapper (`ActivityFeed`) + `ActivityBell` button              |
 | `apps/web-app/src/components/ActivityPage.tsx`        | Dedicated Activity view with per-project activity cards                                                          |
 | `apps/web-app/src/hooks/activityFilterPersistence.ts` | Shared localStorage helpers for per-project activity filter persistence                                          |
@@ -380,33 +379,9 @@ If an SSE connection drops, it reconnects after 5 seconds (only if the project i
 
 Clicking a native notification brings the main window to focus.
 
-## MCP: notify Action
-
-Agents can send custom activity events via the `notify` MCP tool (`libs/agents/src/actions.ts`):
-
-```js
-notify({
-  message: "Need clarification on acceptance criteria",
-  severity: "warning",
-  worktreeId: "PROJ-123",
-  requiresUserAction: true,
-});
-```
-
-| Param                | Required | Description                                              |
-| -------------------- | -------- | -------------------------------------------------------- |
-| `message`            | yes      | Status message (becomes `event.title`)                   |
-| `severity`           | no       | `info` (default), `success`, `warning`, `error`          |
-| `worktreeId`         | no       | Related worktree ID                                      |
-| `requiresUserAction` | no       | When `true`, event is prioritized at the top of the feed |
-
-`notify` always creates `category: "agent"` events.
-
-When `requiresUserAction` is true, `notify` emits `type: "agent_awaiting_input"` and sets `metadata.requiresUserAction=true`, so it is pinned to the top of the feed and activates the header badge.
-
 ## CLI: Awaiting User Input
 
-Terminal-first agents (not connected through MCP) can emit the same special notification via CLI:
+Agents can emit a special notification via CLI:
 
 ```bash
 openkit activity await-input --message "Need approval to run migration"
@@ -414,28 +389,24 @@ openkit activity await-input --message "Need approval to run migration"
 
 This posts `agent_awaiting_input` to `/api/activity` using the running project's `.openkit/server.json` discovery.
 
-Agent terminal tabs do not infer awaiting-input state from terminal text. Awaiting-input events should be emitted explicitly by the agent (`notify` with `requiresUserAction: true` in MCP flow, or `openkit activity await-input` in terminal flow).
+Agent terminal tabs do not infer awaiting-input state from terminal text. Awaiting-input events should be emitted explicitly by the agent via `openkit activity await-input`.
 
-When a worktree is removed, OpenKit also emits a clearing `notify` event for that worktree's `agent-awaiting-input:{worktreeId}` group, so stale "agent needs input" indicators are dismissed automatically.
+When a worktree is removed, OpenKit also emits a clearing event for that worktree's `agent-awaiting-input:{worktreeId}` group, so stale "agent needs input" indicators are dismissed automatically.
 
 Clicking an awaiting-input badge/dropdown item (or action-required link in Activity feed) also emits a clearing event for that same context/group, so the indicator clears as soon as the user acknowledges it.
 
-Other MCP actions (`commit`, `push`, `create_pr`, `run_hooks`, `report_hook_status`) automatically emit their own activity events — agents don't need to call `notify` for those.
-
 ### projectName on Events
 
-All activity events include `projectName` when available. Manager events use `this.activityProjectName()` (a private helper that calls `this.getProjectName() ?? undefined`). MCP events extract `projectName` once at the top of `createMcpServer`. The `report_hook_status` handler in `actions.ts` also sets `projectName`.
+All activity events include `projectName` when available. Manager events use `this.activityProjectName()` (a private helper that calls `this.getProjectName() ?? undefined`).
 
 ### Skill Event Metadata
 
-Skill events (`skill_started`, `skill_completed`, `skill_failed`) from `report_hook_status` include:
+Skill events (`skill_started`, `skill_completed`, `skill_failed`) from hook status reporting include:
 
 - `metadata.trigger` — the hook trigger phase (`pre-implementation`, `post-implementation`, `custom`, `on-demand`)
 - `metadata.skillName` — the skill name
 - `metadata.filePath` — path to the report file (completion events only)
 - `groupKey` — `hooks:{worktreeId}:{trigger}` (groups all skills in the same trigger phase)
-
-The duplicate `emitHookStatusActivity` function in `mcp-server-factory.ts` has been removed — the `report_hook_status` handler in `actions.ts` handles all skill event emission.
 
 ## Theme Tokens
 

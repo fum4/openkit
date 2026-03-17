@@ -7,21 +7,20 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "start": "pnpm build && pnpm preview",
-    "typecheck": "astro check",
-    "lint": "oxlint src/scripts"
+    "start": "pnpm exec nx run website:build && pnpm preview",
+    "check:types": "astro check",
+    "check:format": "oxfmt --check src",
+    "check:lint": "oxlint src/scripts",
+    "fix:format": "oxfmt src",
+    "fix:lint": "oxlint --fix src/scripts"
   },
   "dependencies": {
+    "@openkit/shared": "workspace:*",
     "astro": "^5.8.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
     "oxlint": "^1.50.0",
     "typescript": "^5.9.3"
-  },
-  "engines": {
-    "node": ">=18",
-    "pnpm": ">=10"
-  },
-  "packageManager": "pnpm@10.30.1"
+  }
 }

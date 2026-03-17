@@ -1818,17 +1818,6 @@ export async function fetchSetupStatus(
   }
 }
 
-export async function fetchSetupFeatures(
-  serverUrl: string | null = null,
-): Promise<{ mcpSetupEnabled: boolean }> {
-  try {
-    const res = await fetch(`${getBaseUrl(serverUrl)}/api/config/features`);
-    return await res.json();
-  } catch {
-    return { mcpSetupEnabled: false };
-  }
-}
-
 // Commit OpenKit config files
 export async function commitSetup(
   message: string,
@@ -1845,58 +1834,6 @@ export async function commitSetup(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to commit",
-    };
-  }
-}
-
-// MCP agent setup
-export async function fetchMcpStatus(serverUrl: string | null = null): Promise<{
-  statuses: Record<string, { global?: boolean; project?: boolean }>;
-}> {
-  try {
-    const res = await fetch(`${getBaseUrl(serverUrl)}/api/mcp/status`);
-    return await res.json();
-  } catch {
-    return { statuses: {} };
-  }
-}
-
-export async function setupMcpAgent(
-  agent: string,
-  scope: "global" | "project",
-  serverUrl: string | null = null,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const res = await fetch(`${getBaseUrl(serverUrl)}/api/mcp/setup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agent, scope }),
-    });
-    return await res.json();
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Failed to setup MCP",
-    };
-  }
-}
-
-export async function removeMcpAgent(
-  agent: string,
-  scope: "global" | "project",
-  serverUrl: string | null = null,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const res = await fetch(`${getBaseUrl(serverUrl)}/api/mcp/remove`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agent, scope }),
-    });
-    return await res.json();
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Failed to remove MCP config",
     };
   }
 }

@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenKit exposes a REST API via a [Hono](https://hono.dev/) HTTP server. The web UI, Electron app, MCP clients, and external integrations all communicate through this API. The server runs on `localhost` (default port `4040`, auto-incremented if occupied).
+OpenKit exposes a REST API via a [Hono](https://hono.dev/) HTTP server. The web UI, Electron app, and external integrations all communicate through this API. The server runs on `localhost` (default port `4040`, auto-incremented if occupied).
 
 All endpoints return JSON unless otherwise noted. Standard response patterns:
 
@@ -231,17 +231,6 @@ Initialize `.openkit/config.json` with provided or auto-detected values. Creates
 
 Also enables default project skills (currently `work-on-task`) by deploying them to per-agent
 project skill directories (best-effort, non-fatal).
-
-#### `GET /api/config/features`
-
-Get setup-related feature flags.
-
-- **Response**:
-  ```json
-  {
-    "mcpSetupEnabled": false
-  }
-  ```
 
 #### `GET /api/config/setup-status`
 
@@ -1093,59 +1082,6 @@ Each `WorktreeMetrics` contains `devServer`, `childProcesses`, `agentSessions`, 
 
 ---
 
-## MCP Management
-
-Configure OpenKit as an MCP server in various AI agent tool configurations.
-These endpoints are registered only when `OPENKIT_ENABLE_MCP_SETUP=1`.
-
-#### `GET /api/mcp/status`
-
-Get MCP registration status across all supported agents (Claude, Cursor, Windsurf, etc.) at both global and project scope.
-
-- **Response**:
-  ```json
-  {
-    "statuses": {
-      "claude": { "global": true, "project": false },
-      "cursor": { "global": false, "project": true },
-      ...
-    }
-  }
-  ```
-
-#### `POST /api/mcp/setup`
-
-Register OpenKit as an MCP server in an agent's configuration file.
-
-- **Request**:
-  ```json
-  {
-    "agent": "claude",
-    "scope": "global"
-  }
-  ```
-  `scope` defaults to `"global"` if omitted. Valid agents depend on `AGENT_SPECS`.
-- **Response**: `{ success: true }`
-
-Also deploys agent-specific instruction files.
-
-#### `POST /api/mcp/remove`
-
-Remove OpenKit from an agent's MCP server configuration.
-
-- **Request**:
-  ```json
-  {
-    "agent": "claude",
-    "scope": "global"
-  }
-  ```
-- **Response**: `{ success: true }`
-
-Also removes agent-specific instruction files.
-
----
-
 ## MCP Servers Registry
 
 Manage a centralized registry of MCP servers stored at `~/.openkit/mcp-servers.json`. Deploy them to any agent's configuration.
@@ -1887,23 +1823,6 @@ Update a marketplace's plugin index.
 
 ---
 
-## MCP Transport
-
-Streamable HTTP transport endpoint for direct MCP protocol connections.
-
-#### `ALL /mcp`
-
-MCP Streamable HTTP transport. Handles `POST` requests with JSON-RPC MCP protocol messages, as well as `GET` for SSE-based streaming.
-
-This is a stateless transport (no session tracking) designed for single-user local dev tool use. The endpoint connects to the same MCP server that `openkit mcp` exposes via stdio.
-
-- **Request** (POST): JSON-RPC 2.0 messages per the MCP specification
-- **Response**: JSON-RPC 2.0 responses (with `enableJsonResponse: true`)
-
-Clients can connect to this endpoint using any MCP-compatible SDK with HTTP transport support.
-
----
-
 ## Notes
 
 Per-issue notes with personal notes, AI context, and todo lists. Notes are scoped by issue source (`jira`, `linear`, or `local`) and issue ID.
@@ -2461,7 +2380,7 @@ Authenticated gateway proxy for programmatic access.
 - **Auth**: `ok_session` cookie or `Authorization: Bearer <sessionJwt>`
 - **Behavior**:
   - Verifies session project matches `:projectId`
-  - Proxies to an internal allowlist only: `/api/*` and `/mcp`
+  - Proxies to an internal allowlist only: `/api/*`
   - Injects:
     - `X-OpenKit-User-Id`
     - `X-OpenKit-User-Email` (when available)

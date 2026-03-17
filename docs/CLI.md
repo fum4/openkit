@@ -18,7 +18,6 @@ ok [command] [options]
 | `openkit init`                                             | Run setup wizard and create `.openkit/config.json`.                      |
 | `openkit add [github\|linear\|jira]`                       | Connect or configure an integration.                                     |
 | `openkit ui [status\|install ...]`                         | Manage optional UI components (web bundle and desktop app).              |
-| `openkit mcp`                                              | Legacy MCP server mode for agents (deprecated).                          |
 | `openkit activity await-input ...`                         | Emit an "agent awaiting user input" activity event for the UI.           |
 | `openkit activity phase ...`                               | Emit a canonical workflow phase checkpoint event for a worktree.         |
 | `openkit activity check-flow ...`                          | Validate whether required workflow phases/hooks were completed.          |
@@ -196,38 +195,6 @@ Connects to Atlassian Jira for issue tracking. Offers two authentication methods
 - Prompts for site URL, email, and API token
 
 Both methods prompt for an optional default project key (e.g., `PROJ`). Credentials are stored in `.openkit/integrations.json`.
-
----
-
-### `openkit mcp`
-
-Start as an MCP (Model Context Protocol) server for AI coding agents.
-
-```bash
-openkit mcp
-```
-
-> Deprecated: MCP is legacy in this repository and is not used for current workflows.
-
-Uses stdio for JSON-RPC communication. All `console.log` output is redirected to stderr because stdout is reserved for JSON-RPC messages.
-
-Operates in one of two modes:
-
-- **Proxy mode**: If a OpenKit server is already running (detected via `.openkit/server.json`), relays JSON-RPC messages between stdio and the HTTP server's `/mcp` endpoint. This gives the agent shared state with the UI.
-- **Standalone mode**: If no server is running, creates its own `WorktreeManager` instance and operates independently.
-
-Typical usage in a Claude Code MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "OpenKit": {
-      "command": "openkit",
-      "args": ["mcp"]
-    }
-  }
-}
-```
 
 ---
 
@@ -430,7 +397,6 @@ Commands:
   init          Interactive setup wizard to create .openkit/config.json
   add [name]    Set up an integration (github, linear, jira)
   ui            Manage optional UI components (web/desktop)
-  mcp           Start as an MCP server (for AI coding agents)
   activity      Emit workflow activity events (for agent/user coordination)
   task [source|resolve] [ID...] Manage task resolution and worktree creation
 
@@ -493,12 +459,11 @@ If the chosen port is already in use, OpenKit automatically increments and tries
 
 ## Environment Variables
 
-| Variable                   | Description                                                                       |
-| -------------------------- | --------------------------------------------------------------------------------- |
-| `OPENKIT_SERVER_PORT`      | Override the server port (highest priority)                                       |
-| `OPENKIT_NO_OPEN`          | Set to `1` to start the server without opening the UI (equivalent to `--no-open`) |
-| `OPENKIT_AUTO_INIT`        | Set to `1` to auto-initialize config if none found (equivalent to `--auto-init`)  |
-| `OPENKIT_ENABLE_MCP_SETUP` | Set to `1` to enable MCP setup routes                                             |
+| Variable              | Description                                                                       |
+| --------------------- | --------------------------------------------------------------------------------- |
+| `OPENKIT_SERVER_PORT` | Override the server port (highest priority)                                       |
+| `OPENKIT_NO_OPEN`     | Set to `1` to start the server without opening the UI (equivalent to `--no-open`) |
+| `OPENKIT_AUTO_INIT`   | Set to `1` to auto-initialize config if none found (equivalent to `--auto-init`)  |
 
 ---
 

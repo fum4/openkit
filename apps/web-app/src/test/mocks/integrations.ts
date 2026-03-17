@@ -54,19 +54,9 @@ vi.mock("@openkit/server/verification-skills", () => ({
 
 vi.mock("@openkit/agents", () => ({
   BUNDLED_SKILLS: [],
-  MCP_INSTRUCTIONS: "",
-  MCP_WORK_ON_TASK_PROMPT: "",
   CLAUDE_SKILL: "",
   CURSOR_RULE: "",
   VSCODE_PROMPT: "",
-}));
-
-// MCP is legacy — stub the factory to avoid deep @openkit/agents dependency chain
-vi.mock("@openkit/server/mcp-server-factory", () => ({
-  createMcpServer: vi.fn(() => ({
-    connect: vi.fn(),
-    close: vi.fn(),
-  })),
 }));
 
 // ─── Jira integration ─────────────────────────────────────────

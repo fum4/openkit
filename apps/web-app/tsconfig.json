@@ -1,12 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
-    "paths": {
-      "@openkit/shared/*": ["../../libs/shared/src/*"],
-      "@openkit/logger/browser": ["../../libs/logger/browser/src/index.ts"]
-    }
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "../../global.d.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "../../global.d.ts", "../../md.d.ts"],
   "exclude": ["dist", "node_modules"]
 }

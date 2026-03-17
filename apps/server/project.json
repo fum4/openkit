@@ -3,57 +3,10 @@
   "name": "server",
   "projectType": "application",
   "sourceRoot": "apps/server/src",
-  "implicitDependencies": ["agents", "integrations", "shared", "logger", "native-port-resolution"],
+  "implicitDependencies": ["native-port-resolution"],
   "targets": {
-    "dev": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/server",
-        "command": "pnpm dev"
-      }
-    },
     "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/apps/server/dist"],
-      "options": {
-        "cwd": "apps/server",
-        "command": "pnpm build"
-      }
-    },
-    "preview": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/server",
-        "command": "pnpm preview"
-      }
-    },
-    "start": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/server",
-        "command": "pnpm start"
-      }
-    },
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/server",
-        "command": "pnpm typecheck"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/server",
-        "command": "pnpm lint"
-      }
-    },
-    "test": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/server",
-        "command": "pnpm test"
-      }
+      "outputs": ["{workspaceRoot}/apps/server/dist"]
     }
   }
 }

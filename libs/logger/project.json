@@ -29,27 +29,44 @@
         "{projectRoot}/browser/src/wasm_exec.js"
       ]
     },
-    "typecheck": {
+    "check:types": {
       "executor": "nx:run-commands",
       "options": {
-        "commands": ["cd node && pnpm typecheck", "cd browser && pnpm typecheck"],
+        "commands": ["cd node && pnpm check:types", "cd browser && pnpm check:types"],
         "cwd": "libs/logger",
         "parallel": true
       }
     },
-    "lint": {
+    "check:format": {
       "executor": "nx:run-commands",
       "options": {
-        "commands": ["cd node && pnpm lint", "cd browser && pnpm lint"],
+        "commands": ["cd node && pnpm check:format", "cd browser && pnpm check:format"],
         "cwd": "libs/logger",
         "parallel": true
       }
     },
-    "test": {
+    "check:lint": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/logger/node",
-        "command": "pnpm test"
+        "commands": ["cd node && pnpm check:lint", "cd browser && pnpm check:lint"],
+        "cwd": "libs/logger",
+        "parallel": true
+      }
+    },
+    "fix:format": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": ["cd node && pnpm fix:format", "cd browser && pnpm fix:format"],
+        "cwd": "libs/logger",
+        "parallel": true
+      }
+    },
+    "fix:lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": ["cd node && pnpm fix:lint", "cd browser && pnpm fix:lint"],
+        "cwd": "libs/logger",
+        "parallel": true
       }
     }
   },

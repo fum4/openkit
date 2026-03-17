@@ -1,22 +1,11 @@
 import { motion } from "motion/react";
-import {
-  Check,
-  ChevronDown,
-  Copy,
-  ExternalLink,
-  Link2,
-  Plus,
-  Power,
-  Unplug,
-  X,
-} from "lucide-react";
+import { ChevronDown, Link2, Plus, Power, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { reportPersistentErrorToast } from "../errorToasts";
 import { useApi } from "../hooks/useApi";
 import {
   type CodingAgent,
-  fetchSetupFeatures,
   fetchGitHubStatus,
   fetchJiraStatus,
   fetchLinearStatus,
@@ -1339,283 +1328,6 @@ function LinearCard({
   );
 }
 
-import { AGENT_CONFIGS, type AgentId, type McpScope } from "../agent-configs";
-
-function CodingAgentsCard() {
-  const api = useApi();
-  const [selectedAgent, setSelectedAgent] = useState<AgentId>("claude");
-  const [scope, setScope] = useState<McpScope>("global");
-  const [copied, setCopied] = useState(false);
-  const [statuses, setStatuses] = useState<Record<string, { global?: boolean; project?: boolean }>>(
-    {},
-  );
-  const [settingUp, setSettingUp] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
-    null,
-  );
-
-  const agent = AGENT_CONFIGS.find((a) => a.id === selectedAgent)!;
-  const scopeConfig = agent[scope];
-  const isConfigured = statuses[selectedAgent]?.[scope] === true;
-  const hasGlobal = !!agent.global;
-  const hasProject = !!agent.project;
-
-  // Pick a valid scope when agent changes
-  useEffect(() => {
-    const a = AGENT_CONFIGS.find((c) => c.id === selectedAgent)!;
-    if (!a[scope]) {
-      setScope(a.global ? "global" : "project");
-    }
-  }, [selectedAgent, scope]);
-
-  useEffect(() => {
-    api
-      .fetchMcpStatus()
-      .then((result) => {
-        setStatuses(result.statuses);
-      })
-      .catch((error) => {
-        reportPersistentErrorToast(error, "Failed to fetch MCP status", {
-          scope: "integrations:mcp-status",
-        });
-      });
-  }, [api]);
-
-  const handleCopy = async () => {
-    if (!scopeConfig) return;
-    try {
-      await navigator.clipboard.writeText(scopeConfig.config);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      reportPersistentErrorToast(error, "Could not copy config to clipboard", {
-        scope: "integrations:mcp-copy-config",
-      });
-    }
-  };
-
-  const handleSetup = async () => {
-    setSettingUp(true);
-    setFeedback(null);
-    const result = await api.setupMcpAgent(selectedAgent, scope);
-    setSettingUp(false);
-    if (result.success) {
-      setStatuses((prev) => ({
-        ...prev,
-        [selectedAgent]: { ...prev[selectedAgent], [scope]: true },
-      }));
-      setFeedback({ type: "success", message: `Added to ${scopeConfig!.configPath}` });
-      setTimeout(() => setFeedback(null), 4000);
-    } else {
-      setFeedback({ type: "error", message: result.error ?? "Setup failed" });
-    }
-  };
-
-  const handleRemove = async () => {
-    setSettingUp(true);
-    setFeedback(null);
-    const result = await api.removeMcpAgent(selectedAgent, scope);
-    setSettingUp(false);
-    if (result.success) {
-      setStatuses((prev) => ({
-        ...prev,
-        [selectedAgent]: { ...prev[selectedAgent], [scope]: false },
-      }));
-      setFeedback({ type: "success", message: `Removed from ${scopeConfig!.configPath}` });
-      setTimeout(() => setFeedback(null), 4000);
-    } else {
-      setFeedback({ type: "error", message: result.error ?? "Remove failed" });
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Card header with icon */}
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-purple-500/10">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-4 h-4 text-purple-400"
-          >
-            <path d="M12 8V4H8" />
-            <rect width="16" height="12" x="4" y="8" rx="2" />
-            <path d="M2 14h2" />
-            <path d="M20 14h2" />
-            <path d="M15 13v2" />
-            <path d="M9 13v2" />
-          </svg>
-        </div>
-        <div>
-          <h3 className={`text-xs font-semibold ${text.primary}`}>Coding Agents</h3>
-          <span className={`text-[10px] text-purple-400`}>MCP Integration</span>
-        </div>
-      </div>
-
-      <p className={`text-[11px] ${text.dimmed} leading-relaxed`}>
-        Connect your AI coding agents to manage issues & worktrees, start/stop dev servers, and
-        more.
-      </p>
-
-      {/* Agent tabs */}
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-1">
-          {AGENT_CONFIGS.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => {
-                setSelectedAgent(a.id);
-                setCopied(false);
-                setFeedback(null);
-              }}
-              className={`relative px-2.5 py-1 rounded text-[10px] font-medium transition-colors duration-150 ${
-                selectedAgent === a.id
-                  ? "text-white bg-white/[0.08]"
-                  : `${text.muted} hover:text-[#9ca3af]`
-              }`}
-            >
-              {a.name}
-              {(statuses[a.id]?.global || statuses[a.id]?.project) && (
-                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Scope toggle */}
-        {hasGlobal && hasProject && <div className="border-t border-white/[0.06]" />}
-        {hasGlobal && hasProject && (
-          <div className="flex gap-1">
-            {(["global", "project"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => {
-                  setScope(s);
-                  setCopied(false);
-                  setFeedback(null);
-                }}
-                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors duration-150 ${
-                  scope === s ? "text-white bg-white/[0.08]" : `${text.muted} hover:text-[#9ca3af]`
-                }`}
-              >
-                {s === "global" ? "Global" : "This project"}
-                {statuses[selectedAgent]?.[s] && (
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1.5 align-middle" />
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {scopeConfig && (
-          <>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className={`text-[10px] ${text.dimmed}`}>{scopeConfig.configPath}</span>
-                {isConfigured && (
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                    <Check className="w-3 h-3" />
-                    Active
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleCopy}
-                className={`flex items-center gap-1 text-[10px] ${copied ? "text-accent" : `${text.muted} hover:text-[#9ca3af]`} transition-colors duration-150`}
-              >
-                {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-
-            <pre
-              className={`text-[10px] font-mono ${text.secondary} bg-white/[0.04] border border-white/[0.06] rounded-md p-3 overflow-x-auto`}
-            >
-              {scopeConfig.config}
-            </pre>
-
-            <div className="flex items-center gap-4">
-              {feedback && (
-                <span
-                  className={`text-[11px] ${feedback.type === "success" ? "text-accent" : text.error}`}
-                >
-                  {feedback.message}
-                </span>
-              )}
-              <div className="flex items-center gap-4 ml-auto">
-                {agent.docsUrl && (
-                  <a
-                    href={agent.docsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`flex items-center gap-1 text-[10px] ${text.muted} hover:text-[#9ca3af] transition-colors duration-150`}
-                  >
-                    View Docs
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-                {!isConfigured ? (
-                  <button
-                    onClick={handleSetup}
-                    disabled={settingUp}
-                    className={`text-[11px] px-3 py-1.5 rounded-md font-medium ${button.primary} disabled:opacity-50 transition-all duration-150 active:scale-[0.98]`}
-                  >
-                    {settingUp ? (
-                      <span className="flex items-center gap-1.5">
-                        <Spinner size="xs" />
-                        Setting up...
-                      </span>
-                    ) : (
-                      `Setup ${agent.name}`
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleRemove}
-                    disabled={settingUp}
-                    className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md font-medium ${button.secondary} disabled:opacity-50 transition-all duration-150 active:scale-[0.98]`}
-                  >
-                    <Unplug className="w-3 h-3" />
-                    Remove
-                  </button>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1.5 pt-1">
-        <span className={`text-[10px] font-medium ${settings.label}`}>Available Tools</span>
-        <div className="flex flex-wrap gap-1.5">
-          {[
-            "list_worktrees",
-            "create_worktree",
-            "start",
-            "stop",
-            "commit",
-            "push",
-            "create_pr",
-            "get_logs",
-          ].map((tool) => (
-            <span
-              key={tool}
-              className={`text-[9px] px-1.5 py-0.5 rounded ${text.secondary} bg-white/[0.06]`}
-            >
-              {tool}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 interface IntegrationsPanelProps {
   onJiraStatusChange?: () => void;
   onLinearStatusChange?: () => void;
@@ -1635,8 +1347,6 @@ export function IntegrationsPanel({
   const [currentGithubStatus, setCurrentGithubStatus] = useState<GitHubStatus | null>(null);
   const [currentJiraStatus, setCurrentJiraStatus] = useState<JiraStatus | null>(null);
   const [currentLinearStatus, setCurrentLinearStatus] = useState<LinearStatus | null>(null);
-  const [mcpSetupEnabled, setMcpSetupEnabled] = useState(false);
-
   useEffect(() => {
     setCurrentGithubStatus(githubStatus);
   }, [githubStatus]);
@@ -1669,23 +1379,6 @@ export function IntegrationsPanel({
         reportPersistentErrorToast(error, "Integration verification failed", {
           scope: "integrations:verify",
         });
-      });
-  }, [serverUrl]);
-
-  useEffect(() => {
-    if (serverUrl === null) {
-      setMcpSetupEnabled(false);
-      return;
-    }
-    fetchSetupFeatures(serverUrl)
-      .then((features) => {
-        setMcpSetupEnabled(features.mcpSetupEnabled);
-      })
-      .catch((error) => {
-        reportPersistentErrorToast(error, "Failed to detect setup features", {
-          scope: "integrations:setup-features",
-        });
-        setMcpSetupEnabled(false);
       });
   }, [serverUrl]);
 
@@ -1772,12 +1465,6 @@ export function IntegrationsPanel({
               onStatusChange={() => setLinearRefreshKey((k) => k + 1)}
             />
           </div>
-          {mcpSetupEnabled && (
-            <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
-              {/* Show MCP setup UI only when OPENKIT_ENABLE_MCP_SETUP is enabled on the server. */}
-              <CodingAgentsCard />
-            </div>
-          )}
         </motion.div>
       </div>
     </div>

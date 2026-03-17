@@ -13,6 +13,8 @@ import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 import { CUSTOM_AGENT_SPECS, type AgentId, resolveAgentDeployDir } from "../lib/tool-configs";
 
+const cliLog = log.get("claude-cli");
+
 // ─── CLI helper ─────────────────────────────────────────────────
 
 interface CliResult {
@@ -460,7 +462,6 @@ async function checkPluginHealth(
 
 export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) {
   const projectDir = manager.getConfigDir();
-  const opsLog = manager.getOpsLog();
 
   async function runClaude(args: string[], timeout = 15_000, cwd?: string): Promise<CliResult> {
     const resolvedPath = resolveCommandPath("claude");
@@ -482,22 +483,18 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
     env.NO_COLOR = "1";
     env.TERM = "xterm-256color";
 
-    opsLog.addEvent({
-      source: "claude-cli",
+    cliLog.debug(`Starting: claude ${args.join(" ")}`, {
+      domain: "claude-cli",
       action: "cli.exec",
-      message: `Starting: claude ${args.join(" ")}`,
-      level: "debug",
       status: "started",
       command: { command: resolvedPath, args, cwd },
-      metadata: {
-        binaryExists,
-        HOME: env.HOME,
-        SHELL: env.SHELL,
-        TERM: env.TERM,
-        claudeEnvVars: Object.fromEntries(
-          Object.entries(env).filter(([k]) => k.startsWith("CLAUDE_")),
-        ),
-      },
+      binaryExists,
+      HOME: env.HOME,
+      SHELL: env.SHELL,
+      TERM: env.TERM,
+      claudeEnvVars: Object.fromEntries(
+        Object.entries(env).filter(([k]) => k.startsWith("CLAUDE_")),
+      ),
     });
 
     const startMs = Date.now();
@@ -529,11 +526,10 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
         const trimmedOut = stdout.trim();
         const trimmedErr = stderr.trim();
 
-        opsLog.addEvent({
-          source: "claude-cli",
+        const message = `${code === 0 ? "Succeeded" : "Failed"}: claude ${args.join(" ")} (${durationMs}ms, stdout=${trimmedOut.length}b, stderr=${trimmedErr.length}b)`;
+        const context = {
+          domain: "claude-cli",
           action: "cli.exec",
-          message: `${code === 0 ? "Succeeded" : "Failed"}: claude ${args.join(" ")} (${durationMs}ms, stdout=${trimmedOut.length}b, stderr=${trimmedErr.length}b)`,
-          level: code === 0 && trimmedOut.length === 0 ? "warning" : code === 0 ? "info" : "error",
           status: code === 0 ? "success" : "failed",
           command: {
             command: resolvedPath,
@@ -544,7 +540,14 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
             stdout: trimmedOut.slice(0, 500),
             stderr: trimmedErr.slice(0, 500),
           },
-        });
+        };
+        if (code !== 0) {
+          cliLog.error(message, context);
+        } else if (trimmedOut.length === 0) {
+          cliLog.warn(message, context);
+        } else {
+          cliLog.success(message, context);
+        }
 
         resolve({
           success: code === 0,
@@ -556,11 +559,9 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
       child.on("error", (err) => {
         clearTimeout(timer);
         const durationMs = Date.now() - startMs;
-        opsLog.addEvent({
-          source: "claude-cli",
+        cliLog.error(`Failed: claude ${args.join(" ")} (${durationMs}ms)`, {
+          domain: "claude-cli",
           action: "cli.exec",
-          message: `Failed: claude ${args.join(" ")} (${durationMs}ms)`,
-          level: "error",
           status: "failed",
           command: {
             command: resolvedPath,

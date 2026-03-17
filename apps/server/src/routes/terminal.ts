@@ -2,9 +2,12 @@ import type { Hono } from "hono";
 import type { UpgradeWebSocket } from "hono/ws";
 import type { WebSocket } from "ws";
 
+import { log } from "../logger";
 import type { TerminalManager } from "../terminal-manager";
 import type { WorktreeManager } from "../manager";
 import { findHistoricalAgentSessions, type RestorableAgent } from "./agent-history";
+
+const terminalLog = log.get("terminal");
 
 function isTerminalScope(
   value: unknown,
@@ -28,7 +31,6 @@ export function registerTerminalRoutes(
   terminalManager: TerminalManager,
   upgradeWebSocket: UpgradeWebSocket<WebSocket>,
 ) {
-  const opsLog = worktreeManager.getOpsLog();
   const getProjectName = () => worktreeManager.getProjectName() ?? undefined;
   const logTerminalEvent = (options: {
     action: string;
@@ -38,16 +40,32 @@ export function registerTerminalRoutes(
     worktreeId?: string;
     metadata?: Record<string, unknown>;
   }) => {
-    opsLog.addEvent({
-      source: "terminal",
+    const level = options.level ?? (options.status === "failed" ? "error" : "info");
+    const context = {
+      domain: "terminal",
       action: options.action,
-      message: options.message,
-      level: options.level ?? (options.status === "failed" ? "error" : "info"),
       status: options.status ?? "info",
       worktreeId: options.worktreeId,
       projectName: getProjectName(),
-      metadata: options.metadata,
-    });
+      ...options.metadata,
+    };
+    switch (level) {
+      case "error":
+        terminalLog.error(options.message, context);
+        break;
+      case "warning":
+        terminalLog.warn(options.message, context);
+        break;
+      case "debug":
+        terminalLog.debug(options.message, context);
+        break;
+      default:
+        if (options.status === "success") {
+          terminalLog.success(options.message, context);
+        } else {
+          terminalLog.info(options.message, context);
+        }
+    }
   };
 
   const toResolutionStatus = (code: string): 404 | 409 => {

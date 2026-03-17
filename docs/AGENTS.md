@@ -5,7 +5,6 @@ OpenKit provides a unified system for managing agent tooling -- MCP servers, ski
 ## Table of Contents
 
 - [Principles](#principles)
-- [Built-in OpenKit MCP Server](#built-in-openkit-mcp-server)
 - [MCP Server Management](#mcp-server-management)
 - [Skills Management](#skills-management)
 - [Claude Plugins](#claude-plugins)
@@ -24,107 +23,6 @@ All agent-facing features follow four design principles:
 2. **Enhanced for Claude** -- When Claude is detected, OpenKit nudges toward useful plugins (Playwright MCP, etc.) but never requires them.
 3. **Self-service** -- Plugins and servers are installed and configured through OpenKit's UI and MCP tools, not manual file editing.
 4. **Discoverable** -- Agents can query what tooling is available and get context-aware recommendations.
-
----
-
-## Built-in OpenKit MCP Server
-
-OpenKit itself is always available as an MCP server. It exposes all worktree management tools to any connected agent.
-
-### Running Modes
-
-**Proxy mode** (preferred): When a OpenKit HTTP server is already running, `openkit mcp` connects to it via HTTP transport. This gives the agent shared state with the web UI -- changes made through MCP tools appear in the UI in real time, and vice versa.
-
-**Standalone mode**: When no server is running, `openkit mcp` starts its own `WorktreeManager` instance with stdio transport. The agent gets full functionality but does not share state with the UI.
-
-The mode is selected automatically. OpenKit checks for a running server by reading `.openkit/server.json` (which contains the server URL and PID) and verifying the process is alive.
-
-### HTTP Transport
-
-The running OpenKit server also exposes MCP over HTTP at `/mcp`. This is a stateless Streamable HTTP transport that any MCP client can connect to directly, without going through stdio.
-
-### Configuration
-
-To connect an agent to OpenKit, add it as an MCP server in the agent's configuration. The command is the same for all agents:
-
-```json
-{
-  "mcpServers": {
-    "OpenKit": {
-      "command": "openkit",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-For TOML-based agents (Codex):
-
-```toml
-[mcp_servers.openkit]
-command = "openkit"
-args = ["mcp"]
-```
-
-OpenKit's UI can deploy this configuration automatically to any supported agent (see [Supported Agents](#supported-agents)).
-Set `OPENKIT_ENABLE_MCP_SETUP=1` to enable MCP setup routes (`/api/mcp/status`,
-`/api/mcp/setup`, `/api/mcp/remove`).
-
-### Claude Settings
-
-Deploying/removing Claude instruction files does not mutate `.claude/settings.json` permissions.
-
-### Exposed Tools
-
-The MCP server exposes the following tools (defined in `libs/agents/src/actions.ts`):
-
-**Issue browsing:**
-
-- `list_jira_issues` -- List assigned Jira issues, optionally filtered by text search
-- `get_jira_issue` -- Get full Jira issue details (checks local cache first)
-- `list_linear_issues` -- List assigned Linear issues
-- `get_linear_issue` -- Get full Linear issue details (checks local cache first)
-
-**Worktree management:**
-
-- `list_worktrees` -- List all worktrees with status, ports, and git info
-- `create_worktree` -- Create a worktree from a branch name
-- `create_from_jira` -- Create a worktree from a Jira issue key
-- `create_from_linear` -- Create a worktree from a Linear identifier
-- `start_worktree` -- Start the dev server (allocates port offset, spawns process)
-- `stop_worktree` -- Stop the dev server
-- `remove_worktree` -- Remove a worktree entirely
-- `get_logs` -- Get recent output logs from a running worktree
-
-**Git operations (subject to [git policy](#agent-git-policy)):**
-
-- `commit` -- Stage all changes and commit
-- `push` -- Push commits to remote
-- `create_pr` -- Create a GitHub pull request
-
-**Task context:**
-
-- `get_task_context` -- Get full task context (issue details, AI directions, todo checklist) and regenerate TASK.md
-- `read_issue_notes` -- Read AI context notes for a worktree or issue
-- `update_todo` -- Add, toggle, or delete todo checklist items
-- `get_config` -- Get the current OpenKit configuration
-
-**Git policy:**
-
-- `get_git_policy` -- Check whether commit/push/PR operations are allowed for a worktree
-
-**Hooks:**
-
-- `get_hooks_config` -- Get hooks configuration (steps and skills by trigger type)
-- `run_hooks` -- Run hook steps for a worktree
-- `report_hook_status` -- Report a skill hook result (call twice: once before invoking to show loading, once after with the result)
-- `get_hooks_status` -- Get current/last hook run status
-
-### MCP Prompt
-
-The server also exposes one MCP prompt:
-
-- **`work-on-task`** -- Takes an `issueId` parameter and returns a structured workflow message instructing the agent to create a worktree, wait for creation, navigate to it, read TASK.md, and start implementing.
 
 ---
 
@@ -387,7 +285,7 @@ interface GitPolicyResult {
 
 ### Agent Workflow
 
-Agents are instructed (via `MCP_INSTRUCTIONS`) to always check policy before attempting git operations:
+Agents are instructed (via skill instructions) to always check policy before attempting git operations:
 
 1. Call `get_git_policy` with the worktree ID
 2. The response contains the resolved policy for all three operations
@@ -646,9 +544,3 @@ Valid `fileId` values: `claude-md` (CLAUDE.md), `agents-md` (AGENTS.md).
 | `POST`   | `/api/claude/plugins/marketplaces`              | Add marketplace (`{ source }`)    |
 | `DELETE` | `/api/claude/plugins/marketplaces/:name`        | Remove marketplace                |
 | `POST`   | `/api/claude/plugins/marketplaces/:name/update` | Update marketplace index          |
-
-### MCP Transport
-
-| Method | Endpoint | Description                            |
-| ------ | -------- | -------------------------------------- |
-| `ALL`  | `/mcp`   | Streamable HTTP MCP transport endpoint |

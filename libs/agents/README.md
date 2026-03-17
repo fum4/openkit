@@ -1,13 +1,13 @@
 # Agents Library
 
-Agent tooling and MCP integration for OpenKit.
+Agent tooling and skill/instruction management for OpenKit.
 
 ## What Lives Here
 
-- `src/actions.ts`: MCP tool/action definitions.
-- `src/mcp.ts`: stdio MCP server bootstrap/proxy logic.
 - `src/instructions.ts`: instruction/skill markdown barrel with placeholder resolution.
-- `src/mcp/`: MCP instruction markdown sources.
+- `src/builtin-instructions.ts`: deploys skill/rule files to agent directories.
+- `src/verification-skills.ts`: seeds bundled skills into the registry.
+- `src/mcp/`: instruction markdown sources (skill files, cursor rules, vscode prompts).
 - `src/skills/`: bundled skill markdown sources.
 
 ## How It Works
@@ -19,16 +19,14 @@ Agent tooling and MCP integration for OpenKit.
 
 ## File Map
 
-### MCP (`libs/agents/src/mcp/`) -- DEPRECATED, DO NOT USE
+### Instructions (`libs/agents/src/mcp/`)
 
-| File                  | Export                    | Deployed To                      | Purpose                                                                             |
-| --------------------- | ------------------------- | -------------------------------- | ----------------------------------------------------------------------------------- |
-| `mcp-server.md`       | `MCP_INSTRUCTIONS`        | `mcp-server-factory.ts`          | Server-level MCP instructions                                                       |
-| `mcp-work-on-task.md` | `MCP_WORK_ON_TASK_PROMPT` | `mcp-server-factory.ts`          | "work-on-task" MCP prompt template (`{{ISSUE_ID}}` resolved at runtime)             |
-| `instructions.md`     | _(internal)_              | —                                | CLI-first workflow steps, interpolated into claude/cursor/vscode via `{{WORKFLOW}}` |
-| `claude-skill.md`     | `CLAUDE_SKILL`            | `~/.claude/skills/work/SKILL.md` | Claude Code work skill (CLI-first, MCP fallback, injected `{{WORKFLOW}}`)           |
-| `cursor-rule.md`      | `CURSOR_RULE`             | `.cursor/rules/OpenKit.mdc`      | Cursor rule                                                                         |
-| `vscode-prompt.md`    | `VSCODE_PROMPT`           | `.github/prompts/work.prompt.md` | VS Code Copilot prompt                                                              |
+| File               | Export          | Deployed To                      | Purpose                                                                             |
+| ------------------ | --------------- | -------------------------------- | ----------------------------------------------------------------------------------- |
+| `instructions.md`  | _(internal)_    | --                               | CLI-first workflow steps, interpolated into claude/cursor/vscode via `{{WORKFLOW}}` |
+| `claude-skill.md`  | `CLAUDE_SKILL`  | `~/.claude/skills/work/SKILL.md` | Claude Code work skill (CLI-first, injected `{{WORKFLOW}}`)                         |
+| `cursor-rule.md`   | `CURSOR_RULE`   | `.cursor/rules/OpenKit.mdc`      | Cursor rule                                                                         |
+| `vscode-prompt.md` | `VSCODE_PROMPT` | `.github/prompts/work.prompt.md` | VS Code Copilot prompt                                                              |
 
 ### Skills (`libs/agents/src/skills/`)
 

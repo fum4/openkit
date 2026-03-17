@@ -1,5 +1,5 @@
 import type { NotesManager } from "./notes-manager";
-import { resolveGitPolicy } from "./git-policy";
+import { resolveGitPolicy } from "@openkit/shared/git-policy";
 import { createTestConfig } from "./test/fixtures";
 
 function createMockNotesManager(

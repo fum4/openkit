@@ -88,6 +88,17 @@ func LoggerSuccess(id C.int, message, contextJSON *C.char) {
 	l.Success(C.GoString(message), context)
 }
 
+//export LoggerStarted
+func LoggerStarted(id C.int, message, contextJSON *C.char) {
+	l := getLogger(int(id))
+	if l == nil {
+		return
+	}
+
+	context := parseContext(C.GoString(contextJSON))
+	l.Started(C.GoString(message), context)
+}
+
 //export LoggerPlain
 func LoggerPlain(id C.int, message, contextJSON *C.char) {
 	l := getLogger(int(id))

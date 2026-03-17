@@ -50,7 +50,6 @@ apps/
 │       ├── terminal-manager.ts
 │       ├── notes-manager.ts
 │       ├── verification-manager.ts
-│       ├── mcp-server-factory.ts
 │       ├── runtime/
 │       └── routes/
 │

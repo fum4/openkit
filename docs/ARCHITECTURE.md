@@ -6,9 +6,9 @@ OpenKit is a CLI tool, web UI, and optional Electron desktop app for managing mu
 
 The system is organized into three primary layers:
 
-1. **CLI** -- The entry point. Routes subcommands (`init`, `mcp`, `task`, `add`, `activity`), starts the HTTP server, and opens the UI in Electron or a browser.
-2. **Server** -- A Hono-based HTTP server that exposes a REST API, SSE event streams, WebSocket terminals, and a Streamable HTTP MCP transport. All state is managed here.
-3. **Clients** -- The React SPA (web UI), the Electron shell, and MCP agents (e.g. Claude Code) all connect to the same server instance.
+1. **CLI** -- The entry point. Routes subcommands (`init`, `task`, `add`, `activity`), starts the HTTP server, and opens the UI in Electron or a browser.
+2. **Server** -- A Hono-based HTTP server that exposes a REST API, SSE event streams, and WebSocket terminals. All state is managed here.
+3. **Clients** -- The React SPA (web UI) and the Electron shell connect to the same server instance.
 
 ## System Layers
 
@@ -18,18 +18,16 @@ flowchart LR
     Server["Hono Server\n(apps/server/src/)"]
     UI["React SPA\n(apps/web-app/src/)"]
     Electron["Electron App\n(apps/desktop-app/)"]
-    MCP["MCP Agents\n(Claude Code, etc.)"]
     Integrations["Integrations\n(Jira, Linear, GitHub)"]
 
     CLI -->|starts| Server
     Server -->|serves static| UI
     Electron -->|spawns server,\nloads UI| Server
-    MCP -->|stdio proxy or\nStreamable HTTP| Server
     Server -->|API calls| Integrations
     UI -->|REST + SSE + WS| Server
 ```
 
-The CLI starts the Hono server, which then serves the React SPA as static files. The Electron app spawns a separate server process per project and loads the UI in a BrowserWindow. MCP agents connect either through stdio (proxy mode relaying to the running server) or directly via Streamable HTTP transport at `/mcp`.
+The CLI starts the Hono server, which then serves the React SPA as static files. The Electron app spawns a separate server process per project and loads the UI in a BrowserWindow.
 
 ## Core Components
 
@@ -49,8 +47,6 @@ flowchart TB
     Hook["port-hook.cjs\n(Node.js port patching)"]
     NativeHook["libport-hook\n(native libc interposition)"]
     LoggerLib["liblogger\n(Go structured logging)"]
-    Actions["Actions Registry\n(MCP tool definitions)"]
-    McpFactory["MCP Server Factory\n(creates MCP server from actions)"]
     Routes["HTTP Routes\n(REST API endpoints)"]
 
     WM --> PM
@@ -66,15 +62,10 @@ flowchart TB
     Routes --> AL
     Routes --> OL
     Routes --> NC
-    Actions --> WM
-    Actions --> NM
-    Actions --> VM
-    Actions --> AL
     CM --> OL
     PerfMon --> WM
     PerfMon --> TM
     Routes --> PerfMon
-    McpFactory --> Actions
     PM -->|env vars| Hook
     PM -->|env vars| NativeHook
     NativeHook -->|dlopen| LoggerLib
@@ -220,7 +211,7 @@ Hooks are configured via `.openkit/hooks.json` with `steps` and `skills` arrays.
 
 - Tunnel lifecycle endpoints (`/api/ngrok/tunnel/enable`, `/api/ngrok/tunnel/disable`, `/api/ngrok/status`)
 - QR pairing endpoints (`/api/ngrok/pairing/start`, `/api/ngrok/pairing/exchange`, `/_ok/pair`)
-- Authenticated gateway proxy (`/_ok/p/:projectId/*`) that forwards allowlisted internal routes (`/api/*`, `/mcp`)
+- Authenticated gateway proxy (`/_ok/p/:projectId/*`) that forwards allowlisted internal routes (`/api/*`)
 
 ## Data Flow
 
@@ -270,17 +261,7 @@ sequenceDiagram
 
 The creation is asynchronous -- the HTTP response returns immediately with a placeholder entry (status `"creating"`) so the UI can show progress. The actual `git worktree add`, dependency installation, and `TASK.md` generation happen in the background, with status updates pushed via SSE.
 
-### 2. MCP Tool Calls
-
-MCP agents communicate with OpenKit through two modes:
-
-**Proxy mode** (preferred when the server is running): The `openkit mcp` command detects a running server via `.openkit/server.json`, then relays JSON-RPC messages between stdio (connected to Claude Code) and the server's Streamable HTTP transport at `/mcp`. This ensures the agent shares state with the UI.
-
-**Standalone mode** (fallback): If no server is running, `openkit mcp` creates its own `WorktreeManager` instance and serves MCP tools directly over stdio.
-
-The tool definitions live in `libs/agents/src/actions.ts` as a flat array of `Action` objects. Each action has a name, description, parameter schema, and async handler function. The `MCP Server Factory` (`apps/server/src/mcp-server-factory.ts`) converts these into MCP tools with Zod schemas. The same actions are used for both the Streamable HTTP MCP transport (exposed at `/mcp` on the server) and the standalone stdio MCP server.
-
-### 3. Terminal Sessions
+### 2. Terminal Sessions
 
 Terminal sessions use a two-step protocol:
 
@@ -291,16 +272,16 @@ Once attached, the `TerminalManager` spawns a PTY process (`node-pty`) in the wo
 
 In Electron multi-project mode, frontend launch/navigation queues are scoped by project (`runtimeScopeKey = project:<id>`), so intents from one project are not processed against another project's server when switching tabs.
 
-### 4. Local Task Recovery
+### 3. Local Task Recovery
 
 Local task IDs remain monotonic via `.openkit/issues/local/.counter`. If metadata for an existing local worktree is lost, `POST /api/tasks/recover-local` recreates task metadata + notes for a specific local task ID (for example `LOCAL-1`) after canonical worktree resolution, and ensures the counter is at least the recovered suffix.
 
-### 5. Ngrok Connect Mobile Routing
+### 4. Ngrok Connect Mobile Routing
 
 1. Laptop user enables the tunnel from the bottom-right Wi-Fi button (Electron tab bar), then creates a one-time pairing session (`/api/ngrok/pairing/start`).
 2. Mobile scans QR and opens `/_ok/pair?token=...` on that ngrok host.
 3. `/_ok/pair` validates token (single-use, short TTL), sets `ok_session`, and redirects.
-4. Programmatic clients call `/_ok/p/:projectId/...` (or `/mcp` through that prefix); gateway validates session and project, then proxies to internal OpenKit routes.
+4. Programmatic clients call `/_ok/p/:projectId/...`; gateway validates session and project, then proxies to internal OpenKit routes.
 
 ## Build System
 
@@ -395,13 +376,13 @@ Architecture-level discussion in this document focuses on responsibilities and r
 
 ## Agent Instructions
 
-Agent instruction text (MCP instructions, IDE skill/rule files, hook skill definitions) lives in `libs/agents/src/` as standalone `.md` files. The tsup esbuild text loader (`{ '.md': 'text' }`) inlines them as strings at build time.
+Agent instruction text (IDE skill/rule files, hook skill definitions) lives in `libs/agents/src/` as standalone `.md` files. The tsup esbuild text loader (`{ '.md': 'text' }`) inlines them as strings at build time.
 
 ### How it works
 
 1. Each instruction is a `.md` file under `libs/agents/src/` (or subdirectories `mcp/`, `skills/`)
 2. `libs/agents/src/instructions.ts` imports all `.md` files, resolves placeholders, and exports typed constants
-3. Consumer files (`actions.ts`, `mcp-server-factory.ts`, `builtin-instructions.ts`, `verification-skills.ts`) import from the barrel
+3. Consumer files (`builtin-instructions.ts`, `verification-skills.ts`) import from the barrel
 4. `md.d.ts` provides TypeScript declarations for `*.md` imports
 
 ### Placeholders
@@ -414,19 +395,17 @@ Agent instruction text (MCP instructions, IDE skill/rule files, hook skill defin
 
 ### File map
 
-| File                      | Export                    | Used by                                                                           |
-| ------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
-| `mcp/mcp-server.md`       | `MCP_INSTRUCTIONS`        | `mcp-server-factory.ts` (server instructions)                                     |
-| `mcp/mcp-work-on-task.md` | `MCP_WORK_ON_TASK_PROMPT` | `mcp-server-factory.ts` (prompt template)                                         |
-| `mcp/claude-skill.md`     | `CLAUDE_SKILL`            | `builtin-instructions.ts` (deployed to `~/.claude/skills/`)                       |
-| `mcp/cursor-rule.md`      | `CURSOR_RULE`             | `builtin-instructions.ts` (deployed to `.cursor/rules/`)                          |
-| `mcp/vscode-prompt.md`    | `VSCODE_PROMPT`           | `builtin-instructions.ts` (deployed to `.github/prompts/`)                        |
-| `mcp/instructions.md`     | _(internal)_              | Interpolated into claude-skill, cursor-rule, and vscode-prompt via `{{WORKFLOW}}` |
-| `skills/*/SKILL.md`       | `BUNDLED_SKILLS`          | `verification-skills.ts` (seeded into `~/.openkit/skills/` registry only)         |
+| File                   | Export           | Used by                                                                           |
+| ---------------------- | ---------------- | --------------------------------------------------------------------------------- |
+| `mcp/claude-skill.md`  | `CLAUDE_SKILL`   | `builtin-instructions.ts` (deployed to `~/.claude/skills/`)                       |
+| `mcp/cursor-rule.md`   | `CURSOR_RULE`    | `builtin-instructions.ts` (deployed to `.cursor/rules/`)                          |
+| `mcp/vscode-prompt.md` | `VSCODE_PROMPT`  | `builtin-instructions.ts` (deployed to `.github/prompts/`)                        |
+| `mcp/instructions.md`  | _(internal)_     | Interpolated into claude-skill, cursor-rule, and vscode-prompt via `{{WORKFLOW}}` |
+| `skills/*/SKILL.md`    | `BUNDLED_SKILLS` | `verification-skills.ts` (seeded into `~/.openkit/skills/` registry only)         |
 
 ## Server-as-Hub Pattern
 
-The Hono server acts as a central hub. All clients -- the React SPA, the Electron shell, and MCP agents -- connect to the same server instance and share the same state.
+The Hono server acts as a central hub. All clients -- the React SPA and the Electron shell -- connect to the same server instance and share the same state.
 
 The server writes a `server.json` file to `.openkit/server.json` on startup:
 
@@ -437,9 +416,7 @@ The server writes a `server.json` file to `.openkit/server.json` on startup:
 }
 ```
 
-This file enables **agent discovery**: when `openkit mcp` starts, it reads `server.json`, checks if the process is alive (via `process.kill(pid, 0)`), and if so, enters **proxy mode** -- relaying JSON-RPC messages between stdio and the server's `/mcp` endpoint. This means an MCP agent and the web UI always see the same worktree state, running processes, and logs.
-
-If no server is running (e.g., the agent is invoked before the user starts the UI), `openkit mcp` falls back to **standalone mode** with its own `WorktreeManager`.
+This file enables **process discovery**: CLI commands (e.g., `openkit activity`) read `server.json` to locate the running server and POST events to it.
 
 The Electron app uses a similar pattern: `apps/desktop-app/src/server-spawner.ts` spawns a `OpenKit` CLI process per project (with `--no-open` to suppress browser opening), polls until the server is ready, then loads the UI at the server URL. The `apps/desktop-app/src/project-manager.ts` handles multi-project tabs, each backed by its own server process.
 

@@ -86,6 +86,7 @@ func main() {
 	api.Set("LoggerError", js.FuncOf(loggerLog((*logger.Logger).Error)))
 	api.Set("LoggerDebug", js.FuncOf(loggerLog((*logger.Logger).Debug)))
 	api.Set("LoggerSuccess", js.FuncOf(loggerLog((*logger.Logger).Success)))
+	api.Set("LoggerStarted", js.FuncOf(loggerLog((*logger.Logger).Started)))
 	api.Set("LoggerPlain", js.FuncOf(loggerLog((*logger.Logger).Plain)))
 	api.Set("LoggerFree", js.FuncOf(loggerFree))
 	api.Set("LoggerSetSink", js.FuncOf(loggerSetSink))
