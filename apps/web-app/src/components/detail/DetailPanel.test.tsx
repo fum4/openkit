@@ -1,6 +1,4 @@
-import { fireEvent } from "@testing-library/react";
-
-import { render, screen, waitFor, act } from "../../test/render";
+import { render, screen, waitFor, userEvent } from "../../test/render";
 import { DetailPanel } from "./DetailPanel";
 import type { WorktreeInfo } from "../../types";
 
@@ -121,12 +119,19 @@ const defaultProps = {
   onCodeWithCodex: vi.fn(),
 };
 
-/** Click the "Agent" dropdown and select the given agent using fireEvent */
-async function selectAgentFromDropdown(agent: string) {
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+async function selectAgentFromDropdown(user: ReturnType<typeof userEvent.setup>, agent: string) {
   const agentButton = screen.getByRole("button", { name: /Agent/i });
-  fireEvent.click(agentButton);
+  await user.click(agentButton);
   const menuItem = await screen.findByRole("menuitem", { name: agent });
-  fireEvent.click(menuItem);
+  await user.click(menuItem);
 }
 
 // ─── Tests ──────────────────────────────────────────────────────
@@ -143,17 +148,22 @@ beforeEach(() => {
 
 describe("DetailPanel", () => {
   describe("stale restore response suppression", () => {
-    it("does not act on restore response after worktree switch (active session)", async () => {
-      // When user opens Claude on wt-1, then switches to wt-2 before the
-      // response arrives, the wt-1 response should be dropped.
-      // We simulate by: 1) open Claude → gets active session → calls onCodeWithClaude
-      //                 2) repeat with wt-2 to show it works normally
-      //                 3) verify wt-1 call happened with wt-1 data, not stale
-      mockFetchRestorableAgentSessions.mockResolvedValue({
-        success: true,
-        activeSessionId: "session-123",
-        historyMatches: [],
-      });
+    it("ignores stale restore response when worktree changes mid-request", async () => {
+      const user = userEvent.setup();
+
+      // First request stays pending so the worktree switch happens mid-flight
+      const firstRequest = deferred<{
+        success: boolean;
+        activeSessionId: string | null;
+        historyMatches: never[];
+      }>();
+      const secondRequest = deferred<{
+        success: boolean;
+        activeSessionId: string | null;
+        historyMatches: never[];
+      }>();
+
+      mockFetchRestorableAgentSessions.mockReturnValueOnce(firstRequest.promise);
 
       const worktree1 = createWorktree({ id: "wt-1" });
       const worktree2 = createWorktree({ id: "wt-2" });
@@ -164,52 +174,58 @@ describe("DetailPanel", () => {
         expect(screen.getByRole("button", { name: /Agent/i })).toBeInTheDocument();
       });
 
-      // Select Claude for wt-1
-      await selectAgentFromDropdown("Claude");
+      // Select Claude for wt-1 — request stays pending
+      await selectAgentFromDropdown(user, "Claude");
 
       await waitFor(() => {
         expect(mockFetchRestorableAgentSessions).toHaveBeenCalledWith("wt-1", "claude");
       });
 
-      // onCodeWithClaude should be called for wt-1 (since response matched)
-      await waitFor(() => {
-        expect(defaultProps.onCodeWithClaude).toHaveBeenCalledWith(
-          expect.objectContaining({ worktreeId: "wt-1", mode: "resume-active" }),
-        );
-      });
-
-      // Switch worktrees
+      // Switch worktrees BEFORE the first response arrives
+      mockFetchRestorableAgentSessions.mockReturnValueOnce(secondRequest.promise);
       rerender(<DetailPanel {...defaultProps} worktree={worktree2} />);
 
-      // restoreWorktreeIdRef should now be updated to wt-2 via useEffect
-      // Clear mocks to test next interaction
+      // Clear mocks to track the second interaction
       defaultProps.onCodeWithClaude.mockClear();
-      mockFetchRestorableAgentSessions.mockClear();
-
-      mockFetchRestorableAgentSessions.mockResolvedValue({
-        success: true,
-        activeSessionId: "session-456",
-        historyMatches: [],
-      });
 
       // Select Claude for wt-2
-      await selectAgentFromDropdown("Claude");
+      await selectAgentFromDropdown(user, "Claude");
 
       await waitFor(() => {
         expect(mockFetchRestorableAgentSessions).toHaveBeenCalledWith("wt-2", "claude");
       });
 
-      // Should be called with wt-2, not stale wt-1
+      // Now resolve the stale wt-1 response
+      firstRequest.resolve({
+        success: true,
+        activeSessionId: "session-stale",
+        historyMatches: [],
+      });
+
+      // Resolve the wt-2 response
+      secondRequest.resolve({
+        success: true,
+        activeSessionId: "session-current",
+        historyMatches: [],
+      });
+
+      // onCodeWithClaude should be called with wt-2, the stale wt-1 response is ignored
       await waitFor(() => {
         expect(defaultProps.onCodeWithClaude).toHaveBeenCalledWith(
           expect.objectContaining({ worktreeId: "wt-2", mode: "resume-active" }),
         );
       });
+
+      // Should NOT have been called with the stale wt-1 session
+      expect(defaultProps.onCodeWithClaude).not.toHaveBeenCalledWith(
+        expect.objectContaining({ worktreeId: "wt-1" }),
+      );
     });
   });
 
   describe("restore modal disambiguation", () => {
     it("shows project name in the restore modal when activeProject is available", async () => {
+      const user = userEvent.setup();
       mockActiveProject = {
         id: "proj-1",
         projectDir: "/test",
@@ -242,24 +258,23 @@ describe("DetailPanel", () => {
 
       render(<DetailPanel {...defaultProps} worktree={worktree} />);
 
-      // Wait for agent detection to settle
       await waitFor(() => {
         expect(screen.getByRole("button", { name: /Agent/i })).toBeInTheDocument();
       });
 
-      // Select Claude from the dropdown
-      await selectAgentFromDropdown("Claude");
+      await selectAgentFromDropdown(user, "Claude");
 
-      // Wait for the restore modal to appear
       await waitFor(() => {
         expect(screen.getByTestId("restore-modal")).toBeInTheDocument();
       });
 
-      // Verify project name is shown
+      // Verify project name and CTA text are shown
+      expect(screen.getByText(/Choose which one to resume/)).toBeInTheDocument();
       expect(screen.getByText(/Project: My Project/)).toBeInTheDocument();
     });
 
     it("shows branch names in the restore modal match items", async () => {
+      const user = userEvent.setup();
       mockFetchRestorableAgentSessions.mockResolvedValue({
         success: true,
         activeSessionId: null,
@@ -286,7 +301,7 @@ describe("DetailPanel", () => {
         expect(screen.getByRole("button", { name: /Agent/i })).toBeInTheDocument();
       });
 
-      await selectAgentFromDropdown("Claude");
+      await selectAgentFromDropdown(user, "Claude");
 
       await waitFor(() => {
         expect(screen.getByTestId("restore-modal")).toBeInTheDocument();

@@ -2248,7 +2248,7 @@ export function DetailPanel({
           }
         >
           <p className={`text-xs ${text.secondary} leading-relaxed`}>
-            Multiple saved conversations match this worktree.
+            Multiple saved conversations match this worktree. Choose which one to resume.
             {activeProject?.name && (
               <span className={`ml-1 ${text.muted}`}>Project: {activeProject.name}</span>
             )}

@@ -246,10 +246,12 @@ function findClaudeHistoryMatches(worktreePath: string): AgentHistoryMatch[] {
     });
   }
 
-  return sorted.map(
-    ({ updatedAtMs: _updatedAtMs, previewRank: _previewRank, sourceFile: _sourceFile, ...match }) =>
-      match,
-  );
+  return sorted.map(({ sessionId, title, updatedAt, preview, gitBranch }): AgentHistoryMatch => {
+    const match: AgentHistoryMatch = { sessionId, title, updatedAt };
+    if (preview) match.preview = preview;
+    if (gitBranch) match.gitBranch = gitBranch;
+    return match;
+  });
 }
 
 function escapeSqliteString(value: string): string {

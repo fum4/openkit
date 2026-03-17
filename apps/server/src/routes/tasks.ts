@@ -197,7 +197,13 @@ export function registerTaskRoutes(
   const worktreesPath = path.join(configDir, CONFIG_DIR_NAME, "worktrees");
   const getProjectName = () => manager.getProjectName() ?? undefined;
   const getHooksSnapshot = (worktreeId: string) => {
-    if (!hooksManager) return undefined;
+    if (!hooksManager) {
+      log.warn("hooksManager not provided to registerTaskRoutes — hooks will be skipped", {
+        domain: "tasks",
+        worktreeId,
+      });
+      return undefined;
+    }
     const config = hooksManager.getConfig();
     const effectiveSkills = hooksManager.getEffectiveSkills(worktreeId, notesManager);
     return {

@@ -13,14 +13,24 @@ vi.mock("../task-context", () => ({
   regenerateTaskMd: vi.fn(),
 }));
 
-vi.mock("../logger", () => ({
-  log: {
+vi.mock("../logger", () => {
+  const childLog = {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-  },
-}));
+    success: vi.fn(),
+  };
+  return {
+    log: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      get: vi.fn(() => childLog),
+    },
+  };
+});
 
 const tempDirs: string[] = [];
 
@@ -34,7 +44,7 @@ function createTempConfigDir(): string {
   return dir;
 }
 
-afterAll(() => {
+afterEach(() => {
   for (const dir of tempDirs) {
     try {
       rmSync(dir, { recursive: true, force: true });
@@ -42,6 +52,7 @@ afterAll(() => {
       // Ignore cleanup errors in tests
     }
   }
+  tempDirs.length = 0;
 });
 
 function seedTask(configDir: string, task: { id: string; title: string; description: string }) {

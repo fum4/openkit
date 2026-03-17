@@ -85,6 +85,7 @@ beforeEach(() => {
       if (cb) process.nextTick(cb);
       return this;
     }) as unknown as net.Server["close"];
+    server.unref = vi.fn(() => server);
     return server;
   });
 });
@@ -148,6 +149,7 @@ describe("ProjectManager", () => {
           if (cb) process.nextTick(cb);
           return this;
         }) as unknown as net.Server["close"];
+        server.unref = vi.fn(() => server);
         return server;
       });
 

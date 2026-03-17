@@ -10,21 +10,19 @@ import { log } from "./logger.js";
 
 function isPortFree(port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
-      server.close();
-      resolve(false);
-    }, 1000);
-    const server = net.createServer();
-    server.once("error", () => {
+    let settled = false;
+    const settle = (value: boolean) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timeout);
-      resolve(false);
-    });
-    server.once("listening", () => {
-      server.close(() => {
-        clearTimeout(timeout);
-        resolve(true);
-      });
-    });
+      server.removeAllListeners();
+      server.close(() => resolve(value));
+    };
+    const timeout = setTimeout(() => settle(false), 200);
+    const server = net.createServer();
+    server.unref();
+    server.once("error", () => settle(false));
+    server.once("listening", () => settle(true));
     server.listen(port);
   });
 }

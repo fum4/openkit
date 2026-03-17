@@ -74,6 +74,8 @@ export function spawnServer(projectDir: string, port: number): ChildProcess {
     log.error(`Spawn error: ${err.message}`, { domain: "server-spawner" });
   });
 
+  // Note: project-manager.ts also attaches a stdout listener for __OPENKIT_PORT__
+  // parsing. Both listeners fire for every chunk — this one is for debug logging.
   child.stdout?.on("data", (data: Buffer) => {
     log.debug(`[stdout] ${data.toString().trim()}`, { domain: "server-spawner" });
   });
