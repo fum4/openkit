@@ -66,7 +66,8 @@ function createMockNotesManager(linkedWorktreeId: string | null = null) {
 
 function createMockHooksManager() {
   return {
-    getConfig: vi.fn(() => ({ checks: [], skills: [] })),
+    getConfig: vi.fn(() => ({ steps: [], skills: [] })),
+    getEffectiveSkills: vi.fn(() => []),
   } as unknown as HooksManager;
 }
 
@@ -105,7 +106,7 @@ describe("PATCH /api/tasks/:id", () => {
       notesManager,
       configDir,
       expect.stringContaining(".openkit/worktrees"),
-      expect.objectContaining({ worktreeId: "wt-abc123" }),
+      expect.objectContaining({ checks: [], skills: [] }),
     );
   });
 

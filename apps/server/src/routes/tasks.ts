@@ -197,7 +197,11 @@ export function registerTaskRoutes(
   const getHooksSnapshot = (worktreeId: string) => {
     if (!hooksManager) return undefined;
     const config = hooksManager.getConfig();
-    return { config, worktreeId };
+    const effectiveSkills = hooksManager.getEffectiveSkills(worktreeId, notesManager);
+    return {
+      checks: config.steps,
+      skills: effectiveSkills,
+    };
   };
   const logTaskEvent = (options: {
     action: string;
