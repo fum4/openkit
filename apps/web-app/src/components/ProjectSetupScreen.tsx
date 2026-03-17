@@ -515,11 +515,6 @@ export function ProjectSetupScreen({
 
     const errors: string[] = [];
     for (const { agentId, scope, action } of changes) {
-      // Legacy MCP onboarding path kept intentionally; do not run here.
-      // const result =
-      //   action === "setup"
-      //     ? await api.setupMcpAgent(agentId, scope)
-      //     : await api.removeMcpAgent(agentId, scope);
       const result =
         action === "setup"
           ? await api.deploySkill(ONBOARDING_SKILL_NAME, agentId, scope)

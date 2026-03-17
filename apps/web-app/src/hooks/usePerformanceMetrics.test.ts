@@ -34,7 +34,7 @@ class FakeEventSource implements MockEventSource {
   close = vi.fn();
 
   constructor(_url: string) {
-    latestEventSource = this;
+    latestEventSource = this as MockEventSource;
   }
 }
 

@@ -1,5 +1,5 @@
 import { execFileSync } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
 
 export interface DetectedConfig {
@@ -62,7 +62,11 @@ export function detectPackageManager(projectDir: string): string | null {
   if (existsSync(path.join(projectDir, "pnpm-lock.yaml"))) return "pnpm";
   if (existsSync(path.join(projectDir, "yarn.lock"))) return "yarn";
   if (existsSync(path.join(projectDir, "package-lock.json"))) return "npm";
-  if (existsSync(path.join(projectDir, "bun.lockb"))) return "bun";
+  if (
+    existsSync(path.join(projectDir, "bun.lockb")) ||
+    existsSync(path.join(projectDir, "bun.lock"))
+  )
+    return "bun";
   return null;
 }
 
@@ -71,9 +75,38 @@ export function detectInstallCommand(projectDir: string): string | null {
   return pm ? `${pm} install` : null;
 }
 
+function isReactNativeProject(projectDir: string): boolean {
+  const pkgPath = path.join(projectDir, "package.json");
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    return "react-native" in deps || "expo" in deps;
+  } catch (err: unknown) {
+    // ENOENT (file not found) is expected when package.json doesn't exist — silent fallback.
+    // For unexpected errors (permission denied, corrupt reads), warn so the root cause is visible.
+    // libs/shared has no logger dependency; console.warn is the only diagnostic option here.
+    // The server-side detectFramework() in framework-detect.ts has proper structured logging
+    // for the same check.
+    const isFileNotFound =
+      err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT";
+    if (!isFileNotFound) {
+      console.warn(
+        `[openkit] Failed to read ${pkgPath} for RN/Expo detection: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return false;
+  }
+}
+
 export function detectStartCommand(projectDir: string): string | null {
   const pm = detectPackageManager(projectDir);
   if (!pm) return null;
+
+  // React Native / Expo projects use "start" (Metro bundler), not "dev"
+  if (isReactNativeProject(projectDir)) {
+    return pm === "npm" ? "npm start" : `${pm} start`;
+  }
+
   // yarn and pnpm can run scripts directly, npm needs "run"
   return pm === "npm" ? "npm run dev" : `${pm} dev`;
 }

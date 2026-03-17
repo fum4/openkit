@@ -51,7 +51,7 @@ class Logger:
         # Avoid infinite recursion - only intercept subsystem names
         # Don't intercept private attributes, methods, or properties set in __init__
         if (name.startswith('_') or
-            name in ('handle', 'info', 'warn', 'error', 'debug', 'success', 'plain', '_cleanup')):
+            name in ('handle', 'info', 'warn', 'error', 'debug', 'success', 'started', 'plain', '_cleanup')):
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
         # Create a new logger with the subsystem
@@ -94,11 +94,21 @@ class Logger:
         )
 
     def success(self, message: str, *, domain: str, **context: Any) -> None:
-        """Log success message (green bullet, INFO level). ``domain`` is required."""
+        """Log success message (green bullet, INFO level, status: success). ``domain`` is required."""
+        ctx = {**context, "status": "success"}
         lib.LoggerSuccess(
             self.handle,
             message.encode("utf-8"),
-            self._build_context(domain, context).encode("utf-8"),
+            self._build_context(domain, ctx).encode("utf-8"),
+        )
+
+    def started(self, message: str, *, domain: str, **context: Any) -> None:
+        """Log started message (INFO level, status: started). ``domain`` is required."""
+        ctx = {**context, "status": "started"}
+        lib.LoggerStarted(
+            self.handle,
+            message.encode("utf-8"),
+            self._build_context(domain, ctx).encode("utf-8"),
         )
 
     def plain(self, message: str, *, domain: str, **context: Any) -> None:

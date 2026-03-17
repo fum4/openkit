@@ -305,6 +305,75 @@ The hook is **optional** -- if the built library is not found, only the Node.js 
 
 For full documentation, see [`libs/port-resolution/README.md`](../libs/port-resolution/README.md).
 
+## React Native / Expo Support
+
+OpenKit automatically detects React Native and Expo projects during port discovery and applies framework-specific defaults so multiple worktrees can run Metro bundler simultaneously.
+
+### What is auto-configured
+
+| Setting                                     | Bare RN           | Expo              |
+| ------------------------------------------- | ----------------- | ----------------- |
+| Metro port (8081) added to discovered ports | Yes               | Yes               |
+| `RCT_METRO_PORT` env var template           | Yes               | Yes               |
+| `--port` flag appended to start command     | Yes               | Yes               |
+| PTY spawn (interactive Metro output)        | Yes               | Yes               |
+| `adb reverse` on worktree start             | Yes (best-effort) | Yes (best-effort) |
+| Expo offline prevention env vars            | No                | Yes               |
+
+### How detection works
+
+During port discovery, OpenKit reads `package.json` and checks for `expo` or `react-native` in dependencies. If found, it:
+
+1. Ensures Metro's default port (8081, or custom port from `metro.config.js`) is in the discovered ports list.
+2. Adds `RCT_METRO_PORT` to the env mapping so native apps (iOS/Android) know the offset port to connect to.
+3. Marks the project for `adb reverse` on worktree start (Android device connectivity).
+
+### Direct `--port` flag injection
+
+When starting a worktree for an RN/Expo project, OpenKit appends `--port <offset-port>` to the start command so Metro receives the port directly. This is the most reliable way to assign a port (the same approach used by [react-native-worktree](https://github.com/aleqsio/react-native-worktree)):
+
+- For `npm start`: `npm start -- --port 8091` (npm requires `--` to pass args through)
+- For `yarn start`, `pnpm start`, `bun start`, or `npx expo start`: `<cmd> --port 8091`
+
+The runtime hook (`port-hook.cjs`) still runs as a safety net for other services in the project (e.g. an API server).
+
+If your start command already contains `--port`, OpenKit skips injection to avoid conflict.
+
+Even if port discovery hasn't been run, OpenKit falls back to the default Metro port (8081) for RN/Expo projects, ensuring port offsetting still works.
+
+### PTY spawn for interactive Metro output
+
+RN/Expo worktrees are spawned via a pseudo-terminal (PTY) using `node-pty`, giving Metro a real TTY. This enables the full interactive experience: QR code, `press a` for Android, `press i` for iOS, etc. Generic (non-RN) projects continue to use piped stdio.
+
+### Expo offline prevention
+
+Expo CLI detects non-interactive environments (piped stdio) and can disable networking, showing a "Networking has been disabled" warning. OpenKit sets the following env vars for Expo worktrees to prevent this:
+
+- `CI=0` -- prevents CI mode detection
+- `EXPO_OFFLINE=0` -- explicitly keeps networking enabled
+
+### Custom Metro port
+
+If your `metro.config.js` specifies a custom port:
+
+```js
+module.exports = { server: { port: 8082 } };
+```
+
+OpenKit detects this and uses 8082 instead of 8081 as the default Metro port.
+
+### Android device connectivity
+
+When starting a worktree for an RN/Expo project, OpenKit runs `adb reverse tcp:<offset-port> tcp:<offset-port>` for each discovered port. This is best-effort -- if `adb` is not installed or no device is connected, the command silently fails.
+
+### iOS simulator
+
+For iOS simulators, the offset Metro port is passed via the `RCT_METRO_PORT` environment variable, which React Native reads to connect to the bundler.
+
+### Start command detection
+
+When setting up an RN/Expo project, OpenKit auto-detects the start command as `<pm> start` (e.g. `npm start`, `yarn start`) instead of `<pm> dev`, matching the standard Metro bundler script.
+
 ## Limitations
 
 - **Localhost connections only** -- Outgoing connections are only offset when targeting localhost addresses (`127.0.0.1`, `::1`, `localhost`, `0.0.0.0`). Connections to remote hosts or IP addresses other than loopback are passed through unchanged.
@@ -322,3 +391,5 @@ For full documentation, see [`libs/port-resolution/README.md`](../libs/port-reso
 - **Go on Linux** -- Go's runtime makes raw syscalls instead of going through libc, so `LD_PRELOAD` interposition does not work. Go on macOS uses libc and works fine.
 
 - **Zig toolchain** -- Building the native hook requires Zig. The hook is optional; if the library is not found, only the Node.js hook is used.
+
+- **`--port` flag assumes Metro/Expo CLI** -- For RN/Expo projects, OpenKit appends `--port <offset-port>` to the start command. This assumes the start command ultimately invokes Metro or Expo CLI, which accept `--port`. If your project wraps Metro in a custom script that doesn't forward `--port`, configure your script to pass it through or rely on the port hook.

@@ -1,11 +1,17 @@
-import type { NotesManager } from "./notes-manager";
-import type { WorktreeConfig } from "./types";
+import type { IssueNotes, IssueSource } from "./notes-types";
+import type { WorktreeConfig } from "./worktree-types";
 
 export type GitOperation = "commit" | "push" | "create_pr";
 
 export interface GitPolicyResult {
   allowed: boolean;
   reason?: string;
+}
+
+/** Minimal interface for notes access needed by resolveGitPolicy. */
+export interface GitPolicyNotesReader {
+  buildWorktreeLinkMap(): Map<string, { source: IssueSource; issueId: string }>;
+  loadNotes(source: IssueSource, issueId: string): Pick<IssueNotes, "gitPolicy">;
 }
 
 const OPERATION_MAP = {
@@ -30,7 +36,7 @@ export function resolveGitPolicy(
   operation: GitOperation,
   worktreeId: string,
   config: WorktreeConfig,
-  notesManager: NotesManager,
+  notesManager: GitPolicyNotesReader,
 ): GitPolicyResult {
   const { configKey, notesKey, label } = OPERATION_MAP[operation];
 

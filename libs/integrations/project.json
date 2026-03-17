@@ -2,22 +2,5 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "name": "integrations",
   "projectType": "library",
-  "sourceRoot": "libs/integrations/src",
-  "implicitDependencies": ["shared", "logger"],
-  "targets": {
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/integrations",
-        "command": "pnpm typecheck"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/integrations",
-        "command": "pnpm lint"
-      }
-    }
-  }
+  "sourceRoot": "libs/integrations/src"
 }

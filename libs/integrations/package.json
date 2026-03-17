@@ -2,8 +2,18 @@
   "name": "@openkit/integrations",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
   "scripts": {
-    "typecheck": "tsgo --noEmit -p tsconfig.json",
-    "lint": "oxlint src"
+    "check:types": "tsgo --noEmit -p tsconfig.json",
+    "check:format": "oxfmt --check src",
+    "check:lint": "oxlint src",
+    "fix:format": "oxfmt src",
+    "fix:lint": "oxlint --fix src"
+  },
+  "dependencies": {
+    "@openkit/logger": "workspace:*",
+    "@openkit/shared": "workspace:*"
   }
 }

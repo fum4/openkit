@@ -11,11 +11,14 @@ import { Hono } from "hono";
 import path from "path";
 
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
+import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 import type { NotesManager } from "../notes-manager";
 import { generateBranchName } from "../branch-name";
 import { regenerateTaskMd } from "../task-context";
 import type { HooksManager } from "../verification-manager";
+
+const taskLog = log.get("task");
 
 interface CustomTask {
   id: string;
@@ -192,7 +195,6 @@ export function registerTaskRoutes(
 ) {
   const configDir = manager.getConfigDir();
   const worktreesPath = path.join(configDir, CONFIG_DIR_NAME, "worktrees");
-  const opsLog = manager.getOpsLog();
   const getProjectName = () => manager.getProjectName() ?? undefined;
   const getHooksSnapshot = (worktreeId: string) => {
     if (!hooksManager) return undefined;
@@ -211,16 +213,32 @@ export function registerTaskRoutes(
     worktreeId?: string;
     metadata?: Record<string, unknown>;
   }) => {
-    opsLog.addEvent({
-      source: "task",
+    const level = options.level ?? (options.status === "failed" ? "error" : "info");
+    const context = {
+      domain: "task",
       action: options.action,
-      message: options.message,
-      level: options.level ?? (options.status === "failed" ? "error" : "info"),
       status: options.status ?? "info",
       worktreeId: options.worktreeId,
       projectName: getProjectName(),
-      metadata: options.metadata,
-    });
+      ...options.metadata,
+    };
+    switch (level) {
+      case "error":
+        taskLog.error(options.message, context);
+        break;
+      case "warning":
+        taskLog.warn(options.message, context);
+        break;
+      case "debug":
+        taskLog.debug(options.message, context);
+        break;
+      default:
+        if (options.status === "success") {
+          taskLog.success(options.message, context);
+        } else {
+          taskLog.info(options.message, context);
+        }
+    }
   };
   const toResolutionStatus = (code: "WORKTREE_NOT_FOUND" | "WORKTREE_ID_AMBIGUOUS"): 404 | 409 =>
     code === "WORKTREE_ID_AMBIGUOUS" ? 409 : 404;

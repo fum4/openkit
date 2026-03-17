@@ -8,14 +8,15 @@ export default defineConfig({
   plugins: [
     react(),
     // Stub Node-only modules that the server imports but aren't needed in web-app tests.
-    // Uses prefix matching so subpath imports (e.g. @openkit/agents/actions) are caught too.
+    // Uses prefix matching so subpath imports (e.g. @openkit/agents/instructions) are caught too.
     {
       name: "node-module-stubs",
+      enforce: "pre",
       resolveId(id: string) {
         const prefixes = [
           "@openkit/agents",
-          "@modelcontextprotocol/",
           "node-pty",
+          "pidusage",
           "@hono/node-ws",
           "@hono/node-server",
         ];
@@ -24,18 +25,25 @@ export default defineConfig({
         }
       },
       load(id: string) {
-        if (id.startsWith("\0stub:")) return "export default {}";
+        if (!id.startsWith("\0stub:")) return;
+        // Return a module where every export is a callable noop.
+        // Named exports are required because ESM can't dynamically generate them.
+        // NOTE: If a stubbed package adds new named exports that are transitively
+        // imported in web-app tests, add them here — otherwise they'll be undefined.
+        return [
+          "const noop = () => noop;",
+          "export default noop;",
+          // @hono/node-server + @hono/node-ws
+          "export { noop as serveStatic, noop as createAdaptorServer, noop as createNodeWebSocket };",
+          // @openkit/agents
+          "export { noop as BUNDLED_SKILLS, noop as CLAUDE_SKILL, noop as CURSOR_RULE, noop as VSCODE_PROMPT };",
+          // node-pty
+          "export { noop as spawn };",
+        ].join("\n");
       },
     },
   ],
   root: path.resolve(__dirname, "src"),
-  resolve: {
-    alias: {
-      "@openkit/shared": path.resolve(__dirname, "../../libs/shared/src"),
-      "@openkit/integrations": path.resolve(__dirname, "../../libs/integrations/src"),
-      "@openkit/logger/browser": path.resolve(__dirname, "../../libs/logger/browser/src/index.ts"),
-    },
-  },
   base: "./",
   build: {
     outDir: path.resolve(__dirname, "dist"),
@@ -56,13 +64,6 @@ export default defineConfig({
     globals: true,
     include: ["**/*.test.{ts,tsx}"],
     setupFiles: ["test/setup.ts"],
-    alias: [
-      { find: /^@openkit\/server\/(.*)/, replacement: path.resolve(__dirname, "../server/src/$1") },
-      {
-        find: "@openkit/logger/node",
-        replacement: path.resolve(__dirname, "../../libs/logger/node/src/index.ts"),
-      },
-    ],
     coverage: {
       provider: "v8",
       include: ["**/*.{ts,tsx}"],

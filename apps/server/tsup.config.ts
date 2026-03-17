@@ -1,3 +1,5 @@
+import { spawn } from "child_process";
+import { cpSync, mkdirSync } from "fs";
 import { defineConfig } from "tsup";
 
 export default defineConfig({
@@ -10,7 +12,19 @@ export default defineConfig({
   target: "node18",
   clean: true,
   external: ["node-pty"],
-  noExternal: ["ws", "picocolors", "@xterm/headless", "@xterm/addon-serialize"],
+  noExternal: [/^@openkit\//, "ws", "picocolors", "@xterm/headless", "@xterm/addon-serialize"],
+  async onSuccess() {
+    if (process.argv.includes("--watch")) {
+      const server = spawn("node", ["dist/standalone.js"], { stdio: "inherit" });
+      return () => {
+        server.kill();
+      };
+    } else {
+      mkdirSync("dist/runtime", { recursive: true });
+      cpSync("src/runtime/port-hook.cjs", "dist/runtime/port-hook.cjs");
+      cpSync("../../libs/native-port-resolution/zig-out/lib", "dist/runtime", { recursive: true });
+    }
+  },
   esbuildOptions(options) {
     options.banner = {
       ...options.banner,

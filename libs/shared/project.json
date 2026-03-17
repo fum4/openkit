@@ -2,28 +2,5 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "name": "shared",
   "projectType": "library",
-  "sourceRoot": "libs/shared/src",
-  "targets": {
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/shared",
-        "command": "pnpm typecheck"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/shared",
-        "command": "pnpm lint"
-      }
-    },
-    "test": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/shared",
-        "command": "pnpm test"
-      }
-    }
-  }
+  "sourceRoot": "libs/shared/src"
 }

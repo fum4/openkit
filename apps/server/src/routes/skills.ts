@@ -214,7 +214,8 @@ function createDeploy(deployDir: string, skillName: string): { success: boolean;
       // ENOENT — nothing there, fine
     }
 
-    symlinkSync(targetPath, linkPath);
+    const relativePath = path.relative(path.dirname(linkPath), targetPath);
+    symlinkSync(relativePath, linkPath);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : "Failed to create symlink" };

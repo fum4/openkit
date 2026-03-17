@@ -18,7 +18,7 @@
     "dev:web-app": "pnpm nx run-many -t dev --projects server,web-app --parallel=2",
     "dev:mobile-app": "pnpm nx run mobile-app:dev",
     "dev:desktop-app": "pnpm nx run-many -t dev --projects web-app,cli,desktop-app --parallel=3",
-    "build": "pnpm nx run-many -t build",
+    "build": "pnpm nx run-many -t build --parallel",
     "build:cli": "pnpm nx run cli:build",
     "build:server": "pnpm nx run server:build",
     "build:website": "pnpm nx run website:build",
@@ -28,22 +28,21 @@
     "package": "pnpm nx run desktop-app:package",
     "package:mac": "pnpm nx run desktop-app:package:mac",
     "package:linux": "pnpm nx run desktop-app:package:linux",
-    "check:lint": "pnpm nx run-many -t lint",
-    "check:types": "pnpm nx run-many -t typecheck",
-    "check:format": "oxfmt --check .",
-    "check:all": "pnpm check:format && pnpm nx run-many -t lint,typecheck",
-    "check:affected": "pnpm check:format && pnpm nx affected -t lint,typecheck --base=${NX_BASE:-origin/master} --head=${NX_HEAD:-HEAD}",
-    "test": "pnpm nx run-many -t test",
-    "test:affected": "pnpm nx affected -t test --base=${NX_BASE:-origin/master} --head=${NX_HEAD:-HEAD}",
-    "test:coverage": "pnpm nx run-many -t test:coverage",
-    "fix:format": "oxfmt .",
-    "fix:lint": "oxlint --fix",
-    "fix:all": "pnpm fix:format && pnpm fix:lint",
+    "test": "pnpm nx run-many -t test --parallel",
+    "test:affected": "pnpm nx affected -t test --parallel --base=${NX_BASE:-origin/master} --head=${NX_HEAD:-HEAD}",
+    "test:coverage": "pnpm nx run-many -t test:coverage --parallel",
+    "check:types": "pnpm nx run-many -t check:types --parallel",
+    "check:format": "pnpm nx run-many -t check:format --parallel",
+    "check:lint": "pnpm nx run-many -t check:lint --parallel",
+    "check:all": "pnpm nx run-many -t check:types,check:format,check:lint --parallel",
+    "check:affected": "pnpm nx affected -t check:types,check:format,check:lint --parallel --base=${NX_BASE:-origin/master} --head=${NX_HEAD:-HEAD}",
+    "fix:format": "pnpm nx run-many -t fix:format --parallel",
+    "fix:lint": "pnpm nx run-many -t fix:lint --parallel",
+    "fix:all": "pnpm nx run-many -t fix:format,fix:lint --parallel",
     "lint-staged": "lint-staged",
     "prepare": "husky"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
@@ -63,7 +62,7 @@
       "oxfmt --check",
       "oxlint"
     ],
-    "*.{css,html,json,md,mdx,scss,yaml,yml}": "oxfmt --check"
+    "!(*lock*).{css,html,json,md,mdx,scss,yaml,yml}": "oxfmt --check"
   },
   "engines": {
     "node": ">=18",

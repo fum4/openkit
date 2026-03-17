@@ -2,4 +2,4 @@ import { Logger } from "@openkit/logger/node";
 
 export const log = new Logger("server");
 
-export { Logger, type LogEntry, type LogSink, type LogLevel } from "@openkit/logger/node";
+export { Logger, type LogLevel } from "@openkit/logger/node";

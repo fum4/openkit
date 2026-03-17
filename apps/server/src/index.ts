@@ -38,18 +38,15 @@ import { registerAgentCliRoutes } from "./routes/agent-cli";
 import { registerActivityRoutes } from "./routes/activity";
 import { registerEventRoutes } from "./routes/events";
 import { registerLogsRoutes } from "./routes/logs";
-import { registerMcpRoutes } from "./routes/mcp";
 import { registerMcpServerRoutes } from "./routes/mcp-servers";
 import { registerSkillRoutes } from "./routes/skills";
 import { registerClaudePluginRoutes } from "./routes/claude-plugins";
 import { registerClaudeCustomAgentRoutes } from "./routes/claude-custom-agents";
-import { registerMcpTransportRoute } from "./routes/mcp-transport";
 import { registerNotesRoutes } from "./routes/notes";
 import { registerTaskRoutes } from "./routes/tasks";
 import { registerTerminalRoutes } from "./routes/terminal";
 import { registerHooksRoutes } from "./routes/verification";
 import { registerNgrokConnectRoutes } from "./routes/ngrok-connect";
-import { isMcpSetupEnabled } from "./feature-flags";
 import { NotesManager } from "./notes-manager";
 import { TerminalManager } from "./terminal-manager";
 import { HooksManager } from "./verification-manager";
@@ -102,9 +99,7 @@ function findAvailablePort(startPort: number): Promise<number> {
 }
 
 function shouldLogOpsRequestPath(requestPath: string): boolean {
-  return (
-    requestPath.startsWith("/api/") || requestPath === "/mcp" || requestPath.startsWith("/_ok/")
-  );
+  return requestPath.startsWith("/api/") || requestPath.startsWith("/_ok/");
 }
 
 function normalizeContentType(contentType: string | null | undefined): string {
@@ -206,20 +201,27 @@ async function captureHttpResponsePayload(response: Response): Promise<Record<st
   }
 }
 
+const httpLog = log.get("http");
+const terminalLog = log.get("terminal");
+
 export function createWorktreeServer(manager: WorktreeManager) {
   const app = new Hono();
-  const mcpSetupEnabled = isMcpSetupEnabled();
   const terminalManager = new TerminalManager((event) => {
-    manager.getOpsLog().addEvent({
-      source: "terminal",
+    const level = event.level ?? (event.status === "failed" ? "error" : "info");
+    const status = event.status ?? "info";
+    const context = {
+      domain: "terminal",
       action: event.action,
-      level: event.level ?? (event.status === "failed" ? "error" : "info"),
-      status: event.status ?? "info",
-      message: event.message,
-      projectName: manager.getProjectName() ?? undefined,
+      status,
       worktreeId: event.worktreeId,
-      metadata: event.metadata,
-    });
+      projectName: manager.getProjectName() ?? undefined,
+      ...event.metadata,
+    };
+    if (level === "error") {
+      terminalLog.error(event.message, context);
+    } else {
+      terminalLog.info(event.message, context);
+    }
   });
   const notesManager = new NotesManager(manager.getConfigDir());
   const hooksManager = new HooksManager(manager);
@@ -302,42 +304,42 @@ export function createWorktreeServer(manager: WorktreeManager) {
       if (shouldLog) {
         const statusCode = c.res.status || 200;
         const responsePayloadMetadata = await captureHttpResponsePayload(c.res);
-        manager.getOpsLog().addEvent({
-          source: "http",
+        const message = `${c.req.method} ${requestPath} -> ${statusCode}`;
+        const context = {
+          domain: "http",
           action: "http.request",
-          level: statusCode >= 500 ? "error" : statusCode >= 400 ? "warning" : "info",
           status: statusCode >= 400 ? "failed" : "success",
-          message: `${c.req.method} ${requestPath} -> ${statusCode}`,
           projectName: manager.getProjectName() ?? undefined,
-          metadata: {
-            method: c.req.method,
-            path: requestPath,
-            statusCode,
-            durationMs: Date.now() - startedAt,
-            ...(requestTransport ? { requestTransport } : {}),
-            ...requestPayloadMetadata,
-            ...responsePayloadMetadata,
-          },
-        });
+          method: c.req.method,
+          path: requestPath,
+          statusCode,
+          durationMs: Date.now() - startedAt,
+          ...(requestTransport ? { requestTransport } : {}),
+          ...requestPayloadMetadata,
+          ...responsePayloadMetadata,
+        };
+        if (statusCode >= 500) {
+          httpLog.error(message, context);
+        } else if (statusCode >= 400) {
+          httpLog.warn(message, context);
+        } else {
+          httpLog.info(message, context);
+        }
       }
     }
   });
   app.onError((err, c) => {
-    log.error(`${c.req.method} ${c.req.path} → ${err.message}`);
-    manager.getOpsLog().addEvent({
-      source: "http",
+    httpLog.error(`${c.req.method} ${c.req.path} -> 500 ${err.message}`, {
+      domain: "http",
       action: "http.error",
-      level: "error",
       status: "failed",
-      message: `${c.req.method} ${c.req.path} -> ${err.message}`,
       projectName: manager.getProjectName() ?? undefined,
-      metadata: {
-        method: c.req.method,
-        path: c.req.path,
-        error: err.message,
-      },
+      method: c.req.method,
+      path: c.req.path,
+      statusCode: 500,
+      error: err.message,
+      stack: err.stack,
     });
-    if (process.env.DEBUG) log.debug(err.stack ?? "");
     return c.json({ error: err.message }, 500);
   });
 
@@ -351,11 +353,6 @@ export function createWorktreeServer(manager: WorktreeManager) {
   registerEventRoutes(app, manager);
   registerActivityRoutes(app, manager.getActivityLog(), () => manager.getProjectName());
   registerLogsRoutes(app, manager);
-  if (mcpSetupEnabled) {
-    registerMcpRoutes(app, manager);
-  } else {
-    log.info("MCP setup routes disabled. Set OPENKIT_ENABLE_MCP_SETUP=1 to enable.");
-  }
   registerMcpServerRoutes(app, manager);
   registerSkillRoutes(app, manager);
   registerClaudePluginRoutes(app, manager);
@@ -365,7 +362,6 @@ export function createWorktreeServer(manager: WorktreeManager) {
   registerTerminalRoutes(app, manager, terminalManager, upgradeWebSocket);
   registerHooksRoutes(app, manager, hooksManager, notesManager);
   registerPerfRoutes(app, perfMonitor);
-  registerMcpTransportRoute(app, { manager, notesManager, hooksManager });
 
   // Background verification of all integration connections
   app.get("/api/integrations/verify", async (c) => {
@@ -493,11 +489,85 @@ export async function startWorktreeServer(
   const exitOnClose = options?.exitOnClose ?? true;
   const requestedPort = options?.port ?? DEFAULT_PORT;
   const manager = new WorktreeManager(config, configFilePath ?? null);
+  const commandLog = log.get("command");
   setCommandMonitorSink((event) => {
-    manager.getOpsLog().addCommandEvent(event, manager.getProjectName() ?? undefined);
+    const commandText = [event.command, ...event.args].join(" ");
+    const projectName = manager.getProjectName() ?? undefined;
+    const context = {
+      domain: "command",
+      action: "command.exec",
+      runId: event.runId,
+      projectName,
+      command: {
+        command: event.command,
+        args: event.args,
+        cwd: event.cwd,
+        pid: event.pid ?? null,
+        exitCode: event.exitCode ?? null,
+        signal: event.signal ?? null,
+        durationMs: event.durationMs,
+        stdout: event.stdout,
+        stderr: event.stderr,
+      },
+      phase: event.phase,
+      ...(event.error ? { error: event.error } : {}),
+    };
+    if (event.phase === "start") {
+      commandLog.started(`Started: ${commandText}`, context);
+    } else if (event.phase === "failure") {
+      commandLog.error(`Failed: ${commandText}${event.error ? ` (${event.error})` : ""}`, context);
+    } else {
+      commandLog.success(`Succeeded: ${commandText}`, context);
+    }
   });
+
+  const httpClientLog = log.get("http-client");
   setFetchMonitorSink((event) => {
-    manager.getOpsLog().addFetchEvent(event, manager.getProjectName() ?? undefined);
+    const method = (event.method ?? "GET").toUpperCase();
+    const urlPath = event.path ?? event.url ?? "/";
+    const statusCode = typeof event.statusCode === "number" ? event.statusCode : undefined;
+    const projectName = manager.getProjectName() ?? undefined;
+    const isFailure =
+      event.phase === "failure" || (typeof statusCode === "number" && statusCode >= 400);
+    const context = {
+      domain: "http",
+      action: "http.client",
+      status: isFailure ? "failed" : "success",
+      runId: event.runId,
+      projectName,
+      direction: "outbound",
+      method,
+      url: event.url,
+      path: urlPath,
+      ...(typeof statusCode === "number" ? { statusCode } : {}),
+      durationMs: event.durationMs,
+      source: event.source,
+      ...(event.requestContentType ? { requestContentType: event.requestContentType } : {}),
+      ...(event.requestPayload ? { requestPayload: event.requestPayload } : {}),
+      ...(event.requestPayloadTruncated ? { requestPayloadTruncated: true } : {}),
+      ...(event.requestPayloadOmitted ? { requestPayloadOmitted: true } : {}),
+      ...(event.requestPayloadError ? { requestPayloadError: event.requestPayloadError } : {}),
+      ...(event.requestTransport ? { requestTransport: event.requestTransport } : {}),
+      ...(event.responseContentType ? { responseContentType: event.responseContentType } : {}),
+      ...(event.responsePayload ? { responsePayload: event.responsePayload } : {}),
+      ...(event.responsePayloadTruncated ? { responsePayloadTruncated: true } : {}),
+      ...(event.responsePayloadOmitted ? { responsePayloadOmitted: true } : {}),
+      ...(event.responsePayloadError ? { responsePayloadError: event.responsePayloadError } : {}),
+      ...(event.responseTransport ? { responseTransport: event.responseTransport } : {}),
+      ...(event.error ? { error: event.error } : {}),
+    };
+    const message =
+      event.phase === "failure"
+        ? `${method} ${urlPath} -> ${event.error ?? "request failed"}`
+        : `${method} ${urlPath} -> ${statusCode ?? 0}`;
+
+    if (event.phase === "failure" || (typeof statusCode === "number" && statusCode >= 500)) {
+      httpClientLog.error(message, context);
+    } else if (isFailure) {
+      httpClientLog.warn(message, context);
+    } else {
+      httpClientLog.info(message, context);
+    }
   });
   ensureCliInPath();
   const { app, injectWebSocket, terminalManager } = createWorktreeServer(manager);

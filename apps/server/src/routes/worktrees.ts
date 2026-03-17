@@ -8,9 +8,12 @@ import {
   resolveCommandPath,
   withAugmentedPathEnv,
 } from "@openkit/shared/command-path";
+import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 import type { TerminalManager } from "../terminal-manager";
 import type { WorktreeCreateRequest, WorktreeRenameRequest } from "../types";
+
+const worktreeLog = log.get("worktree");
 
 const execFile = promisify(execFileCb);
 
@@ -520,19 +523,14 @@ export function registerWorktreeRoutes(
     }
     const canonicalWorktreeId = resolved.worktreeId;
     const deleteOpId = randomUUID();
-    manager.getOpsLog().addEvent({
-      source: "worktree",
+    worktreeLog.info("Worktree delete requested", {
+      domain: "worktree",
       action: "worktree.delete.request",
-      level: "info",
-      status: "info",
-      message: "Worktree delete requested",
-      projectName: manager.getProjectName() ?? undefined,
       worktreeId: canonicalWorktreeId,
-      metadata: {
-        deleteOpId,
-        requestedWorktreeId: id,
-        canonicalWorktreeId,
-      },
+      projectName: manager.getProjectName() ?? undefined,
+      deleteOpId,
+      requestedWorktreeId: id,
+      canonicalWorktreeId,
     });
     const result = await manager.removeWorktree(canonicalWorktreeId, {
       deleteOpId,

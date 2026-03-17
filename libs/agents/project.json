@@ -2,22 +2,5 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "name": "agents",
   "projectType": "library",
-  "sourceRoot": "libs/agents/src",
-  "implicitDependencies": ["shared", "logger"],
-  "targets": {
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/agents",
-        "command": "pnpm typecheck"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/agents",
-        "command": "pnpm lint"
-      }
-    }
-  }
+  "sourceRoot": "libs/agents/src"
 }

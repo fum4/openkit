@@ -43,7 +43,7 @@ const AGENT_INSTRUCTIONS: Partial<Record<AgentId, InstructionFile[]>> = {
     },
   ],
   // Codex and Gemini use single-file instruction systems (AGENTS.md, GEMINI.md)
-  // that we can't safely auto-deploy into. MCP_INSTRUCTIONS cover them.
+  // that we can't safely auto-deploy into.
 };
 
 export function deployAgentInstructions(agent: AgentId, projectDir: string, scope: Scope): void {

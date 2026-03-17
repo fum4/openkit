@@ -226,6 +226,16 @@ With `offsetStep: 10`:
 - Worktree 1: ports 3010, 5183
 - Worktree 2: ports 3020, 5193
 
+#### `framework`
+
+| Property     | Value                                                  |
+| ------------ | ------------------------------------------------------ |
+| **Type**     | `"react-native" \| "expo" \| "generic"`                |
+| **Default**  | _(auto-detected on startup and during port discovery)_ |
+| **Required** | No                                                     |
+
+Detected project framework, auto-set on startup and refreshed during port discovery. When set to `"react-native"` or `"expo"`, OpenKit adds Metro's default port (8081) to discovered ports, injects `RCT_METRO_PORT` into the env mapping, and runs `adb reverse` on worktree start. See [Port Mapping — React Native / Expo Support](PORT-MAPPING.md#react-native--expo-support).
+
 #### `activity`
 
 | Property     | Value     |
@@ -704,7 +714,7 @@ A runtime file written when the OpenKit server starts and deleted on shutdown. I
 
 ### Purpose
 
-- Used by `openkit mcp` to find a running server and start in proxy mode (relaying MCP messages to the HTTP server instead of spawning a standalone instance).
+- Used by CLI commands (e.g., `openkit activity`) to find a running server and POST events to it.
 - Used by `openkit connect` to connect the Electron app to an existing server.
 - The `pid` is validated with `process.kill(pid, 0)` to check whether the process is still alive. If the process is dead, the stale `server.json` is ignored.
 

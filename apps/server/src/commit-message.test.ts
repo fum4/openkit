@@ -5,7 +5,7 @@ import {
   wrapWithExportDefault,
   hasCustomCommitMessageRule,
   DEFAULT_COMMIT_MESSAGE_RULE,
-} from "./commit-message";
+} from "@openkit/shared/commit-message";
 
 vi.mock("fs", () => ({
   existsSync: vi.fn(),

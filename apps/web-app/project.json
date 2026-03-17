@@ -3,58 +3,12 @@
   "name": "web-app",
   "projectType": "application",
   "sourceRoot": "apps/web-app/src",
-  "implicitDependencies": ["server", "shared", "logger"],
   "targets": {
-    "dev": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/web-app",
-        "command": "pnpm dev"
-      }
-    },
     "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/apps/web-app/dist"],
-      "options": {
-        "cwd": "apps/web-app",
-        "command": "pnpm build"
-      }
-    },
-    "preview": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/web-app",
-        "command": "pnpm preview"
-      }
-    },
-    "start": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/web-app",
-        "command": "pnpm start"
-      }
-    },
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/web-app",
-        "command": "pnpm typecheck"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/web-app",
-        "command": "pnpm lint"
-      }
+      "outputs": ["{workspaceRoot}/apps/web-app/dist"]
     },
     "test": {
-      "executor": "nx:run-commands",
-      "dependsOn": ["logger:build"],
-      "options": {
-        "cwd": "apps/web-app",
-        "command": "pnpm test"
-      }
+      "dependsOn": ["logger:build"]
     }
   }
 }

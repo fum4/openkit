@@ -3,32 +3,16 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import path from "path";
 
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
+import type {
+  IssueSource,
+  GitPolicyOverride,
+  TodoItem,
+  HookSkillOverride,
+  IssueNotes,
+} from "@openkit/shared/notes-types";
 
-export type IssueSource = "jira" | "linear" | "local";
-
-export type GitPolicyOverride = "inherit" | "allow" | "deny";
-
-export interface TodoItem {
-  id: string;
-  text: string;
-  checked: boolean;
-  createdAt: string;
-}
-
-export type HookSkillOverride = "inherit" | "enable" | "disable";
-
-export interface IssueNotes {
-  linkedWorktreeId: string | null;
-  personal: { content: string; updatedAt: string } | null;
-  aiContext: { content: string; updatedAt: string } | null;
-  todos: TodoItem[];
-  gitPolicy?: {
-    agentCommits?: GitPolicyOverride;
-    agentPushes?: GitPolicyOverride;
-    agentPRs?: GitPolicyOverride;
-  };
-  hookSkills?: Record<string, HookSkillOverride>;
-}
+// Re-export shared types so server-internal imports stay unchanged
+export type { IssueSource, GitPolicyOverride, TodoItem, HookSkillOverride, IssueNotes };
 
 const EMPTY_NOTES: IssueNotes = {
   linkedWorktreeId: null,
