@@ -57,7 +57,7 @@ export interface TerminalSessionCreateResult {
   replacedScopedShellSession: boolean;
 }
 
-type TerminalDebugStatus = "info" | "succeeded" | "failed";
+type TerminalDebugStatus = "info" | "success" | "failed";
 
 interface TerminalDebugEvent {
   action: string;
@@ -324,7 +324,7 @@ export class TerminalManager {
               this.emitDebugEvent({
                 action: "terminal.session.scope",
                 message: "Reused scoped terminal session",
-                status: "succeeded",
+                status: "success",
                 worktreeId,
                 metadata: {
                   scope,
@@ -343,7 +343,7 @@ export class TerminalManager {
               this.emitDebugEvent({
                 action: "terminal.session.scope",
                 message: "Reused existing scoped agent terminal session",
-                status: "succeeded",
+                status: "success",
                 worktreeId,
                 metadata: {
                   scope,
@@ -413,7 +413,7 @@ export class TerminalManager {
     this.emitDebugEvent({
       action: "terminal.session.create",
       message: "Created terminal session",
-      status: "succeeded",
+      status: "success",
       worktreeId,
       metadata: {
         scope,
@@ -552,6 +552,30 @@ export class TerminalManager {
 
   getSessionWorktreeId(sessionId: string): string | null {
     return this.sessions.get(sessionId)?.worktreeId ?? null;
+  }
+
+  getActiveSessionInfo(): Array<{
+    sessionId: string;
+    worktreeId: string;
+    scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null;
+    pid: number | null;
+  }> {
+    const result: Array<{
+      sessionId: string;
+      worktreeId: string;
+      scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null;
+      pid: number | null;
+    }> = [];
+    for (const [id, session] of this.sessions) {
+      const pid = session.pty ? ((session.pty as unknown as { pid?: number }).pid ?? null) : null;
+      result.push({
+        sessionId: id,
+        worktreeId: session.worktreeId,
+        scope: session.scope,
+        pid,
+      });
+    }
+    return result;
   }
 
   getSessionIdForScope(

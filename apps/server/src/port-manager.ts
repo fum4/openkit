@@ -23,7 +23,7 @@ const DISCOVERY_STABILIZE_MS = 15_000;
 type PortDebugLogger = (event: {
   action: string;
   message: string;
-  status?: "info" | "succeeded" | "failed";
+  status?: "info" | "success" | "failed";
   level?: "debug" | "info" | "warning" | "error";
   metadata?: Record<string, unknown>;
 }) => void;
@@ -51,7 +51,7 @@ export class PortManager {
   private emitDebugEvent(event: {
     action: string;
     message: string;
-    status?: "info" | "succeeded" | "failed";
+    status?: "info" | "success" | "failed";
     level?: "debug" | "info" | "warning" | "error";
     metadata?: Record<string, unknown>;
   }): void {

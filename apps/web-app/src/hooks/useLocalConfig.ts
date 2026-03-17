@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { reportPersistentErrorToast } from "../errorToasts";
 import { useServerUrlOptional } from "../contexts/ServerContext";
 import { fetchLocalConfig as apiFetchLocalConfig } from "./api";
+import { useFileChangeEvent } from "./useFileChangeEvent";
 
 export interface LocalConfig {
   allowAgentCommits?: boolean;
@@ -40,6 +41,8 @@ export function useLocalConfig() {
     setIsLoading(true);
     fetchLocalConfig();
   }, [fetchLocalConfig]);
+
+  useFileChangeEvent("local-config", fetchLocalConfig);
 
   return { localConfig, isLoading, refetch: fetchLocalConfig };
 }

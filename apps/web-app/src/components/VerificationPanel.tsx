@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import {
   CircleCheck,
   FishingHook,
@@ -17,10 +18,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { HookSkillRef, HookStep, HookTrigger } from "../hooks/api";
 import { useApi } from "../hooks/useApi";
 import { useHooksConfig } from "../hooks/useHooks";
-import { infoBanner, settings, text } from "../theme";
+import { settings, text } from "../theme";
+import { InfoBanner } from "./InfoBanner";
 import { ToggleSwitch } from "./ToggleSwitch";
-
-const BANNER_DISMISSED_KEY = "OpenKit:hooksBannerDismissed";
 
 export function HooksPanel() {
   const { config, saveConfig, refetch } = useHooksConfig();
@@ -34,17 +34,9 @@ export function HooksPanel() {
   const [showImportPicker, setShowImportPicker] = useState<HookTrigger | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
-  const [bannerDismissed, setBannerDismissed] = useState(
-    () => localStorage.getItem(BANNER_DISMISSED_KEY) === "1",
-  );
-  const dismissBanner = () => {
-    setBannerDismissed(true);
-    localStorage.setItem(BANNER_DISMISSED_KEY, "1");
-  };
-
   if (!config)
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex items-center justify-center h-full">
         <div className="w-5 h-5 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -229,328 +221,330 @@ export function HooksPanel() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 flex flex-col gap-12">
-      {/* Dismissible info banner */}
-      {!bannerDismissed && (
-        <div
-          className={`flex items-start gap-3 px-4 py-3 rounded-xl border ${infoBanner.border} ${infoBanner.bg}`}
-        >
-          <FishingHook className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-          <p className={`text-[11px] ${text.secondary} leading-relaxed flex-1`}>
-            Hooks are automated checks and skills that validate your work, running at predefined
-            points in your workflow to ensure quality, consistency, and compliance throughout each
-            stage of the process.
-          </p>
-          <button
-            type="button"
-            onClick={dismissBanner}
-            className="p-1 rounded-md hover:bg-emerald-400/10 text-emerald-400/40 hover:text-emerald-400/70 transition-colors flex-shrink-0"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+      <div className="flex flex-col gap-4">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center">
+            <FishingHook className="w-4 h-4 text-amber-400" />
+          </div>
+          <h1 className="text-base font-medium text-[#f0f2f5]">Hooks</h1>
         </div>
-      )}
 
-      {/* Pre-Implementation section */}
-      <HooksSection
-        title="Pre-Implementation"
-        description="Run before agents start working on a task"
-        icon={<ListChecks className="w-3.5 h-3.5 text-sky-400" />}
-        steps={preSteps}
-        skills={preSkills}
-        hasItems={hasPreItems}
-        addingStep={addingStep === "pre-implementation"}
-        onStartAdding={() => {
-          setAddingPrompt(null);
-          setShowImportPicker(null);
-          setAddingStep("pre-implementation");
-        }}
-        onCancelAdding={() => {
-          setAddingStep(null);
-          setNewName("");
-          setNewCommand("");
-        }}
-        onAddStep={() => addStep("pre-implementation")}
-        addingPrompt={addingPrompt === "pre-implementation"}
-        onStartAddingPrompt={() => {
-          setAddingStep(null);
-          setShowImportPicker(null);
-          setAddingPrompt("pre-implementation");
-        }}
-        onCancelAddingPrompt={() => {
-          setAddingPrompt(null);
-          setNewPromptName("");
-          setNewPrompt("");
-        }}
-        onAddPrompt={() => addPrompt("pre-implementation")}
-        onShowImportPicker={() => {
-          setAddingStep(null);
-          setAddingPrompt(null);
-          setNewName("");
-          setNewCommand("");
-          setShowImportPicker("pre-implementation");
-        }}
-        showImportPicker={showImportPicker === "pre-implementation"}
-        onImportSkill={(name) => handleImportSkill(name, "pre-implementation")}
-        onCloseImportPicker={() => setShowImportPicker(null)}
-        newName={newName}
-        setNewName={setNewName}
-        newCommand={newCommand}
-        setNewCommand={setNewCommand}
-        newPromptName={newPromptName}
-        setNewPromptName={setNewPromptName}
-        newPrompt={newPrompt}
-        setNewPrompt={setNewPrompt}
-        nameRef={nameRef}
-        updateStep={updateStep}
-        removeStep={removeStep}
-        handleToggleSkill={handleToggleSkill}
-        handleRemoveSkill={handleRemoveSkill}
-        updateSkillCondition={updateSkillCondition}
-        allowPrompts
-      />
+        <InfoBanner storageKey="OpenKit:hooksBannerDismissed" color="amber">
+          Hooks are automated checks and skills that validate your work, running at predefined
+          points in your workflow to ensure quality, consistency, and compliance throughout each
+          stage of the process.
+        </InfoBanner>
+      </div>
 
-      {/* Post-Implementation section */}
-      <HooksSection
-        title="Post-Implementation"
-        description="Run after agents finish implementing a task"
-        icon={<CircleCheck className="w-3.5 h-3.5 text-emerald-400" />}
-        steps={postSteps}
-        skills={postSkills}
-        hasItems={hasPostItems}
-        addingStep={addingStep === "post-implementation"}
-        onStartAdding={() => {
-          setAddingPrompt(null);
-          setShowImportPicker(null);
-          setAddingStep("post-implementation");
-        }}
-        onCancelAdding={() => {
-          setAddingStep(null);
-          setNewName("");
-          setNewCommand("");
-        }}
-        onAddStep={() => addStep("post-implementation")}
-        addingPrompt={addingPrompt === "post-implementation"}
-        onStartAddingPrompt={() => {
-          setAddingStep(null);
-          setShowImportPicker(null);
-          setAddingPrompt("post-implementation");
-        }}
-        onCancelAddingPrompt={() => {
-          setAddingPrompt(null);
-          setNewPromptName("");
-          setNewPrompt("");
-        }}
-        onAddPrompt={() => addPrompt("post-implementation")}
-        onShowImportPicker={() => {
-          setAddingStep(null);
-          setAddingPrompt(null);
-          setNewName("");
-          setNewCommand("");
-          setShowImportPicker("post-implementation");
-        }}
-        showImportPicker={showImportPicker === "post-implementation"}
-        onImportSkill={(name) => handleImportSkill(name, "post-implementation")}
-        onCloseImportPicker={() => setShowImportPicker(null)}
-        newName={newName}
-        setNewName={setNewName}
-        newCommand={newCommand}
-        setNewCommand={setNewCommand}
-        newPromptName={newPromptName}
-        setNewPromptName={setNewPromptName}
-        newPrompt={newPrompt}
-        setNewPrompt={setNewPrompt}
-        nameRef={nameRef}
-        updateStep={updateStep}
-        removeStep={removeStep}
-        handleToggleSkill={handleToggleSkill}
-        handleRemoveSkill={handleRemoveSkill}
-        updateSkillCondition={updateSkillCondition}
-        allowPrompts
-      />
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="flex flex-col gap-12"
+      >
+        {/* Pre-Implementation section */}
+        <HooksSection
+          title="Pre-Implementation"
+          description="Run before agents start working on a task"
+          icon={<ListChecks className="w-3.5 h-3.5 text-sky-400" />}
+          steps={preSteps}
+          skills={preSkills}
+          hasItems={hasPreItems}
+          addingStep={addingStep === "pre-implementation"}
+          onStartAdding={() => {
+            setAddingPrompt(null);
+            setShowImportPicker(null);
+            setAddingStep("pre-implementation");
+          }}
+          onCancelAdding={() => {
+            setAddingStep(null);
+            setNewName("");
+            setNewCommand("");
+          }}
+          onAddStep={() => addStep("pre-implementation")}
+          addingPrompt={addingPrompt === "pre-implementation"}
+          onStartAddingPrompt={() => {
+            setAddingStep(null);
+            setShowImportPicker(null);
+            setAddingPrompt("pre-implementation");
+          }}
+          onCancelAddingPrompt={() => {
+            setAddingPrompt(null);
+            setNewPromptName("");
+            setNewPrompt("");
+          }}
+          onAddPrompt={() => addPrompt("pre-implementation")}
+          onShowImportPicker={() => {
+            setAddingStep(null);
+            setAddingPrompt(null);
+            setNewName("");
+            setNewCommand("");
+            setShowImportPicker("pre-implementation");
+          }}
+          showImportPicker={showImportPicker === "pre-implementation"}
+          onImportSkill={(name) => handleImportSkill(name, "pre-implementation")}
+          onCloseImportPicker={() => setShowImportPicker(null)}
+          newName={newName}
+          setNewName={setNewName}
+          newCommand={newCommand}
+          setNewCommand={setNewCommand}
+          newPromptName={newPromptName}
+          setNewPromptName={setNewPromptName}
+          newPrompt={newPrompt}
+          setNewPrompt={setNewPrompt}
+          nameRef={nameRef}
+          updateStep={updateStep}
+          removeStep={removeStep}
+          handleToggleSkill={handleToggleSkill}
+          handleRemoveSkill={handleRemoveSkill}
+          updateSkillCondition={updateSkillCondition}
+          allowPrompts
+        />
 
-      {/* Custom section */}
-      <CustomHooksSection
-        steps={customSteps}
-        skills={customSkills}
-        onAddStep={addCustomStep}
-        onAddPrompt={addCustomPrompt}
-        onUpdateStep={updateStep}
-        onRemoveStep={removeStep}
-        onImportSkill={handleImportCustomSkill}
-        onToggleSkill={(name, enabled) => handleToggleSkill(name, enabled, "custom")}
-        onRemoveSkill={(name) => handleRemoveSkill(name, "custom")}
-        onRemoveGroup={removeCustomGroup}
-        onUpdateGroup={updateCustomGroup}
-      />
+        {/* Post-Implementation section */}
+        <HooksSection
+          title="Post-Implementation"
+          description="Run after agents finish implementing a task"
+          icon={<CircleCheck className="w-3.5 h-3.5 text-emerald-400" />}
+          steps={postSteps}
+          skills={postSkills}
+          hasItems={hasPostItems}
+          addingStep={addingStep === "post-implementation"}
+          onStartAdding={() => {
+            setAddingPrompt(null);
+            setShowImportPicker(null);
+            setAddingStep("post-implementation");
+          }}
+          onCancelAdding={() => {
+            setAddingStep(null);
+            setNewName("");
+            setNewCommand("");
+          }}
+          onAddStep={() => addStep("post-implementation")}
+          addingPrompt={addingPrompt === "post-implementation"}
+          onStartAddingPrompt={() => {
+            setAddingStep(null);
+            setShowImportPicker(null);
+            setAddingPrompt("post-implementation");
+          }}
+          onCancelAddingPrompt={() => {
+            setAddingPrompt(null);
+            setNewPromptName("");
+            setNewPrompt("");
+          }}
+          onAddPrompt={() => addPrompt("post-implementation")}
+          onShowImportPicker={() => {
+            setAddingStep(null);
+            setAddingPrompt(null);
+            setNewName("");
+            setNewCommand("");
+            setShowImportPicker("post-implementation");
+          }}
+          showImportPicker={showImportPicker === "post-implementation"}
+          onImportSkill={(name) => handleImportSkill(name, "post-implementation")}
+          onCloseImportPicker={() => setShowImportPicker(null)}
+          newName={newName}
+          setNewName={setNewName}
+          newCommand={newCommand}
+          setNewCommand={setNewCommand}
+          newPromptName={newPromptName}
+          setNewPromptName={setNewPromptName}
+          newPrompt={newPrompt}
+          setNewPrompt={setNewPrompt}
+          nameRef={nameRef}
+          updateStep={updateStep}
+          removeStep={removeStep}
+          handleToggleSkill={handleToggleSkill}
+          handleRemoveSkill={handleRemoveSkill}
+          updateSkillCondition={updateSkillCondition}
+          allowPrompts
+        />
 
-      {/* On-Demand section */}
-      <HooksSection
-        title="On-Demand"
-        description="Manually triggered from the worktree view"
-        icon={<Hand className="w-3.5 h-3.5 text-amber-400" />}
-        steps={onDemandSteps}
-        skills={onDemandSkills}
-        hasItems={hasOnDemandItems}
-        addingStep={addingStep === "on-demand"}
-        onStartAdding={() => {
-          setAddingPrompt(null);
-          setShowImportPicker(null);
-          setAddingStep("on-demand");
-        }}
-        onCancelAdding={() => {
-          setAddingStep(null);
-          setNewName("");
-          setNewCommand("");
-        }}
-        onAddStep={() => addStep("on-demand")}
-        addingPrompt={false}
-        onStartAddingPrompt={() => {}}
-        onCancelAddingPrompt={() => {}}
-        onAddPrompt={() => {}}
-        onShowImportPicker={() => {
-          setAddingStep(null);
-          setAddingPrompt(null);
-          setNewName("");
-          setNewCommand("");
-          setShowImportPicker("on-demand");
-        }}
-        showImportPicker={showImportPicker === "on-demand"}
-        onImportSkill={(name) => handleImportSkill(name, "on-demand")}
-        onCloseImportPicker={() => setShowImportPicker(null)}
-        newName={newName}
-        setNewName={setNewName}
-        newCommand={newCommand}
-        setNewCommand={setNewCommand}
-        newPromptName={newPromptName}
-        setNewPromptName={setNewPromptName}
-        newPrompt={newPrompt}
-        setNewPrompt={setNewPrompt}
-        nameRef={nameRef}
-        updateStep={updateStep}
-        removeStep={removeStep}
-        handleToggleSkill={handleToggleSkill}
-        handleRemoveSkill={handleRemoveSkill}
-        updateSkillCondition={updateSkillCondition}
-        allowPrompts={false}
-      />
+        {/* Custom section */}
+        <CustomHooksSection
+          steps={customSteps}
+          skills={customSkills}
+          onAddStep={addCustomStep}
+          onAddPrompt={addCustomPrompt}
+          onUpdateStep={updateStep}
+          onRemoveStep={removeStep}
+          onImportSkill={handleImportCustomSkill}
+          onToggleSkill={(name, enabled) => handleToggleSkill(name, enabled, "custom")}
+          onRemoveSkill={(name) => handleRemoveSkill(name, "custom")}
+          onRemoveGroup={removeCustomGroup}
+          onUpdateGroup={updateCustomGroup}
+        />
 
-      {/* Worktree Created section */}
-      <HooksSection
-        title="Worktree Created"
-        description="Run automatically when a worktree is created"
-        icon={<FolderPlus className="w-3.5 h-3.5 text-cyan-400" />}
-        steps={worktreeCreatedSteps}
-        skills={worktreeCreatedSkills}
-        hasItems={hasWorktreeCreatedItems}
-        addingStep={addingStep === "worktree-created"}
-        onStartAdding={() => {
-          setAddingPrompt(null);
-          setShowImportPicker(null);
-          setAddingStep("worktree-created");
-        }}
-        onCancelAdding={() => {
-          setAddingStep(null);
-          setNewName("");
-          setNewCommand("");
-        }}
-        onAddStep={() => addStep("worktree-created")}
-        addingPrompt={addingPrompt === "worktree-created"}
-        onStartAddingPrompt={() => {
-          setAddingStep(null);
-          setShowImportPicker(null);
-          setAddingPrompt("worktree-created");
-        }}
-        onCancelAddingPrompt={() => {
-          setAddingPrompt(null);
-          setNewPromptName("");
-          setNewPrompt("");
-        }}
-        onAddPrompt={() => addPrompt("worktree-created")}
-        onShowImportPicker={() => {
-          setAddingStep(null);
-          setAddingPrompt(null);
-          setNewName("");
-          setNewCommand("");
-          setShowImportPicker("worktree-created");
-        }}
-        showImportPicker={showImportPicker === "worktree-created"}
-        onImportSkill={(name) => handleImportSkill(name, "worktree-created")}
-        onCloseImportPicker={() => setShowImportPicker(null)}
-        newName={newName}
-        setNewName={setNewName}
-        newCommand={newCommand}
-        setNewCommand={setNewCommand}
-        newPromptName={newPromptName}
-        setNewPromptName={setNewPromptName}
-        newPrompt={newPrompt}
-        setNewPrompt={setNewPrompt}
-        nameRef={nameRef}
-        updateStep={updateStep}
-        removeStep={removeStep}
-        handleToggleSkill={handleToggleSkill}
-        handleRemoveSkill={handleRemoveSkill}
-        updateSkillCondition={updateSkillCondition}
-        allowPrompts
-      />
+        {/* On-Demand section */}
+        <HooksSection
+          title="On-Demand"
+          description="Manually triggered from the worktree view"
+          icon={<Hand className="w-3.5 h-3.5 text-amber-400" />}
+          steps={onDemandSteps}
+          skills={onDemandSkills}
+          hasItems={hasOnDemandItems}
+          addingStep={addingStep === "on-demand"}
+          onStartAdding={() => {
+            setAddingPrompt(null);
+            setShowImportPicker(null);
+            setAddingStep("on-demand");
+          }}
+          onCancelAdding={() => {
+            setAddingStep(null);
+            setNewName("");
+            setNewCommand("");
+          }}
+          onAddStep={() => addStep("on-demand")}
+          addingPrompt={false}
+          onStartAddingPrompt={() => {}}
+          onCancelAddingPrompt={() => {}}
+          onAddPrompt={() => {}}
+          onShowImportPicker={() => {
+            setAddingStep(null);
+            setAddingPrompt(null);
+            setNewName("");
+            setNewCommand("");
+            setShowImportPicker("on-demand");
+          }}
+          showImportPicker={showImportPicker === "on-demand"}
+          onImportSkill={(name) => handleImportSkill(name, "on-demand")}
+          onCloseImportPicker={() => setShowImportPicker(null)}
+          newName={newName}
+          setNewName={setNewName}
+          newCommand={newCommand}
+          setNewCommand={setNewCommand}
+          newPromptName={newPromptName}
+          setNewPromptName={setNewPromptName}
+          newPrompt={newPrompt}
+          setNewPrompt={setNewPrompt}
+          nameRef={nameRef}
+          updateStep={updateStep}
+          removeStep={removeStep}
+          handleToggleSkill={handleToggleSkill}
+          handleRemoveSkill={handleRemoveSkill}
+          updateSkillCondition={updateSkillCondition}
+          allowPrompts={false}
+        />
 
-      {/* Worktree Removed section */}
-      <HooksSection
-        title="Worktree Removed"
-        description="Run automatically when a worktree is removed"
-        icon={<FolderMinus className="w-3.5 h-3.5 text-rose-400" />}
-        steps={worktreeRemovedSteps}
-        skills={worktreeRemovedSkills}
-        hasItems={hasWorktreeRemovedItems}
-        addingStep={addingStep === "worktree-removed"}
-        onStartAdding={() => {
-          setAddingPrompt(null);
-          setShowImportPicker(null);
-          setAddingStep("worktree-removed");
-        }}
-        onCancelAdding={() => {
-          setAddingStep(null);
-          setNewName("");
-          setNewCommand("");
-        }}
-        onAddStep={() => addStep("worktree-removed")}
-        addingPrompt={addingPrompt === "worktree-removed"}
-        onStartAddingPrompt={() => {
-          setAddingStep(null);
-          setShowImportPicker(null);
-          setAddingPrompt("worktree-removed");
-        }}
-        onCancelAddingPrompt={() => {
-          setAddingPrompt(null);
-          setNewPromptName("");
-          setNewPrompt("");
-        }}
-        onAddPrompt={() => addPrompt("worktree-removed")}
-        onShowImportPicker={() => {
-          setAddingStep(null);
-          setAddingPrompt(null);
-          setNewName("");
-          setNewCommand("");
-          setShowImportPicker("worktree-removed");
-        }}
-        showImportPicker={showImportPicker === "worktree-removed"}
-        onImportSkill={(name) => handleImportSkill(name, "worktree-removed")}
-        onCloseImportPicker={() => setShowImportPicker(null)}
-        newName={newName}
-        setNewName={setNewName}
-        newCommand={newCommand}
-        setNewCommand={setNewCommand}
-        newPromptName={newPromptName}
-        setNewPromptName={setNewPromptName}
-        newPrompt={newPrompt}
-        setNewPrompt={setNewPrompt}
-        nameRef={nameRef}
-        updateStep={updateStep}
-        removeStep={removeStep}
-        handleToggleSkill={handleToggleSkill}
-        handleRemoveSkill={handleRemoveSkill}
-        updateSkillCondition={updateSkillCondition}
-        allowPrompts
-      />
+        {/* Worktree Created section */}
+        <HooksSection
+          title="Worktree Created"
+          description="Run automatically when a worktree is created"
+          icon={<FolderPlus className="w-3.5 h-3.5 text-cyan-400" />}
+          steps={worktreeCreatedSteps}
+          skills={worktreeCreatedSkills}
+          hasItems={hasWorktreeCreatedItems}
+          addingStep={addingStep === "worktree-created"}
+          onStartAdding={() => {
+            setAddingPrompt(null);
+            setShowImportPicker(null);
+            setAddingStep("worktree-created");
+          }}
+          onCancelAdding={() => {
+            setAddingStep(null);
+            setNewName("");
+            setNewCommand("");
+          }}
+          onAddStep={() => addStep("worktree-created")}
+          addingPrompt={addingPrompt === "worktree-created"}
+          onStartAddingPrompt={() => {
+            setAddingStep(null);
+            setShowImportPicker(null);
+            setAddingPrompt("worktree-created");
+          }}
+          onCancelAddingPrompt={() => {
+            setAddingPrompt(null);
+            setNewPromptName("");
+            setNewPrompt("");
+          }}
+          onAddPrompt={() => addPrompt("worktree-created")}
+          onShowImportPicker={() => {
+            setAddingStep(null);
+            setAddingPrompt(null);
+            setNewName("");
+            setNewCommand("");
+            setShowImportPicker("worktree-created");
+          }}
+          showImportPicker={showImportPicker === "worktree-created"}
+          onImportSkill={(name) => handleImportSkill(name, "worktree-created")}
+          onCloseImportPicker={() => setShowImportPicker(null)}
+          newName={newName}
+          setNewName={setNewName}
+          newCommand={newCommand}
+          setNewCommand={setNewCommand}
+          newPromptName={newPromptName}
+          setNewPromptName={setNewPromptName}
+          newPrompt={newPrompt}
+          setNewPrompt={setNewPrompt}
+          nameRef={nameRef}
+          updateStep={updateStep}
+          removeStep={removeStep}
+          handleToggleSkill={handleToggleSkill}
+          handleRemoveSkill={handleRemoveSkill}
+          updateSkillCondition={updateSkillCondition}
+          allowPrompts
+        />
+
+        {/* Worktree Removed section */}
+        <HooksSection
+          title="Worktree Removed"
+          description="Run automatically when a worktree is removed"
+          icon={<FolderMinus className="w-3.5 h-3.5 text-rose-400" />}
+          steps={worktreeRemovedSteps}
+          skills={worktreeRemovedSkills}
+          hasItems={hasWorktreeRemovedItems}
+          addingStep={addingStep === "worktree-removed"}
+          onStartAdding={() => {
+            setAddingPrompt(null);
+            setShowImportPicker(null);
+            setAddingStep("worktree-removed");
+          }}
+          onCancelAdding={() => {
+            setAddingStep(null);
+            setNewName("");
+            setNewCommand("");
+          }}
+          onAddStep={() => addStep("worktree-removed")}
+          addingPrompt={addingPrompt === "worktree-removed"}
+          onStartAddingPrompt={() => {
+            setAddingStep(null);
+            setShowImportPicker(null);
+            setAddingPrompt("worktree-removed");
+          }}
+          onCancelAddingPrompt={() => {
+            setAddingPrompt(null);
+            setNewPromptName("");
+            setNewPrompt("");
+          }}
+          onAddPrompt={() => addPrompt("worktree-removed")}
+          onShowImportPicker={() => {
+            setAddingStep(null);
+            setAddingPrompt(null);
+            setNewName("");
+            setNewCommand("");
+            setShowImportPicker("worktree-removed");
+          }}
+          showImportPicker={showImportPicker === "worktree-removed"}
+          onImportSkill={(name) => handleImportSkill(name, "worktree-removed")}
+          onCloseImportPicker={() => setShowImportPicker(null)}
+          newName={newName}
+          setNewName={setNewName}
+          newCommand={newCommand}
+          setNewCommand={setNewCommand}
+          newPromptName={newPromptName}
+          setNewPromptName={setNewPromptName}
+          newPrompt={newPrompt}
+          setNewPrompt={setNewPrompt}
+          nameRef={nameRef}
+          updateStep={updateStep}
+          removeStep={removeStep}
+          handleToggleSkill={handleToggleSkill}
+          handleRemoveSkill={handleRemoveSkill}
+          updateSkillCondition={updateSkillCondition}
+          allowPrompts
+        />
+      </motion.div>
     </div>
   );
 }

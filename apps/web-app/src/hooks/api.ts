@@ -726,6 +726,8 @@ export async function fetchConfig(serverUrl: string | null = null): Promise<{
     envMapping?: Record<string, string>;
   };
   projectName?: string;
+  instanceName?: string;
+  instanceBranch?: string;
   hasBranchNameRule?: boolean;
   error?: string;
 }> {
@@ -1706,6 +1708,11 @@ export async function fetchWorktrees(serverUrl: string | null = null): Promise<{
 // Get SSE URL for events
 export function getEventsUrl(serverUrl: string | null = null): string {
   return `${getBaseUrl(serverUrl)}/api/events`;
+}
+
+// Get SSE URL for performance stream
+export function getPerfStreamUrl(serverUrl: string | null = null): string {
+  return `${getBaseUrl(serverUrl)}/api/perf/stream`;
 }
 
 // Fetch ports info

@@ -5,6 +5,7 @@ import type { Hono } from "hono";
 
 import { APP_NAME, CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { detectConfig } from "@openkit/shared/detect-config";
+import { getWorktreeBranch } from "@openkit/shared/git";
 import {
   type BranchSource,
   hasCustomBranchNameRule,
@@ -83,7 +84,10 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
 
     const config = manager.getConfig();
     const projectName = manager.getProjectName();
-    return c.json({ config, projectName, hasBranchNameRule: true });
+    const gitRoot = manager.getGitRoot();
+    const instanceBranch = getWorktreeBranch(gitRoot) || null;
+    const instanceName = path.basename(gitRoot);
+    return c.json({ config, projectName, hasBranchNameRule: true, instanceName, instanceBranch });
   });
 
   app.get("/api/config/features", (c) => {

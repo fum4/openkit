@@ -45,6 +45,8 @@ export function useConfig() {
   const serverUrl = useServerUrlOptional();
   const [config, setConfig] = useState<WorktreeConfig | null>(null);
   const [projectName, setProjectName] = useState<string | null>(null);
+  const [instanceName, setInstanceName] = useState<string | null>(null);
+  const [instanceBranch, setInstanceBranch] = useState<string | null>(null);
   const [hasBranchNameRule, setHasBranchNameRule] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,6 +54,8 @@ export function useConfig() {
     if (serverUrl === null) {
       setConfig(null);
       setProjectName(null);
+      setInstanceName(null);
+      setInstanceBranch(null);
       setHasBranchNameRule(false);
       setIsLoading(false);
       return;
@@ -61,6 +65,8 @@ export function useConfig() {
       const data = await apiFetchConfig(serverUrl);
       setConfig(data.config || null);
       setProjectName(data.projectName || null);
+      setInstanceName(data.instanceName || null);
+      setInstanceBranch(data.instanceBranch || null);
       setHasBranchNameRule(data.hasBranchNameRule ?? false);
     } catch (error) {
       reportPersistentErrorToast(error, "Failed to fetch config", { scope: "config:fetch" });
@@ -74,7 +80,26 @@ export function useConfig() {
     fetchConfig();
   }, [fetchConfig]);
 
-  return { config, projectName, hasBranchNameRule, isLoading, refetch: fetchConfig };
+  // Listen for external config file changes pushed via SSE
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.config) setConfig(detail.config);
+      if (detail?.projectName !== undefined) setProjectName(detail.projectName);
+    };
+    window.addEventListener("OpenKit:config-changed", handler);
+    return () => window.removeEventListener("OpenKit:config-changed", handler);
+  }, []);
+
+  return {
+    config,
+    projectName,
+    instanceName,
+    instanceBranch,
+    hasBranchNameRule,
+    isLoading,
+    refetch: fetchConfig,
+  };
 }
 
 // Re-export API functions that components use directly

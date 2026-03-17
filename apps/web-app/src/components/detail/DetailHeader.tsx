@@ -385,11 +385,6 @@ export function DetailHeader({
               />
             </>
           )}
-          {worktree.ports.length > 0 && (
-            <span className={`text-[11px] font-mono ${text.muted}`}>
-              {worktree.ports.map((p) => `:${p}`).join(" ")}
-            </span>
-          )}
         </div>
       </div>
 
@@ -504,14 +499,23 @@ export function DetailHeader({
         </div>
       )}
 
-      {!!(worktree.linesAdded || worktree.linesRemoved) && (
-        <div className="flex items-center gap-2 mt-3">
-          <span className="text-[11px] font-medium text-accent/60">
-            +{worktree.linesAdded ?? 0}
-          </span>
-          <span className="text-[11px] font-medium opacity-60" style={{ color: palette.red }}>
-            -{worktree.linesRemoved ?? 0}
-          </span>
+      {(!!(worktree.linesAdded || worktree.linesRemoved) || worktree.ports.length > 0) && (
+        <div className="flex items-center gap-3 mt-3">
+          {!!(worktree.linesAdded || worktree.linesRemoved) && (
+            <>
+              <span className="text-[11px] font-medium text-accent/60">
+                +{worktree.linesAdded ?? 0}
+              </span>
+              <span className="text-[11px] font-medium opacity-60" style={{ color: palette.red }}>
+                -{worktree.linesRemoved ?? 0}
+              </span>
+            </>
+          )}
+          {worktree.ports.length > 0 && (
+            <span className={`text-[11px] ml-2 font-mono ${text.muted}`}>
+              <strong>Ports</strong> {worktree.ports.map((p) => `:${p}`).join(" ")}
+            </span>
+          )}
         </div>
       )}
     </div>

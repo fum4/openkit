@@ -41,9 +41,10 @@ import { AgentsView } from "./components/AgentsView";
 import { ActivityPage } from "./components/ActivityPage";
 import { ProjectSetupScreen } from "./components/ProjectSetupScreen";
 import { HooksPanel } from "./components/VerificationPanel";
+import { PerformancePage } from "./components/PerformancePage";
 import { ResizableHandle } from "./components/ResizableHandle";
 import { SetupCommitModal } from "./components/SetupCommitModal";
-import type { View } from "./components/NavBar";
+import type { View } from "./components/Header";
 import type { WorktreeInfo } from "./types";
 import { TabBar } from "./components/TabBar";
 import { WelcomeScreen } from "./components/WelcomeScreen";
@@ -364,6 +365,8 @@ export default function App() {
   const {
     config,
     projectName,
+    instanceName,
+    instanceBranch,
     hasBranchNameRule,
     isLoading: configLoading,
     refetch: refetchConfig,
@@ -937,6 +940,9 @@ export default function App() {
           break;
         case "nav-activity":
           setActiveView("activity");
+          break;
+        case "nav-performance":
+          setActiveView("performance");
           break;
         case "nav-integrations":
           setActiveView("integrations");
@@ -2851,10 +2857,11 @@ export default function App() {
 
   return (
     <div className={`h-screen flex flex-col ${surface.page} ${text.body} relative overflow-hidden`}>
-      {/* Animated background blobs — settings/integrations/hooks only */}
+      {/* Animated background blobs — settings/integrations/hooks/performance only */}
       {(activeView === "configuration" ||
         activeView === "integrations" ||
-        activeView === "hooks") && (
+        activeView === "hooks" ||
+        activeView === "performance") && (
         <div className="fixed inset-0 pointer-events-none z-0">
           <div
             className="absolute w-[1400px] h-[1000px] rounded-full"
@@ -2955,6 +2962,8 @@ export default function App() {
           activeView={activeView}
           onChangeView={setActiveView}
           currentProjectName={projectName ?? activeProject?.name ?? null}
+          instanceName={instanceName}
+          instanceBranch={instanceBranch}
           disabledActivityEventTypes={config?.activity?.disabledEvents ?? []}
           onNavigateToWorktree={handleNavigateToWorktree}
           onNavigateToIssue={handleNavigateToIssue}
@@ -3284,10 +3293,16 @@ export default function App() {
         </div>
       )}
 
+      {activeView === "performance" && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <PerformancePage />
+        </div>
+      )}
+
       {(activeView === "configuration" ||
         activeView === "integrations" ||
         activeView === "hooks") && (
-        <div className="flex-1 min-h-0 overflow-y-auto -mt-12 pt-12 pb-20">
+        <div key={activeView} className="flex-1 min-h-0 overflow-y-auto -mt-12 pt-12 pb-20">
           {activeView === "configuration" && (
             <ConfigurationPanel
               config={config}

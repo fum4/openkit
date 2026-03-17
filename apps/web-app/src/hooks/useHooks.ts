@@ -9,6 +9,7 @@ import {
   saveHooksConfig as apiSaveConfig,
   type HooksConfig,
 } from "./api";
+import { useFileChangeEvent } from "./useFileChangeEvent";
 
 export function useHooksConfig() {
   const serverUrl = useServerUrlOptional();
@@ -25,6 +26,8 @@ export function useHooksConfig() {
     enabled: serverUrl !== null,
     staleTime: 30_000,
   });
+
+  useFileChangeEvent("hooks", refetch);
 
   const saveConfig = useCallback(
     async (newConfig: HooksConfig) => {

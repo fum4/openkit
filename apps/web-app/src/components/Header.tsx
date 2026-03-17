@@ -18,8 +18,16 @@ import {
   isActionRequiredEvent,
   type ActivityFilterGroup,
 } from "./ActivityFeed";
-import type { View } from "./NavBar";
 import { nav } from "../theme";
+
+export type View =
+  | "workspace"
+  | "agents"
+  | "activity"
+  | "hooks"
+  | "configuration"
+  | "integrations"
+  | "performance";
 
 const tabs: { id: View; label: string }[] = [
   { id: "workspace", label: "Workspace" },
@@ -27,6 +35,7 @@ const tabs: { id: View; label: string }[] = [
   { id: "agents", label: "Agents" },
   { id: "hooks", label: "Hooks" },
   { id: "integrations", label: "Integrations" },
+  { id: "performance", label: "Performance" },
   { id: "configuration", label: "Settings" },
 ];
 
@@ -34,6 +43,8 @@ interface HeaderProps {
   activeView: View;
   onChangeView: (view: View) => void;
   currentProjectName?: string | null;
+  instanceName?: string | null;
+  instanceBranch?: string | null;
   onNavigateToWorktree?: (target: {
     worktreeId: string;
     projectName?: string;
@@ -75,6 +86,8 @@ export function Header({
   activeView,
   onChangeView,
   currentProjectName,
+  instanceName,
+  instanceBranch,
   onNavigateToWorktree,
   onNavigateToIssue,
   disabledActivityEventTypes,
@@ -404,6 +417,23 @@ export function Header({
       className="h-[4.25rem] flex-shrink-0 relative bg-[#0c0e12]/60 backdrop-blur-md z-40"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
+      {/* Left: selected worktree + branch */}
+      {instanceName && (
+        <div
+          className="absolute left-20 bottom-[1.375rem] flex items-center gap-2"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
+          <span className="text-[11px] font-medium text-[#9ca3af] truncate max-w-[160px]">
+            {instanceName}
+          </span>
+          {instanceBranch && instanceBranch !== instanceName && (
+            <span className="text-[11px] text-[#4b5563] truncate max-w-[160px]">
+              {instanceBranch}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Center: nav tabs */}
       <div
         className="absolute inset-x-0 bottom-[1.375rem] flex justify-center"

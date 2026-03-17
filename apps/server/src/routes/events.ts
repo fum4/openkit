@@ -64,6 +64,22 @@ export function registerEventRoutes(app: Hono, manager: WorktreeManager) {
           }
         });
 
+        const unsubscribeFileChange = manager.subscribeFileChange((category) => {
+          try {
+            if (category === "config") {
+              const config = manager.getConfig();
+              const projectName = manager.getProjectName();
+              controller.enqueue(
+                `data: ${JSON.stringify({ type: "config-changed", config, projectName })}\n\n`,
+              );
+            } else {
+              controller.enqueue(`data: ${JSON.stringify({ type: "file-changed", category })}\n\n`);
+            }
+          } catch {
+            unsubscribeFileChange();
+          }
+        });
+
         const unsubscribeActivity = activityLog.subscribe((event) => {
           try {
             controller.enqueue(`data: ${JSON.stringify({ type: "activity", event })}\n\n`);
@@ -84,6 +100,7 @@ export function registerEventRoutes(app: Hono, manager: WorktreeManager) {
           unsubscribeWorktrees();
           unsubscribeNotifications();
           unsubscribeHookUpdates();
+          unsubscribeFileChange();
           unsubscribeActivity();
           unsubscribeOpsLog();
           controller.close();
