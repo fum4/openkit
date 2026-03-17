@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "fs";
+import { mkdirSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import { tmpdir } from "os";
 
@@ -13,14 +13,27 @@ vi.mock("./logger", () => ({
   },
 }));
 
+const createdDirs: string[] = [];
+
 function createTempDir(): string {
   const dir = path.join(
     tmpdir(),
     `openkit-framework-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   mkdirSync(dir, { recursive: true });
+  createdDirs.push(dir);
   return dir;
 }
+
+afterAll(() => {
+  for (const dir of createdDirs) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors in tests
+    }
+  }
+});
 
 function writePackageJson(
   dir: string,
@@ -178,6 +191,18 @@ module.exports = {
       `module.exports = { server: { port: 99999 } };`,
     );
 
+    expect(detectMetroPort(dir)).toBe(8081);
+  });
+
+  it("does not match port-like keys such as reportPort", () => {
+    const dir = createTempDir();
+    writeFileSync(
+      path.join(dir, "metro.config.js"),
+      `module.exports = { server: { reportPort: 9999 } };`,
+    );
+
+    // The regex requires "port" to be standalone (not preceded by alphanumerics),
+    // so keys like "reportPort" are not matched.
     expect(detectMetroPort(dir)).toBe(8081);
   });
 });

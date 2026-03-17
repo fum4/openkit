@@ -15,7 +15,7 @@ export interface FrameworkDetection {
   needsAdbReverse: boolean;
 }
 
-const DEFAULT_METRO_PORT = 8081;
+export const DEFAULT_METRO_PORT = 8081;
 
 /**
  * Reads metro.config.js or metro.config.ts and extracts a custom server port
@@ -42,10 +42,13 @@ export function detectMetroPort(projectDir: string): number {
         }
       }
     } catch (err) {
-      log.debug(
-        `Failed to read ${filename}, falling back to default Metro port: ${err instanceof Error ? err.message : String(err)}`,
-        { domain: "framework-detect" },
-      );
+      log.debug("Failed to read Metro config, falling back to default Metro port", {
+        domain: "framework-detect",
+        projectDir,
+        configPath,
+        filename,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -72,8 +75,11 @@ export function detectFramework(projectDir: string): FrameworkDetection {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     deps = { ...pkg.dependencies, ...pkg.devDependencies };
   } catch (err) {
-    log.debug(`Failed to parse ${pkgPath}: ${err instanceof Error ? err.message : String(err)}`, {
+    log.debug("Failed to parse package.json for framework detection", {
       domain: "framework-detect",
+      projectDir,
+      pkgPath,
+      error: err instanceof Error ? err.message : String(err),
     });
     return generic;
   }

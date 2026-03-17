@@ -884,11 +884,11 @@ export class WorktreeManager {
       let killFn: (signal?: string) => void;
 
       if (usesPty) {
-        // RN/Expo: spawn via PTY so Metro gets a real TTY (QR code, interactive UI)
+        // RN/Expo: spawn via PTY so Metro gets a real TTY (QR code, interactive UI).
+        // Pass cmd + args directly to node-pty (no shell -lc wrapping) to avoid
+        // shell metacharacter interpretation in startCommand.
         const pty = resolveNodePtyModule();
-        const shell = process.env.SHELL || "/bin/zsh";
-        const fullCommand = [cmd, ...args].join(" ");
-        const ptyProcess = pty.spawn(shell, ["-lc", fullCommand], {
+        const ptyProcess = pty.spawn(cmd, args, {
           name: "xterm-256color",
           cols: 120,
           rows: 40,
@@ -900,7 +900,9 @@ export class WorktreeManager {
         });
 
         pid = ptyProcess.pid;
-        killFn = (signal) => ptyProcess.kill(signal);
+        // node-pty's kill() sends SIGTERM by default; avoid passing string signals
+        // as some platforms expect numeric values
+        killFn = () => ptyProcess.kill();
         ptyProcess.onData((data) => pushLogLines(data));
         ptyProcess.onExit(({ exitCode }) => handleExit(exitCode));
       } else {
@@ -971,11 +973,18 @@ export class WorktreeManager {
 
     try {
       process.kill(-processInfo.pid, "SIGTERM");
-    } catch {
+    } catch (err) {
+      log.debug(
+        `Process group kill failed for ${worktreeId} (pid ${processInfo.pid}), trying direct kill: ${err instanceof Error ? err.message : String(err)}`,
+        { domain: "worktree" },
+      );
       try {
-        processInfo.kill("SIGTERM");
-      } catch {
-        // Process may have already exited
+        processInfo.kill();
+      } catch (innerErr) {
+        log.debug(
+          `Direct kill also failed for ${worktreeId} (pid ${processInfo.pid}), process may have already exited: ${innerErr instanceof Error ? innerErr.message : String(innerErr)}`,
+          { domain: "worktree" },
+        );
       }
     }
 

@@ -22,6 +22,11 @@ function isLocalhost(host) {
   return LOCALHOST.has(host);
 }
 
+const DEBUG_ENABLED = process.env.__WM_DEBUG__ === "1";
+function debug(msg) {
+  if (DEBUG_ENABLED) process.stderr.write(`[wm-port-hook] ${msg}\n`);
+}
+
 if (offset > 0 && knownPortSet.size > 0) {
   const net = require("net");
 
@@ -42,7 +47,7 @@ if (offset > 0 && knownPortSet.size > 0) {
       } else {
         args[0] = Object.assign({}, args[0], { port: newPort });
       }
-      if (process.env.__WM_DEBUG__) console.log(`listen :${port} \u2192 :${newPort}`);
+      debug(`listen :${port} \u2192 :${newPort}`);
     }
 
     return origListen.apply(this, args);
@@ -59,7 +64,7 @@ if (offset > 0 && knownPortSet.size > 0) {
       const host = typeof args[1] === "string" ? args[1] : "localhost";
       if (knownPortSet.has(port) && isLocalhost(host)) {
         args[0] = port + offset;
-        if (process.env.__WM_DEBUG__) console.log(`connect :${port} \u2192 :${args[0]}`);
+        debug(`connect :${port} \u2192 :${args[0]}`);
       }
     }
     // Case 2: connect([options, cb]) — Node.js HTTP agent internal call
@@ -71,7 +76,7 @@ if (offset > 0 && knownPortSet.size > 0) {
         const host = opts.host || opts.hostname || "";
         if (port !== null && knownPortSet.has(port) && isLocalhost(host)) {
           inner[0] = Object.assign({}, opts, { port: port + offset });
-          if (process.env.__WM_DEBUG__) console.log(`connect :${port} \u2192 :${port + offset}`);
+          debug(`connect :${port} \u2192 :${port + offset}`);
         }
       }
     }
@@ -82,7 +87,7 @@ if (offset > 0 && knownPortSet.size > 0) {
       const host = opts.host || opts.hostname || "";
       if (port !== null && knownPortSet.has(port) && isLocalhost(host)) {
         args[0] = Object.assign({}, opts, { port: port + offset });
-        if (process.env.__WM_DEBUG__) console.log(`connect :${port} \u2192 :${port + offset}`);
+        debug(`connect :${port} \u2192 :${port + offset}`);
       }
     }
 

@@ -62,7 +62,11 @@ export function detectPackageManager(projectDir: string): string | null {
   if (existsSync(path.join(projectDir, "pnpm-lock.yaml"))) return "pnpm";
   if (existsSync(path.join(projectDir, "yarn.lock"))) return "yarn";
   if (existsSync(path.join(projectDir, "package-lock.json"))) return "npm";
-  if (existsSync(path.join(projectDir, "bun.lockb"))) return "bun";
+  if (
+    existsSync(path.join(projectDir, "bun.lockb")) ||
+    existsSync(path.join(projectDir, "bun.lock"))
+  )
+    return "bun";
   return null;
 }
 
@@ -77,12 +81,10 @@ function isReactNativeProject(projectDir: string): boolean {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     return "react-native" in deps || "expo" in deps;
-  } catch (err) {
-    // libs/shared has no logger — console.warn is acceptable here
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[detect-config] Failed to read ${pkgPath}: ${err instanceof Error ? err.message : String(err)}`,
-    );
+  } catch {
+    // libs/shared has no logger dependency — silently return false.
+    // The server-side detectFramework() in framework-detect.ts has proper
+    // structured logging for the same check.
     return false;
   }
 }

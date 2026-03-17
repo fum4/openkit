@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { detectFramework, type FrameworkDetection } from "./framework-detect";
+import { DEFAULT_METRO_PORT, detectFramework, type FrameworkDetection } from "./framework-detect";
 import { log } from "./logger";
 import type { WorktreeConfig } from "./types";
 
@@ -142,17 +142,18 @@ export class PortManager {
       return [];
     }
 
-    // Use first discovered port, or fall back to default Metro port (8081)
+    // Use first discovered port, or fall back to default Metro port
     // when discovery hasn't been run yet
-    const metroBasePort = this.config.ports.discovered[0] || 8081;
+    const metroBasePort = this.config.ports.discovered[0] || DEFAULT_METRO_PORT;
 
     // Skip if the user already specified --port in their start command
-    if (startCommand.includes("--port")) return [];
+    const trimmed = startCommand.trim();
+    if (trimmed.includes("--port")) return [];
 
     const metroOffsetPort = metroBasePort + offset;
 
     // npm requires "npm start -- --port X" to pass args through to the script
-    if (startCommand.startsWith("npm ") && !startCommand.startsWith("npx ")) {
+    if (trimmed.startsWith("npm ") && !trimmed.startsWith("npx ")) {
       return ["--", "--port", String(metroOffsetPort)];
     }
     return ["--port", String(metroOffsetPort)];
@@ -264,6 +265,9 @@ export class PortManager {
 
     // Expo CLI detects non-interactive environments (piped stdio → isTTY=false)
     // and disables networking automatically. Override this to keep Metro functional.
+    // NOTE: CI=0 is a broad side-effect — it also affects other tools in the process
+    // tree (test runners, linters, build tools) that check CI. EXPO_OFFLINE=0 alone
+    // is insufficient as Expo checks CI first. Accept the trade-off for now.
     if (framework === "expo") {
       env.CI = "0";
       env.EXPO_OFFLINE = "0";
@@ -271,8 +275,7 @@ export class PortManager {
 
     // For RN/Expo without discovered ports, provide RCT_METRO_PORT from default
     if (isRnOrExpo && !env.RCT_METRO_PORT) {
-      const defaultMetroPort = 8081;
-      env.RCT_METRO_PORT = String(defaultMetroPort + offset);
+      env.RCT_METRO_PORT = String(DEFAULT_METRO_PORT + offset);
     }
 
     return env;

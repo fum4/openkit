@@ -114,6 +114,12 @@ describe("detectPackageManager", () => {
     expect(detectPackageManager("/project")).toBe("bun");
   });
 
+  it("detects bun from bun.lock (text-based lockfile)", () => {
+    mockedExistsSync.mockImplementation((p) => String(p).endsWith("bun.lock"));
+
+    expect(detectPackageManager("/project")).toBe("bun");
+  });
+
   it("returns null when no lock file found", () => {
     mockedExistsSync.mockReturnValue(false);
 
