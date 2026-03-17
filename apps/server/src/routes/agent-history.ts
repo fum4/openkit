@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync } from "fs";
 import os from "os";
 import path from "path";
 
-import { log } from "../logger";
+import { log } from "@openkit/server/logger";
 
 export type RestorableAgent = "claude" | "codex";
 

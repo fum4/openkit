@@ -58,6 +58,7 @@ const LOCK_FILE = path.join(STATE_DIR, "electron.lock");
 
 export class ProjectManager {
   private projects = new Map<string, ProjectInternal>();
+  private pendingPorts = new Set<number>();
   private activeProjectId: string | null = null;
   private onChangeCallbacks: Array<() => void> = [];
 
@@ -116,15 +117,24 @@ export class ProjectManager {
   private async allocatePort(): Promise<number> {
     const usedPorts = new Set(Array.from(this.projects.values()).map((p) => p.port));
     let port = preferencesManager.getBasePort() + 1;
-    // Skip ports claimed by other projects AND ports that are actually in use on
-    // the system (e.g. leftover server processes from a previous session).
-    while ((usedPorts.has(port) || !(await isPortFree(port))) && port <= 65535) {
+    // Skip ports claimed by other projects, ports reserved by concurrent openProject()
+    // calls, AND ports that are actually in use on the system (e.g. leftover server
+    // processes from a previous session).
+    while (
+      (usedPorts.has(port) || this.pendingPorts.has(port) || !(await isPortFree(port))) &&
+      port <= 65535
+    ) {
       port++;
     }
     if (port > 65535) {
       throw new Error("No available port found");
     }
+    this.pendingPorts.add(port);
     return port;
+  }
+
+  private releasePendingPort(port: number): void {
+    this.pendingPorts.delete(port);
   }
 
   private notifyChange() {
@@ -163,8 +173,19 @@ export class ProjectManager {
     }
 
     const id = this.generateId(normalizedDir);
-    const port = await this.allocatePort();
     const name = this.getProjectName(normalizedDir);
+
+    // Spawn server — allocatePort() is inside try so failures return { success: false }
+    // instead of throwing, and pendingPorts is always cleaned up.
+    let port: number;
+    try {
+      port = await this.allocatePort();
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Failed to allocate port",
+      };
+    }
 
     const project: ProjectInternal = {
       id,
@@ -181,7 +202,6 @@ export class ProjectManager {
     this.activeProjectId = id;
     this.notifyChange();
 
-    // Spawn server
     try {
       const serverProcess = spawnServer(normalizedDir, port);
       project.serverProcess = serverProcess;
@@ -201,11 +221,18 @@ export class ProjectManager {
         }
       };
 
+      // Buffer stdout/stderr across chunks so markers split across data events
+      // are still matched (data events are chunk-based, not line-based).
+      let stdoutBuffer = "";
+      let stderrBuffer = "";
+
       // Listen for the server's actual port in case findAvailablePort() had to
       // pick a different one (e.g. a leftover server still holds the requested port).
       serverProcess.stdout?.on("data", (data: Buffer) => {
-        const text = data.toString();
-        for (const line of text.split("\n")) {
+        stdoutBuffer += data.toString();
+        const lines = stdoutBuffer.split("\n");
+        stdoutBuffer = lines.pop() ?? "";
+        for (const line of lines) {
           const portMatch = line.match(/^__OPENKIT_PORT__=(\d+)$/);
           if (portMatch) {
             const actualPort = parseInt(portMatch[1], 10);
@@ -221,8 +248,10 @@ export class ProjectManager {
       });
 
       serverProcess.stderr?.on("data", (data: Buffer) => {
-        const text = data.toString();
-        for (const line of text.split("\n")) {
+        stderrBuffer += data.toString();
+        const lines = stderrBuffer.split("\n");
+        stderrBuffer = lines.pop() ?? "";
+        for (const line of lines) {
           pushServerError(line);
         }
       });
@@ -267,10 +296,12 @@ export class ProjectManager {
       }
       this.notifyChange();
 
+      this.releasePendingPort(port);
       this.saveState();
       this.trySymlinkOpsLog(project);
       return { success: true, project: this.toPublicProject(project) };
     } catch (err) {
+      this.releasePendingPort(port);
       project.status = "error";
       project.error = err instanceof Error ? err.message : "Failed to start server";
       this.notifyChange();

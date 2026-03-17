@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs";
 import { Hono } from "hono";
 import path from "path";
 import { tmpdir } from "os";
@@ -22,14 +22,27 @@ vi.mock("../logger", () => ({
   },
 }));
 
+const tempDirs: string[] = [];
+
 function createTempConfigDir(): string {
   const dir = path.join(
     tmpdir(),
     `openkit-tasks-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   mkdirSync(dir, { recursive: true });
+  tempDirs.push(dir);
   return dir;
 }
+
+afterAll(() => {
+  for (const dir of tempDirs) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors in tests
+    }
+  }
+});
 
 function seedTask(configDir: string, task: { id: string; title: string; description: string }) {
   const taskDir = path.join(configDir, ".openkit", "issues", "local", task.id);

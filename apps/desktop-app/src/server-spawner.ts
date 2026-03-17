@@ -90,17 +90,27 @@ export async function waitForServerReady(
   timeout = 30000,
 ): Promise<boolean> {
   const start = Date.now();
+  let lastError: string | null = null;
+  let lastPort: number | null = null;
 
   while (Date.now() - start < timeout) {
     const port = typeof getPort === "function" ? getPort() : getPort;
+    lastPort = port;
     try {
       const res = await fetch(`http://localhost:${port}/api/config`);
       if (res.ok) return true;
-    } catch {
-      // Server not ready yet
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
+
+  log.warn("Server readiness timed out", {
+    domain: "server-spawner",
+    port: lastPort,
+    timeout,
+    lastError,
+  });
 
   return false;
 }

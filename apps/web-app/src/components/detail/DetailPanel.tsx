@@ -373,6 +373,7 @@ export function DetailPanel({
   const closeCodexRequestIdRef = useRef(0);
   const closeGeminiRequestIdRef = useRef(0);
   const closeOpenCodeRequestIdRef = useRef(0);
+  const restoreWorktreeIdRef = useRef<string | null>(null);
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
     log.debug(message, { domain: "auto-launch", ...extra });
   }, []);
@@ -964,11 +965,17 @@ export function DetailPanel({
   const handleOpenClaudeTab = useCallback(() => {
     if (!worktree || isResolvingAgentRestore) return;
 
+    const requestWorktreeId = worktree.id;
+    restoreWorktreeIdRef.current = requestWorktreeId;
+
     void (async () => {
       setIsResolvingAgentRestore("claude");
       setAgentRestoreModal(null);
 
-      const restore = await api.fetchRestorableAgentSessions(worktree.id, "claude");
+      const restore = await api.fetchRestorableAgentSessions(requestWorktreeId, "claude");
+
+      // Bail out if the user switched worktrees while the request was in flight
+      if (restoreWorktreeIdRef.current !== requestWorktreeId) return;
 
       setIsResolvingAgentRestore((prev) => (prev === "claude" ? null : prev));
       if (!restore.success) {
@@ -978,7 +985,7 @@ export function DetailPanel({
 
       if (restore.activeSessionId) {
         launchAgentIntent("claude", {
-          worktreeId: worktree.id,
+          worktreeId: requestWorktreeId,
           mode: "resume-active",
           tabLabel: getAgentTabLabel("claude"),
         });
@@ -987,7 +994,7 @@ export function DetailPanel({
 
       if (restore.historyMatches.length === 1) {
         launchAgentIntent("claude", {
-          worktreeId: worktree.id,
+          worktreeId: requestWorktreeId,
           mode: "resume-history",
           sessionId: restore.historyMatches[0].sessionId,
           tabLabel: getAgentTabLabel("claude"),
@@ -1024,11 +1031,17 @@ export function DetailPanel({
   const handleOpenCodexTab = useCallback(() => {
     if (!worktree || isResolvingAgentRestore) return;
 
+    const requestWorktreeId = worktree.id;
+    restoreWorktreeIdRef.current = requestWorktreeId;
+
     void (async () => {
       setIsResolvingAgentRestore("codex");
       setAgentRestoreModal(null);
 
-      const restore = await api.fetchRestorableAgentSessions(worktree.id, "codex");
+      const restore = await api.fetchRestorableAgentSessions(requestWorktreeId, "codex");
+
+      // Bail out if the user switched worktrees while the request was in flight
+      if (restoreWorktreeIdRef.current !== requestWorktreeId) return;
 
       setIsResolvingAgentRestore((prev) => (prev === "codex" ? null : prev));
       if (!restore.success) {
@@ -1038,7 +1051,7 @@ export function DetailPanel({
 
       if (restore.activeSessionId) {
         launchAgentIntent("codex", {
-          worktreeId: worktree.id,
+          worktreeId: requestWorktreeId,
           mode: "resume-active",
           tabLabel: getAgentTabLabel("codex"),
         });
@@ -1047,7 +1060,7 @@ export function DetailPanel({
 
       if (restore.historyMatches.length === 1) {
         launchAgentIntent("codex", {
-          worktreeId: worktree.id,
+          worktreeId: requestWorktreeId,
           mode: "resume-history",
           sessionId: restore.historyMatches[0].sessionId,
           tabLabel: getAgentTabLabel("codex"),

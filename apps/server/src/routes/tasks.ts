@@ -459,8 +459,19 @@ export function registerTaskRoutes(
           worktreesPath,
           getHooksSnapshot(linkedWorktreeId),
         );
-      } catch {
-        // Non-critical — don't fail the task update
+      } catch (err) {
+        // Non-critical — don't fail the task update, but log for diagnosability
+        logTaskEvent({
+          action: "task.regenerate-taskmd",
+          message: `Failed to regenerate TASK.md for task ${task.id}`,
+          level: "warning",
+          status: "failed",
+          worktreeId: linkedWorktreeId,
+          metadata: {
+            taskId: task.id,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        });
       }
     }
 
