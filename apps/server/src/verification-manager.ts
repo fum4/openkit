@@ -192,26 +192,22 @@ export class HooksManager {
     });
   }
 
-  // ─── Skill results ─────────────────────────────────────────
+  // ─── Hooks file (combined steps + skills) ──────────────────
 
-  private skillResultsPath(worktreeId: string): string {
+  private hooksFilePath(worktreeId: string): string {
     return path.join(
       this.manager.getConfigDir(),
       CONFIG_DIR_NAME,
       "worktrees",
       worktreeId,
-      "hooks",
-      "skill-results.json",
+      "hooks.json",
     );
   }
 
   reportSkillResult(worktreeId: string, result: SkillHookResult): void {
-    const resultsPath = this.skillResultsPath(worktreeId);
-    this.ensureDir(path.dirname(resultsPath));
-
     const existing = this.getSkillResults(worktreeId);
     const resultTrigger = result.trigger ?? "post-implementation";
-    // Replace existing result for same skill, or append
+    // Replace existing result for same skill+trigger, or append
     const idx = existing.findIndex(
       (r) =>
         r.skillName === result.skillName &&
@@ -222,33 +218,14 @@ export class HooksManager {
     } else {
       existing.push({ ...result, trigger: resultTrigger });
     }
-    writeFileSync(resultsPath, JSON.stringify(existing, null, 2) + "\n");
 
-    // Notify the frontend via SSE
-    this.manager.emitHookUpdate(worktreeId);
+    const run = this.getStatus(worktreeId) ?? this.makeRun(worktreeId, "completed", []);
+    run.skills = existing;
+    this.persistRun(worktreeId, run);
   }
 
   getSkillResults(worktreeId: string): SkillHookResult[] {
-    const resultsPath = this.skillResultsPath(worktreeId);
-    if (!existsSync(resultsPath)) return [];
-    try {
-      return JSON.parse(readFileSync(resultsPath, "utf-8"));
-    } catch {
-      return [];
-    }
-  }
-
-  // ─── Run file ─────────────────────────────────────────────────
-
-  private runFilePath(worktreeId: string): string {
-    return path.join(
-      this.manager.getConfigDir(),
-      CONFIG_DIR_NAME,
-      "worktrees",
-      worktreeId,
-      "hooks",
-      "latest-run.json",
-    );
+    return this.getStatus(worktreeId)?.skills ?? [];
   }
 
   private ensureDir(dirPath: string): void {
@@ -300,9 +277,11 @@ export class HooksManager {
     const results = await Promise.all(
       enabledSteps.map((step) => this.executeStep(step, executionCwd, env)),
     );
-    // Persist lifecycle command results so they appear in the worktree Hooks tab
-    // alongside pre/post/custom/on-demand runs.
-    this.mergeAndPersistRun(worktreeId, results);
+    // Skip persist for worktree-removed — the worktree metadata directory is
+    // being deleted; persisting would recreate it via ensureDir().
+    if (trigger !== "worktree-removed") {
+      this.mergeAndPersistRun(worktreeId, results);
+    }
 
     const failed = results.filter((result) => result.status === "failed");
     if (failed.length > 0) {
@@ -475,7 +454,7 @@ export class HooksManager {
   // ─── Status ───────────────────────────────────────────────────
 
   getStatus(worktreeId: string): PipelineRun | null {
-    const runPath = this.runFilePath(worktreeId);
+    const runPath = this.hooksFilePath(worktreeId);
     if (!existsSync(runPath)) return null;
     try {
       return JSON.parse(readFileSync(runPath, "utf-8"));
@@ -502,7 +481,7 @@ export class HooksManager {
   }
 
   private persistRun(worktreeId: string, run: PipelineRun): void {
-    const runPath = this.runFilePath(worktreeId);
+    const runPath = this.hooksFilePath(worktreeId);
     this.ensureDir(path.dirname(runPath));
     writeFileSync(runPath, JSON.stringify(run, null, 2) + "\n");
     this.manager.emitHookUpdate(worktreeId);
@@ -531,6 +510,7 @@ export class HooksManager {
       startedAt: existing?.startedAt ?? new Date().toISOString(),
       completedAt: status === "running" ? undefined : new Date().toISOString(),
       steps: mergedSteps,
+      skills: existing?.skills,
     };
 
     this.persistRun(worktreeId, run);

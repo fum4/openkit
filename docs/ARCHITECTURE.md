@@ -43,6 +43,7 @@ flowchart TB
     OL["OpsLog\n(operational traces + command logs)"]
     CM["Command Monitor\n(execFile/execFileSync/spawn patch)"]
     VM["HooksManager\n(hooks: commands + skills)"]
+    PerfMon["PerfMonitor\n(CPU/memory metrics, ring buffer)"]
     NC["Ngrok Connect Routes\n(qr pairing + gateway proxy)"]
     GH["GitHubManager\n(PR status, git operations)"]
     Hook["port-hook.cjs\n(Node.js port patching)"]
@@ -70,6 +71,9 @@ flowchart TB
     Actions --> VM
     Actions --> AL
     CM --> OL
+    PerfMon --> WM
+    PerfMon --> TM
+    Routes --> PerfMon
     McpFactory --> Actions
     PM -->|env vars| Hook
     PM -->|env vars| NativeHook
@@ -183,6 +187,20 @@ Key responsibilities:
 - **Transport hints**: Marks `SSE` / `WS` transport metadata when detectable
 - **Safety**: Sink failures are non-fatal and cannot break fetch execution
 
+### PerfMonitor
+
+`apps/server/src/perf-monitor.ts` -- On-demand performance monitoring service that polls process CPU/memory metrics and streams them to SSE subscribers.
+
+Key responsibilities:
+
+- **Lazy lifecycle**: Starts polling when the first SSE subscriber connects, stops when the last disconnects
+- **PID collection**: Gathers PIDs from `WorktreeManager.getRunningProcessPids()` (dev servers), `pgrep -P` (child process trees, cached 10s), and `TerminalManager.getActiveSessionInfo()` (agent sessions)
+- **Metrics collection**: Uses `pidusage` to sample CPU percentage, RSS memory, and process uptime for each tracked PID
+- **Ring buffer**: Stores up to 150 `PerfSnapshot` entries (5 minutes at 2-second intervals) in memory
+- **Dead PID handling**: Returns null metrics for inaccessible/dead PIDs (logged at debug level, never surfaced to user)
+
+Shared types (`ProcessMetrics`, `WorktreeMetrics`, `AgentSessionMetrics`, `PerfSnapshot`) are defined in `libs/shared/src/perf-types.ts`.
+
 ### HooksManager
 
 `apps/server/src/verification-manager.ts` -- Manages automated checks and agent skills organized by trigger type. Contains two item types:
@@ -192,7 +210,7 @@ Key responsibilities:
 
 Six trigger types: `pre-implementation` (before agent work), `post-implementation` (after agent work), `custom` (agent decides based on condition), `on-demand` (manually triggered), `worktree-created` (auto-run after worktree creation), and `worktree-removed` (auto-run after worktree removal). Lifecycle triggers are command-only.
 
-Command step runs are persisted to `.openkit/worktrees/{id}/hooks/latest-run.json`. Skill results reported by agents are stored at `.openkit/worktrees/{id}/hooks/skill-results.json`.
+Command step runs and skill results are persisted together to `.openkit/worktrees/{id}/hooks.json`.
 
 Hooks are configured via `.openkit/hooks.json` with `steps` and `skills` arrays.
 
@@ -328,7 +346,7 @@ vite build
 
 Vite builds the React SPA through `apps/web-app/vite.config.ts` from `apps/web-app/src/` into `apps/web-app/dist/`. The Hono server serves UI from `apps/web-app/dist` when present, and falls back to downloaded UI components under `~/.openkit/components/web/current` when running in core-only installs. The Electron app loads `apps/web-app/dist/index.html` directly.
 
-The SPA includes multiple top-level product surfaces (Workspace, Agents, Activity, Hooks, Integrations, Settings). The Activity surface uses a per-project SSE model in the renderer (`useProjectActivityFeeds`) to render one activity card per open project while reusing the same feed panel component as the header bell dropdown. Each activity card also includes a `Debug` toggle that switches that card to an operational timeline powered by `useProjectOpsLogs` and `ops-log` SSE events.
+The SPA includes multiple top-level product surfaces (Workspace, Agents, Activity, Hooks, Integrations, Performance, Settings). The Activity surface uses a per-project SSE model in the renderer (`useProjectActivityFeeds`) to render one activity card per open project while reusing the same feed panel component as the header bell dropdown. Each activity card also includes a `Debug` toggle that switches that card to an operational timeline powered by `useProjectOpsLogs` and `ops-log` SSE events.
 
 ### Electron: tsc + electron-builder
 

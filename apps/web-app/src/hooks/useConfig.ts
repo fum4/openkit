@@ -74,7 +74,24 @@ export function useConfig() {
     fetchConfig();
   }, [fetchConfig]);
 
-  return { config, projectName, hasBranchNameRule, isLoading, refetch: fetchConfig };
+  // Listen for external config file changes pushed via SSE
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.config) setConfig(detail.config);
+      if (detail?.projectName !== undefined) setProjectName(detail.projectName);
+    };
+    window.addEventListener("OpenKit:config-changed", handler);
+    return () => window.removeEventListener("OpenKit:config-changed", handler);
+  }, []);
+
+  return {
+    config,
+    projectName,
+    hasBranchNameRule,
+    isLoading,
+    refetch: fetchConfig,
+  };
 }
 
 // Re-export API functions that components use directly

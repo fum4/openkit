@@ -27,7 +27,7 @@ import {
 
 import type { HookSkillRef, HookStep, SkillHookResult, StepResult } from "../../hooks/api";
 import { useApi } from "../../hooks/useApi";
-import { useEffectiveHooksConfig, useHookSkillResults } from "../../hooks/useHooks";
+import { useEffectiveHooksConfig } from "../../hooks/useHooks";
 import { settings, surface, text } from "../../theme";
 import { MarkdownContent } from "../MarkdownContent";
 import { Modal } from "../Modal";
@@ -397,9 +397,7 @@ export function HooksTab({
 }: HooksTabProps) {
   const api = useApi();
   const { config, refetch: refetchConfig } = useEffectiveHooksConfig(visible ? worktreeId : null);
-  const { results: skillResults, refetch: refetchSkillResults } = useHookSkillResults(
-    visible ? worktreeId : null,
-  );
+  const [skillResults, setSkillResults] = useState<SkillHookResult[]>([]);
   const [stepResults, setStepResults] = useState<Record<string, StepResult>>({});
   const [runningSteps, setRunningSteps] = useState<Set<string>>(new Set());
   const [runningAll, setRunningAll] = useState(false);
@@ -412,12 +410,13 @@ export function HooksTab({
   // Fetch latest status on mount / worktree change
   const fetchStatus = useCallback(async () => {
     const result = await api.fetchHooksStatus(worktreeId);
-    if (result.status?.steps) {
+    if (result.status) {
       const map: Record<string, StepResult> = {};
-      for (const step of result.status.steps) {
+      for (const step of result.status.steps ?? []) {
         map[step.stepId] = step;
       }
       setStepResults(map);
+      setSkillResults(result.status.skills ?? []);
     }
   }, [api, worktreeId]);
 
@@ -425,18 +424,16 @@ export function HooksTab({
     if (visible) {
       fetchStatus();
       refetchConfig();
-      refetchSkillResults();
     }
-  }, [visible, fetchStatus, refetchConfig, refetchSkillResults]);
+  }, [visible, fetchStatus, refetchConfig]);
 
   // Auto-refetch and auto-expand when hook updates arrive via SSE
   const prevStepResultsRef = useRef<Record<string, StepResult>>({});
   const prevSkillResultsRef = useRef(skillResults);
   useEffect(() => {
     if (!hookUpdateKey || !visible) return;
-    refetchSkillResults();
     fetchStatus();
-  }, [hookUpdateKey, visible, refetchSkillResults, fetchStatus]);
+  }, [hookUpdateKey, visible, fetchStatus]);
 
   // Auto-expand commands as soon as they fail
   useEffect(() => {
@@ -745,7 +742,7 @@ export function HooksTab({
           {hasWorktreeCreated && (
             <>
               <div className="flex items-center gap-2 px-4 pt-2 pb-3 mt-8">
-                <FolderPlus className="w-4 h-4 text-cyan-400" />
+                <FolderPlus className="w-4 h-4 text-emerald-400" />
                 <span className={`text-xs ${text.primary}`}>Worktree Created</span>
                 <span className={`text-[10px] ${text.muted}`}>
                   {worktreeCreatedSteps.length + worktreeCreatedSkills.length} item

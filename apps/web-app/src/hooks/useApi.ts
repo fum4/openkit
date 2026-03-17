@@ -619,9 +619,6 @@ export function useApi() {
         data: Parameters<typeof api.reportHookSkillResult>[1],
       ) => api.reportHookSkillResult(worktreeId, data, serverUrl),
 
-      fetchHookSkillResults: (worktreeId: string) =>
-        api.fetchHookSkillResults(worktreeId, serverUrl),
-
       fetchFileContent: (filePath: string) => api.fetchFileContent(filePath, serverUrl),
 
       fetchActiveTerminalSession: (

@@ -534,7 +534,7 @@ export function registerClaudePluginRoutes(app: Hono, manager: WorktreeManager) 
           action: "cli.exec",
           message: `${code === 0 ? "Succeeded" : "Failed"}: claude ${args.join(" ")} (${durationMs}ms, stdout=${trimmedOut.length}b, stderr=${trimmedErr.length}b)`,
           level: code === 0 && trimmedOut.length === 0 ? "warning" : code === 0 ? "info" : "error",
-          status: code === 0 ? "succeeded" : "failed",
+          status: code === 0 ? "success" : "failed",
           command: {
             command: resolvedPath,
             args,

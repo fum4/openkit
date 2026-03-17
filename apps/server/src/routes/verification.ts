@@ -264,6 +264,7 @@ export function registerHooksRoutes(
   app.put("/api/hooks/config", async (c) => {
     try {
       const body = await c.req.json();
+      manager.suppressFileChangeNotification("hooks");
       const config = hooksManager.saveConfig(body);
       return c.json({ success: true, config });
     } catch (error) {
@@ -771,13 +772,6 @@ export function registerHooksRoutes(
         400,
       );
     }
-  });
-
-  // Get skill hook results for a worktree
-  app.get("/api/worktrees/:id/hooks/skill-results", (c) => {
-    const worktreeId = c.req.param("id");
-    const results = hooksManager.getSkillResults(worktreeId);
-    return c.json({ results });
   });
 
   // Read a file by absolute path (used by the frontend to preview MD skill reports)

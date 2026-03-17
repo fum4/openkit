@@ -67,6 +67,10 @@ Configures automated checks and agent skills organized by trigger type (pre-impl
 
 Edits the `.openkit/config.json` settings: start commands, install commands, base branch, port discovery, environment variable mappings, and agent policy defaults.
 
+### Performance
+
+Real-time performance monitoring dashboard showing CPU and memory usage for the OpenKit server, worktree dev servers, child processes, and agent sessions. Uses a dedicated SSE endpoint (`/api/perf/stream`) that activates on-demand when the page is viewed. Features expandable worktree cards with process tree breakdown, inline CPU/memory gauges with color thresholds (green < 50%, orange 50-80%, red > 80%), and a system summary card. Components: `PerformancePage`, `SystemSummaryCard`, `WorktreeCard`, `ProcessRow`, `CpuBar`, `MemoryBar`. Hook: `usePerformanceMetrics`.
+
 ### Integrations
 
 Configures external service connections: Jira (OAuth credentials, project key, refresh interval), Linear (API key, team key), and GitHub (CLI installation, authentication). Jira/Linear cards include an "Auto-start agent" section where users choose Claude/Codex/Gemini/OpenCode and configure toggles for enablement, skip-permissions mode, and optional terminal auto-focus.
@@ -566,6 +570,7 @@ The app uses Framer Motion for transitions:
 | `McpServerScanModal.tsx`    | Scan and import MCP servers/skills/custom agents (supports direct device-scan entry from discovery banner and prefilled results from the latest banner scan; custom agents import as-is using detected deployment defaults)                                                                                                        |
 | `Modal.tsx`                 | Base modal component (sm/md/lg widths, optional close/backdrop dismissal controls)                                                                                                                                                                                                                                                 |
 | `NavBar.tsx`                | Navigation bar (defines View type)                                                                                                                                                                                                                                                                                                 |
+| `PerformancePage.tsx`       | Real-time performance monitoring dashboard with per-worktree CPU/memory breakdown, expandable process trees, and system summary gauges                                                                                                                                                                                             |
 | `PayloadCopyButton.tsx`     | Reusable hover-only payload copy control with clipboard integration and 3-second `Copied` feedback state                                                                                                                                                                                                                           |
 | `PluginInstallModal.tsx`    | Install Claude plugin modal                                                                                                                                                                                                                                                                                                        |
 | `PluginItem.tsx`            | Plugin sidebar item                                                                                                                                                                                                                                                                                                                |
@@ -636,6 +641,7 @@ The app uses Framer Motion for transitions:
 | `useActivityFeed.ts`           | Activity feed state, unread count, chronological upserts, hook-run aggregation, and grouped-event rendering support                |
 | `useProjectActivityFeeds.ts`   | Per-project activity feed state with one SSE stream per running project, cache-first hydration, and initial loading-state handling |
 | `useProjectOpsLogs.ts`         | Per-project operational log state with one SSE stream per running project for Activity debug mode                                  |
+| `usePerformanceMetrics.ts`     | SSE-based real-time performance metrics (CPU/memory per process, on-demand connection)                                             |
 | `useWorktrees.ts`              | SSE-based real-time worktree updates + integration status hooks                                                                    |
 
 ### Context (`apps/web-app/src/contexts/`)

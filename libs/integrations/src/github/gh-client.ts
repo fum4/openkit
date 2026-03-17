@@ -347,6 +347,27 @@ export async function getGitStatus(
     // Ignore — e.g. no commits yet
   }
 
+  // Include untracked files in diff stats (all lines are additions)
+  try {
+    const { stdout: lsOut } = await execFile(
+      "git",
+      ["ls-files", "--others", "--exclude-standard"],
+      { cwd: worktreePath, encoding: "utf-8" },
+    );
+    const untrackedFiles = lsOut.trim().split("\n").filter(Boolean);
+    if (untrackedFiles.length > 0) {
+      const { stdout: wcOut } = await execFile("wc", ["-l", ...untrackedFiles], {
+        cwd: worktreePath,
+        encoding: "utf-8",
+      });
+      // wc -l outputs "  <count> <filename>" per file; for multiple files the last line is the total
+      const lastLine = wcOut.trim().split("\n").pop()!.trim();
+      linesAdded += parseInt(lastLine.split(/\s+/)[0], 10) || 0;
+    }
+  } catch {
+    // Ignore — e.g. no untracked files or wc unavailable
+  }
+
   return { hasUncommitted, ahead, behind, noUpstream, aheadOfBase, linesAdded, linesRemoved };
 }
 

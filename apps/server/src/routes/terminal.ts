@@ -33,7 +33,7 @@ export function registerTerminalRoutes(
   const logTerminalEvent = (options: {
     action: string;
     message: string;
-    status?: "info" | "succeeded" | "failed";
+    status?: "info" | "success" | "failed";
     level?: "debug" | "info" | "warning" | "error";
     worktreeId?: string;
     metadata?: Record<string, unknown>;
@@ -83,7 +83,7 @@ export function registerTerminalRoutes(
       logTerminalEvent({
         action: "terminal.session.create.request",
         message: "Terminal session created",
-        status: "succeeded",
+        status: "success",
         worktreeId: canonicalWorktreeId,
         metadata: {
           sessionId: createResult.sessionId,
@@ -162,7 +162,7 @@ export function registerTerminalRoutes(
       logTerminalEvent({
         action: "terminal.agent.restore.lookup",
         message: "Resolved agent session history",
-        status: "succeeded",
+        status: "success",
         worktreeId: resolved.worktreeId,
         metadata: {
           agent,
@@ -214,7 +214,7 @@ export function registerTerminalRoutes(
     logTerminalEvent({
       action: "terminal.session.destroy",
       message: "Terminal session destroyed",
-      status: "succeeded",
+      status: "success",
       worktreeId: sessionWorktreeId ?? undefined,
       metadata: { sessionId },
     });
@@ -250,7 +250,7 @@ export function registerTerminalRoutes(
           logTerminalEvent({
             action: "terminal.websocket.attach",
             message: "Terminal websocket attached",
-            status: "succeeded",
+            status: "success",
             worktreeId: sessionWorktreeId ?? undefined,
             metadata: {
               sessionId,

@@ -1,10 +1,10 @@
 {
   "name": "@openkit/server",
-  "version": "0.0.49",
+  "version": "0.0.52",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/standalone.ts",
+    "dev": "tsup --watch --onSuccess 'node dist/standalone.js'",
     "build": "tsup && mkdir -p dist/runtime && cp src/runtime/port-hook.cjs dist/runtime/port-hook.cjs && cp ../../libs/port-resolution/zig-out/lib/libport-hook.* dist/runtime/ 2>/dev/null || true",
     "preview": "node dist/standalone.js",
     "start": "pnpm build && pnpm preview",
@@ -25,15 +25,16 @@
     "nanoid": "^5.1.6",
     "node-pty": "1.2.0-beta.10",
     "picocolors": "^1.1.1",
+    "pidusage": "^4.0.1",
     "ws": "^8.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",
+    "@types/pidusage": "^2.0.5",
     "@types/ws": "^8.18.1",
     "memfs": "^4.56.11",
     "oxlint": "^1.50.0",
-    "tsup": "^8.5.1",
-    "tsx": "^4.21.0"
+    "tsup": "^8.5.1"
   }
 }

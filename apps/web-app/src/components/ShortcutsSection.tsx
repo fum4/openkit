@@ -34,6 +34,7 @@ const SHORTCUT_LABELS: Record<ShortcutAction, { label: string; description?: str
   "nav-agents": { label: "Go to Agents" },
   "nav-activity": { label: "Go to Activity" },
   "nav-integrations": { label: "Go to Integrations" },
+  "nav-performance": { label: "Go to Performance" },
   "nav-settings": { label: "Go to Settings" },
 };
 

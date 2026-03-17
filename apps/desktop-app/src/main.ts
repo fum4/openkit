@@ -13,6 +13,7 @@ import {
   type SetupPreference,
 } from "./preferences-manager.js";
 import { detectOpenkitRepoPath } from "./dev-mode.js";
+import { APP_NAME } from "@openkit/shared/constants";
 
 const { autoUpdater } = electronUpdater as { autoUpdater: AppUpdater };
 
@@ -53,10 +54,25 @@ function getDisplayAppVersion(): string {
 }
 
 // Set app name (shows in dock, menu bar, etc.)
-app.setName("OpenKit");
+// When running in a worktree, scope the app name and user data path so
+// multiple Electron instances can run side-by-side without conflicting
+// on the single-instance lock.
+const portOffset = process.env.__WM_PORT_OFFSET__
+  ? Number.parseInt(process.env.__WM_PORT_OFFSET__, 10)
+  : 0;
+
+if (portOffset > 0) {
+  // Resolve userData BEFORE setName, since setName changes the default path.
+  const baseUserData = app.getPath("userData");
+  const suffix = `-worktree-${portOffset}`;
+  app.setName(`${APP_NAME}${suffix}`);
+  app.setPath("userData", path.join(baseUserData, `worktree-${portOffset}`));
+} else {
+  app.setName(APP_NAME);
+}
 
 // Custom protocol for opening projects
-const PROTOCOL = "OpenKit";
+const PROTOCOL = APP_NAME.toLowerCase();
 
 // Single main window and project manager
 let mainWindow: BrowserWindow | null = null;
@@ -219,7 +235,7 @@ function createMainWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 700,
     backgroundColor: "#0a0c10",
-    title: "OpenKit",
+    title: APP_NAME,
     titleBarStyle: "hiddenInset" as const,
     trafficLightPosition: { x: 12, y: 12 },
     ...(iconPath ? { icon: iconPath } : {}),
@@ -236,8 +252,17 @@ function createMainWindow(): BrowserWindow {
   });
 
   // Load the main UI - from dev server in dev mode, from file in prod
+  // When running in a worktree, Chromium's networking is not intercepted by the
+  // port hooks (macOS SIP strips DYLD_INSERT_LIBRARIES for signed binaries), so
+  // we apply the port offset directly to the dev server URL.
   if (process.env.UI_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.UI_DEV_SERVER_URL);
+    let devUrl = process.env.UI_DEV_SERVER_URL;
+    if (portOffset > 0) {
+      const u = new URL(devUrl);
+      u.port = String(Number(u.port) + portOffset);
+      devUrl = u.toString();
+    }
+    mainWindow.loadURL(devUrl);
   } else {
     mainWindow.loadFile(getUiPath());
   }

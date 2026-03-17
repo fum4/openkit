@@ -24,7 +24,7 @@ The web-app needs access to server and integration source code at test time. We 
 - [ ] **Step 1: Add devDependencies the server source code needs**
 
 ```bash
-cd /Users/fum4/_work/dawg && pnpm add -D --filter @openkit/web-app hono nanoid picocolors zod
+pnpm add -D --filter @openkit/web-app hono nanoid picocolors zod
 ```
 
 - [ ] **Step 2: Add resolve aliases for server and integrations packages in vitest config**
@@ -54,7 +54,7 @@ test: {
 - [ ] **Step 3: Run typecheck to verify aliases resolve**
 
 ```bash
-cd /Users/fum4/_work/dawg && pnpm nx run web-app:typecheck
+pnpm nx run web-app:typecheck
 ```
 
 Expected: PASS (no new errors from aliases — they're only used at test time)
@@ -126,7 +126,7 @@ export function createBridgeHandler(app: {
 - [ ] **Step 2: Verify the module compiles**
 
 ```bash
-cd /Users/fum4/_work/dawg && pnpm nx run web-app:typecheck
+pnpm nx run web-app:typecheck
 ```
 
 Expected: PASS
@@ -239,7 +239,7 @@ export function mockGitHubAuthenticated() { ... }
 - [ ] **Step 3: Verify mocks compile**
 
 ```bash
-cd /Users/fum4/_work/dawg && pnpm nx run web-app:typecheck
+pnpm nx run web-app:typecheck
 ```
 
 - [ ] **Step 4: Commit**
@@ -323,7 +323,7 @@ The file should be much smaller — just test data helpers, no HTTP handlers.
 - [ ] **Step 3: Run existing tests to verify they still pass**
 
 ```bash
-cd /Users/fum4/_work/dawg && pnpm nx run web-app:test
+pnpm nx run web-app:test
 ```
 
 Expected: All 8 existing test files pass. If any fail, fix the failures by adjusting how they set up test data (they may need to use `server.use()` overrides for specific scenarios like error responses).
@@ -380,7 +380,7 @@ The real server will exercise: request validation, ID generation, worktree state
   - "Reuse" action calls recover API
   - "Recreate" action calls recover with recreate
   - Close callback fires
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -432,7 +432,7 @@ Read each component file first. Then write tests covering:
 - [ ] Write failing tests
 - [ ] Verify they fail for the right reason (component behavior, not mock issues)
 - [ ] Implement any needed test helpers
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -461,7 +461,7 @@ Read each component first. Then write tests covering:
 
 - [ ] Read component source files
 - [ ] Write tests using real API (activity events created via `bridge.manager.getActivityLog().addEvent()`)
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -498,7 +498,7 @@ Read each component first. Then write tests covering:
 
 - [ ] Read component source files
 - [ ] Write tests
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -526,7 +526,7 @@ Read each component first. Then write tests covering:
 
 - [ ] Read component source files
 - [ ] Write tests
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -557,7 +557,7 @@ Read each component first. Then write tests covering:
 
 - [ ] Read component source files
 - [ ] Write tests using real hooks API (config persisted in temp dir)
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -592,7 +592,7 @@ Read each component first. Then write tests covering:
 
 - [ ] Read component source files
 - [ ] Write tests
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -636,7 +636,7 @@ Read each component first. Then write tests covering:
 
 - [ ] Read component source files
 - [ ] Write tests
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -670,7 +670,7 @@ Read each component first. Then write tests covering:
 
 - [ ] Read component source files
 - [ ] Write tests
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -701,7 +701,7 @@ Read each component first. Then write tests covering:
 
 - [ ] Read component source files
 - [ ] Write tests using real notes API
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -746,7 +746,7 @@ For Jira/Linear panels: the server routes are real (validation, error handling),
 - [ ] Read component source files
 - [ ] Configure integration mocks for each test
 - [ ] Write tests
-- [ ] Run tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
+- [ ] Run tests: `pnpm nx run web-app:test`
 - [ ] Commit
 
 ---
@@ -755,9 +755,9 @@ For Jira/Linear panels: the server routes are real (validation, error handling),
 
 ### Task 16: Run full test suite and fix any issues
 
-- [ ] Run all web-app tests: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:test`
-- [ ] Run typecheck: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:typecheck`
-- [ ] Run lint: `cd /Users/fum4/_work/dawg && pnpm nx run web-app:lint`
+- [ ] Run all web-app tests: `pnpm nx run web-app:test`
+- [ ] Run typecheck: `pnpm nx run web-app:typecheck`
+- [ ] Run lint: `pnpm nx run web-app:lint`
 - [ ] Fix any failures
 - [ ] Final commit
 

@@ -1,10 +1,10 @@
 {
   "name": "@openkit/cli",
-  "version": "0.0.49",
+  "version": "0.0.52",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsup --watch",
+    "dev": "tsup --watch --watch ../server/src --watch ../../libs/shared/src --watch ../../libs/agents/src --watch ../../libs/integrations/src --watch ../../libs/logger/node/src",
     "build": "tsup",
     "preview": "node dist/cli/index.js",
     "start": "pnpm build && pnpm preview",

@@ -195,7 +195,17 @@ export async function stopWorktree(
         method: "POST",
       },
     );
-    return await res.json();
+    const text = await res.text();
+    if (!text)
+      return { success: res.ok, error: res.ok ? undefined : `HTTP ${res.status} (empty response)` };
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {
+        success: res.ok,
+        error: res.ok ? undefined : `HTTP ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
   } catch (err) {
     return {
       success: false,
@@ -1707,6 +1717,40 @@ export async function fetchWorktrees(serverUrl: string | null = null): Promise<{
 // Get SSE URL for events
 export function getEventsUrl(serverUrl: string | null = null): string {
   return `${getBaseUrl(serverUrl)}/api/events`;
+}
+
+// Get SSE URL for performance stream
+export function getPerfStreamUrl(serverUrl: string | null = null): string {
+  return `${getBaseUrl(serverUrl)}/api/perf/stream`;
+}
+
+export async function killProcesses(
+  pids: number[],
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/perf/kill`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pids }),
+    });
+    const text = await res.text();
+    if (!text)
+      return { success: res.ok, error: res.ok ? undefined : `HTTP ${res.status} (empty response)` };
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {
+        success: res.ok,
+        error: res.ok ? undefined : `HTTP ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to kill processes",
+    };
+  }
 }
 
 // Fetch ports info
@@ -3513,6 +3557,7 @@ export interface PipelineRun {
   startedAt: string;
   completedAt?: string;
   steps: StepResult[];
+  skills?: SkillHookResult[];
 }
 
 export async function fetchHooksConfig(serverUrl: string | null = null): Promise<HooksConfig> {
@@ -3790,22 +3835,6 @@ export async function reportHookSkillResult(
       success: false,
       error: err instanceof Error ? err.message : "Failed to report result",
     };
-  }
-}
-
-export async function fetchHookSkillResults(
-  worktreeId: string,
-  serverUrl: string | null = null,
-): Promise<{ results: SkillHookResult[] }> {
-  try {
-    const res = await fetch(
-      `${getBaseUrl(serverUrl)}/api/worktrees/${encodeURIComponent(
-        worktreeId,
-      )}/hooks/skill-results`,
-    );
-    return await res.json();
-  } catch {
-    return { results: [] };
   }
 }
 

@@ -6,11 +6,10 @@ import { useServerUrlOptional } from "../contexts/ServerContext";
 import {
   fetchHooksConfig as apiFetchConfig,
   fetchEffectiveHooksConfig as apiFetchEffectiveConfig,
-  fetchHookSkillResults as apiFetchSkillResults,
   saveHooksConfig as apiSaveConfig,
-  type SkillHookResult,
   type HooksConfig,
 } from "./api";
+import { useFileChangeEvent } from "./useFileChangeEvent";
 
 export function useHooksConfig() {
   const serverUrl = useServerUrlOptional();
@@ -27,6 +26,8 @@ export function useHooksConfig() {
     enabled: serverUrl !== null,
     staleTime: 30_000,
   });
+
+  useFileChangeEvent("hooks", refetch);
 
   const saveConfig = useCallback(
     async (newConfig: HooksConfig) => {
@@ -67,42 +68,4 @@ export function useEffectiveHooksConfig(worktreeId: string | null) {
   }, [fetchConfig]);
 
   return { config, refetch: fetchConfig };
-}
-
-export function useHookSkillResults(worktreeId: string | null) {
-  const serverUrl = useServerUrlOptional();
-  const [results, setResults] = useState<SkillHookResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const fetchResults = useCallback(async () => {
-    if (serverUrl === null || !worktreeId) {
-      setResults([]);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const data = await apiFetchSkillResults(worktreeId, serverUrl);
-      setResults(data.results);
-    } catch (error) {
-      reportPersistentErrorToast(error, "Failed to fetch hook skill results", {
-        scope: "hooks:skill-results",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [serverUrl, worktreeId]);
-
-  useEffect(() => {
-    fetchResults();
-  }, [fetchResults]);
-
-  // Poll while any skill is in 'running' state
-  useEffect(() => {
-    const hasRunning = results.some((r) => r.status === "running");
-    if (!hasRunning) return;
-    const interval = setInterval(fetchResults, 2000);
-    return () => clearInterval(interval);
-  }, [results, fetchResults]);
-
-  return { results, isLoading, refetch: fetchResults };
 }

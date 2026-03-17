@@ -1,10 +1,10 @@
 {
-  "startCommand": "pnpm dev",
+  "startCommand": "pnpm dev:desktop-app",
   "installCommand": "pnpm install",
   "baseBranch": "origin/master",
   "serverPort": 6969,
   "ports": {
-    "discovered": [],
+    "discovered": [5173, 6969],
     "offsetStep": 1
   },
   "showDiffStats": true,

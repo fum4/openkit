@@ -5,7 +5,7 @@ import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 
 const VALID_LEVELS = new Set<OpsLogLevel>(["debug", "info", "warning", "error"]);
-const VALID_STATUSES = new Set<OpsLogStatus>(["started", "succeeded", "failed", "info"]);
+const VALID_STATUSES = new Set<OpsLogStatus>(["started", "success", "failed", "info"]);
 
 export function registerLogsRoutes(app: Hono, manager: WorktreeManager) {
   app.get("/api/logs", (c) => {

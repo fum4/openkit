@@ -18,8 +18,16 @@ import {
   isActionRequiredEvent,
   type ActivityFilterGroup,
 } from "./ActivityFeed";
-import type { View } from "./NavBar";
 import { nav } from "../theme";
+
+export type View =
+  | "workspace"
+  | "agents"
+  | "activity"
+  | "hooks"
+  | "configuration"
+  | "integrations"
+  | "performance";
 
 const tabs: { id: View; label: string }[] = [
   { id: "workspace", label: "Workspace" },
@@ -27,6 +35,7 @@ const tabs: { id: View; label: string }[] = [
   { id: "agents", label: "Agents" },
   { id: "hooks", label: "Hooks" },
   { id: "integrations", label: "Integrations" },
+  { id: "performance", label: "Performance" },
   { id: "configuration", label: "Settings" },
 ];
 

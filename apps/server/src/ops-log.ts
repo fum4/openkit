@@ -7,7 +7,7 @@ import type { CommandMonitorEvent } from "./runtime/command-monitor";
 import type { FetchMonitorEvent } from "./runtime/fetch-monitor";
 
 export type OpsLogLevel = "debug" | "info" | "warning" | "error";
-export type OpsLogStatus = "started" | "succeeded" | "failed" | "info";
+export type OpsLogStatus = "started" | "success" | "failed" | "info";
 
 export interface OpsCommandPayload {
   command: string;
@@ -122,7 +122,7 @@ export class OpsLog {
     const isStart = event.phase === "start";
     const isFailure = event.phase === "failure";
 
-    const status: OpsLogStatus = isStart ? "started" : isFailure ? "failed" : "succeeded";
+    const status: OpsLogStatus = isStart ? "started" : isFailure ? "failed" : "success";
     const level: OpsLogLevel = isStart ? "info" : isFailure ? "error" : "info";
 
     const commandText = [event.command, ...event.args].join(" ");
@@ -168,7 +168,7 @@ export class OpsLog {
     const isServerFailure = typeof statusCode === "number" && statusCode >= 500;
     const level: OpsLogLevel =
       event.phase === "failure" || isServerFailure ? "error" : isFailure ? "warning" : "info";
-    const status: OpsLogStatus = isFailure ? "failed" : "succeeded";
+    const status: OpsLogStatus = isFailure ? "failed" : "success";
 
     const message =
       event.phase === "failure"

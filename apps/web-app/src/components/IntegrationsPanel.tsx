@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import {
   Check,
   ChevronDown,
@@ -11,7 +12,6 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { APP_NAME } from "@openkit/shared/constants";
 import { reportPersistentErrorToast } from "../errorToasts";
 import { useApi } from "../hooks/useApi";
 import {
@@ -25,7 +25,8 @@ import {
 import { useGitHubStatus, useJiraStatus, useLinearStatus } from "../hooks/useWorktrees";
 import { useServerUrlOptional } from "../contexts/ServerContext";
 import type { DataLifecycleConfig, GitHubStatus, JiraStatus, LinearStatus } from "../types";
-import { button, infoBanner, input, settings, surface, text } from "../theme";
+import { button, input, settings, surface, text } from "../theme";
+import { InfoBanner } from "./InfoBanner";
 import { GitHubSetupModal } from "./GitHubSetupModal";
 import { GitHubIcon, JiraIcon, LinearIcon } from "../icons";
 import { AgentModelDropdown } from "./AgentModelDropdown";
@@ -1620,8 +1621,6 @@ interface IntegrationsPanelProps {
   onLinearStatusChange?: () => void;
 }
 
-const BANNER_DISMISSED_KEY = `${APP_NAME}-integrations-banner-dismissed`;
-
 export function IntegrationsPanel({
   onJiraStatusChange,
   onLinearStatusChange,
@@ -1633,19 +1632,10 @@ export function IntegrationsPanel({
   const [githubRefreshKey, setGithubRefreshKey] = useState(0);
   const [jiraRefreshKey, setJiraRefreshKey] = useState(0);
   const [linearRefreshKey, setLinearRefreshKey] = useState(0);
-  const [showBanner, setShowBanner] = useState(() => {
-    return localStorage.getItem(BANNER_DISMISSED_KEY) !== "true";
-  });
-
   const [currentGithubStatus, setCurrentGithubStatus] = useState<GitHubStatus | null>(null);
   const [currentJiraStatus, setCurrentJiraStatus] = useState<JiraStatus | null>(null);
   const [currentLinearStatus, setCurrentLinearStatus] = useState<LinearStatus | null>(null);
   const [mcpSetupEnabled, setMcpSetupEnabled] = useState(false);
-
-  const dismissBanner = () => {
-    setShowBanner(false);
-    localStorage.setItem(BANNER_DISMISSED_KEY, "true");
-  };
 
   useEffect(() => {
     setCurrentGithubStatus(githubStatus);
@@ -1741,51 +1731,54 @@ export function IntegrationsPanel({
   return (
     <div>
       <div className="max-w-2xl mx-auto p-6 flex flex-col gap-8">
-        {showBanner && (
-          <div
-            className={`relative p-4 pl-5 pr-10 rounded-xl ${infoBanner.bg} border ${infoBanner.border}`}
-          >
-            <button
-              onClick={dismissBanner}
-              className={`absolute top-1/2 -translate-y-1/2 right-4 p-1 rounded-md ${infoBanner.textMuted} hover:${infoBanner.text} ${infoBanner.hoverBg} transition-colors`}
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-            <div className="flex items-center gap-2.5">
-              <Link2 className={`w-3.5 h-3.5 ${infoBanner.textMuted} flex-shrink-0`} />
-              <p className={`text-xs ${text.secondary} leading-relaxed`}>
-                Connect external services to enhance your workflow.
-              </p>
+        <div className="flex flex-col gap-4">
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center">
+              <Link2 className="w-4 h-4 text-blue-400" />
             </div>
+            <h1 className="text-base font-medium text-[#f0f2f5]">Integrations</h1>
           </div>
-        )}
-        <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
-          <GitHubCard
-            status={currentGithubStatus}
-            onStatusChange={(status) => {
-              if (status) setCurrentGithubStatus(status);
-              setGithubRefreshKey((k) => k + 1);
-            }}
-          />
+
+          <InfoBanner storageKey="OpenKit:integrationsBannerDismissed" color="blue">
+            Connect external services like GitHub, Jira, and Linear to sync issues, track branches,
+            and streamline your development workflow across tools.
+          </InfoBanner>
         </div>
-        <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
-          <JiraCard
-            status={currentJiraStatus}
-            onStatusChange={() => setJiraRefreshKey((k) => k + 1)}
-          />
-        </div>
-        <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
-          <LinearCard
-            status={currentLinearStatus}
-            onStatusChange={() => setLinearRefreshKey((k) => k + 1)}
-          />
-        </div>
-        {mcpSetupEnabled && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className="flex flex-col gap-8"
+        >
           <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
-            {/* Show MCP setup UI only when OPENKIT_ENABLE_MCP_SETUP is enabled on the server. */}
-            <CodingAgentsCard />
+            <GitHubCard
+              status={currentGithubStatus}
+              onStatusChange={(status) => {
+                if (status) setCurrentGithubStatus(status);
+                setGithubRefreshKey((k) => k + 1);
+              }}
+            />
           </div>
-        )}
+          <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
+            <JiraCard
+              status={currentJiraStatus}
+              onStatusChange={() => setJiraRefreshKey((k) => k + 1)}
+            />
+          </div>
+          <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
+            <LinearCard
+              status={currentLinearStatus}
+              onStatusChange={() => setLinearRefreshKey((k) => k + 1)}
+            />
+          </div>
+          {mcpSetupEnabled && (
+            <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
+              {/* Show MCP setup UI only when OPENKIT_ENABLE_MCP_SETUP is enabled on the server. */}
+              <CodingAgentsCard />
+            </div>
+          )}
+        </motion.div>
       </div>
     </div>
   );
