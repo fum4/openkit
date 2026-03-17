@@ -888,15 +888,27 @@ export class WorktreeManager {
         // Pass cmd + args directly to node-pty (no shell -lc wrapping) to avoid
         // shell metacharacter interpretation in startCommand.
         const pty = resolveNodePtyModule();
+
+        // Expo-specific env vars scoped to the PTY process only — CI=0 overrides
+        // Expo CLI's non-interactive detection (isTTY=false → disables networking).
+        // Scoped here rather than in getEnvForOffset() to avoid CI=0 leaking into
+        // other tools in the process tree (test runners, linters, build tools).
+        const ptyEnv: Record<string, string> = {
+          ...spawnEnv,
+          TERM: "xterm-256color",
+          COLORTERM: "truecolor",
+        };
+        if (framework === "expo") {
+          ptyEnv.CI = "0";
+          ptyEnv.EXPO_OFFLINE = "0";
+        }
+
         const ptyProcess = pty.spawn(cmd, args, {
           name: "xterm-256color",
           cols: 120,
           rows: 40,
           cwd: workingDir,
-          env: { ...spawnEnv, TERM: "xterm-256color", COLORTERM: "truecolor" } as Record<
-            string,
-            string
-          >,
+          env: ptyEnv,
         });
 
         pid = ptyProcess.pid;
@@ -906,7 +918,11 @@ export class WorktreeManager {
         ptyProcess.onData((data) => pushLogLines(data));
         ptyProcess.onExit(({ exitCode }) => handleExit(exitCode));
       } else {
-        // Generic: spawn with piped stdio
+        // Generic: spawn with piped stdio.
+        // shell: true is required because startCommand is a user-configured string
+        // that may contain shell constructs (env prefixes, pipes, &&).
+        // startCommand comes from the project's .openkit/config.json — same trust model
+        // as npm scripts in package.json (user-controlled, not external input).
         const childProcess = spawn(cmd, args, {
           cwd: workingDir,
           env: spawnEnv,
@@ -971,18 +987,27 @@ export class WorktreeManager {
 
     this.portManager.releaseOffset(processInfo.offset);
 
+    // Kill the process tree: try process group first, then walk the tree with pgrep,
+    // and finally fall back to direct kill. PTY processes (node-pty) may not be process
+    // group leaders, so the group kill can fail — the tree walk ensures child processes
+    // (e.g. Metro's bundler workers) are also terminated.
     try {
       process.kill(-processInfo.pid, "SIGTERM");
-    } catch (err) {
-      log.debug(
-        `Process group kill failed for ${worktreeId} (pid ${processInfo.pid}), trying direct kill: ${err instanceof Error ? err.message : String(err)}`,
-        { domain: "worktree" },
-      );
+    } catch {
+      // Process group kill failed — walk the process tree and kill children individually
+      const childPids = this.getChildPids(processInfo.pid);
+      for (const childPid of childPids) {
+        try {
+          process.kill(childPid, "SIGTERM");
+        } catch {
+          // Child may have already exited
+        }
+      }
       try {
         processInfo.kill();
       } catch (innerErr) {
         log.debug(
-          `Direct kill also failed for ${worktreeId} (pid ${processInfo.pid}), process may have already exited: ${innerErr instanceof Error ? innerErr.message : String(innerErr)}`,
+          `Direct kill failed for ${worktreeId} (pid ${processInfo.pid}), process may have already exited: ${innerErr instanceof Error ? innerErr.message : String(innerErr)}`,
           { domain: "worktree" },
         );
       }
@@ -1000,6 +1025,23 @@ export class WorktreeManager {
     });
 
     return { success: true };
+  }
+
+  private getChildPids(parentPid: number): number[] {
+    try {
+      const output = execFileSync("pgrep", ["-P", String(parentPid)], {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+      if (!output) return [];
+      return output
+        .split("\n")
+        .map((line) => parseInt(line.trim(), 10))
+        .filter((pid) => !isNaN(pid));
+    } catch {
+      // pgrep returns non-zero when no children found
+      return [];
+    }
   }
 
   private runAdbReverse(ports: number[]): void {

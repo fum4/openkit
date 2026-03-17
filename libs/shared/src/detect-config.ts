@@ -81,10 +81,19 @@ function isReactNativeProject(projectDir: string): boolean {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     return "react-native" in deps || "expo" in deps;
-  } catch {
-    // libs/shared has no logger dependency — silently return false.
-    // The server-side detectFramework() in framework-detect.ts has proper
-    // structured logging for the same check.
+  } catch (err: unknown) {
+    // ENOENT (file not found) is expected when package.json doesn't exist — silent fallback.
+    // For unexpected errors (permission denied, corrupt reads), warn so the root cause is visible.
+    // libs/shared has no logger dependency; console.warn is the only diagnostic option here.
+    // The server-side detectFramework() in framework-detect.ts has proper structured logging
+    // for the same check.
+    const isFileNotFound =
+      err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT";
+    if (!isFileNotFound) {
+      console.warn(
+        `[openkit] Failed to read ${pkgPath} for RN/Expo detection: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     return false;
   }
 }

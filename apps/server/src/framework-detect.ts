@@ -34,7 +34,8 @@ export function detectMetroPort(projectDir: string): number {
     try {
       const content = readFileSync(configPath, "utf-8");
       // Match patterns like: port: 8082, port:8082, "port": 8082
-      const match = content.match(/["']?port["']?\s*:\s*(\d+)/);
+      // Negative lookbehind ensures "port" is standalone (not "viewport", "reportPort", etc.)
+      const match = content.match(/(?<![a-zA-Z])["']?port["']?\s*:\s*(\d+)/);
       if (match) {
         const port = parseInt(match[1], 10);
         if (!isNaN(port) && port > 0 && port <= 65535) {

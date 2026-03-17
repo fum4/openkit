@@ -48,6 +48,14 @@ export class PortManager {
     this.ensureFrameworkDetected();
   }
 
+  /**
+   * Early framework detection on construction — runs synchronously so the
+   * framework is available before discoverPorts() is called.
+   *
+   * discoverPorts() intentionally re-detects because the project state may
+   * have changed (e.g. dependencies added). Both paths converge on the same
+   * frameworkDetection + persistFramework, so the result is always consistent.
+   */
   private ensureFrameworkDetected(): void {
     if (this.config.framework) return;
     if (!this.configFilePath) return;
@@ -135,6 +143,11 @@ export class PortManager {
    * For RN/Expo projects, returns additional args to append to the start command
    * so Metro receives the port directly via --port flag.
    * Returns an empty array for non-RN/Expo projects.
+   *
+   * Handles npm (needs `-- --port`), yarn, pnpm, bun (direct `--port`), and npx.
+   * Note: detection uses `startsWith("npm ")` which won't match full paths
+   * like `/usr/bin/npm` — this is intentional since OpenKit resolves commands
+   * via the user's PATH, not absolute paths.
    */
   getStartCommandPortArgs(startCommand: string, offset: number): string[] {
     const framework = this.getFramework();
@@ -152,7 +165,8 @@ export class PortManager {
 
     const metroOffsetPort = metroBasePort + offset;
 
-    // npm requires "npm start -- --port X" to pass args through to the script
+    // npm requires "npm start -- --port X" to pass args through to the script;
+    // yarn, pnpm, bun, and npx pass --port directly to the underlying command.
     if (trimmed.startsWith("npm ") && !trimmed.startsWith("npx ")) {
       return ["--", "--port", String(metroOffsetPort)];
     }
@@ -263,15 +277,10 @@ export class PortManager {
       }
     }
 
-    // Expo CLI detects non-interactive environments (piped stdio → isTTY=false)
-    // and disables networking automatically. Override this to keep Metro functional.
-    // NOTE: CI=0 is a broad side-effect — it also affects other tools in the process
-    // tree (test runners, linters, build tools) that check CI. EXPO_OFFLINE=0 alone
-    // is insufficient as Expo checks CI first. Accept the trade-off for now.
-    if (framework === "expo") {
-      env.CI = "0";
-      env.EXPO_OFFLINE = "0";
-    }
+    // NOTE: Expo-specific env vars (CI=0, EXPO_OFFLINE=0) are NOT set here.
+    // They are applied only to the PTY spawn env in manager.ts to avoid
+    // the broad side-effect of CI=0 affecting other tools in the process tree
+    // (test runners, linters, build tools).
 
     // For RN/Expo without discovered ports, provide RCT_METRO_PORT from default
     if (isRnOrExpo && !env.RCT_METRO_PORT) {
@@ -467,8 +476,9 @@ export class PortManager {
       // Already dead
     }
 
-    // Detect project framework and merge defaults (runs even if port scan found nothing,
-    // so RN projects get Metro's default port added automatically)
+    // Intentionally re-detect framework (may have already run in constructor via
+    // ensureFrameworkDetected) — dependencies could have changed since construction.
+    // Merges defaults so RN projects get Metro's default port added automatically.
     const detection = detectFramework(workingDir);
     this.frameworkDetection = detection;
 

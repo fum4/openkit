@@ -896,7 +896,7 @@ describe("PortManager", () => {
   });
 
   describe("getEnvForOffset with Expo env vars", () => {
-    it("includes Expo-specific env vars for expo framework", () => {
+    it("does not include CI/EXPO_OFFLINE in getEnvForOffset (scoped to PTY spawn in manager)", () => {
       mockedExistsSync.mockReturnValue(false);
       const pm = createManager({
         ports: { discovered: [8081], offsetStep: 10 },
@@ -905,9 +905,10 @@ describe("PortManager", () => {
 
       const env = pm.getEnvForOffset(10);
 
-      expect(env.CI).toBe("0");
-      expect(env.EXPO_OFFLINE).toBe("0");
-      expect(env.EXPO_NO_TYPESCRIPT_SETUP).toBeUndefined();
+      // CI=0 and EXPO_OFFLINE=0 are now set only in the PTY spawn env (manager.ts)
+      // to avoid the broad side-effect on other tools in the process tree
+      expect(env.CI).toBeUndefined();
+      expect(env.EXPO_OFFLINE).toBeUndefined();
     });
 
     it("does not include Expo env vars for react-native framework", () => {
@@ -921,7 +922,6 @@ describe("PortManager", () => {
 
       expect(env.CI).toBeUndefined();
       expect(env.EXPO_OFFLINE).toBeUndefined();
-      expect(env.EXPO_NO_TYPESCRIPT_SETUP).toBeUndefined();
     });
 
     it("does not include Expo env vars for generic framework", () => {
@@ -934,20 +934,6 @@ describe("PortManager", () => {
 
       expect(env.CI).toBeUndefined();
       expect(env.EXPO_OFFLINE).toBeUndefined();
-    });
-
-    it("provides Expo env vars even with empty discovered ports", () => {
-      mockedExistsSync.mockReturnValue(false);
-      const pm = createManager({
-        ports: { discovered: [], offsetStep: 10 },
-        framework: "expo",
-      });
-
-      const env = pm.getEnvForOffset(10);
-
-      expect(env.CI).toBe("0");
-      expect(env.EXPO_OFFLINE).toBe("0");
-      expect(env.EXPO_NO_TYPESCRIPT_SETUP).toBeUndefined();
     });
 
     it("provides RCT_METRO_PORT from default port when discovered is empty", () => {

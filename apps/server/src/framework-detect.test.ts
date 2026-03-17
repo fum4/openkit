@@ -201,8 +201,17 @@ module.exports = {
       `module.exports = { server: { reportPort: 9999 } };`,
     );
 
-    // The regex requires "port" to be standalone (not preceded by alphanumerics),
-    // so keys like "reportPort" are not matched.
+    // Negative lookbehind ensures "port" is standalone (not preceded by letters)
+    expect(detectMetroPort(dir)).toBe(8081);
+  });
+
+  it("does not match viewport as a false positive", () => {
+    const dir = createTempDir();
+    writeFileSync(
+      path.join(dir, "metro.config.js"),
+      `module.exports = { display: { viewport: 9999 } };`,
+    );
+
     expect(detectMetroPort(dir)).toBe(8081);
   });
 });

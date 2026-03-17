@@ -17,6 +17,9 @@ const mockedReadFileSync = vi.mocked(readFileSync);
 describe("detectStartCommand", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // Suppress expected console.warn from isReactNativeProject when readFileSync
+    // is not mocked (returns undefined → JSON parse error → non-ENOENT warning)
+    vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   it("returns npm run dev for generic npm project", () => {
@@ -68,10 +71,11 @@ describe("detectStartCommand", () => {
     expect(detectStartCommand("/project")).toBeNull();
   });
 
-  it("falls back to dev command when package.json is missing", () => {
+  it("falls back to dev command when package.json is missing (ENOENT)", () => {
     mockedExistsSync.mockImplementation((p) => String(p).endsWith("yarn.lock"));
+    const enoent = Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" });
     mockedReadFileSync.mockImplementation(() => {
-      throw new Error("ENOENT");
+      throw enoent;
     });
 
     expect(detectStartCommand("/project")).toBe("yarn dev");
@@ -82,6 +86,19 @@ describe("detectStartCommand", () => {
     mockedReadFileSync.mockReturnValue("not json");
 
     expect(detectStartCommand("/project")).toBe("yarn dev");
+  });
+
+  it("warns on unexpected read errors (non-ENOENT) but still falls back", () => {
+    mockedExistsSync.mockImplementation((p) => String(p).endsWith("yarn.lock"));
+    mockedReadFileSync.mockImplementation(() => {
+      throw new Error("EACCES: permission denied");
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(detectStartCommand("/project")).toBe("yarn dev");
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("EACCES: permission denied"));
+
+    warnSpy.mockRestore();
   });
 });
 
