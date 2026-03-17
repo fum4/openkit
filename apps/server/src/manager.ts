@@ -23,10 +23,6 @@ import { copyEnvFiles } from "@openkit/shared/env-files";
 import { log } from "./logger";
 import { generateBranchName } from "./branch-name";
 import { getGitRoot, getWorktreeBranch, validateBranchName } from "@openkit/shared/git";
-
-const portLog = log.get("port");
-const worktreeLog = log.get("worktree");
-const linearLog = log.get("linear");
 import { GitHubManager } from "@openkit/integrations/github/github-manager";
 import { loadJiraCredentials, loadJiraProjectConfig } from "@openkit/integrations/jira/credentials";
 import {
@@ -65,6 +61,10 @@ import type {
   WorktreeInfo,
   WorktreeRenameRequest,
 } from "./types";
+
+const portLog = log.get("port");
+const worktreeLog = log.get("worktree");
+const linearLog = log.get("linear");
 
 export type FileChangeCategory =
   | "config"

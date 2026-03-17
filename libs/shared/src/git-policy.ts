@@ -1,4 +1,4 @@
-import type { IssueSource, GitPolicyOverride } from "./notes-types";
+import type { IssueNotes, IssueSource } from "./notes-types";
 import type { WorktreeConfig } from "./worktree-types";
 
 export type GitOperation = "commit" | "push" | "create_pr";
@@ -11,16 +11,7 @@ export interface GitPolicyResult {
 /** Minimal interface for notes access needed by resolveGitPolicy. */
 export interface GitPolicyNotesReader {
   buildWorktreeLinkMap(): Map<string, { source: IssueSource; issueId: string }>;
-  loadNotes(
-    source: IssueSource,
-    issueId: string,
-  ): {
-    gitPolicy?: {
-      agentCommits?: GitPolicyOverride;
-      agentPushes?: GitPolicyOverride;
-      agentPRs?: GitPolicyOverride;
-    };
-  };
+  loadNotes(source: IssueSource, issueId: string): Pick<IssueNotes, "gitPolicy">;
 }
 
 const OPERATION_MAP = {

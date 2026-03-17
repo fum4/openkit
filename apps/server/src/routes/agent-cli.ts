@@ -87,7 +87,18 @@ export function registerAgentCliRoutes(app: Hono) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to check CLI status";
-      return c.json({ success: false, agent: config.agent, error: message }, 500);
+      return c.json(
+        {
+          success: false,
+          agent: config.agent,
+          label: config.label,
+          command: config.command,
+          installed: false,
+          brewPackage: config.brewPackages[0],
+          error: message,
+        },
+        500,
+      );
     }
   });
 
