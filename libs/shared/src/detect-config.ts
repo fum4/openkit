@@ -72,11 +72,17 @@ export function detectInstallCommand(projectDir: string): string | null {
 }
 
 function isReactNativeProject(projectDir: string): boolean {
+  const pkgPath = path.join(projectDir, "package.json");
   try {
-    const pkg = JSON.parse(readFileSync(path.join(projectDir, "package.json"), "utf-8"));
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     return "react-native" in deps || "expo" in deps;
-  } catch {
+  } catch (err) {
+    // libs/shared has no logger — console.warn is acceptable here
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[detect-config] Failed to read ${pkgPath}: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return false;
   }
 }

@@ -228,13 +228,13 @@ With `offsetStep: 10`:
 
 #### `framework`
 
-| Property     | Value                                   |
-| ------------ | --------------------------------------- |
-| **Type**     | `"react-native" \| "expo" \| "generic"` |
-| **Default**  | _(auto-detected during port discovery)_ |
-| **Required** | No                                      |
+| Property     | Value                                                  |
+| ------------ | ------------------------------------------------------ |
+| **Type**     | `"react-native" \| "expo" \| "generic"`                |
+| **Default**  | _(auto-detected on startup and during port discovery)_ |
+| **Required** | No                                                     |
 
-Detected project framework, auto-set during port discovery. When set to `"react-native"` or `"expo"`, OpenKit adds Metro's default port (8081) to discovered ports, injects `RCT_METRO_PORT` into the env mapping, and runs `adb reverse` on worktree start. See [Port Mapping — React Native / Expo Support](PORT-MAPPING.md#react-native--expo-support).
+Detected project framework, auto-set on startup and refreshed during port discovery. When set to `"react-native"` or `"expo"`, OpenKit adds Metro's default port (8081) to discovered ports, injects `RCT_METRO_PORT` into the env mapping, and runs `adb reverse` on worktree start. See [Port Mapping — React Native / Expo Support](PORT-MAPPING.md#react-native--expo-support).
 
 #### `activity`
 
