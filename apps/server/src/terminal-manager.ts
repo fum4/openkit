@@ -1,38 +1,10 @@
 import { existsSync } from "fs";
-import { createRequire } from "module";
 import type { WebSocket } from "ws";
 import type { IPty } from "node-pty";
 import { Terminal as HeadlessTerminal } from "@xterm/headless";
 import { SerializeAddon } from "@xterm/addon-serialize";
 
-const require = createRequire(import.meta.url);
-
-type NodePtyModule = { spawn: (typeof import("node-pty"))["spawn"] };
-
-function hasSpawn(value: unknown): value is NodePtyModule {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { spawn?: unknown }).spawn === "function"
-  );
-}
-
-function resolveNodePtyModule(): NodePtyModule {
-  const loaded: unknown = require("node-pty");
-
-  if (hasSpawn(loaded)) {
-    return loaded;
-  }
-
-  if (typeof loaded === "object" && loaded !== null && "default" in loaded) {
-    const defaultExport = (loaded as { default?: unknown }).default;
-    if (hasSpawn(defaultExport)) {
-      return defaultExport;
-    }
-  }
-
-  throw new Error("node-pty module is missing a spawn() export");
-}
+import { resolveNodePtyModule } from "./pty";
 
 interface TerminalSession {
   id: string;

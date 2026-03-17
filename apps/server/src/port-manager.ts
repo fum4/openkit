@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import { DEFAULT_METRO_PORT, detectFramework, type FrameworkDetection } from "./framework-detect";
 import { log } from "./logger";
 import type { WorktreeConfig } from "./types";
 
@@ -39,9 +40,48 @@ export class PortManager {
 
   useNativeHook = false;
 
+  private frameworkDetection: FrameworkDetection | null = null;
+
   constructor(config: WorktreeConfig, configFilePath: string | null = null) {
     this.config = config;
     this.configFilePath = configFilePath;
+    this.ensureFrameworkDetected();
+  }
+
+  /**
+   * Early framework detection on construction — runs synchronously so the
+   * framework is available before discoverPorts() is called.
+   *
+   * discoverPorts() intentionally re-detects because the project state may
+   * have changed (e.g. dependencies added). Both paths converge on the same
+   * frameworkDetection + persistFramework, so the result is always consistent.
+   */
+  private ensureFrameworkDetected(): void {
+    if (this.config.framework) return;
+    if (!this.configFilePath) return;
+
+    const projectDir = this.getProjectDir();
+    const detection = detectFramework(projectDir);
+
+    if (detection.framework === "generic") return;
+
+    this.frameworkDetection = detection;
+    this.persistFramework(detection.framework);
+
+    log.info(`Auto-detected ${detection.framework} project, persisted to config`, {
+      domain: "framework-detect",
+    });
+  }
+
+  getFramework(): WorktreeConfig["framework"] {
+    return this.frameworkDetection?.framework ?? this.config.framework;
+  }
+
+  needsAdbReverse(): boolean {
+    return (
+      this.frameworkDetection?.needsAdbReverse ??
+      (this.config.framework === "react-native" || this.config.framework === "expo")
+    );
   }
 
   setDebugLogger(debugLogger: PortDebugLogger | null): void {
@@ -97,6 +137,40 @@ export class PortManager {
 
   getPortsForOffset(offset: number): number[] {
     return this.config.ports.discovered.map((port) => port + offset);
+  }
+
+  /**
+   * For RN/Expo projects, returns additional args to append to the start command
+   * so Metro receives the port directly via --port flag.
+   * Returns an empty array for non-RN/Expo projects.
+   *
+   * Handles npm (needs `-- --port`), yarn, pnpm, bun (direct `--port`), and npx.
+   * Note: detection uses `startsWith("npm ")` which won't match full paths
+   * like `/usr/bin/npm` — this is intentional since OpenKit resolves commands
+   * via the user's PATH, not absolute paths.
+   */
+  getStartCommandPortArgs(startCommand: string, offset: number): string[] {
+    const framework = this.getFramework();
+    if (framework !== "react-native" && framework !== "expo") {
+      return [];
+    }
+
+    // Use first discovered port, or fall back to default Metro port
+    // when discovery hasn't been run yet
+    const metroBasePort = this.config.ports.discovered[0] || DEFAULT_METRO_PORT;
+
+    // Skip if the user already specified --port in their start command
+    const trimmed = startCommand.trim();
+    if (trimmed.includes("--port")) return [];
+
+    const metroOffsetPort = metroBasePort + offset;
+
+    // npm requires "npm start -- --port X" to pass args through to the script;
+    // yarn, pnpm, bun, and npx pass --port directly to the underlying command.
+    if (trimmed.startsWith("npm ") && !trimmed.startsWith("npx ")) {
+      return ["--", "--port", String(metroOffsetPort)];
+    }
+    return ["--port", String(metroOffsetPort)];
   }
 
   getNativeHookPath(): string | null {
@@ -158,30 +232,40 @@ export class PortManager {
   }
 
   getEnvForOffset(offset: number): Record<string, string> {
-    if (this.config.ports.discovered.length === 0) {
+    const framework = this.getFramework();
+    const isRnOrExpo = framework === "react-native" || framework === "expo";
+    const hasDiscoveredPorts = this.config.ports.discovered.length > 0;
+
+    // For generic projects with no discovered ports, nothing to do
+    if (!hasDiscoveredPorts && !isRnOrExpo) {
       return {};
     }
 
-    const env: Record<string, string> = {
-      __WM_PORT_OFFSET__: String(offset),
-      __WM_KNOWN_PORTS__: JSON.stringify(this.config.ports.discovered),
-    };
+    const env: Record<string, string> = {};
 
-    // Native hook (runtime-agnostic: Python, Ruby, Go on macOS, etc.)
-    const nativeHook = this.useNativeHook ? this.getNativeHookPath() : null;
-    if (nativeHook) {
-      if (process.platform === "darwin") {
-        env.DYLD_INSERT_LIBRARIES = nativeHook;
-      } else {
-        env.LD_PRELOAD = nativeHook;
+    // Port hook env vars (only when we have discovered ports to offset)
+    if (hasDiscoveredPorts) {
+      env.__WM_PORT_OFFSET__ = String(offset);
+      env.__WM_KNOWN_PORTS__ = JSON.stringify(this.config.ports.discovered);
+
+      // Native hook (runtime-agnostic: Python, Ruby, Go on macOS, etc.)
+      const nativeHook = this.useNativeHook ? this.getNativeHookPath() : null;
+      if (nativeHook) {
+        if (process.platform === "darwin") {
+          env.DYLD_INSERT_LIBRARIES = nativeHook;
+        } else {
+          env.LD_PRELOAD = nativeHook;
+        }
       }
-    }
 
-    // Node.js hook (keep as safety net for Node-specific patching)
-    const hookPath = this.getHookPath();
-    const existingNodeOptions = process.env.NODE_OPTIONS || "";
-    const requireFlag = `--require ${hookPath}`;
-    env.NODE_OPTIONS = existingNodeOptions ? `${existingNodeOptions} ${requireFlag}` : requireFlag;
+      // Node.js hook (keep as safety net for Node-specific patching)
+      const hookPath = this.getHookPath();
+      const existingNodeOptions = process.env.NODE_OPTIONS || "";
+      const requireFlag = `--require ${hookPath}`;
+      env.NODE_OPTIONS = existingNodeOptions
+        ? `${existingNodeOptions} ${requireFlag}`
+        : requireFlag;
+    }
 
     // Resolve env var templates with offset ports
     const envMapping = this.config.envMapping;
@@ -191,6 +275,16 @@ export class PortManager {
           return String(parseInt(portStr, 10) + offset);
         });
       }
+    }
+
+    // NOTE: Expo-specific env vars (CI=0, EXPO_OFFLINE=0) are NOT set here.
+    // They are applied only to the PTY spawn env in manager.ts to avoid
+    // the broad side-effect of CI=0 affecting other tools in the process tree
+    // (test runners, linters, build tools).
+
+    // For RN/Expo without discovered ports, provide RCT_METRO_PORT from default
+    if (isRnOrExpo && !env.RCT_METRO_PORT) {
+      env.RCT_METRO_PORT = String(DEFAULT_METRO_PORT + offset);
     }
 
     return env;
@@ -382,16 +476,47 @@ export class PortManager {
       // Already dead
     }
 
+    // Intentionally re-detect framework (may have already run in constructor via
+    // ensureFrameworkDetected) — dependencies could have changed since construction.
+    // Merges defaults so RN projects get Metro's default port added automatically.
+    const detection = detectFramework(workingDir);
+    this.frameworkDetection = detection;
+
+    if (detection.framework !== "generic") {
+      for (const port of detection.defaultPorts) {
+        if (!ports.includes(port)) {
+          ports.push(port);
+        }
+      }
+      ports.sort((a, b) => a - b);
+      emit(`[port-discovery] Detected ${detection.framework} project, applied framework defaults`);
+    }
+
     if (ports.length > 0) {
       this.config.ports.discovered = ports;
       this.persistDiscoveredPorts(ports);
 
       // Auto-detect env var mappings after port discovery
       const envMapping = this.detectEnvMapping(workingDir);
+
+      // Merge framework-specific env var templates (don't overwrite user entries)
+      if (detection.framework !== "generic") {
+        for (const [key, template] of Object.entries(detection.envVarTemplates)) {
+          if (!(key in envMapping)) {
+            envMapping[key] = template;
+          }
+        }
+      }
+
       if (Object.keys(envMapping).length > 0) {
         this.persistEnvMapping(envMapping);
         emit(`[port-discovery] Detected env var mappings: ${Object.keys(envMapping).join(", ")}`);
       }
+    }
+
+    // Persist framework type to config for subsequent starts
+    if (detection.framework !== "generic") {
+      this.persistFramework(detection.framework);
     }
 
     return { ports };
@@ -450,6 +575,24 @@ export class PortManager {
       return Array.from(ports).sort((a, b) => a - b);
     } catch {
       return [];
+    }
+  }
+
+  private persistFramework(framework: WorktreeConfig["framework"]): void {
+    if (!this.configFilePath) return;
+
+    this.config.framework = framework;
+
+    try {
+      const content = readFileSync(this.configFilePath, "utf-8");
+      const config = JSON.parse(content);
+      config.framework = framework;
+      writeFileSync(this.configFilePath, JSON.stringify(config, null, 2) + "\n");
+    } catch (err) {
+      log.warn(
+        `Failed to persist framework to config: ${err instanceof Error ? err.message : String(err)}`,
+        { domain: "framework-detect" },
+      );
     }
   }
 

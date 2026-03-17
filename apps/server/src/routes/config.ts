@@ -127,6 +127,7 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
     return c.json({
       discovered: portManager.getDiscoveredPorts(),
       offsetStep: portManager.getOffsetStep(),
+      framework: portManager.getFramework(),
     });
   });
 

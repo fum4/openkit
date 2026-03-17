@@ -45,6 +45,7 @@ import {
 } from "@openkit/integrations/linear/api";
 import type { LinearTaskData } from "@openkit/integrations/linear/types";
 
+import { resolveNodePtyModule } from "./pty";
 import { ActivityLog } from "./activity-log";
 import { ACTIVITY_TYPES } from "./activity-event";
 import { loadLocalConfig, loadLocalGitPolicyConfig, updateLocalConfig } from "./local-config";
@@ -386,6 +387,7 @@ export class WorktreeManager {
           offsetStep: fileConfig.ports?.offsetStep ?? this.config.ports.offsetStep,
         },
         envMapping: fileConfig.envMapping ?? this.config.envMapping,
+        framework: fileConfig.framework ?? this.config.framework,
         autoInstall: fileConfig.autoInstall,
         localIssuePrefix: fileConfig.localIssuePrefix,
         localAutoStartAgent:
@@ -827,37 +829,49 @@ export class WorktreeManager {
     }
 
     try {
-      const [cmd, ...args] = this.config.startCommand.split(" ");
-
       // Allocate a port offset for this worktree
       const offset = this.portManager.allocateOffset();
       const portEnv = this.portManager.getEnvForOffset(offset);
       const ports = this.portManager.getPortsForOffset(offset);
 
+      // For RN/Expo, append --port <offset_port> so Metro gets the port directly
+      const [cmd, ...baseArgs] = this.config.startCommand.split(" ");
+      const portArgs = this.portManager.getStartCommandPortArgs(this.config.startCommand, offset);
+      const args = [...baseArgs, ...portArgs];
+
       const portsDisplay = ports.length > 0 ? ports.join(", ") : `offset=${offset}`;
       log.info(`Starting ${worktreeId} at ${workingDir} (ports: ${portsDisplay})`);
 
-      const childProcess = spawn(cmd, args, {
-        cwd: workingDir,
-        env: { ...process.env, ...portEnv, FORCE_COLOR: "1" },
-        stdio: ["ignore", "pipe", "pipe"],
-        shell: true,
-        detached: false,
-      });
-
-      const pid = childProcess.pid!;
+      const wtColor = getWorktreeColor(worktreeId);
+      const coloredName = pc.bold(wtColor(worktreeId));
+      const linePrefix = `${pc.dim("[")}${coloredName}${pc.dim("]")}`;
       const logs: string[] = [];
 
-      this.runningProcesses.set(worktreeId, {
-        pid,
-        ports,
-        offset,
-        process: childProcess,
-        lastActivity: Date.now(),
-        logs,
-      });
+      const scheduleLogNotify = () => {
+        const info = this.runningProcesses.get(worktreeId);
+        if (info) {
+          if (info.logNotifyTimer) clearTimeout(info.logNotifyTimer);
+          info.logNotifyTimer = setTimeout(() => {
+            info.logNotifyTimer = undefined;
+            this.notifyListeners();
+          }, 250);
+        }
+      };
 
-      childProcess.on("exit", (code) => {
+      const pushLogLines = (data: string) => {
+        const lines = data.split("\n").filter((l: string) => l.trim());
+        lines.forEach((line: string) => process.stdout.write(`${linePrefix} ${line}\n`));
+        const processInfo = this.runningProcesses.get(worktreeId);
+        if (processInfo) {
+          processInfo.logs.push(...lines);
+          if (processInfo.logs.length > MAX_LOG_LINES) {
+            processInfo.logs.splice(0, processInfo.logs.length - MAX_LOG_LINES);
+          }
+        }
+        scheduleLogNotify();
+      };
+
+      const handleExit = (code: number | null) => {
         log.info(`Worktree "${worktreeId}" exited with code ${code}`);
         const processInfo = this.runningProcesses.get(worktreeId);
         if (processInfo) {
@@ -878,53 +892,76 @@ export class WorktreeManager {
             metadata: { exitCode: code },
           });
         }
-      });
-
-      const wtColor = getWorktreeColor(worktreeId);
-      const coloredName = pc.bold(wtColor(worktreeId));
-      const linePrefix = `${pc.dim("[")}${coloredName}${pc.dim("]")}`;
-
-      const scheduleLogNotify = () => {
-        const info = this.runningProcesses.get(worktreeId);
-        if (info) {
-          if (info.logNotifyTimer) clearTimeout(info.logNotifyTimer);
-          info.logNotifyTimer = setTimeout(() => {
-            info.logNotifyTimer = undefined;
-            this.notifyListeners();
-          }, 250);
-        }
       };
 
-      childProcess.stdout?.on("data", (data) => {
-        const lines = data
-          .toString()
-          .split("\n")
-          .filter((l: string) => l.trim());
-        lines.forEach((line: string) => process.stdout.write(`${linePrefix} ${line}\n`));
-        const processInfo = this.runningProcesses.get(worktreeId);
-        if (processInfo) {
-          processInfo.logs.push(...lines);
-          if (processInfo.logs.length > MAX_LOG_LINES) {
-            processInfo.logs.splice(0, processInfo.logs.length - MAX_LOG_LINES);
-          }
-        }
-        scheduleLogNotify();
-      });
+      const spawnEnv = { ...process.env, ...portEnv, FORCE_COLOR: "1" };
+      const framework = this.portManager.getFramework();
+      const usesPty = framework === "expo" || framework === "react-native";
+      let pid: number;
+      let killFn: (signal?: string) => void;
 
-      childProcess.stderr?.on("data", (data) => {
-        const lines = data
-          .toString()
-          .split("\n")
-          .filter((l: string) => l.trim());
-        lines.forEach((line: string) => process.stderr.write(`${linePrefix} ${line}\n`));
-        const processInfo = this.runningProcesses.get(worktreeId);
-        if (processInfo) {
-          processInfo.logs.push(...lines);
-          if (processInfo.logs.length > MAX_LOG_LINES) {
-            processInfo.logs.splice(0, processInfo.logs.length - MAX_LOG_LINES);
-          }
+      if (usesPty) {
+        // RN/Expo: spawn via PTY so Metro gets a real TTY (QR code, interactive UI).
+        // Pass cmd + args directly to node-pty (no shell -lc wrapping) to avoid
+        // shell metacharacter interpretation in startCommand.
+        const pty = resolveNodePtyModule();
+
+        // Expo-specific env vars scoped to the PTY process only — CI=0 overrides
+        // Expo CLI's non-interactive detection (isTTY=false → disables networking).
+        // Scoped here rather than in getEnvForOffset() to avoid CI=0 leaking into
+        // other tools in the process tree (test runners, linters, build tools).
+        const ptyEnv: Record<string, string> = {
+          ...spawnEnv,
+          TERM: "xterm-256color",
+          COLORTERM: "truecolor",
+        };
+        if (framework === "expo") {
+          ptyEnv.CI = "0";
+          ptyEnv.EXPO_OFFLINE = "0";
         }
-        scheduleLogNotify();
+
+        const ptyProcess = pty.spawn(cmd, args, {
+          name: "xterm-256color",
+          cols: 120,
+          rows: 40,
+          cwd: workingDir,
+          env: ptyEnv,
+        });
+
+        pid = ptyProcess.pid;
+        // node-pty's kill() sends SIGTERM by default; avoid passing string signals
+        // as some platforms expect numeric values
+        killFn = () => ptyProcess.kill();
+        ptyProcess.onData((data) => pushLogLines(data));
+        ptyProcess.onExit(({ exitCode }) => handleExit(exitCode));
+      } else {
+        // Generic: spawn with piped stdio.
+        // shell: true is required because startCommand is a user-configured string
+        // that may contain shell constructs (env prefixes, pipes, &&).
+        // startCommand comes from the project's .openkit/config.json — same trust model
+        // as npm scripts in package.json (user-controlled, not external input).
+        const childProcess = spawn(cmd, args, {
+          cwd: workingDir,
+          env: spawnEnv,
+          stdio: ["ignore", "pipe", "pipe"],
+          shell: true,
+          detached: false,
+        });
+
+        pid = childProcess.pid!;
+        killFn = (signal) => childProcess.kill(signal as NodeJS.Signals);
+        childProcess.on("exit", (code) => handleExit(code));
+        childProcess.stdout?.on("data", (data) => pushLogLines(data.toString()));
+        childProcess.stderr?.on("data", (data) => pushLogLines(data.toString()));
+      }
+
+      this.runningProcesses.set(worktreeId, {
+        pid,
+        ports,
+        offset,
+        kill: killFn,
+        lastActivity: Date.now(),
+        logs,
       });
 
       this.notifyListeners();
@@ -937,11 +974,21 @@ export class WorktreeManager {
         projectName: this.activityProjectName(),
         metadata: { ports, pid },
       });
+
+      // Best-effort: set up adb reverse for React Native / Expo projects
+      if (this.portManager.needsAdbReverse()) {
+        this.runAdbReverse(ports);
+      }
+
       return { success: true, ports, pid };
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to start process";
+      log.error(`Failed to start worktree "${worktreeId}": ${message}`, {
+        domain: "worktree",
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to start process",
+        error: message,
       };
     }
   }
@@ -957,13 +1004,29 @@ export class WorktreeManager {
 
     this.portManager.releaseOffset(processInfo.offset);
 
+    // Kill the process tree: try process group first, then walk the tree with pgrep,
+    // and finally fall back to direct kill. PTY processes (node-pty) may not be process
+    // group leaders, so the group kill can fail — the tree walk ensures child processes
+    // (e.g. Metro's bundler workers) are also terminated.
     try {
       process.kill(-processInfo.pid, "SIGTERM");
     } catch {
+      // Process group kill failed — walk the process tree and kill children individually
+      const childPids = this.getChildPids(processInfo.pid);
+      for (const childPid of childPids) {
+        try {
+          process.kill(childPid, "SIGTERM");
+        } catch {
+          // Child may have already exited
+        }
+      }
       try {
-        processInfo.process.kill("SIGTERM");
-      } catch {
-        // Process may have already exited
+        processInfo.kill();
+      } catch (innerErr) {
+        log.debug(
+          `Direct kill failed for ${worktreeId} (pid ${processInfo.pid}), process may have already exited: ${innerErr instanceof Error ? innerErr.message : String(innerErr)}`,
+          { domain: "worktree" },
+        );
       }
     }
 
@@ -979,6 +1042,41 @@ export class WorktreeManager {
     });
 
     return { success: true };
+  }
+
+  private getChildPids(parentPid: number): number[] {
+    try {
+      const output = execFileSync("pgrep", ["-P", String(parentPid)], {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+      if (!output) return [];
+      return output
+        .split("\n")
+        .map((line) => parseInt(line.trim(), 10))
+        .filter((pid) => !isNaN(pid));
+    } catch {
+      // pgrep returns non-zero when no children found
+      return [];
+    }
+  }
+
+  private runAdbReverse(ports: number[]): void {
+    for (const port of ports) {
+      try {
+        execFileSync("adb", ["reverse", `tcp:${port}`, `tcp:${port}`], {
+          encoding: "utf-8",
+          stdio: ["pipe", "pipe", "pipe"],
+          timeout: 5000,
+        });
+        log.debug(`Set adb reverse tcp:${port}`, { domain: "port-mapping" });
+      } catch (err) {
+        log.debug(
+          `adb reverse tcp:${port} failed (best-effort): ${err instanceof Error ? err.message : String(err)}`,
+          { domain: "port-mapping" },
+        );
+      }
+    }
   }
 
   private branchExistsLocally(branch: string, gitRoot: string): boolean {

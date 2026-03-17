@@ -656,6 +656,310 @@ describe("PortManager", () => {
     });
   });
 
+  describe("getFramework", () => {
+    it("returns undefined when no framework is configured or detected", () => {
+      const pm = createManager();
+
+      expect(pm.getFramework()).toBeUndefined();
+    });
+
+    it("returns persisted framework from config", () => {
+      const pm = createManager({ framework: "react-native" });
+
+      expect(pm.getFramework()).toBe("react-native");
+    });
+
+    it("returns persisted expo framework from config", () => {
+      const pm = createManager({ framework: "expo" });
+
+      expect(pm.getFramework()).toBe("expo");
+    });
+  });
+
+  describe("auto-detect framework on construction", () => {
+    it("does not detect when framework is already set in config", () => {
+      const pm = createManager({ framework: "expo" }, "/projects/myapp/.openkit/config.json");
+
+      expect(pm.getFramework()).toBe("expo");
+      expect(mockedWriteFileSync).not.toHaveBeenCalled();
+    });
+
+    it("does not detect when configFilePath is null", () => {
+      const pm = createManager();
+
+      expect(pm.getFramework()).toBeUndefined();
+    });
+
+    it("auto-detects expo and persists when not set in config", () => {
+      mockedExistsSync.mockImplementation((p) => String(p).endsWith("package.json"));
+      mockedReadFileSync.mockImplementation((p) => {
+        if (String(p).endsWith("package.json")) {
+          return JSON.stringify({ dependencies: { expo: "~52.0.0", "react-native": "0.76.0" } });
+        }
+        if (String(p).endsWith("config.json")) {
+          return JSON.stringify({ ports: { discovered: [], offsetStep: 1 } });
+        }
+        return "";
+      });
+
+      const pm = createManager({}, "/projects/myapp/.openkit/config.json");
+
+      expect(pm.getFramework()).toBe("expo");
+      expect(mockedWriteFileSync).toHaveBeenCalledWith(
+        "/projects/myapp/.openkit/config.json",
+        expect.stringContaining('"framework"'),
+      );
+    });
+
+    it("auto-detects react-native when not set in config", () => {
+      mockedExistsSync.mockImplementation((p) => String(p).endsWith("package.json"));
+      mockedReadFileSync.mockImplementation((p) => {
+        if (String(p).endsWith("package.json")) {
+          return JSON.stringify({ dependencies: { "react-native": "0.76.0" } });
+        }
+        if (String(p).endsWith("config.json")) {
+          return JSON.stringify({ ports: { discovered: [], offsetStep: 1 } });
+        }
+        return "";
+      });
+
+      const pm = createManager({}, "/projects/myapp/.openkit/config.json");
+
+      expect(pm.getFramework()).toBe("react-native");
+    });
+
+    it("does not persist when detection returns generic", () => {
+      mockedExistsSync.mockImplementation((p) => String(p).endsWith("package.json"));
+      mockedReadFileSync.mockImplementation((p) => {
+        if (String(p).endsWith("package.json")) {
+          return JSON.stringify({ dependencies: { react: "^19.0.0" } });
+        }
+        return "";
+      });
+
+      const pm = createManager({}, "/projects/myapp/.openkit/config.json");
+
+      expect(pm.getFramework()).toBeUndefined();
+      expect(mockedWriteFileSync).not.toHaveBeenCalled();
+    });
+
+    it("handles missing package.json gracefully", () => {
+      mockedExistsSync.mockReturnValue(false);
+
+      const pm = createManager({}, "/projects/myapp/.openkit/config.json");
+
+      expect(pm.getFramework()).toBeUndefined();
+      expect(mockedWriteFileSync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("needsAdbReverse", () => {
+    it("returns false for generic projects", () => {
+      const pm = createManager();
+
+      expect(pm.needsAdbReverse()).toBe(false);
+    });
+
+    it("returns true for react-native projects", () => {
+      const pm = createManager({ framework: "react-native" });
+
+      expect(pm.needsAdbReverse()).toBe(true);
+    });
+
+    it("returns true for expo projects", () => {
+      const pm = createManager({ framework: "expo" });
+
+      expect(pm.needsAdbReverse()).toBe(true);
+    });
+
+    it("returns false for generic framework in config", () => {
+      const pm = createManager({ framework: "generic" });
+
+      expect(pm.needsAdbReverse()).toBe(false);
+    });
+  });
+
+  describe("getEnvForOffset with RCT_METRO_PORT", () => {
+    it("resolves RCT_METRO_PORT template from envMapping", () => {
+      mockedExistsSync.mockReturnValue(false);
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 1 },
+        envMapping: { RCT_METRO_PORT: "${8081}" },
+      });
+
+      const env = pm.getEnvForOffset(1);
+
+      expect(env.RCT_METRO_PORT).toBe("8082");
+    });
+
+    it("resolves RCT_METRO_PORT with larger offset", () => {
+      mockedExistsSync.mockReturnValue(false);
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 10 },
+        envMapping: { RCT_METRO_PORT: "${8081}" },
+      });
+
+      const env = pm.getEnvForOffset(10);
+
+      expect(env.RCT_METRO_PORT).toBe("8091");
+    });
+  });
+
+  describe("getStartCommandPortArgs", () => {
+    it("returns empty array for generic framework", () => {
+      const pm = createManager({
+        ports: { discovered: [3000], offsetStep: 10 },
+      });
+
+      expect(pm.getStartCommandPortArgs("npm run dev", 10)).toEqual([]);
+    });
+
+    it("returns -- --port for npm-based RN project", () => {
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 10 },
+        framework: "react-native",
+      });
+
+      expect(pm.getStartCommandPortArgs("npm start", 10)).toEqual(["--", "--port", "8091"]);
+    });
+
+    it("returns --port without -- for yarn-based RN project", () => {
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 10 },
+        framework: "react-native",
+      });
+
+      expect(pm.getStartCommandPortArgs("yarn start", 10)).toEqual(["--port", "8091"]);
+    });
+
+    it("returns --port without -- for pnpm-based Expo project", () => {
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 10 },
+        framework: "expo",
+      });
+
+      expect(pm.getStartCommandPortArgs("pnpm start", 10)).toEqual(["--port", "8091"]);
+    });
+
+    it("returns --port without -- for npx expo start", () => {
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 10 },
+        framework: "expo",
+      });
+
+      expect(pm.getStartCommandPortArgs("npx expo start", 10)).toEqual(["--port", "8091"]);
+    });
+
+    it("falls back to default Metro port 8081 when no discovered ports", () => {
+      const pm = createManager({
+        ports: { discovered: [], offsetStep: 10 },
+        framework: "expo",
+      });
+
+      expect(pm.getStartCommandPortArgs("npm start", 10)).toEqual(["--", "--port", "8091"]);
+    });
+
+    it("returns empty array when no discovered ports and generic framework", () => {
+      const pm = createManager({
+        ports: { discovered: [], offsetStep: 10 },
+      });
+
+      expect(pm.getStartCommandPortArgs("npm run dev", 10)).toEqual([]);
+    });
+
+    it("returns empty array when start command already contains --port", () => {
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 10 },
+        framework: "expo",
+      });
+
+      expect(pm.getStartCommandPortArgs("npx expo start --port 3000", 10)).toEqual([]);
+    });
+
+    it("handles custom Metro port with offset", () => {
+      const pm = createManager({
+        ports: { discovered: [9090], offsetStep: 10 },
+        framework: "react-native",
+      });
+
+      expect(pm.getStartCommandPortArgs("yarn start", 10)).toEqual(["--port", "9100"]);
+    });
+
+    it("returns --port without -- for bun start", () => {
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 10 },
+        framework: "expo",
+      });
+
+      expect(pm.getStartCommandPortArgs("bun start", 10)).toEqual(["--port", "8091"]);
+    });
+  });
+
+  describe("getEnvForOffset with Expo env vars", () => {
+    it("does not include CI/EXPO_OFFLINE in getEnvForOffset (scoped to PTY spawn in manager)", () => {
+      mockedExistsSync.mockReturnValue(false);
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 10 },
+        framework: "expo",
+      });
+
+      const env = pm.getEnvForOffset(10);
+
+      // CI=0 and EXPO_OFFLINE=0 are now set only in the PTY spawn env (manager.ts)
+      // to avoid the broad side-effect on other tools in the process tree
+      expect(env.CI).toBeUndefined();
+      expect(env.EXPO_OFFLINE).toBeUndefined();
+    });
+
+    it("does not include Expo env vars for react-native framework", () => {
+      mockedExistsSync.mockReturnValue(false);
+      const pm = createManager({
+        ports: { discovered: [8081], offsetStep: 10 },
+        framework: "react-native",
+      });
+
+      const env = pm.getEnvForOffset(10);
+
+      expect(env.CI).toBeUndefined();
+      expect(env.EXPO_OFFLINE).toBeUndefined();
+    });
+
+    it("does not include Expo env vars for generic framework", () => {
+      mockedExistsSync.mockReturnValue(false);
+      const pm = createManager({
+        ports: { discovered: [3000], offsetStep: 10 },
+      });
+
+      const env = pm.getEnvForOffset(10);
+
+      expect(env.CI).toBeUndefined();
+      expect(env.EXPO_OFFLINE).toBeUndefined();
+    });
+
+    it("provides RCT_METRO_PORT from default port when discovered is empty", () => {
+      mockedExistsSync.mockReturnValue(false);
+      const pm = createManager({
+        ports: { discovered: [], offsetStep: 10 },
+        framework: "expo",
+      });
+
+      const env = pm.getEnvForOffset(10);
+
+      expect(env.RCT_METRO_PORT).toBe("8091");
+    });
+
+    it("returns empty object for generic framework with empty discovered ports", () => {
+      mockedExistsSync.mockReturnValue(false);
+      const pm = createManager({
+        ports: { discovered: [], offsetStep: 10 },
+      });
+
+      const env = pm.getEnvForOffset(10);
+
+      expect(env).toEqual({});
+    });
+  });
+
   describe("setDebugLogger", () => {
     it("accepts a debug logger function", () => {
       const pm = createManager();
