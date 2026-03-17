@@ -144,7 +144,6 @@ Commands:
   init          Interactive setup wizard to create .openkit/config.json
   add [name]    Set up an integration (github, linear, jira)
   ui            Manage optional UI components (web/desktop)
-  mcp           Start as an MCP server (for AI coding agents)
   activity      Emit workflow activity events (for agent/user coordination)
   task [source|resolve] [ID...] Manage task resolution and worktree creation
 
@@ -207,17 +206,6 @@ async function main() {
   if (subcommand === "ui") {
     const { runUiCommand } = await import("./ui");
     await runUiCommand(process.argv.slice(3));
-    return;
-  }
-
-  if (subcommand === "mcp") {
-    // MCP uses stdout for JSON-RPC — redirect console.log to stderr
-    // BEFORE anything else runs (loadConfig logs to stdout)
-    console.log = console.error;
-
-    const { config, configPath } = loadConfig();
-    const { startMcpServer } = await import("@openkit/agents/mcp");
-    await startMcpServer(config, configPath);
     return;
   }
 

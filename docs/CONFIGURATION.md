@@ -704,7 +704,7 @@ A runtime file written when the OpenKit server starts and deleted on shutdown. I
 
 ### Purpose
 
-- Used by `openkit mcp` to find a running server and start in proxy mode (relaying MCP messages to the HTTP server instead of spawning a standalone instance).
+- Used by CLI commands (e.g., `openkit activity`) to find a running server and POST events to it.
 - Used by `openkit connect` to connect the Electron app to an existing server.
 - The `pid` is validated with `process.kill(pid, 0)` to check whether the process is still alive. If the process is dead, the stale `server.json` is ignored.
 

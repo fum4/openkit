@@ -3,78 +3,22 @@
   "name": "desktop-app",
   "projectType": "application",
   "sourceRoot": "apps/desktop-app/src",
-  "implicitDependencies": ["web-app", "cli", "server", "logger"],
   "targets": {
-    "dev": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm dev"
-      }
-    },
     "build": {
-      "executor": "nx:run-commands",
       "dependsOn": ["web-app:build", "cli:build", "server:build"],
-      "outputs": ["{workspaceRoot}/apps/desktop-app/dist"],
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm build"
-      }
-    },
-    "preview": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm preview"
-      }
-    },
-    "start": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm start"
-      }
+      "outputs": ["{workspaceRoot}/apps/desktop-app/dist"]
     },
     "package": {
-      "executor": "nx:run-commands",
       "dependsOn": ["build"],
-      "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm package"
-      }
+      "outputs": ["{workspaceRoot}/apps/desktop-app/release"]
     },
     "package:mac": {
-      "executor": "nx:run-commands",
       "dependsOn": ["build"],
-      "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm package:mac"
-      }
+      "outputs": ["{workspaceRoot}/apps/desktop-app/release"]
     },
     "package:linux": {
-      "executor": "nx:run-commands",
       "dependsOn": ["build"],
-      "outputs": ["{workspaceRoot}/apps/desktop-app/release"],
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm package:linux"
-      }
-    },
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm typecheck"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/desktop-app",
-        "command": "pnpm lint"
-      }
+      "outputs": ["{workspaceRoot}/apps/desktop-app/release"]
     }
   }
 }

@@ -33,6 +33,9 @@ lib.LoggerDebug.restype = None
 lib.LoggerSuccess.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p]
 lib.LoggerSuccess.restype = None
 
+lib.LoggerStarted.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p]
+lib.LoggerStarted.restype = None
+
 lib.LoggerPlain.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p]
 lib.LoggerPlain.restype = None
 

@@ -4,16 +4,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsup --watch --watch ../server/src --watch ../../libs/shared/src --watch ../../libs/agents/src --watch ../../libs/integrations/src --watch ../../libs/logger/node/src",
+    "dev": "tsup --watch --watch ../server/src --watch ../../libs",
     "build": "tsup",
     "preview": "node dist/cli/index.js",
-    "start": "pnpm build && pnpm preview",
-    "typecheck": "tsgo --noEmit -p tsconfig.json",
-    "lint": "oxlint src"
+    "start": "pnpm exec nx run cli:build && pnpm preview",
+    "check:types": "tsgo --noEmit -p tsconfig.json",
+    "check:format": "oxfmt --check src",
+    "check:lint": "oxlint src",
+    "fix:format": "oxfmt src",
+    "fix:lint": "oxlint --fix src"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.3.0",
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@openkit/agents": "workspace:*",
+    "@openkit/integrations": "workspace:*",
+    "@openkit/logger": "workspace:*",
+    "@openkit/server": "workspace:*",
+    "@openkit/shared": "workspace:*",
     "koffi": "^2.15.2",
     "node-pty": "1.2.0-beta.10",
     "picocolors": "^1.1.1",

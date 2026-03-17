@@ -2,11 +2,18 @@
   "name": "@openkit/agents",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
   "scripts": {
-    "typecheck": "tsgo --noEmit -p tsconfig.json",
-    "lint": "oxlint src"
+    "check:types": "tsgo --noEmit -p tsconfig.json",
+    "check:format": "oxfmt --check src",
+    "check:lint": "oxlint src",
+    "fix:format": "oxfmt src",
+    "fix:lint": "oxlint --fix src"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1"
+    "@openkit/shared": "workspace:*"
   }
 }

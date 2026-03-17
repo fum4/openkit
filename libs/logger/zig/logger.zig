@@ -24,6 +24,7 @@ const Symbols = struct {
     err: LoggerLogFn,
     debug: LoggerLogFn,
     success: LoggerLogFn,
+    started: LoggerLogFn,
     plain: LoggerLogFn,
     free: LoggerFreeFn,
     set_sink: LoggerSetSinkFn,
@@ -58,6 +59,7 @@ fn resolveSymbols() ?Symbols {
         .err = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerError") orelse return null)),
         .debug = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerDebug") orelse return null)),
         .success = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerSuccess") orelse return null)),
+        .started = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerStarted") orelse return null)),
         .plain = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerPlain") orelse return null)),
         .free = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerFree") orelse return null)),
         .set_sink = @ptrCast(@alignCast(std.c.dlsym(handle, "LoggerSetSink") orelse return null)),
@@ -120,6 +122,11 @@ pub const Logger = struct {
     pub fn success(self: *const Logger, msg: [*:0]const u8, context: [*:0]const u8) void {
         const syms = resolved orelse return;
         if (self.available) syms.success(self.handle, msg, context);
+    }
+
+    pub fn started(self: *const Logger, msg: [*:0]const u8, context: [*:0]const u8) void {
+        const syms = resolved orelse return;
+        if (self.available) syms.started(self.handle, msg, context);
     }
 
     pub fn plain(self: *const Logger, msg: [*:0]const u8, context: [*:0]const u8) void {

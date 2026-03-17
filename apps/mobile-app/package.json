@@ -15,8 +15,11 @@
     "start:android": "expo start --android --no-dev --minify",
     "start:ios": "expo start --ios --no-dev --minify",
     "start:web": "expo start --web --no-dev --minify",
-    "typecheck": "tsgo --noEmit -p tsconfig.json",
-    "lint": "oxlint app"
+    "check:types": "tsgo --noEmit -p tsconfig.json",
+    "check:format": "oxfmt --check app",
+    "check:lint": "oxlint app",
+    "fix:format": "oxfmt app",
+    "fix:lint": "oxlint --fix app"
   },
   "dependencies": {
     "expo": "^54.0.33",

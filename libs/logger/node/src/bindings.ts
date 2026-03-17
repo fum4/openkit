@@ -1,21 +1,7 @@
 import path from "path";
 import os from "os";
 
-type LogFn = (id: number, message: string, contextJSON: string) => void;
-
-export interface LoggerBindings {
-  LoggerNew: (system: string, subsystem: string, level: string, format: string) => number;
-  LoggerInfo: LogFn;
-  LoggerWarn: LogFn;
-  LoggerError: LogFn;
-  LoggerDebug: LogFn;
-  LoggerSuccess: LogFn;
-  LoggerPlain: LogFn;
-  LoggerFree: (id: number) => void;
-  LoggerSetSink: (serverUrl: string, projectName: string) => void;
-  LoggerCloseSink: () => void;
-  available: boolean;
-}
+import type { LoggerBindings } from "../../ts_utils";
 
 let cached: LoggerBindings | null = null;
 
@@ -35,44 +21,20 @@ function loadNative(): LoggerBindings | null {
       LoggerError: lib.func("LoggerError", "void", ["int", "string", "string"]),
       LoggerDebug: lib.func("LoggerDebug", "void", ["int", "string", "string"]),
       LoggerSuccess: lib.func("LoggerSuccess", "void", ["int", "string", "string"]),
+      LoggerStarted: lib.func("LoggerStarted", "void", ["int", "string", "string"]),
       LoggerPlain: lib.func("LoggerPlain", "void", ["int", "string", "string"]),
       LoggerFree: lib.func("LoggerFree", "void", ["int"]),
       LoggerSetSink: lib.func("LoggerSetSink", "void", ["string", "string"]),
       LoggerCloseSink: lib.func("LoggerCloseSink", "void", []),
-      available: true,
     };
   } catch {
     return null;
   }
 }
 
-export function getBindings(): LoggerBindings {
-  if (cached) return cached;
+export function getBindings(): LoggerBindings | null {
+  if (cached !== undefined && cached !== null) return cached;
 
-  const native = loadNative();
-
-  if (native) {
-    cached = native;
-    return cached;
-  }
-
-  // Fallback: console-based implementation when Go library is unavailable
-  const noop: LogFn = () => {};
-  let nextId = 1;
-
-  cached = {
-    LoggerNew: () => nextId++,
-    LoggerInfo: noop,
-    LoggerWarn: noop,
-    LoggerError: noop,
-    LoggerDebug: noop,
-    LoggerSuccess: noop,
-    LoggerPlain: noop,
-    LoggerFree: () => {},
-    LoggerSetSink: () => {},
-    LoggerCloseSink: () => {},
-    available: false,
-  };
-
+  cached = loadNative();
   return cached;
 }

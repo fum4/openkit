@@ -3,50 +3,9 @@
   "name": "cli",
   "projectType": "application",
   "sourceRoot": "apps/cli/src",
-  "implicitDependencies": ["server", "agents", "integrations", "shared", "logger"],
   "targets": {
-    "dev": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/cli",
-        "command": "pnpm dev"
-      }
-    },
     "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/apps/cli/dist"],
-      "options": {
-        "cwd": "apps/cli",
-        "command": "pnpm build"
-      }
-    },
-    "preview": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/cli",
-        "command": "pnpm preview"
-      }
-    },
-    "start": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/cli",
-        "command": "pnpm start"
-      }
-    },
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/cli",
-        "command": "pnpm typecheck"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/cli",
-        "command": "pnpm lint"
-      }
+      "outputs": ["{workspaceRoot}/apps/cli/dist"]
     }
   }
 }

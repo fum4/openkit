@@ -23,6 +23,10 @@ import { copyEnvFiles } from "@openkit/shared/env-files";
 import { log } from "./logger";
 import { generateBranchName } from "./branch-name";
 import { getGitRoot, getWorktreeBranch, validateBranchName } from "@openkit/shared/git";
+
+const portLog = log.get("port");
+const worktreeLog = log.get("worktree");
+const linearLog = log.get("linear");
 import { GitHubManager } from "@openkit/integrations/github/github-manager";
 import { loadJiraCredentials, loadJiraProjectConfig } from "@openkit/integrations/jira/credentials";
 import {
@@ -276,15 +280,20 @@ export class WorktreeManager {
     this.activityLog = new ActivityLog(this.configDir, this.config.activity);
     this.opsLog = new OpsLog(this.configDir, this.config.opsLog);
     this.portManager.setDebugLogger((event) => {
-      this.opsLog.addEvent({
-        source: "port",
+      const level = event.level ?? (event.status === "failed" ? "error" : "info");
+      const status = event.status ?? "info";
+      const context = {
+        domain: "port",
         action: event.action,
-        message: event.message,
-        level: event.level ?? (event.status === "failed" ? "error" : "info"),
-        status: event.status ?? "info",
+        status,
         projectName: this.getProjectName() ?? undefined,
-        metadata: event.metadata,
-      });
+        ...event.metadata,
+      };
+      if (level === "error") {
+        portLog.error(event.message, context);
+      } else {
+        portLog.info(event.message, context);
+      }
     });
 
     const worktreesPath = this.getWorktreesAbsolutePath();
@@ -460,9 +469,17 @@ export class WorktreeManager {
   }
 
   private emitNotification(message: string, level: "error" | "info" = "error"): void {
-    this.opsLog.addNotificationEvent(message, level, {
+    const notificationLog = log.get("notification");
+    const context = {
+      domain: "notification",
+      action: "notification.emit",
       projectName: this.getProjectName() ?? undefined,
-    });
+    };
+    if (level === "error") {
+      notificationLog.error(message, context);
+    } else {
+      notificationLog.info(message, context);
+    }
     this.notificationListeners.forEach((listener) => listener({ message, level }));
   }
 
@@ -1444,43 +1461,45 @@ export class WorktreeManager {
       result: "start" | "success" | "failure",
       extra: Record<string, unknown> = {},
     ) => {
-      this.opsLog.addEvent({
-        source: "worktree",
+      const context = {
+        domain: "worktree",
         action: "worktree.delete.phase",
-        level: result === "failure" ? "error" : "info",
         status: result === "failure" ? "failed" : "info",
-        message: `Worktree delete ${result}: ${phase}`,
         projectName,
-        metadata: {
-          deleteOpId,
-          phase,
-          result,
-          targetId: id,
-          ...extra,
-        },
-      });
+        deleteOpId,
+        phase,
+        result,
+        targetId: id,
+        ...extra,
+      };
+      if (result === "failure") {
+        worktreeLog.error(`Worktree delete ${result}: ${phase}`, context);
+      } else {
+        worktreeLog.info(`Worktree delete ${result}: ${phase}`, context);
+      }
     };
-    const finalize = (result: RemoveWorktreeResult): RemoveWorktreeResult => {
-      this.opsLog.addEvent({
-        source: "worktree",
+    const finalize = (finalResult: RemoveWorktreeResult): RemoveWorktreeResult => {
+      const context = {
+        domain: "worktree",
         action: "worktree.delete.complete",
-        level: result.success ? "info" : "error",
-        status: result.success ? "success" : "failed",
-        message: result.success ? "Worktree delete completed" : "Worktree delete failed",
+        status: finalResult.success ? "success" : "failed",
         projectName,
-        worktreeId: result.worktreeId,
-        metadata: {
-          deleteOpId,
-          durationMs: Date.now() - startedAt,
-          targetId: id,
-          code: result.code ?? null,
-          error: result.error ?? null,
-          removedTerminalSessions: result.removedTerminalSessions ?? 0,
-          removedRunningProcess: result.removedRunningProcess ?? false,
-          clearedLinks: result.clearedLinks ?? 0,
-        },
-      });
-      return { ...result, deleteOpId };
+        worktreeId: finalResult.worktreeId,
+        deleteOpId,
+        durationMs: Date.now() - startedAt,
+        targetId: id,
+        code: finalResult.code ?? null,
+        error: finalResult.error ?? null,
+        removedTerminalSessions: finalResult.removedTerminalSessions ?? 0,
+        removedRunningProcess: finalResult.removedRunningProcess ?? false,
+        clearedLinks: finalResult.clearedLinks ?? 0,
+      };
+      if (finalResult.success) {
+        worktreeLog.success("Worktree delete completed", context);
+      } else {
+        worktreeLog.error("Worktree delete failed", context);
+      }
+      return { ...finalResult, deleteOpId };
     };
 
     logDeletePhase("validate", "start");
@@ -2431,17 +2450,12 @@ export class WorktreeManager {
     error?: string;
     code?: string;
   }> {
-    this.opsLog.addEvent({
-      source: "linear",
+    linearLog.info(`Create worktree requested from Linear issue ${identifier}`, {
+      domain: "linear",
       action: "linear.worktree.create",
-      level: "info",
-      status: "info",
-      message: `Create worktree requested from Linear issue ${identifier}`,
       projectName: this.getProjectName() ?? undefined,
-      metadata: {
-        identifier,
-        hasBranchOverride: Boolean(branch?.trim()),
-      },
+      identifier,
+      hasBranchOverride: Boolean(branch?.trim()),
     });
     const creds = loadLinearCredentials(this.configDir);
     if (!creds) {
@@ -2543,24 +2557,30 @@ export class WorktreeManager {
         },
       },
     );
-    this.opsLog.addEvent({
-      source: "linear",
-      action: "linear.worktree.create",
-      level: result.success ? "info" : "error",
-      status: result.success ? "success" : "failed",
-      message: result.success
-        ? `Created worktree from Linear issue ${resolvedId}`
-        : `Failed to create worktree from Linear issue ${resolvedId}`,
-      projectName: this.getProjectName() ?? undefined,
-      worktreeId: result.worktreeId,
-      metadata: {
+    if (result.success) {
+      linearLog.success(`Created worktree from Linear issue ${resolvedId}`, {
+        domain: "linear",
+        action: "linear.worktree.create",
+        worktreeId: result.worktreeId,
+        projectName: this.getProjectName() ?? undefined,
         identifier: resolvedId,
         success: result.success,
         code: result.code ?? null,
-        worktreeId: result.worktreeId ?? null,
         error: result.error ?? null,
-      },
-    });
+      });
+    } else {
+      linearLog.error(`Failed to create worktree from Linear issue ${resolvedId}`, {
+        domain: "linear",
+        action: "linear.worktree.create",
+        status: "failed",
+        worktreeId: result.worktreeId,
+        projectName: this.getProjectName() ?? undefined,
+        identifier: resolvedId,
+        success: result.success,
+        code: result.code ?? null,
+        error: result.error ?? null,
+      });
+    }
 
     if (!result.success) {
       this.clearPendingWorktreeContext(resolvedId);

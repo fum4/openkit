@@ -3,12 +3,7 @@
   "compilerOptions": {
     "types": ["node", "vitest/globals"],
     "paths": {
-      "@openkit/agents/*": ["../../libs/agents/src/*"],
-      "@openkit/agents": ["../../libs/agents/src/index.ts"],
-      "@openkit/integrations/*": ["../../libs/integrations/src/*"],
-      "@openkit/server/*": ["./src/*"],
-      "@openkit/shared/*": ["../../libs/shared/src/*"],
-      "@openkit/logger/node": ["../../libs/logger/node/src/index.ts"]
+      "@openkit/server/*": ["./src/*"]
     }
   },
   "include": ["src/**/*.ts", "../../md.d.ts"],

@@ -1,0 +1,9 @@
+{
+  "name": "@openkit/logger",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./node": "./node/src/index.ts",
+    "./browser": "./browser/src/index.ts"
+  }
+}

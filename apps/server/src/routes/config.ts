@@ -16,8 +16,7 @@ import {
   hasCustomCommitMessageRule,
   readCommitMessageRuleContent,
   wrapWithExportDefault as wrapCommitExportDefault,
-} from "../commit-message";
-import { isMcpSetupEnabled } from "../feature-flags";
+} from "@openkit/shared/commit-message";
 import { enableDefaultProjectSkills } from "../lib/project-skill-bootstrap";
 import { ensureLocalConfigDefaults, loadLocalConfig, updateLocalConfig } from "../local-config";
 import type { WorktreeManager } from "../manager";
@@ -84,12 +83,6 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
     const config = manager.getConfig();
     const projectName = manager.getProjectName();
     return c.json({ config, projectName, hasBranchNameRule: true });
-  });
-
-  app.get("/api/config/features", (c) => {
-    return c.json({
-      mcpSetupEnabled: isMcpSetupEnabled(),
-    });
   });
 
   app.patch("/api/config", async (c) => {

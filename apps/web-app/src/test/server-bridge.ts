@@ -11,11 +11,8 @@ import path from "path";
 
 import { http, type HttpHandler } from "msw";
 
-// @ts-expect-error -- cross-workspace import resolved by Vite at runtime
 import { WorktreeManager } from "@openkit/server/manager";
-// @ts-expect-error -- cross-workspace import resolved by Vite at runtime
 import { createWorktreeServer } from "@openkit/server/index";
-// @ts-expect-error -- cross-workspace import resolved by Vite at runtime
 import type { WorktreeConfig } from "@openkit/server/types";
 
 // ─── Server bridge factory ────────────────────────────────────

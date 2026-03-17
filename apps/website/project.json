@@ -4,48 +4,8 @@
   "projectType": "application",
   "sourceRoot": "apps/website/src",
   "targets": {
-    "dev": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/website",
-        "command": "pnpm dev"
-      }
-    },
     "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/apps/website/dist"],
-      "options": {
-        "cwd": "apps/website",
-        "command": "pnpm build"
-      }
-    },
-    "preview": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/website",
-        "command": "pnpm preview"
-      }
-    },
-    "start": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/website",
-        "command": "pnpm start"
-      }
-    },
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/website",
-        "command": "pnpm typecheck"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/website",
-        "command": "pnpm lint"
-      }
+      "outputs": ["{workspaceRoot}/apps/website/dist"]
     }
   }
 }

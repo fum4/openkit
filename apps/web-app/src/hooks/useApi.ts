@@ -285,16 +285,7 @@ export function useApi() {
 
       disconnectLinear: () => api.disconnectLinear(serverUrl),
 
-      fetchMcpStatus: () => api.fetchMcpStatus(serverUrl),
-
-      setupMcpAgent: (agent: string, scope: "global" | "project") =>
-        api.setupMcpAgent(agent, scope, serverUrl),
-
-      removeMcpAgent: (agent: string, scope: "global" | "project") =>
-        api.removeMcpAgent(agent, scope, serverUrl),
-
       fetchSetupStatus: () => api.fetchSetupStatus(serverUrl),
-      fetchSetupFeatures: () => api.fetchSetupFeatures(serverUrl),
 
       commitSetup: (message: string) => api.commitSetup(message, serverUrl),
 

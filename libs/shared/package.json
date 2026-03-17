@@ -2,12 +2,18 @@
   "name": "@openkit/shared",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
   "scripts": {
-    "typecheck": "tsgo --noEmit -p tsconfig.json",
-    "lint": "oxlint src",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "check:types": "tsgo --noEmit -p tsconfig.json",
+    "check:format": "oxfmt --check src",
+    "check:lint": "oxlint src",
+    "fix:format": "oxfmt src",
+    "fix:lint": "oxlint --fix src"
   },
   "dependencies": {
     "picocolors": "^1.1.1"

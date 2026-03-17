@@ -3,13 +3,12 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: {
     "cli/index": "src/index.ts",
-    "electron-entry": "src/electron-entry.ts",
   },
   outDir: "dist",
   clean: true,
   format: "esm",
   external: ["node-pty"],
-  noExternal: ["ws", "picocolors"],
+  noExternal: [/^@openkit\//, "ws", "picocolors"],
   esbuildOptions(options) {
     options.banner = {
       ...options.banner,

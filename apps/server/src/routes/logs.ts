@@ -99,17 +99,32 @@ export function registerLogsRoutes(app: Hono, manager: WorktreeManager) {
       const projectName = manager.getProjectName() ?? undefined;
 
       for (const entry of body.entries) {
-        const metadata: Record<string, unknown> = { ...entry.metadata };
-        if (entry.domain) metadata.domain = entry.domain;
+        // Extract well-known keys from metadata into top-level ops-log fields.
+        // Everything else stays in the metadata bag.
+        const {
+          action: metaAction,
+          status: metaStatus,
+          worktreeId: metaWorktreeId,
+          projectName: metaProjectName,
+          runId: metaRunId,
+          ...rest
+        } = entry.metadata ?? {};
+
+        const cleanMetadata: Record<string, unknown> = { ...rest };
+        if (entry.domain) cleanMetadata.domain = entry.domain;
+
+        const defaultStatus = entry.level === "error" ? "failed" : "info";
 
         opsLog.addEvent({
           source: entry.subsystem ? `${entry.system}.${entry.subsystem}` : entry.system,
-          action: "log",
+          action: typeof metaAction === "string" ? metaAction : "log",
           message: entry.message,
           level: entry.level === "warn" ? "warning" : (entry.level as OpsLogLevel),
-          status: entry.level === "error" ? "failed" : "info",
-          projectName,
-          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+          status: typeof metaStatus === "string" ? (metaStatus as OpsLogStatus) : defaultStatus,
+          worktreeId: typeof metaWorktreeId === "string" ? metaWorktreeId : undefined,
+          projectName: typeof metaProjectName === "string" ? metaProjectName : projectName,
+          runId: typeof metaRunId === "string" ? metaRunId : undefined,
+          metadata: Object.keys(cleanMetadata).length > 0 ? cleanMetadata : undefined,
         });
       }
 

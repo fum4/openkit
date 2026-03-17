@@ -8,7 +8,7 @@ import { useErrorToast } from "../../hooks/useErrorToast";
 import { useApi } from "../../hooks/useApi";
 import { clearTerminalSessionCacheForRuntimeWorktree } from "../../hooks/useTerminal";
 import { useServer, useServerUrlOptional } from "../../contexts/ServerContext";
-import { action, border, button, detailTab, errorBanner, input, text } from "../../theme";
+import { action, button, detailTab, errorBanner, input, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { GitHubIcon } from "../../icons";
 import { Modal } from "../Modal";

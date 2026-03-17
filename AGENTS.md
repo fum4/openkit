@@ -6,14 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Never commit unless the user explicitly asks.** Do not auto-commit after implementing changes, fixing tests, or completing tasks. The user controls when commits happen.
 
-## MCP Status (Legacy)
+## MCP Status (Removed)
 
-MCP is legacy in this repository.
+OpenKit's own MCP server has been removed from the codebase. The `openkit mcp` CLI command, the `/mcp` HTTP transport endpoint, and the `/api/mcp/*` setup routes no longer exist. The `@modelcontextprotocol/sdk` dependency has been removed.
 
-- Do not use MCP for new work.
-- Do not develop new MCP features.
-- Do not refactor MCP code unless explicitly requested for a targeted legacy fix.
-- Prefer CLI and core app flows for all new capabilities.
+- Do not add MCP server functionality back.
+- Do not reference `openkit mcp`, `/mcp`, or `/api/mcp/*` routes in new code.
+- Third-party MCP server management (`/api/mcp-servers/*`) is still active and maintained.
+- Skill deployment via the skills API is the replacement for agent integration.
 
 ## Naming and File Hygiene
 
@@ -107,7 +107,7 @@ OpenKit has a **Dev Mode** (App Settings → Dev Mode toggle) that symlinks each
 - Use `log.info()` for informational output, `log.success()` for completion messages (green ● prefix), `log.warn()` for warnings, `log.error()` for errors, `log.debug()` for debug-only output, and `log.plain()` for unformatted output.
 - Always include a `domain` field in the metadata object to namespace logs by feature area (for example `{ domain: "GitHub" }`, `{ domain: "auto-launch" }`, `{ domain: "project-switch" }`). The logger extracts `domain` from metadata into a dedicated field on the `LogEntry`, keeping logs filterable by feature.
 - **Sink**: call `Logger.setSink(serverUrl, projectName)` at startup to POST log entries to the server. The server writes them to the ops-log and notifies real-time listeners. All processes (including the server itself) POST to the same endpoint — the server is the single ops-log writer.
-- The only exception is `console.log = console.error` in the MCP path (`apps/cli/src/index.ts`), which redirects stdout to stderr for JSON-RPC transport — this is infrastructure, not logging.
+- There are no exceptions to the logging rule.
 
 ## TypeScript Preference
 
@@ -156,7 +156,7 @@ Comprehensive documentation lives in `/docs/`. **Always check the relevant docs 
 
 - When adding/changing API endpoints → update `docs/API.md`
 - When adding/changing components, hooks, or theme tokens → update `docs/FRONTEND.md`
-- When adding/changing MCP tools or instructions → update `docs/MCP.md`
+- When adding/changing third-party MCP server management → update `docs/MCP.md`
 - When changing architecture, adding new modules/files → update `docs/ARCHITECTURE.md`
 - When adding/changing config fields → update `docs/CONFIGURATION.md`
 - When changing Electron behavior → update `docs/ELECTRON.md`
@@ -172,7 +172,7 @@ Comprehensive documentation lives in `/docs/`. **Always check the relevant docs 
 | [API Reference](docs/API.md)           | REST API endpoints                                         | New or modified endpoints       |
 | [CLI Reference](docs/CLI.md)           | All CLI commands and options                               | CLI changes                     |
 | [Configuration](docs/CONFIGURATION.md) | Config files, settings, data storage                       | Config changes                  |
-| [MCP Tools](docs/MCP.md)               | MCP integration and tool reference                         | MCP/agent tool changes          |
+| [MCP Tools](docs/MCP.md)               | MCP status and third-party server management               | MCP/agent tool changes          |
 | [Agents](docs/AGENTS.md)               | Agent tooling, skills, plugins, git policy                 | Agent system changes            |
 | [Integrations](docs/INTEGRATIONS.md)   | Jira, Linear, GitHub setup                                 | Integration changes             |
 | [Port Mapping](docs/PORT-MAPPING.md)   | Port discovery, offset algorithm, runtime hook             | Port system changes             |
