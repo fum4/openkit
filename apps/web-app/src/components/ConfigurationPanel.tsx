@@ -16,6 +16,7 @@ import { useFileChangeEvent } from "../hooks/useFileChangeEvent";
 
 import { ACTIVITY_TYPES } from "@openkit/shared/activity-event";
 import { reportPersistentErrorToast } from "../errorToasts";
+import { log } from "../logger";
 import { type WorktreeConfig } from "../hooks/useConfig";
 import { useApi } from "../hooks/useApi";
 import { button, input, settings, surface, tab, text } from "../theme";
@@ -519,7 +520,9 @@ export function ConfigurationPanel({
       api
         .fetchBranchRuleStatus()
         .then((s) => setBranchOverrides(s.overrides))
-        .catch(() => {});
+        .catch((error) => {
+          log.warn("Failed to reload branch rule status", { domain: "config", error });
+        });
     }, [loadBranchTab, branchTab, api]),
   );
 
@@ -532,7 +535,9 @@ export function ConfigurationPanel({
       api
         .fetchCommitRuleStatus()
         .then((s) => setCommitOverrides(s.overrides))
-        .catch(() => {});
+        .catch((error) => {
+          log.warn("Failed to reload commit rule status", { domain: "config", error });
+        });
     }, [loadCommitTab, commitTab, api]),
   );
 

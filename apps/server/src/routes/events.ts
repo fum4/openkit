@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
 
+import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 
 export function registerEventRoutes(app: Hono, manager: WorktreeManager) {
@@ -75,7 +76,11 @@ export function registerEventRoutes(app: Hono, manager: WorktreeManager) {
             } else {
               controller.enqueue(`data: ${JSON.stringify({ type: "file-changed", category })}\n\n`);
             }
-          } catch {
+          } catch (error) {
+            log.debug("File-change SSE enqueue failed, unsubscribing", {
+              domain: "events",
+              error,
+            });
             unsubscribeFileChange();
           }
         });

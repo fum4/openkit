@@ -36,8 +36,29 @@ export function HooksPanel() {
 
   if (!config)
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-5 h-5 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-12">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center">
+              <FishingHook className="w-4 h-4 text-amber-400" />
+            </div>
+            <h1 className="text-base font-medium text-[#f0f2f5]">Hooks</h1>
+          </div>
+          <InfoBanner storageKey="OpenKit:hooksBannerDismissed" color="amber">
+            Hooks are automated checks and skills that validate your work, running at predefined
+            points in your workflow to ensure quality, consistency, and compliance throughout each
+            stage of the process.
+          </InfoBanner>
+        </div>
+        <div className="flex items-center justify-center pt-12">
+          <div
+            className="w-5 h-5 border-2 border-[#4b5563] border-t-transparent rounded-full animate-spin"
+            style={{
+              opacity: 0,
+              animation: "spin 1s linear infinite, fadeIn 0.2s ease 0.5s forwards",
+            }}
+          />
+        </div>
       </div>
     );
 
@@ -1563,7 +1584,7 @@ function CustomHookEditor({
         />
         {loading ? (
           <div className="flex justify-center py-4">
-            <div className="w-4 h-4 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-[#4b5563] border-t-transparent rounded-full animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
           <p className={`text-[11px] ${text.muted} text-center py-3`}>
@@ -1886,7 +1907,7 @@ function ImportSkillPicker({
 
       {loading ? (
         <div className="flex justify-center py-4">
-          <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+          <div className="w-4 h-4 border-2 border-[#4b5563] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
         <p className={`text-[11px] ${text.muted} text-center py-4`}>

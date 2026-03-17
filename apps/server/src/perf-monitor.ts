@@ -1,5 +1,7 @@
-import pidusage from "pidusage";
 import { execFile } from "child_process";
+import os from "os";
+
+import pidusage from "pidusage";
 
 import type {
   PerfSnapshot,
@@ -33,7 +35,8 @@ export class PerfMonitor {
   private terminalManager: TerminalManager;
   private buffer: PerfSnapshot[] = [];
   private subscribers = new Set<Subscriber>();
-  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private intervalId: ReturnType<typeof setTimeout> | null = null;
+  private running = false;
   private childPidCache = new Map<number, ChildPidCache>();
   private diskUsageCache = new Map<string, DiskUsageCache>();
 
@@ -64,17 +67,27 @@ export class PerfMonitor {
   }
 
   private start(): void {
-    if (this.intervalId) return;
+    if (this.running) return;
+    this.running = true;
     log.debug("Performance monitor started", { domain: "metrics" });
-    // Poll immediately, then every interval
-    this.poll();
-    this.intervalId = setInterval(() => this.poll(), POLL_INTERVAL_MS);
+    this.schedulePoll();
+  }
+
+  private schedulePoll(): void {
+    this.poll().finally(() => {
+      if (this.subscribers.size > 0) {
+        this.intervalId = setTimeout(() => this.schedulePoll(), POLL_INTERVAL_MS);
+      }
+    });
   }
 
   private stop(): void {
-    if (!this.intervalId) return;
-    clearInterval(this.intervalId);
-    this.intervalId = null;
+    if (!this.running) return;
+    this.running = false;
+    if (this.intervalId) {
+      clearTimeout(this.intervalId);
+      this.intervalId = null;
+    }
     this.childPidCache.clear();
     this.diskUsageCache.clear();
     log.debug("Performance monitor stopped", { domain: "metrics" });
@@ -111,8 +124,9 @@ export class PerfMonitor {
     // Collect server self metrics
     const serverMetrics = await this.getProcessMetrics(process.pid, now);
 
-    // Collect worktree metrics
+    // Collect worktree metrics — include ALL worktrees, not just running ones
     const runningPids = this.manager.getRunningProcessPids();
+    const allWorktrees = this.manager.getAllWorktreePaths();
     const sessions = this.terminalManager.getActiveSessionInfo();
 
     const worktreeMetrics: WorktreeMetrics[] = [];
@@ -120,53 +134,59 @@ export class PerfMonitor {
     let systemTotalMemory = serverMetrics?.memory ?? 0;
     let systemProcessCount = 1; // server itself
 
-    for (const [worktreeId, info] of runningPids) {
-      const devServer = await this.getProcessMetrics(info.pid, now);
+    for (const [worktreeId, wt] of allWorktrees) {
+      const running = runningPids.get(worktreeId);
 
-      // Get child processes
-      const childPids = await this.getChildPids(info.pid, now);
+      let devServer: ProcessMetrics | null = null;
       const childMetrics: ProcessMetrics[] = [];
-      for (const childPid of childPids) {
-        const m = await this.getProcessMetrics(childPid, now);
-        if (m) childMetrics.push(m);
-      }
-
-      // Get agent sessions for this worktree
-      const worktreeSessions = sessions.filter(
-        (s) =>
-          s.worktreeId === worktreeId &&
-          s.pid != null &&
-          s.scope !== "terminal" &&
-          s.scope !== null,
-      );
       const agentMetrics: AgentSessionMetrics[] = [];
-      for (const session of worktreeSessions) {
-        const m = session.pid ? await this.getProcessMetrics(session.pid, now) : null;
-        agentMetrics.push({
-          sessionId: session.sessionId,
-          scope: session.scope as AgentSessionMetrics["scope"],
-          metrics: m,
-        });
+      let totalCpu = 0;
+      let totalMemory = 0;
+
+      if (running) {
+        devServer = await this.getProcessMetrics(running.pid, now);
+
+        const childPids = await this.getChildPids(running.pid, now);
+        for (const childPid of childPids) {
+          const m = await this.getProcessMetrics(childPid, now);
+          if (m) childMetrics.push(m);
+        }
+
+        const worktreeSessions = sessions.filter(
+          (s) =>
+            s.worktreeId === worktreeId &&
+            s.pid != null &&
+            s.scope !== "terminal" &&
+            s.scope !== null,
+        );
+        for (const session of worktreeSessions) {
+          const m = session.pid ? await this.getProcessMetrics(session.pid, now) : null;
+          agentMetrics.push({
+            sessionId: session.sessionId,
+            scope: session.scope as AgentSessionMetrics["scope"],
+            metrics: m,
+          });
+        }
+
+        totalCpu = (devServer?.cpu ?? 0) + childMetrics.reduce((s, m) => s + m.cpu, 0);
+        totalMemory = (devServer?.memory ?? 0) + childMetrics.reduce((s, m) => s + m.memory, 0);
+        for (const a of agentMetrics) {
+          totalCpu += a.metrics?.cpu ?? 0;
+          totalMemory += a.metrics?.memory ?? 0;
+        }
+
+        systemTotalCpu += totalCpu;
+        systemTotalMemory += totalMemory;
+        const processCount =
+          (devServer ? 1 : 0) + childMetrics.length + agentMetrics.filter((a) => a.metrics).length;
+        systemProcessCount += processCount;
       }
 
-      let totalCpu = (devServer?.cpu ?? 0) + childMetrics.reduce((s, m) => s + m.cpu, 0);
-      let totalMemory = (devServer?.memory ?? 0) + childMetrics.reduce((s, m) => s + m.memory, 0);
-      for (const a of agentMetrics) {
-        totalCpu += a.metrics?.cpu ?? 0;
-        totalMemory += a.metrics?.memory ?? 0;
-      }
-
-      systemTotalCpu += totalCpu;
-      systemTotalMemory += totalMemory;
-      const processCount =
-        (devServer ? 1 : 0) + childMetrics.length + agentMetrics.filter((a) => a.metrics).length;
-      systemProcessCount += processCount;
-
-      const diskUsage = await this.getDiskUsage(worktreeId, info.path, now);
+      const diskUsage = await this.getDiskUsage(worktreeId, wt.path, now);
 
       worktreeMetrics.push({
         worktreeId,
-        branch: info.branch,
+        branch: wt.branch,
         devServer,
         childProcesses: childMetrics,
         agentSessions: agentMetrics,
@@ -183,6 +203,7 @@ export class PerfMonitor {
         totalCpu: systemTotalCpu,
         totalMemory: systemTotalMemory,
         processCount: systemProcessCount,
+        systemMemory: os.totalmem(),
       },
       worktrees: worktreeMetrics,
     };
@@ -218,7 +239,12 @@ export class PerfMonitor {
   private fetchChildPids(parentPid: number): Promise<number[]> {
     return new Promise((resolve) => {
       execFile("pgrep", ["-P", String(parentPid)], (error, stdout) => {
-        if (error || !stdout.trim()) {
+        if (error) {
+          log.debug(`pgrep failed for PID ${parentPid}`, { domain: "metrics", error });
+          resolve([]);
+          return;
+        }
+        if (!stdout.trim()) {
           resolve([]);
           return;
         }
@@ -252,7 +278,12 @@ export class PerfMonitor {
   private fetchDiskUsage(dirPath: string): Promise<number | null> {
     return new Promise((resolve) => {
       execFile("du", ["-sk", dirPath], (error, stdout) => {
-        if (error || !stdout.trim()) {
+        if (error) {
+          log.debug(`du failed for path ${dirPath}`, { domain: "metrics", error });
+          resolve(null);
+          return;
+        }
+        if (!stdout.trim()) {
           resolve(null);
           return;
         }
@@ -263,7 +294,7 @@ export class PerfMonitor {
   }
 
   isRunning(): boolean {
-    return this.intervalId !== null;
+    return this.running;
   }
 
   getSubscriberCount(): number {

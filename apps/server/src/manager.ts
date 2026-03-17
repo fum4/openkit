@@ -229,6 +229,9 @@ export class WorktreeManager {
   /** Categories currently suppressed (set when we write files ourselves). */
   private suppressedFileChangeCategories: Set<FileChangeCategory> = new Set();
 
+  /** Debounce timers for file-change notifications, cleared on shutdown. */
+  private fileChangeDebounceTimers = new Map<FileChangeCategory, ReturnType<typeof setTimeout>>();
+
   private worktreeLifecycleHookRunner:
     | ((
         trigger: WorktreeLifecycleHookTrigger,
@@ -294,15 +297,13 @@ export class WorktreeManager {
 
   private watchProjectFiles(): void {
     const configDir = path.join(this.configDir, CONFIG_DIR_NAME);
-    const debounceTimers = new Map<FileChangeCategory, ReturnType<typeof setTimeout>>();
-
     const debouncedEmit = (category: FileChangeCategory, action?: () => void) => {
-      const existing = debounceTimers.get(category);
+      const existing = this.fileChangeDebounceTimers.get(category);
       if (existing) clearTimeout(existing);
-      debounceTimers.set(
+      this.fileChangeDebounceTimers.set(
         category,
         setTimeout(() => {
-          debounceTimers.delete(category);
+          this.fileChangeDebounceTimers.delete(category);
           if (this.suppressedFileChangeCategories.delete(category)) return;
           log.info(`File changed externally: ${category}`, { domain: "file-watch" });
           action?.();
@@ -1776,6 +1777,23 @@ export class WorktreeManager {
     return result;
   }
 
+  getAllWorktreePaths(): Map<string, { path: string; branch: string }> {
+    const result = new Map<string, { path: string; branch: string }>();
+    const worktreesPath = this.getWorktreesAbsolutePath();
+    if (!existsSync(worktreesPath)) return result;
+
+    for (const entry of readdirSync(worktreesPath, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const worktreePath = path.join(worktreesPath, entry.name);
+      if (!existsSync(path.join(worktreePath, ".git"))) continue;
+      if (this.creatingWorktrees.has(entry.name)) continue;
+      const branch = getWorktreeBranch(worktreePath) || "unknown";
+      result.set(entry.name, { path: worktreePath, branch });
+    }
+
+    return result;
+  }
+
   getLogs(id: string): string[] {
     const resolved = this.resolveWorktreeId(id);
     const worktreeId = resolved.success ? resolved.worktreeId : id;
@@ -1787,6 +1805,8 @@ export class WorktreeManager {
     this.githubManager?.stopPolling();
     for (const watcher of this.fileWatchers) watcher.close();
     this.fileWatchers = [];
+    for (const timer of this.fileChangeDebounceTimers.values()) clearTimeout(timer);
+    this.fileChangeDebounceTimers.clear();
     const stopPromises = Array.from(this.runningProcesses.keys()).map((id) =>
       this.stopWorktree(id),
     );
@@ -1892,6 +1912,10 @@ export class WorktreeManager {
 
   getConfigDir(): string {
     return this.configDir;
+  }
+
+  suppressFileChangeNotification(category: FileChangeCategory): void {
+    this.suppressedFileChangeCategories.add(category);
   }
 
   updateConfig(partial: Partial<WorktreeConfig>): { success: boolean; error?: string } {

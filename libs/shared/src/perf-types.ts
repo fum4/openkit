@@ -26,6 +26,6 @@ export interface WorktreeMetrics {
 export interface PerfSnapshot {
   timestamp: string;
   server: ProcessMetrics;
-  system: { totalCpu: number; totalMemory: number; processCount: number };
+  system: { totalCpu: number; totalMemory: number; processCount: number; systemMemory?: number };
   worktrees: WorktreeMetrics[];
 }

@@ -264,6 +264,7 @@ export function registerHooksRoutes(
   app.put("/api/hooks/config", async (c) => {
     try {
       const body = await c.req.json();
+      manager.suppressFileChangeNotification("hooks");
       const config = hooksManager.saveConfig(body);
       return c.json({ success: true, config });
     } catch (error) {

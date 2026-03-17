@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { PerfSnapshot } from "@openkit/shared/perf-types";
 import { log } from "../logger";
@@ -6,18 +6,21 @@ import { useServerUrlOptional } from "../contexts/ServerContext";
 import { getPerfStreamUrl } from "./api";
 
 const MAX_SNAPSHOTS = 150;
-const RETRY_INTERVAL_MS = 5000;
+const INITIAL_RETRY_MS = 2000;
+const MAX_RETRY_MS = 30000;
 
 export function usePerformanceMetrics() {
   const serverUrl = useServerUrlOptional();
   const [snapshots, setSnapshots] = useState<PerfSnapshot[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const retryDelayRef = useRef(INITIAL_RETRY_MS);
 
   useEffect(() => {
     setSnapshots([]);
     setIsConnected(false);
     setError(null);
+    retryDelayRef.current = INITIAL_RETRY_MS;
 
     let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
     let eventSource: EventSource | null = null;
@@ -28,6 +31,7 @@ export function usePerformanceMetrics() {
       eventSource.onopen = () => {
         setIsConnected(true);
         setError(null);
+        retryDelayRef.current = INITIAL_RETRY_MS;
       };
 
       eventSource.onmessage = (event) => {
@@ -54,8 +58,10 @@ export function usePerformanceMetrics() {
         setError("Performance monitoring unavailable");
         eventSource?.close();
         eventSource = null;
-        log.debug("Performance stream disconnected, retrying in 5s", { domain: "metrics" });
-        retryTimeoutId = setTimeout(connect, RETRY_INTERVAL_MS);
+        const delay = retryDelayRef.current;
+        log.debug(`Performance stream disconnected, retrying in ${delay}ms`, { domain: "metrics" });
+        retryTimeoutId = setTimeout(connect, delay);
+        retryDelayRef.current = Math.min(delay * 2, MAX_RETRY_MS);
       };
     };
 

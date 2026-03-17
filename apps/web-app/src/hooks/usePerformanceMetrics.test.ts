@@ -25,6 +25,8 @@ interface MockEventSource {
 
 let latestEventSource: MockEventSource;
 
+const OriginalEventSource = globalThis.EventSource;
+
 class FakeEventSource implements MockEventSource {
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
@@ -42,6 +44,10 @@ try {
   // fall through
 }
 (globalThis as Record<string, unknown>).EventSource = FakeEventSource;
+
+afterAll(() => {
+  (globalThis as Record<string, unknown>).EventSource = OriginalEventSource;
+});
 
 // ─── Helpers ────────────────────────────────────────────────────
 

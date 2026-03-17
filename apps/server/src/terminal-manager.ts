@@ -57,6 +57,13 @@ export interface TerminalSessionCreateResult {
   replacedScopedShellSession: boolean;
 }
 
+export interface ActiveSessionInfo {
+  sessionId: string;
+  worktreeId: string;
+  scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null;
+  pid: number | null;
+}
+
 type TerminalDebugStatus = "info" | "success" | "failed";
 
 interface TerminalDebugEvent {
@@ -554,25 +561,14 @@ export class TerminalManager {
     return this.sessions.get(sessionId)?.worktreeId ?? null;
   }
 
-  getActiveSessionInfo(): Array<{
-    sessionId: string;
-    worktreeId: string;
-    scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null;
-    pid: number | null;
-  }> {
-    const result: Array<{
-      sessionId: string;
-      worktreeId: string;
-      scope: "terminal" | "claude" | "codex" | "gemini" | "opencode" | null;
-      pid: number | null;
-    }> = [];
+  getActiveSessionInfo(): ActiveSessionInfo[] {
+    const result: ActiveSessionInfo[] = [];
     for (const [id, session] of this.sessions) {
-      const pid = session.pty ? ((session.pty as unknown as { pid?: number }).pid ?? null) : null;
       result.push({
         sessionId: id,
         worktreeId: session.worktreeId,
         scope: session.scope,
-        pid,
+        pid: session.pty?.pid ?? null,
       });
     }
     return result;

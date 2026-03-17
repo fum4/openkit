@@ -194,7 +194,17 @@ export async function stopWorktree(
         method: "POST",
       },
     );
-    return await res.json();
+    const text = await res.text();
+    if (!text)
+      return { success: res.ok, error: res.ok ? undefined : `HTTP ${res.status} (empty response)` };
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {
+        success: res.ok,
+        error: res.ok ? undefined : `HTTP ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
   } catch (err) {
     return {
       success: false,
@@ -726,8 +736,6 @@ export async function fetchConfig(serverUrl: string | null = null): Promise<{
     envMapping?: Record<string, string>;
   };
   projectName?: string;
-  instanceName?: string;
-  instanceBranch?: string;
   hasBranchNameRule?: boolean;
   error?: string;
 }> {
@@ -1713,6 +1721,35 @@ export function getEventsUrl(serverUrl: string | null = null): string {
 // Get SSE URL for performance stream
 export function getPerfStreamUrl(serverUrl: string | null = null): string {
   return `${getBaseUrl(serverUrl)}/api/perf/stream`;
+}
+
+export async function killProcesses(
+  pids: number[],
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/perf/kill`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pids }),
+    });
+    const text = await res.text();
+    if (!text)
+      return { success: res.ok, error: res.ok ? undefined : `HTTP ${res.status} (empty response)` };
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {
+        success: res.ok,
+        error: res.ok ? undefined : `HTTP ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to kill processes",
+    };
+  }
 }
 
 // Fetch ports info

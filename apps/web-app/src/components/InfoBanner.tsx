@@ -3,7 +3,7 @@ import { type ReactNode, useState } from "react";
 
 import { text } from "../theme";
 
-type BannerColor = "teal" | "rose" | "amber" | "blue" | "brown";
+type BannerColor = "teal" | "green" | "rose" | "amber" | "blue" | "brown" | "gray";
 
 const colorStyles: Record<BannerColor, { bg: string; border: string; dismiss: string }> = {
   teal: {
@@ -30,6 +30,16 @@ const colorStyles: Record<BannerColor, { bg: string; border: string; dismiss: st
     bg: "bg-[#8a7560]/[0.05]",
     border: "border-[#8a7560]/[0.22]",
     dismiss: "hover:bg-[#8a7560]/10 text-[#8a7560]/40 hover:text-[#8a7560]/70",
+  },
+  green: {
+    bg: "bg-emerald-400/[0.04]",
+    border: "border-emerald-400/[0.14]",
+    dismiss: "hover:bg-emerald-400/10 text-emerald-400/40 hover:text-emerald-400/70",
+  },
+  gray: {
+    bg: "bg-white/[0.03]",
+    border: "border-white/[0.08]",
+    dismiss: "hover:bg-white/[0.06] text-[#6b7280] hover:text-[#9ca3af]",
   },
 };
 

@@ -23,6 +23,7 @@ vi.mock("child_process", () => ({
 function createMockManager(): WorktreeManager {
   return {
     getRunningProcessPids: vi.fn(() => new Map()),
+    getAllWorktreePaths: vi.fn(() => new Map()),
   } as unknown as WorktreeManager;
 }
 
@@ -120,6 +121,9 @@ describe("PerfMonitor", () => {
     (manager.getRunningProcessPids as ReturnType<typeof vi.fn>).mockReturnValue(
       new Map([["wt-1", { pid: 12345, branch: "feature-auth", ports: [3000], path: "/tmp/wt-1" }]]),
     );
+    (manager.getAllWorktreePaths as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Map([["wt-1", { path: "/tmp/wt-1", branch: "feature-auth" }]]),
+    );
 
     const monitor = new PerfMonitor(manager, createMockTerminalManager());
     const callback = vi.fn();
@@ -139,6 +143,9 @@ describe("PerfMonitor", () => {
     const manager = createMockManager();
     (manager.getRunningProcessPids as ReturnType<typeof vi.fn>).mockReturnValue(
       new Map([["wt-1", { pid: 12345, branch: "main", ports: [], path: "/tmp/wt-1" }]]),
+    );
+    (manager.getAllWorktreePaths as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Map([["wt-1", { path: "/tmp/wt-1", branch: "main" }]]),
     );
 
     const termManager = createMockTerminalManager();

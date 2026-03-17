@@ -365,8 +365,6 @@ export default function App() {
   const {
     config,
     projectName,
-    instanceName,
-    instanceBranch,
     hasBranchNameRule,
     isLoading: configLoading,
     refetch: refetchConfig,
@@ -2962,8 +2960,6 @@ export default function App() {
           activeView={activeView}
           onChangeView={setActiveView}
           currentProjectName={projectName ?? activeProject?.name ?? null}
-          instanceName={instanceName}
-          instanceBranch={instanceBranch}
           disabledActivityEventTypes={config?.activity?.disabledEvents ?? []}
           onNavigateToWorktree={handleNavigateToWorktree}
           onNavigateToIssue={handleNavigateToIssue}
@@ -2977,7 +2973,13 @@ export default function App() {
       )}
 
       {(activeView === "workspace" || activeView === "agents" || activeView === "activity") && (
-        <div className="flex-1 min-h-0 relative">
+        <motion.div
+          key={activeView}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className="flex-1 min-h-0 relative"
+        >
           {activeView === "workspace" && (
             <div className="absolute inset-0 flex px-5 pb-16">
               {/* Left sidebar */}
@@ -3290,7 +3292,7 @@ export default function App() {
               onNavigateToIssue={handleNavigateToIssue}
             />
           )}
-        </div>
+        </motion.div>
       )}
 
       {activeView === "performance" && (
