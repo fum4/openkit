@@ -520,9 +520,6 @@ export async function startWorktreeServer(
 
     // Emit a structured line that the Electron parent process can parse to discover
     // the actual port when findAvailablePort() had to pick a different one.
-    if (process.send) {
-      process.send({ type: "server-port", port: actualPort });
-    }
     // Protocol message for parent process port discovery — not a log statement.
     // Uses raw stdout because the logger sink targets the server's own HTTP endpoint.
     process.stdout.write(`__OPENKIT_PORT__=${actualPort}\n`);

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { Hono } from "hono";
 import path from "path";
 import { tmpdir } from "os";
@@ -178,7 +178,7 @@ describe("PATCH /api/tasks/:id", () => {
     const notesManager = createMockNotesManager(null);
 
     const app = new Hono();
-    registerTaskRoutes(app, manager, notesManager);
+    registerTaskRoutes(app, manager, notesManager, createMockHooksManager());
 
     const res = await app.request("/api/tasks/LOCAL-4", {
       method: "PATCH",

@@ -13,7 +13,7 @@ function isPortFree(port: number): Promise<boolean> {
     const timeout = setTimeout(() => {
       server.close();
       resolve(false);
-    }, 5000);
+    }, 1000);
     const server = net.createServer();
     server.once("error", () => {
       clearTimeout(timeout);

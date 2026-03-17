@@ -177,7 +177,6 @@ export function registerTerminalRoutes(
         success: true,
         activeSessionId,
         historyMatches,
-        resolvedWorktreePath: resolved.worktree.path,
       });
     } catch (error) {
       const message =
