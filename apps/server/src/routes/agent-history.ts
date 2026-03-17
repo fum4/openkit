@@ -3,6 +3,8 @@ import { existsSync, readFileSync, readdirSync } from "fs";
 import os from "os";
 import path from "path";
 
+import { log } from "@openkit/server/logger";
+
 export type RestorableAgent = "claude" | "codex";
 
 export interface AgentHistoryMatch {
@@ -10,9 +12,10 @@ export interface AgentHistoryMatch {
   title: string;
   updatedAt: string;
   preview?: string;
+  gitBranch?: string;
 }
 
-interface ClaudeTranscriptEvent {
+export interface ClaudeTranscriptEvent {
   cwd?: unknown;
   sessionId?: unknown;
   timestamp?: unknown;
@@ -113,7 +116,14 @@ function truncate(text: string, maxLength: number): string {
   return `${text.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
-function extractClaudeMessagePreview(event: ClaudeTranscriptEvent): string | null {
+export function isOpenKitAutomatedPrompt(text: string): boolean {
+  return (
+    text.startsWith("Implement local task") &&
+    text.includes("You are already in the correct worktree")
+  );
+}
+
+export function extractClaudeMessagePreview(event: ClaudeTranscriptEvent): string | null {
   const rawMessage = event.message;
   if (
     rawMessage &&
@@ -122,12 +132,17 @@ function extractClaudeMessagePreview(event: ClaudeTranscriptEvent): string | nul
     typeof (rawMessage as { content?: unknown }).content === "string"
   ) {
     const content = stripMarkup((rawMessage as { content: string }).content);
-    return content.length > 0 ? content : null;
+    if (content.length === 0 || isOpenKitAutomatedPrompt(content)) return null;
+    return content;
   }
 
   if (typeof event.content === "string") {
     const content = stripMarkup(event.content);
-    if (content.length > 0 && event.subtype !== "local_command") {
+    if (
+      content.length > 0 &&
+      event.subtype !== "local_command" &&
+      !isOpenKitAutomatedPrompt(content)
+    ) {
       return content;
     }
   }
@@ -146,7 +161,7 @@ function findClaudeHistoryMatches(worktreePath: string): AgentHistoryMatch[] {
   const projectsDir = path.join(os.homedir(), ".claude", "projects");
   const matchesBySessionId = new Map<
     string,
-    AgentHistoryMatch & { updatedAtMs: number; previewRank: number }
+    AgentHistoryMatch & { updatedAtMs: number; previewRank: number; sourceFile: string }
   >();
 
   for (const filePath of walkJsonlFiles(projectsDir, { skipDirectories: new Set(["subagents"]) })) {
@@ -198,8 +213,10 @@ function findClaudeHistoryMatches(worktreePath: string): AgentHistoryMatch[] {
       title,
       updatedAt: effectiveUpdatedAt,
       preview: previewText,
+      gitBranch: gitBranch ?? undefined,
       updatedAtMs: Date.parse(effectiveUpdatedAt),
       previewRank: previewText ? 1 : 0,
+      sourceFile: filePath,
     };
 
     const existing = matchesBySessionId.get(sessionId);
@@ -213,9 +230,28 @@ function findClaudeHistoryMatches(worktreePath: string): AgentHistoryMatch[] {
     }
   }
 
-  return [...matchesBySessionId.values()]
-    .sort((a, b) => b.updatedAtMs - a.updatedAtMs)
-    .map(({ updatedAtMs: _updatedAtMs, previewRank: _previewRank, ...match }) => match);
+  const sorted = [...matchesBySessionId.values()].sort((a, b) => b.updatedAtMs - a.updatedAtMs);
+
+  // Debug: log match details for diagnosing cross-project session confusion
+  if (sorted.length > 0) {
+    log.debug("Claude history match details", {
+      domain: "agent-history",
+      worktreePath,
+      matchCount: sorted.length,
+      matches: sorted.map((m) => ({
+        sessionId: m.sessionId,
+        sourceFile: m.sourceFile.replace(os.homedir(), "~"),
+        title: m.title.slice(0, 40),
+      })),
+    });
+  }
+
+  return sorted.map(({ sessionId, title, updatedAt, preview, gitBranch }): AgentHistoryMatch => {
+    const match: AgentHistoryMatch = { sessionId, title, updatedAt };
+    if (preview) match.preview = preview;
+    if (gitBranch) match.gitBranch = gitBranch;
+    return match;
+  });
 }
 
 function escapeSqliteString(value: string): string {

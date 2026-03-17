@@ -10,10 +10,13 @@ import {
 import { Hono } from "hono";
 import path from "path";
 
+import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 import type { NotesManager } from "../notes-manager";
 import { generateBranchName } from "../branch-name";
+import { regenerateTaskMd } from "../task-context";
+import type { HooksManager } from "../verification-manager";
 
 const taskLog = log.get("task");
 
@@ -188,9 +191,26 @@ export function registerTaskRoutes(
   app: Hono,
   manager: WorktreeManager,
   notesManager: NotesManager,
+  hooksManager?: HooksManager,
 ) {
   const configDir = manager.getConfigDir();
+  const worktreesPath = path.join(configDir, CONFIG_DIR_NAME, "worktrees");
   const getProjectName = () => manager.getProjectName() ?? undefined;
+  const getHooksSnapshot = (worktreeId: string) => {
+    if (!hooksManager) {
+      log.warn("hooksManager not provided to registerTaskRoutes — hooks will be skipped", {
+        domain: "tasks",
+        worktreeId,
+      });
+      return undefined;
+    }
+    const config = hooksManager.getConfig();
+    const effectiveSkills = hooksManager.getEffectiveSkills(worktreeId, notesManager);
+    return {
+      checks: config.steps,
+      skills: effectiveSkills,
+    };
+  };
   const logTaskEvent = (options: {
     action: string;
     message: string;
@@ -450,6 +470,35 @@ export function registerTaskRoutes(
     task.updatedAt = new Date().toISOString();
     saveTask(configDir, task);
 
+    // Regenerate TASK.md in linked worktree when task content changes
+    const linkedWorktreeId = resolveActiveLinkedWorktreeId(task.id);
+    if (linkedWorktreeId) {
+      try {
+        regenerateTaskMd(
+          "local",
+          task.id,
+          linkedWorktreeId,
+          notesManager,
+          configDir,
+          worktreesPath,
+          getHooksSnapshot(linkedWorktreeId),
+        );
+      } catch (err) {
+        // Non-critical — don't fail the task update, but log for diagnosability
+        logTaskEvent({
+          action: "task.regenerate-taskmd",
+          message: `Failed to regenerate TASK.md for task ${task.id}`,
+          level: "warning",
+          status: "failed",
+          worktreeId: linkedWorktreeId,
+          metadata: {
+            taskId: task.id,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        });
+      }
+    }
+
     logTaskEvent({
       action: "task.update",
       message: `Updated local task ${task.id}`,
@@ -464,7 +513,7 @@ export function registerTaskRoutes(
 
     return c.json({
       success: true,
-      task: { ...task, linkedWorktreeId: resolveActiveLinkedWorktreeId(task.id) },
+      task: { ...task, linkedWorktreeId },
     });
   });
 

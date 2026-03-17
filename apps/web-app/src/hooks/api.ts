@@ -60,6 +60,7 @@ export interface AgentHistoryMatch {
   title: string;
   updatedAt: string;
   preview?: string;
+  gitBranch?: string;
 }
 
 export interface OpenProjectTargetOption {

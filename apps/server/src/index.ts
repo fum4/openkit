@@ -357,7 +357,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
   registerSkillRoutes(app, manager);
   registerClaudePluginRoutes(app, manager);
   registerClaudeCustomAgentRoutes(app, manager);
-  registerTaskRoutes(app, manager, notesManager);
+  registerTaskRoutes(app, manager, notesManager, hooksManager);
   registerNotesRoutes(app, manager, notesManager, hooksManager);
   registerTerminalRoutes(app, manager, terminalManager, upgradeWebSocket);
   registerHooksRoutes(app, manager, hooksManager, notesManager);
@@ -587,6 +587,12 @@ export async function startWorktreeServer(
 
   server.listen(actualPort, () => {
     log.success(`Server running at http://localhost:${actualPort}`);
+
+    // Emit a structured line that the Electron parent process can parse to discover
+    // the actual port when findAvailablePort() had to pick a different one.
+    // Protocol message for parent process port discovery — not a log statement.
+    // Uses raw stdout because the logger sink targets the server's own HTTP endpoint.
+    process.stdout.write(`__OPENKIT_PORT__=${actualPort}\n`);
   });
 
   // Initialize GitHub in the background (not blocking server startup)

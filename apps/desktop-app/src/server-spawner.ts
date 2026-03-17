@@ -1,12 +1,9 @@
 import { spawn, type ChildProcess } from "child_process";
-import { appendFileSync, existsSync } from "fs";
+import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const debugLog = "/tmp/OpenKit-debug.log";
-function debug(msg: string) {
-  appendFileSync(debugLog, `${new Date().toISOString()} ${msg}\n`);
-}
+import { log } from "./logger.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const isPackaged = Boolean(process.resourcesPath) && currentDir.includes("app.asar");
@@ -22,7 +19,7 @@ function getCliPath(): string {
 function ensureDevCliArtifact(cliPath: string): void {
   if (isPackaged || existsSync(cliPath)) return;
   const message = `CLI build output is missing at ${cliPath}. Run pnpm dev:desktop-app or build cli first.`;
-  debug(`preflight error: ${message}`);
+  log.error(message, { domain: "server-spawner" });
   throw new Error(message);
 }
 
@@ -36,12 +33,13 @@ export function spawnServer(projectDir: string, port: number): ChildProcess {
 
   ensureDevCliArtifact(cliPath);
 
-  debug(`--- spawn ---`);
-  debug(`cliPath: ${cliPath}`);
-  debug(`runtime: ${runtime}`);
-  debug(`projectDir: ${projectDir}`);
-  debug(`port: ${port}`);
-  debug(`PATH: ${process.env.PATH}`);
+  log.debug("Spawning server", {
+    domain: "server-spawner",
+    cliPath,
+    runtime,
+    projectDir,
+    port,
+  });
 
   // Strip IDE/Claude Code nesting markers so the server's child processes
   // (especially the Claude CLI) don't detect a nested context and suppress output.
@@ -73,33 +71,48 @@ export function spawnServer(projectDir: string, port: number): ChildProcess {
   });
 
   child.on("error", (err) => {
-    debug(`spawn error: ${err.message}`);
+    log.error(`Spawn error: ${err.message}`, { domain: "server-spawner" });
   });
 
-  // Log server output for debugging
+  // Note: project-manager.ts also attaches a stdout listener for __OPENKIT_PORT__
+  // parsing. Both listeners fire for every chunk — this one is for debug logging.
   child.stdout?.on("data", (data: Buffer) => {
-    debug(`[stdout] ${data.toString().trim()}`);
+    log.debug(`[stdout] ${data.toString().trim()}`, { domain: "server-spawner" });
   });
 
   child.stderr?.on("data", (data: Buffer) => {
-    debug(`[stderr] ${data.toString().trim()}`);
+    log.debug(`[stderr] ${data.toString().trim()}`, { domain: "server-spawner" });
   });
 
   return child;
 }
 
-export async function waitForServerReady(port: number, timeout = 30000): Promise<boolean> {
+export async function waitForServerReady(
+  getPort: number | (() => number),
+  timeout = 30000,
+): Promise<boolean> {
   const start = Date.now();
+  let lastError: string | null = null;
+  let lastPort: number | null = null;
 
   while (Date.now() - start < timeout) {
+    const port = typeof getPort === "function" ? getPort() : getPort;
+    lastPort = port;
     try {
       const res = await fetch(`http://localhost:${port}/api/config`);
       if (res.ok) return true;
-    } catch {
-      // Server not ready yet
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
+
+  log.warn("Server readiness timed out", {
+    domain: "server-spawner",
+    port: lastPort,
+    timeout,
+    lastError,
+  });
 
   return false;
 }

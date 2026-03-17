@@ -386,6 +386,15 @@ export function DetailPanel({
   const closeCodexRequestIdRef = useRef(0);
   const closeGeminiRequestIdRef = useRef(0);
   const closeOpenCodeRequestIdRef = useRef(0);
+  const restoreWorktreeIdRef = useRef<string | null>(null);
+
+  // Keep stale-response guard aligned with the currently selected worktree.
+  // Without this, switching worktrees without triggering a new restore could
+  // let a stale response from the previous worktree apply to the new one.
+  useEffect(() => {
+    restoreWorktreeIdRef.current = worktree?.id ?? null;
+  }, [worktree?.id]);
+
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
     log.debug(message, { domain: "auto-launch", ...extra });
   }, []);
@@ -977,11 +986,27 @@ export function DetailPanel({
   const handleOpenClaudeTab = useCallback(() => {
     if (!worktree || isResolvingAgentRestore) return;
 
+    const requestWorktreeId = worktree.id;
+    restoreWorktreeIdRef.current = requestWorktreeId;
+
     void (async () => {
       setIsResolvingAgentRestore("claude");
       setAgentRestoreModal(null);
 
-      const restore = await api.fetchRestorableAgentSessions(worktree.id, "claude");
+      const restore = await api.fetchRestorableAgentSessions(requestWorktreeId, "claude");
+
+      // Bail out if the user switched worktrees while the request was in flight
+      if (restoreWorktreeIdRef.current !== requestWorktreeId) {
+        log.debug("Ignoring stale Claude restore response", {
+          domain: "agent-restore",
+          agent: "claude",
+          requestWorktreeId,
+          currentWorktreeId: restoreWorktreeIdRef.current,
+        });
+        setIsResolvingAgentRestore((prev) => (prev === "claude" ? null : prev));
+        return;
+      }
+
       setIsResolvingAgentRestore((prev) => (prev === "claude" ? null : prev));
       if (!restore.success) {
         setError(restore.error || "Failed to restore Claude conversation");
@@ -990,7 +1015,7 @@ export function DetailPanel({
 
       if (restore.activeSessionId) {
         launchAgentIntent("claude", {
-          worktreeId: worktree.id,
+          worktreeId: requestWorktreeId,
           mode: "resume-active",
           tabLabel: getAgentTabLabel("claude"),
         });
@@ -999,7 +1024,7 @@ export function DetailPanel({
 
       if (restore.historyMatches.length === 1) {
         launchAgentIntent("claude", {
-          worktreeId: worktree.id,
+          worktreeId: requestWorktreeId,
           mode: "resume-history",
           sessionId: restore.historyMatches[0].sessionId,
           tabLabel: getAgentTabLabel("claude"),
@@ -1036,11 +1061,27 @@ export function DetailPanel({
   const handleOpenCodexTab = useCallback(() => {
     if (!worktree || isResolvingAgentRestore) return;
 
+    const requestWorktreeId = worktree.id;
+    restoreWorktreeIdRef.current = requestWorktreeId;
+
     void (async () => {
       setIsResolvingAgentRestore("codex");
       setAgentRestoreModal(null);
 
-      const restore = await api.fetchRestorableAgentSessions(worktree.id, "codex");
+      const restore = await api.fetchRestorableAgentSessions(requestWorktreeId, "codex");
+
+      // Bail out if the user switched worktrees while the request was in flight
+      if (restoreWorktreeIdRef.current !== requestWorktreeId) {
+        log.debug("Ignoring stale Codex restore response", {
+          domain: "agent-restore",
+          agent: "codex",
+          requestWorktreeId,
+          currentWorktreeId: restoreWorktreeIdRef.current,
+        });
+        setIsResolvingAgentRestore((prev) => (prev === "codex" ? null : prev));
+        return;
+      }
+
       setIsResolvingAgentRestore((prev) => (prev === "codex" ? null : prev));
       if (!restore.success) {
         setError(restore.error || "Failed to restore Codex conversation");
@@ -1049,7 +1090,7 @@ export function DetailPanel({
 
       if (restore.activeSessionId) {
         launchAgentIntent("codex", {
-          worktreeId: worktree.id,
+          worktreeId: requestWorktreeId,
           mode: "resume-active",
           tabLabel: getAgentTabLabel("codex"),
         });
@@ -1058,7 +1099,7 @@ export function DetailPanel({
 
       if (restore.historyMatches.length === 1) {
         launchAgentIntent("codex", {
-          worktreeId: worktree.id,
+          worktreeId: requestWorktreeId,
           mode: "resume-history",
           sessionId: restore.historyMatches[0].sessionId,
           tabLabel: getAgentTabLabel("codex"),
@@ -2208,6 +2249,9 @@ export function DetailPanel({
         >
           <p className={`text-xs ${text.secondary} leading-relaxed`}>
             Multiple saved conversations match this worktree. Choose which one to resume.
+            {activeProject?.name && (
+              <span className={`ml-1 ${text.muted}`}>Project: {activeProject.name}</span>
+            )}
           </p>
           <div className="mt-4 space-y-3 max-h-[320px] overflow-y-auto">
             {agentRestoreModal.matches.map((match) => {
@@ -2242,6 +2286,11 @@ export function DetailPanel({
                     >
                       {match.title}
                     </div>
+                    {match.gitBranch && (
+                      <div className={`mt-0.5 text-[10px] ${text.muted}`}>
+                        Branch: {match.gitBranch}
+                      </div>
+                    )}
                     {match.preview && match.preview.length > match.title.length && (
                       <div
                         className={`text-[11px] ${text.dimmed} mt-0.5 leading-relaxed`}
