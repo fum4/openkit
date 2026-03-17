@@ -1,4 +1,5 @@
 import Editor from "@monaco-editor/react";
+import { motion } from "motion/react";
 import {
   Bell,
   ChevronDown,
@@ -9,24 +10,23 @@ import {
   RotateCcw,
   Settings,
   Settings2,
-  X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useFileChangeEvent } from "../hooks/useFileChangeEvent";
 
-import { APP_NAME } from "@openkit/shared/constants";
 import { ACTIVITY_TYPES } from "@openkit/shared/activity-event";
 import { reportPersistentErrorToast } from "../errorToasts";
+import { log } from "../logger";
 import { type WorktreeConfig } from "../hooks/useConfig";
 import { useApi } from "../hooks/useApi";
-import { button, infoBanner, input, settings, surface, tab, text } from "../theme";
+import { button, input, settings, surface, tab, text } from "../theme";
+import { InfoBanner } from "./InfoBanner";
 import { AgentModelDropdown } from "./AgentModelDropdown";
 import { Modal } from "./Modal";
 import { ShortcutsSection } from "./ShortcutsSection";
 import { Spinner } from "./Spinner";
 import { ToggleSwitch } from "./ToggleSwitch";
 import { Tooltip } from "./Tooltip";
-
-const SETTINGS_BANNER_DISMISSED_KEY = `${APP_NAME}-settings-banner-dismissed`;
 
 function Field({
   label,
@@ -305,7 +305,9 @@ export function ConfigurationPanel({
   onShortcutsSaved: () => void;
 }) {
   const api = useApi();
-  const [form, setForm] = useState<WorktreeConfig | null>(null);
+  const [form, setForm] = useState<WorktreeConfig | null>(
+    config ? { ...config, envMapping: { ...config.envMapping } } : null,
+  );
   const [discovering, setDiscovering] = useState(false);
 
   // Branch name rule state — per-tab
@@ -361,17 +363,9 @@ export function ConfigurationPanel({
     config: { retentionDays?: number; maxSizeMB?: number };
   } | null>(null);
 
-  const [showBanner, setShowBanner] = useState(() => {
-    return localStorage.getItem(SETTINGS_BANNER_DISMISSED_KEY) !== "true";
-  });
   const [expandedNotificationGroups, setExpandedNotificationGroups] = useState<
     Record<string, boolean>
   >(() => Object.fromEntries(ACTIVITY_NOTIFICATION_GROUPS.map((group) => [group.category, false])));
-
-  const dismissBanner = () => {
-    setShowBanner(false);
-    localStorage.setItem(SETTINGS_BANNER_DISMISSED_KEY, "true");
-  };
 
   useEffect(() => {
     if (config) {
@@ -517,6 +511,36 @@ export function ConfigurationPanel({
     loadCommitTab(commitTab);
   }, [commitTab, loadCommitTab]);
 
+  // Reload branch rules when files change externally
+  useFileChangeEvent(
+    "branch-rules",
+    useCallback(() => {
+      loadedTabs.current.clear();
+      loadBranchTab(branchTab);
+      api
+        .fetchBranchRuleStatus()
+        .then((s) => setBranchOverrides(s.overrides))
+        .catch((error) => {
+          log.warn("Failed to reload branch rule status", { domain: "config", error });
+        });
+    }, [loadBranchTab, branchTab, api]),
+  );
+
+  // Reload commit rules when files change externally
+  useFileChangeEvent(
+    "commit-rules",
+    useCallback(() => {
+      commitLoadedTabs.current.clear();
+      loadCommitTab(commitTab);
+      api
+        .fetchCommitRuleStatus()
+        .then((s) => setCommitOverrides(s.overrides))
+        .catch((error) => {
+          log.warn("Failed to reload commit rule status", { domain: "config", error });
+        });
+    }, [loadCommitTab, commitTab, api]),
+  );
+
   if (!form) {
     return (
       <div className={`flex-1 flex items-center justify-center gap-2 ${text.muted} text-sm`}>
@@ -571,28 +595,27 @@ export function ConfigurationPanel({
   }
 
   return (
-    <div>
-      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-8">
-        {/* Banner */}
-        {showBanner && (
-          <div
-            className={`relative p-4 pl-5 pr-10 rounded-xl ${infoBanner.bg} border ${infoBanner.border}`}
-          >
-            <button
-              onClick={dismissBanner}
-              className={`absolute top-1/2 -translate-y-1/2 right-4 p-1 rounded-md ${infoBanner.textMuted} hover:${infoBanner.text} ${infoBanner.hoverBg} transition-colors`}
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-            <div className="flex items-center gap-2.5">
-              <Settings className={`w-3.5 h-3.5 ${infoBanner.textMuted} flex-shrink-0`} />
-              <p className={`text-xs ${text.secondary} leading-relaxed`}>
-                Configure your project's dev commands, port settings, and environment mappings.
-              </p>
-            </div>
+    <div className="max-w-2xl mx-auto p-6 flex flex-col gap-8">
+      <div className="flex flex-col gap-4">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center">
+            <Settings className="w-4 h-4 text-[#8a7560]" />
           </div>
-        )}
+          <h1 className="text-base font-medium text-[#f0f2f5]">Settings</h1>
+        </div>
 
+        <InfoBanner storageKey="OpenKit:settingsBannerDismissed" color="brown">
+          Configure your project's dev commands, port settings, and environment mappings.
+        </InfoBanner>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="flex flex-col gap-8"
+      >
         {/* Project Configuration Card */}
         <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
           <h3 className={`text-xs font-semibold ${text.primary} mb-4 flex items-center gap-2`}>
@@ -1400,41 +1423,41 @@ export function ConfigurationPanel({
             {isConnected ? "Connected" : "Disconnected"}
           </span>
         </div>
-      </div>
-      {retentionWarning && (
-        <Modal
-          title="Apply retention limits?"
-          width="sm"
-          onClose={() => setRetentionWarning(null)}
-          footer={
-            <>
-              <button
-                type="button"
-                className={`${button.secondary} px-3 py-1.5 text-xs rounded-md`}
-                onClick={() => setRetentionWarning(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1.5 text-xs rounded-md bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
-                onClick={() =>
-                  applyRetentionConfig(retentionWarning.target, retentionWarning.config)
-                }
-              >
-                Apply
-              </button>
-            </>
-          }
-        >
-          <p className={`text-xs ${text.secondary}`}>
-            This will remove {retentionWarning.impact.entriesToRemove} entries (
-            {(retentionWarning.impact.bytesToRemove / 1024).toFixed(1)} KB) from{" "}
-            {retentionWarning.target === "opsLog" ? "debug logs" : "activity logs"}. This cannot be
-            undone.
-          </p>
-        </Modal>
-      )}
+        {retentionWarning && (
+          <Modal
+            title="Apply retention limits?"
+            width="sm"
+            onClose={() => setRetentionWarning(null)}
+            footer={
+              <>
+                <button
+                  type="button"
+                  className={`${button.secondary} px-3 py-1.5 text-xs rounded-md`}
+                  onClick={() => setRetentionWarning(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="px-3 py-1.5 text-xs rounded-md bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
+                  onClick={() =>
+                    applyRetentionConfig(retentionWarning.target, retentionWarning.config)
+                  }
+                >
+                  Apply
+                </button>
+              </>
+            }
+          >
+            <p className={`text-xs ${text.secondary}`}>
+              This will remove {retentionWarning.impact.entriesToRemove} entries (
+              {(retentionWarning.impact.bytesToRemove / 1024).toFixed(1)} KB) from{" "}
+              {retentionWarning.target === "opsLog" ? "debug logs" : "activity logs"}. This cannot
+              be undone.
+            </p>
+          </Modal>
+        )}
+      </motion.div>
     </div>
   );
 }

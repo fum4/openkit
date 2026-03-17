@@ -8,3 +8,4 @@ export * from "./global-preferences";
 export * from "./ui-components";
 export * from "./version";
 export * from "./worktree-types";
+export * from "./perf-types";

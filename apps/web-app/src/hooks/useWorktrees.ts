@@ -86,6 +86,10 @@ export function useWorktrees(
           notificationRef(data.message, data.level);
         } else if (data.type === "hook-update") {
           hookUpdateRef(data.worktreeId);
+        } else if (data.type === "config-changed") {
+          window.dispatchEvent(new CustomEvent("OpenKit:config-changed", { detail: data }));
+        } else if (data.type === "file-changed") {
+          window.dispatchEvent(new CustomEvent("OpenKit:file-changed", { detail: data.category }));
         } else if (data.type === "activity") {
           window.dispatchEvent(new CustomEvent("OpenKit:activity", { detail: data.event }));
         } else if (data.type === "activity-history") {

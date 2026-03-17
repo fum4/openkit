@@ -192,7 +192,7 @@ export function registerTaskRoutes(
   const logTaskEvent = (options: {
     action: string;
     message: string;
-    status?: "info" | "succeeded" | "failed";
+    status?: "info" | "success" | "failed";
     level?: "debug" | "info" | "warning" | "error";
     worktreeId?: string;
     metadata?: Record<string, unknown>;
@@ -298,7 +298,7 @@ export function registerTaskRoutes(
     logTaskEvent({
       action: "task.create",
       message: `Created local task ${identifier}`,
-      status: "succeeded",
+      status: "success",
       metadata: {
         taskId: identifier,
         counterBefore: nextIdentifier.counterBefore,
@@ -386,7 +386,7 @@ export function registerTaskRoutes(
     logTaskEvent({
       action: "task.recover",
       message: `Recovered local task ${canonicalTaskId}`,
-      status: "succeeded",
+      status: "success",
       worktreeId: resolved.worktreeId,
       metadata: {
         taskId: canonicalTaskId,
@@ -435,7 +435,7 @@ export function registerTaskRoutes(
     logTaskEvent({
       action: "task.update",
       message: `Updated local task ${task.id}`,
-      status: "succeeded",
+      status: "success",
       metadata: {
         taskId: task.id,
         status: task.status,
@@ -460,7 +460,7 @@ export function registerTaskRoutes(
     logTaskEvent({
       action: "task.delete",
       message: `Deleted local task ${id}`,
-      status: "succeeded",
+      status: "success",
       metadata: { taskId: id },
     });
     return c.json({ success: true });
@@ -537,7 +537,7 @@ export function registerTaskRoutes(
           logTaskEvent({
             action: "task.create-worktree",
             message: `Reused existing worktree for local task ${taskId}`,
-            status: "succeeded",
+            status: "success",
             worktreeId: canonicalWorktreeId,
             metadata: {
               taskId,
@@ -561,7 +561,7 @@ export function registerTaskRoutes(
         logTaskEvent({
           action: "task.create-worktree",
           message: `Created worktree for local task ${taskId}`,
-          status: "succeeded",
+          status: "success",
           worktreeId: result.worktree?.id,
           metadata: {
             taskId,
@@ -635,7 +635,7 @@ export function registerTaskRoutes(
     logTaskEvent({
       action: "task.attachment.upload",
       message: `Uploaded attachment for local task ${task.id}`,
-      status: "succeeded",
+      status: "success",
       metadata: {
         taskId: task.id,
         filename,
@@ -689,7 +689,7 @@ export function registerTaskRoutes(
     logTaskEvent({
       action: "task.attachment.delete",
       message: `Deleted attachment from local task ${id}`,
-      status: "succeeded",
+      status: "success",
       metadata: {
         taskId: id,
         filename,

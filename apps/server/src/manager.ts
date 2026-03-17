@@ -7,8 +7,10 @@ import {
   readFileSync,
   rmSync,
   unlinkSync,
+  watch,
   writeFileSync,
 } from "fs";
+import type { FSWatcher } from "fs";
 import path from "path";
 import { promisify } from "util";
 
@@ -59,6 +61,14 @@ import type {
   WorktreeInfo,
   WorktreeRenameRequest,
 } from "./types";
+
+export type FileChangeCategory =
+  | "config"
+  | "local-config"
+  | "hooks"
+  | "branch-rules"
+  | "commit-rules"
+  | "agent-rules";
 
 const MAX_LOG_LINES = 100;
 
@@ -212,6 +222,16 @@ export class WorktreeManager {
 
   private hookUpdateListeners: Set<(worktreeId: string) => void> = new Set();
 
+  private fileChangeListeners: Set<(category: FileChangeCategory) => void> = new Set();
+
+  private fileWatchers: FSWatcher[] = [];
+
+  /** Categories currently suppressed (set when we write files ourselves). */
+  private suppressedFileChangeCategories: Set<FileChangeCategory> = new Set();
+
+  /** Debounce timers for file-change notifications, cleared on shutdown. */
+  private fileChangeDebounceTimers = new Map<FileChangeCategory, ReturnType<typeof setTimeout>>();
+
   private worktreeLifecycleHookRunner:
     | ((
         trigger: WorktreeLifecycleHookTrigger,
@@ -270,6 +290,65 @@ export class WorktreeManager {
     const worktreesPath = this.getWorktreesAbsolutePath();
     if (!existsSync(worktreesPath)) {
       mkdirSync(worktreesPath, { recursive: true });
+    }
+
+    this.watchProjectFiles();
+  }
+
+  private watchProjectFiles(): void {
+    const configDir = path.join(this.configDir, CONFIG_DIR_NAME);
+    const debouncedEmit = (category: FileChangeCategory, action?: () => void) => {
+      const existing = this.fileChangeDebounceTimers.get(category);
+      if (existing) clearTimeout(existing);
+      this.fileChangeDebounceTimers.set(
+        category,
+        setTimeout(() => {
+          this.fileChangeDebounceTimers.delete(category);
+          if (this.suppressedFileChangeCategories.delete(category)) return;
+          log.info(`File changed externally: ${category}`, { domain: "file-watch" });
+          action?.();
+          this.emitFileChange(category);
+        }, 200),
+      );
+    };
+
+    const classifyOpenkitFile = (filename: string): FileChangeCategory | null => {
+      if (filename === "config.json") return "config";
+      if (filename === "local-config.json") return "local-config";
+      if (filename === "hooks.json") return "hooks";
+      if (filename.startsWith("branch-name")) return "branch-rules";
+      if (filename.startsWith("commit-message")) return "commit-rules";
+      return null;
+    };
+
+    // Watch .openkit/ directory recursively (Node 19+ on macOS supports recursive)
+    if (existsSync(configDir)) {
+      try {
+        const watcher = watch(configDir, { recursive: true }, (_event, filename) => {
+          if (!filename) return;
+          const basename = path.basename(filename);
+          const category = classifyOpenkitFile(basename);
+          if (!category) return;
+          debouncedEmit(category, category === "config" ? () => this.reloadConfig() : undefined);
+        });
+        this.fileWatchers.push(watcher);
+      } catch (error) {
+        log.warn("Failed to watch .openkit directory", { domain: "file-watch", error });
+      }
+    }
+
+    // Watch CLAUDE.md and AGENTS.md in project root
+    for (const filename of ["CLAUDE.md", "AGENTS.md"]) {
+      const filePath = path.join(this.configDir, filename);
+      if (!existsSync(filePath)) continue;
+      try {
+        const watcher = watch(filePath, () => {
+          debouncedEmit("agent-rules");
+        });
+        this.fileWatchers.push(watcher);
+      } catch (error) {
+        log.warn(`Failed to watch ${filename}`, { domain: "file-watch", error });
+      }
     }
   }
 
@@ -394,6 +473,15 @@ export class WorktreeManager {
 
   emitHookUpdate(worktreeId: string): void {
     this.hookUpdateListeners.forEach((listener) => listener(worktreeId));
+  }
+
+  subscribeFileChange(listener: (category: FileChangeCategory) => void): () => void {
+    this.fileChangeListeners.add(listener);
+    return () => this.fileChangeListeners.delete(listener);
+  }
+
+  private emitFileChange(category: FileChangeCategory): void {
+    this.fileChangeListeners.forEach((listener) => listener(category));
   }
 
   setWorktreeLifecycleHookRunner(
@@ -1377,7 +1465,7 @@ export class WorktreeManager {
         source: "worktree",
         action: "worktree.delete.complete",
         level: result.success ? "info" : "error",
-        status: result.success ? "succeeded" : "failed",
+        status: result.success ? "success" : "failed",
         message: result.success ? "Worktree delete completed" : "Worktree delete failed",
         projectName,
         worktreeId: result.worktreeId,
@@ -1670,6 +1758,42 @@ export class WorktreeManager {
     }
   }
 
+  getRunningProcessPids(): Map<
+    string,
+    { pid: number; branch: string; ports: number[]; path: string }
+  > {
+    const result = new Map<
+      string,
+      { pid: number; branch: string; ports: number[]; path: string }
+    >();
+    const worktreesPath = this.getWorktreesAbsolutePath();
+
+    for (const [id, proc] of this.runningProcesses) {
+      const worktreePath = path.join(worktreesPath, id);
+      const branch = getWorktreeBranch(worktreePath) || "unknown";
+      result.set(id, { pid: proc.pid, branch, ports: proc.ports, path: worktreePath });
+    }
+
+    return result;
+  }
+
+  getAllWorktreePaths(): Map<string, { path: string; branch: string }> {
+    const result = new Map<string, { path: string; branch: string }>();
+    const worktreesPath = this.getWorktreesAbsolutePath();
+    if (!existsSync(worktreesPath)) return result;
+
+    for (const entry of readdirSync(worktreesPath, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const worktreePath = path.join(worktreesPath, entry.name);
+      if (!existsSync(path.join(worktreePath, ".git"))) continue;
+      if (this.creatingWorktrees.has(entry.name)) continue;
+      const branch = getWorktreeBranch(worktreePath) || "unknown";
+      result.set(entry.name, { path: worktreePath, branch });
+    }
+
+    return result;
+  }
+
   getLogs(id: string): string[] {
     const resolved = this.resolveWorktreeId(id);
     const worktreeId = resolved.success ? resolved.worktreeId : id;
@@ -1679,6 +1803,10 @@ export class WorktreeManager {
 
   async stopAll(): Promise<void> {
     this.githubManager?.stopPolling();
+    for (const watcher of this.fileWatchers) watcher.close();
+    this.fileWatchers = [];
+    for (const timer of this.fileChangeDebounceTimers.values()) clearTimeout(timer);
+    this.fileChangeDebounceTimers.clear();
     const stopPromises = Array.from(this.runningProcesses.keys()).map((id) =>
       this.stopWorktree(id),
     );
@@ -1784,6 +1912,10 @@ export class WorktreeManager {
 
   getConfigDir(): string {
     return this.configDir;
+  }
+
+  suppressFileChangeNotification(category: FileChangeCategory): void {
+    this.suppressedFileChangeCategories.add(category);
   }
 
   updateConfig(partial: Partial<WorktreeConfig>): { success: boolean; error?: string } {
@@ -1906,6 +2038,7 @@ export class WorktreeManager {
       }
 
       if (configExists || hasConfigUpdates) {
+        this.suppressedFileChangeCategories.add("config");
         writeFileSync(configPath, JSON.stringify(existing, null, 2) + "\n");
       }
 
@@ -2414,7 +2547,7 @@ export class WorktreeManager {
       source: "linear",
       action: "linear.worktree.create",
       level: result.success ? "info" : "error",
-      status: result.success ? "succeeded" : "failed",
+      status: result.success ? "success" : "failed",
       message: result.success
         ? `Created worktree from Linear issue ${resolvedId}`
         : `Failed to create worktree from Linear issue ${resolvedId}`,

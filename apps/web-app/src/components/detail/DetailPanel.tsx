@@ -1,4 +1,4 @@
-import { GitBranch, Info, Link, ListTodo, Plus, X } from "lucide-react";
+import { GitBranch, Link, ListTodo, MessageCircle, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
@@ -31,6 +31,19 @@ interface DetailPanelScopeCache {
   geminiTabLabels: Record<string, string>;
   opencodeTabLabels: Record<string, string>;
   lastProcessedNotificationTabRequestId: number | null;
+}
+
+function formatRelativeTime(date: Date): string {
+  const diffMs = Date.now() - date.getTime();
+  const sec = Math.floor(diffMs / 1000);
+  const min = Math.floor(sec / 60);
+  const hr = Math.floor(min / 60);
+  const days = Math.floor(hr / 24);
+  if (sec < 10) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  if (min < 60) return `${min}m ago`;
+  if (hr < 24) return `${hr}h ago`;
+  return `${days}d ago`;
 }
 
 // Persists across unmount/remount (view switches) and is scoped per project/server.
@@ -2163,7 +2176,7 @@ export function DetailPanel({
       {agentRestoreModal && (
         <Modal
           title={`Choose ${agentRestoreModal.agent === "claude" ? "Claude" : "Codex"} Conversation`}
-          icon={<Info className="w-4 h-4 text-[#9ca3af]" />}
+          icon={<MessageCircle className="w-4 h-4 text-[#9ca3af]" />}
           width="lg"
           onClose={() => setAgentRestoreModal(null)}
           footer={
@@ -2186,9 +2199,9 @@ export function DetailPanel({
                 type="button"
                 onClick={handleRestoreSelectedConversation}
                 disabled={!agentRestoreModal.selectedSessionId}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent-muted disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg ${button.primary} disabled:opacity-50 transition-colors`}
               >
-                Restore Selected Conversation
+                Restore Conversation
               </button>
             </>
           }
@@ -2196,9 +2209,10 @@ export function DetailPanel({
           <p className={`text-xs ${text.secondary} leading-relaxed`}>
             Multiple saved conversations match this worktree. Choose which one to resume.
           </p>
-          <div className="mt-4 space-y-2 max-h-[320px] overflow-y-auto">
+          <div className="mt-4 space-y-3 max-h-[320px] overflow-y-auto">
             {agentRestoreModal.matches.map((match) => {
               const selected = agentRestoreModal.selectedSessionId === match.sessionId;
+              const timeAgo = formatRelativeTime(new Date(match.updatedAt));
               return (
                 <button
                   key={match.sessionId}
@@ -2213,23 +2227,38 @@ export function DetailPanel({
                         : prev,
                     )
                   }
-                  className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                  className={`w-full text-left flex items-start gap-3 px-3 py-3 rounded-lg border transition-colors ${
                     selected
-                      ? "border-accent bg-accent/10"
-                      : `${border.modal} ${input.bgDetail} hover:bg-white/[0.04]`
+                      ? "bg-white/[0.04] border-white/[0.15]"
+                      : "bg-transparent border-white/[0.06] hover:border-white/[0.10] hover:bg-white/[0.02]"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className={`text-xs font-medium ${text.primary}`}>{match.title}</div>
-                      {match.preview && (
-                        <div className={`mt-1 text-[11px] ${text.muted} leading-relaxed`}>
-                          {match.preview}
-                        </div>
-                      )}
+                  <MessageCircle
+                    className={`w-4 h-4 flex-shrink-0 mt-0.5 ${selected ? text.primary : text.muted}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={`text-xs font-medium truncate ${selected ? text.primary : text.secondary}`}
+                    >
+                      {match.title}
                     </div>
-                    <div className={`shrink-0 text-[11px] ${text.muted}`}>
-                      {new Date(match.updatedAt).toLocaleString()}
+                    {match.preview && match.preview.length > match.title.length && (
+                      <div
+                        className={`text-[11px] ${text.dimmed} mt-0.5 leading-relaxed`}
+                        style={{
+                          display: "-webkit-box",
+                          WebkitLineClamp: 4,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {match.preview}
+                      </div>
+                    )}
+                    <div className={`text-[10px] ${text.dimmed} mt-1 font-mono`}>
+                      {timeAgo}
+                      <span className="mx-1.5">·</span>
+                      {match.sessionId.slice(0, 8)}
                     </div>
                   </div>
                 </button>

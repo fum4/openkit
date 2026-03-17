@@ -131,6 +131,11 @@ input[type="checkbox"].accent-red-400 {
     opacity: 0.4;
   }
 }
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
 
 /* Hide scrollbars globally */
 * {

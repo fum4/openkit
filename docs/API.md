@@ -1055,6 +1055,44 @@ The connection stays open until the client disconnects.
 
 ---
 
+## Performance Monitoring
+
+Real-time CPU and memory metrics for the OpenKit server, worktree dev servers, child processes, and agent sessions. Monitoring is **on-demand** — it starts when a client subscribes to the SSE stream and stops when the last client disconnects.
+
+#### `GET /api/perf`
+
+Returns the full ring buffer of performance snapshots (up to 150 entries, covering ~5 minutes of data at 2-second intervals).
+
+- **Response**: `{ snapshots: PerfSnapshot[] }`
+
+#### `GET /api/perf/current`
+
+Returns the most recent performance snapshot.
+
+- **Response**: `{ snapshot: PerfSnapshot | null }`
+
+#### `GET /api/perf/stream`
+
+Opens an SSE connection for live performance data. Sends the full history on connect, then streams new snapshots every 2 seconds.
+
+- **Headers**: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`
+- **Event types**:
+  - `perf-history` — Full snapshot buffer, sent once on connection: `{ type: "perf-history", snapshots: PerfSnapshot[] }`
+  - `perf-snapshot` — Individual snapshot on each poll interval: `{ type: "perf-snapshot", snapshot: PerfSnapshot }`
+
+**`PerfSnapshot` shape:**
+
+| Field       | Type                                      | Description                            |
+| ----------- | ----------------------------------------- | -------------------------------------- |
+| `timestamp` | `string`                                  | ISO 8601 timestamp                     |
+| `server`    | `ProcessMetrics`                          | OpenKit server process CPU/memory      |
+| `system`    | `{ totalCpu, totalMemory, processCount }` | Aggregate across all tracked processes |
+| `worktrees` | `WorktreeMetrics[]`                       | Per-worktree breakdown                 |
+
+Each `WorktreeMetrics` contains `devServer`, `childProcesses`, `agentSessions`, and aggregate `totalCpu`/`totalMemory`.
+
+---
+
 ## MCP Management
 
 Configure OpenKit as an MCP server in various AI agent tool configurations.

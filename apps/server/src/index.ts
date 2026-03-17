@@ -53,6 +53,8 @@ import { isMcpSetupEnabled } from "./feature-flags";
 import { NotesManager } from "./notes-manager";
 import { TerminalManager } from "./terminal-manager";
 import { HooksManager } from "./verification-manager";
+import { PerfMonitor } from "./perf-monitor";
+import { registerPerfRoutes } from "./routes/perf";
 import { ensureBundledSkills } from "./verification-skills";
 import { setCommandMonitorSink } from "./runtime/command-monitor";
 import { setFetchMonitorSink } from "./runtime/fetch-monitor";
@@ -221,6 +223,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
   });
   const notesManager = new NotesManager(manager.getConfigDir());
   const hooksManager = new HooksManager(manager);
+  const perfMonitor = new PerfMonitor(manager, terminalManager);
 
   manager.setWorktreeLifecycleHookRunner(async (trigger, worktreeId, worktreePath) => {
     const activityLog = manager.getActivityLog();
@@ -303,7 +306,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
           source: "http",
           action: "http.request",
           level: statusCode >= 500 ? "error" : statusCode >= 400 ? "warning" : "info",
-          status: statusCode >= 400 ? "failed" : "succeeded",
+          status: statusCode >= 400 ? "failed" : "success",
           message: `${c.req.method} ${requestPath} -> ${statusCode}`,
           projectName: manager.getProjectName() ?? undefined,
           metadata: {
@@ -361,6 +364,7 @@ export function createWorktreeServer(manager: WorktreeManager) {
   registerNotesRoutes(app, manager, notesManager, hooksManager);
   registerTerminalRoutes(app, manager, terminalManager, upgradeWebSocket);
   registerHooksRoutes(app, manager, hooksManager, notesManager);
+  registerPerfRoutes(app, perfMonitor);
   registerMcpTransportRoute(app, { manager, notesManager, hooksManager });
 
   // Background verification of all integration connections

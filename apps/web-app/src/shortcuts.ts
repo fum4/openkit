@@ -12,6 +12,7 @@ export type ShortcutAction =
   | "nav-issues"
   | "nav-agents"
   | "nav-activity"
+  | "nav-performance"
   | "nav-integrations"
   | "nav-settings";
 
@@ -30,6 +31,7 @@ export type NavSlot =
   | { view: "workspace"; tab: "branch" }
   | { view: "workspace"; tab: "issues" }
   | { view: "agents" }
+  | { view: "performance" }
   | { view: "hooks" }
   | { view: "integrations" }
   | { view: "activity" }
@@ -42,6 +44,7 @@ export const NAV_SLOTS: NavSlot[] = [
   { view: "agents" },
   { view: "hooks" },
   { view: "integrations" },
+  { view: "performance" },
   { view: "configuration" },
 ];
 
@@ -108,6 +111,12 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     label: "Go to Integrations",
     group: "navigation",
     defaultBinding: { key: "e", metaKey: true },
+  },
+  {
+    id: "nav-performance",
+    label: "Go to Performance",
+    group: "navigation",
+    defaultBinding: { key: "p", metaKey: true },
   },
   {
     id: "nav-settings",

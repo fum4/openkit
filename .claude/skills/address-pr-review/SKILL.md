@@ -59,6 +59,8 @@ For each issue in the review, form your own opinion on whether it's worth fixing
 - Is it about actual implementation code, or about plan/spec text that hasn't been implemented yet?
 - Would the fix improve the codebase, or is it churn?
 
+**Important:** Treat ALL issues equally regardless of whether they were introduced in this PR or are pre-existing in the codebase. If the reviewer flags a real problem, it should be evaluated on its merits — not dismissed because "we didn't change that code."
+
 Present the user with:
 
 - **Review metadata**: comment date

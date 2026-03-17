@@ -41,9 +41,10 @@ import { AgentsView } from "./components/AgentsView";
 import { ActivityPage } from "./components/ActivityPage";
 import { ProjectSetupScreen } from "./components/ProjectSetupScreen";
 import { HooksPanel } from "./components/VerificationPanel";
+import { PerformancePage } from "./components/PerformancePage";
 import { ResizableHandle } from "./components/ResizableHandle";
 import { SetupCommitModal } from "./components/SetupCommitModal";
-import type { View } from "./components/NavBar";
+import type { View } from "./components/Header";
 import type { WorktreeInfo } from "./types";
 import { TabBar } from "./components/TabBar";
 import { WelcomeScreen } from "./components/WelcomeScreen";
@@ -937,6 +938,9 @@ export default function App() {
           break;
         case "nav-activity":
           setActiveView("activity");
+          break;
+        case "nav-performance":
+          setActiveView("performance");
           break;
         case "nav-integrations":
           setActiveView("integrations");
@@ -2851,10 +2855,11 @@ export default function App() {
 
   return (
     <div className={`h-screen flex flex-col ${surface.page} ${text.body} relative overflow-hidden`}>
-      {/* Animated background blobs — settings/integrations/hooks only */}
+      {/* Animated background blobs — settings/integrations/hooks/performance only */}
       {(activeView === "configuration" ||
         activeView === "integrations" ||
-        activeView === "hooks") && (
+        activeView === "hooks" ||
+        activeView === "performance") && (
         <div className="fixed inset-0 pointer-events-none z-0">
           <div
             className="absolute w-[1400px] h-[1000px] rounded-full"
@@ -2968,7 +2973,13 @@ export default function App() {
       )}
 
       {(activeView === "workspace" || activeView === "agents" || activeView === "activity") && (
-        <div className="flex-1 min-h-0 relative">
+        <motion.div
+          key={activeView}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className="flex-1 min-h-0 relative"
+        >
           {activeView === "workspace" && (
             <div className="absolute inset-0 flex px-5 pb-16">
               {/* Left sidebar */}
@@ -3281,13 +3292,19 @@ export default function App() {
               onNavigateToIssue={handleNavigateToIssue}
             />
           )}
+        </motion.div>
+      )}
+
+      {activeView === "performance" && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <PerformancePage />
         </div>
       )}
 
       {(activeView === "configuration" ||
         activeView === "integrations" ||
         activeView === "hooks") && (
-        <div className="flex-1 min-h-0 overflow-y-auto -mt-12 pt-12 pb-20">
+        <div key={activeView} className="flex-1 min-h-0 overflow-y-auto -mt-12 pt-12 pb-20">
           {activeView === "configuration" && (
             <ConfigurationPanel
               config={config}
