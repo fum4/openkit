@@ -157,6 +157,18 @@ export function registerTerminalRoutes(
     }
 
     try {
+      logTerminalEvent({
+        action: "terminal.agent.restore.lookup",
+        message: "Resolving agent session history",
+        status: "info",
+        worktreeId: resolved.worktreeId,
+        metadata: {
+          agent,
+          requestedWorktreeId: worktreeId,
+          resolvedWorktreePath: resolved.worktree.path,
+        },
+      });
+
       const activeSessionId = terminalManager.getSessionIdForScope(resolved.worktreeId, agent);
       const historyMatches = findHistoricalAgentSessions(agent, resolved.worktree.path);
       logTerminalEvent({

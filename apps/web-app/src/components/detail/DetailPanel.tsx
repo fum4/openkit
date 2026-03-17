@@ -387,6 +387,14 @@ export function DetailPanel({
   const closeGeminiRequestIdRef = useRef(0);
   const closeOpenCodeRequestIdRef = useRef(0);
   const restoreWorktreeIdRef = useRef<string | null>(null);
+
+  // Keep stale-response guard aligned with the currently selected worktree.
+  // Without this, switching worktrees without triggering a new restore could
+  // let a stale response from the previous worktree apply to the new one.
+  useEffect(() => {
+    restoreWorktreeIdRef.current = worktree?.id ?? null;
+  }, [worktree?.id]);
+
   const logAutoClaude = useCallback((message: string, extra?: Record<string, unknown>) => {
     log.debug(message, { domain: "auto-launch", ...extra });
   }, []);
@@ -988,7 +996,16 @@ export function DetailPanel({
       const restore = await api.fetchRestorableAgentSessions(requestWorktreeId, "claude");
 
       // Bail out if the user switched worktrees while the request was in flight
-      if (restoreWorktreeIdRef.current !== requestWorktreeId) return;
+      if (restoreWorktreeIdRef.current !== requestWorktreeId) {
+        log.debug("Ignoring stale Claude restore response", {
+          domain: "agent-restore",
+          agent: "claude",
+          requestWorktreeId,
+          currentWorktreeId: restoreWorktreeIdRef.current,
+        });
+        setIsResolvingAgentRestore((prev) => (prev === "claude" ? null : prev));
+        return;
+      }
 
       setIsResolvingAgentRestore((prev) => (prev === "claude" ? null : prev));
       if (!restore.success) {
@@ -1054,7 +1071,16 @@ export function DetailPanel({
       const restore = await api.fetchRestorableAgentSessions(requestWorktreeId, "codex");
 
       // Bail out if the user switched worktrees while the request was in flight
-      if (restoreWorktreeIdRef.current !== requestWorktreeId) return;
+      if (restoreWorktreeIdRef.current !== requestWorktreeId) {
+        log.debug("Ignoring stale Codex restore response", {
+          domain: "agent-restore",
+          agent: "codex",
+          requestWorktreeId,
+          currentWorktreeId: restoreWorktreeIdRef.current,
+        });
+        setIsResolvingAgentRestore((prev) => (prev === "codex" ? null : prev));
+        return;
+      }
 
       setIsResolvingAgentRestore((prev) => (prev === "codex" ? null : prev));
       if (!restore.success) {
