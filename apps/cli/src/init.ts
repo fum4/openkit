@@ -5,7 +5,7 @@ import path from "path";
 
 import { APP_NAME } from "@openkit/shared/constants";
 import { log } from "./logger";
-import { PortManager } from "@openkit/server/port-manager";
+import { PortManager } from "@openkit/port-offset/port-manager";
 import { enableDefaultProjectSkills } from "@openkit/server/lib/project-skill-bootstrap";
 import type { PortConfig, WorktreeConfig } from "@openkit/shared/worktree-types";
 import {

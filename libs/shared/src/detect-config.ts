@@ -2,6 +2,8 @@ import { execFileSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
 
+import { log } from "./logger";
+
 export interface DetectedConfig {
   baseBranch: string;
   startCommand: string;
@@ -82,17 +84,14 @@ function isReactNativeProject(projectDir: string): boolean {
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     return "react-native" in deps || "expo" in deps;
   } catch (err: unknown) {
-    // ENOENT (file not found) is expected when package.json doesn't exist — silent fallback.
-    // For unexpected errors (permission denied, corrupt reads), warn so the root cause is visible.
-    // libs/shared has no logger dependency; console.warn is the only diagnostic option here.
-    // The server-side detectFramework() in framework-detect.ts has proper structured logging
-    // for the same check.
+    // ENOENT is expected when package.json doesn't exist — silent fallback.
     const isFileNotFound =
       err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT";
     if (!isFileNotFound) {
-      console.warn(
-        `[openkit] Failed to read ${pkgPath} for RN/Expo detection: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      log.warn(`Failed to read ${pkgPath} for RN/Expo detection`, {
+        domain: "detect-config",
+        error: err,
+      });
     }
     return false;
   }

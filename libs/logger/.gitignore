@@ -1,8 +1,0 @@
-# Go build outputs
-liblogger.dylib
-liblogger.so
-liblogger.h
-
-# Python build outputs
-python/__pycache__/
-python/*.pyc

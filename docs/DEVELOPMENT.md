@@ -208,7 +208,7 @@ Build outputs are split by product role:
 
 1. **Core runtime outputs:**
    - `cli:build` (tsup with `apps/cli/tsup.config.ts` -> `apps/cli/dist/*`)
-   - `server:build` (tsup bundles standalone server runtime to `apps/server/dist/standalone.js` and copies `apps/server/src/runtime/port-hook.cjs` to `apps/server/dist/runtime/port-hook.cjs`)
+   - `server:build` (tsup bundles standalone server runtime to `apps/server/dist/standalone.js` and copies `libs/port-offset/hooks/node/port-hook.cjs` to `apps/server/dist/runtime/port-hook.cjs`)
    - `web-app:build` (Vite -> `apps/web-app/dist/*`)
    - `desktop-app:build` (tsgo + preload copy -> `apps/desktop-app/dist/*`)
 2. **Standalone app outputs (app-owned):**
@@ -496,7 +496,7 @@ This follows an established pattern. You will need:
 - **No backwards compatibility needed.** There are no external users. Data gets deleted and recreated from scratch. Do not add migration code, backfill logic, or compatibility shims.
 - **Never use native `title` attribute for tooltips.** Always use the `Tooltip` component.
 - **All colors in `theme.ts`.** Components import Tailwind class fragments from there. No hardcoded color classes.
-- **ESM throughout.** The project uses `"type": "module"`. The only CommonJS file is `apps/server/src/runtime/port-hook.cjs`, which must remain CJS because it is loaded via Node's `--require` flag.
+- **ESM throughout.** The project uses `"type": "module"`. The only CommonJS file is `libs/port-offset/hooks/node/port-hook.cjs`, which must remain CJS because it is loaded via Node's `--require` flag.
 - **Hono for HTTP.** The backend uses Hono with `@hono/node-server`, not Express.
 - **React 18 + React Query.** State management is via React Query for server state and `useState`/`useContext` for UI state. No Redux or Zustand.
 - **Motion (Framer Motion v12+).** Animations use the `motion/react` import path.

@@ -2,7 +2,7 @@
 
 ## System Overview
 
-OpenKit is a CLI tool, web UI, and optional Electron desktop app for managing multiple git worktrees with automatic port offsetting. It solves the problem of port conflicts when running multiple dev server instances concurrently using two complementary hooks: a Node.js `--require` hook that monkey-patches `net.Server.listen` and `net.Socket.connect`, and a native shared library hook (`libs/port-resolution`) that intercepts `bind()` and `connect()` at the POSIX libc level via `LD_PRELOAD`/`DYLD_INSERT_LIBRARIES` to support any runtime (Python, Ruby, Java, Go on macOS).
+OpenKit is a CLI tool, web UI, and optional Electron desktop app for managing multiple git worktrees with automatic port offsetting. It solves the problem of port conflicts when running multiple dev server instances concurrently using two complementary hooks: a Node.js `--require` hook that monkey-patches `net.Server.listen` and `net.Socket.connect`, and a native shared library hook (`libs/port-offset/hooks/libc`) that intercepts `bind()` and `connect()` at the POSIX libc level via `LD_PRELOAD`/`DYLD_INSERT_LIBRARIES` to support any runtime (Python, Ruby, Java, Go on macOS).
 
 The system is organized into three primary layers:
 
@@ -90,7 +90,7 @@ Key responsibilities:
 
 ### PortManager
 
-`apps/server/src/port-manager.ts` -- Handles port discovery, offset allocation, and environment variable generation.
+`libs/port-offset/src/port-manager.ts` -- Handles port discovery, offset allocation, and environment variable generation.
 
 Key responsibilities:
 
@@ -343,9 +343,9 @@ The Expo app (`apps/mobile-app`) exports platform bundles to `apps/mobile-app/di
 
 ### Runtime artifacts: port hooks
 
-**`apps/server/src/runtime/port-hook.cjs`** is a pure CommonJS file with zero dependencies. It is copied verbatim to `apps/server/dist/runtime/port-hook.cjs` during the build. It cannot be bundled because it must be loadable via Node's `--require` flag in any process.
+**`libs/port-offset/hooks/node/port-hook.cjs`** is a pure CommonJS file with zero dependencies. It is copied verbatim to `apps/server/dist/runtime/port-hook.cjs` during the build. It cannot be bundled because it must be loadable via Node's `--require` flag in any process.
 
-**`libs/port-resolution/`** contains a Zig-compiled shared library (`libport-hook.dylib`/`libport-hook.so`) that intercepts `bind()` and `connect()` at the POSIX libc level for runtime-agnostic port offsetting. If built, it is copied to `apps/server/dist/runtime/` during the server build. The native hook is optional -- if not found, only the Node.js hook is used. See [`libs/port-resolution/README.md`](../libs/port-resolution/README.md) for details.
+**`libs/port-offset/hooks/libc/`** contains a Zig-compiled shared library (`libport-hook.dylib`/`libport-hook.so`) that intercepts `bind()` and `connect()` at the POSIX libc level for runtime-agnostic port offsetting. If built, it is copied to `apps/server/dist/runtime/` during the server build. The native hook is optional -- if not found, only the Node.js hook is used. See [`libs/port-offset/hooks/libc/README.md`](../libs/port-offset/hooks/libc/README.md) for details.
 
 **`libs/logger/`** is a Go-based structured logging library compiled as a C-shared library (`liblogger.dylib`/`.so`) with FFI bindings for TypeScript (koffi), Python (ctypes), and Zig (dlopen). The native port hook uses the Zig bindings to emit structured log output when the library is available, falling back to `std.debug.print` when it is not. See [`libs/logger/README.md`](../libs/logger/README.md) for details.
 

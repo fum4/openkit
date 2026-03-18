@@ -16,6 +16,7 @@
     "fix:lint": "oxlint --fix src"
   },
   "dependencies": {
+    "@openkit/logger": "workspace:*",
     "picocolors": "^1.1.1"
   }
 }

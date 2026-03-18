@@ -46,11 +46,9 @@ apps/
 │   └── src/
 │       ├── index.ts
 │       ├── manager.ts
-│       ├── port-manager.ts
 │       ├── terminal-manager.ts
 │       ├── notes-manager.ts
 │       ├── verification-manager.ts
-│       ├── runtime/
 │       └── routes/
 │
 ├── web-app/             React SPA (`web-app`)
@@ -119,9 +117,15 @@ libs/
 │   ├── py/              Python adapter (ctypes)
 │   └── zig/             Zig adapter (dlopen)
 │
-├── native-port-resolution/  Zig native port hook (DYLD_INSERT_LIBRARIES)
+├── port-offset/            Port offsetting package (`@openkit/port-offset`)
+│   ├── package.json
 │   ├── project.json
-│   └── src/
+│   ├── src/
+│   │   ├── port-manager.ts
+│   │   └── adapters/       Framework detection (registry.ts, react-native.ts, expo.ts, generic.ts)
+│   └── hooks/
+│       ├── node/           Node.js --require hook (port-hook.cjs)
+│       └── libc/           Zig native port hook (DYLD_INSERT_LIBRARIES)
 │
 └── shared/              Shared constants, contracts/types, preferences, git/env helpers
     ├── project.json

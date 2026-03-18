@@ -1,4 +1,4 @@
-import { render, screen, userEvent, waitFor } from "../../test/render";
+import { render, screen, userEvent, waitFor } from "../../__test__/render";
 import { TodoList } from "./TodoList";
 import type { TodoItem } from "../../hooks/api";
 

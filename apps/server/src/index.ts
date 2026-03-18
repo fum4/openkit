@@ -52,7 +52,6 @@ import { TerminalManager } from "./terminal-manager";
 import { HooksManager } from "./verification-manager";
 import { PerfMonitor } from "./perf-monitor";
 import { registerPerfRoutes } from "./routes/perf";
-import { ensureBundledSkills } from "./verification-skills";
 import { setCommandMonitorSink } from "./runtime/command-monitor";
 import { setFetchMonitorSink } from "./runtime/fetch-monitor";
 import type { WorktreeConfig } from "./types";
@@ -282,10 +281,6 @@ export function createWorktreeServer(manager: WorktreeManager) {
       skills: effectiveSkills,
     };
   });
-
-  // Seed bundled skills into ~/.openkit/skills/ registry only.
-  // Hook selection/import is explicit and user-controlled.
-  ensureBundledSkills();
 
   const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
@@ -645,7 +640,7 @@ export async function startWorktreeServer(
 }
 
 export { WorktreeManager } from "./manager";
-export { PortManager } from "./port-manager";
+export { PortManager } from "@openkit/port-offset/port-manager";
 export type {
   PortConfig,
   WorktreeConfig,

@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { DiffEditor } from "@monaco-editor/react";
-
 import { useSkillDetail, useSkillDeploymentStatus } from "../../hooks/useSkills";
 import { useApi } from "../../hooks/useApi";
 import { useHooksConfig } from "../../hooks/useHooks";
@@ -48,12 +46,10 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
   const [configDraft, setConfigDraft] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deploying, setDeploying] = useState<string | null>(null);
-  const [showOriginalDiff, setShowOriginalDiff] = useState(false);
 
   useEffect(() => {
     setEditingName(false);
     setEditingConfig(null);
-    setShowOriginalDiff(false);
   }, [skillName]);
 
   const saveUpdate = useCallback(
@@ -385,47 +381,12 @@ export function SkillDetailPanel({ skillName, onDeleted }: SkillDetailPanelProps
           pathAnnotation={{
             text: `SKILL.md: ${skill.path}/SKILL.md`,
             title: `${skill.path}/SKILL.md`,
-            actions:
-              skill.builtIn && skill.originalSkillMd ? (
-                <button
-                  type="button"
-                  onClick={() => setShowOriginalDiff((v) => !v)}
-                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                    showOriginalDiff
-                      ? "bg-teal-500/[0.15] text-teal-300"
-                      : `bg-white/[0.06] ${text.dimmed} hover:${text.muted}`
-                  }`}
-                >
-                  {showOriginalDiff ? "Hide original diff" : "Compare with original"}
-                </button>
-              ) : null,
+            actions: null,
           }}
           renderPreview={(value) => (
             <pre className={`text-xs font-mono ${text.secondary} whitespace-pre-wrap`}>{value}</pre>
           )}
         />
-        {showOriginalDiff && skill.builtIn && skill.originalSkillMd && (
-          <section>
-            <h3 className={`text-[11px] font-medium ${text.muted} mb-2`}>
-              Built-in Original vs Current
-            </h3>
-            <div className={`rounded-lg overflow-hidden border ${border.subtle} bg-black/20`}>
-              <DiffEditor
-                original={skill.originalSkillMd}
-                modified={skill.skillMd}
-                language="markdown"
-                height="520px"
-                options={{
-                  readOnly: true,
-                  renderSideBySide: true,
-                  minimap: { enabled: false },
-                  wordWrap: "on",
-                  scrollBeyondLastLine: false,
-                }}
-              />
-            </div>
-          </section>
-        )}
 
         {/* reference.md */}
         <EditableTextareaCard

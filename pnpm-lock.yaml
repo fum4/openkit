@@ -57,6 +57,9 @@ importers:
       '@openkit/logger':
         specifier: workspace:*
         version: link:../../libs/logger
+      '@openkit/port-offset':
+        specifier: workspace:*
+        version: link:../../libs/port-offset
       '@openkit/server':
         specifier: workspace:*
         version: link:../server
@@ -83,7 +86,7 @@ importers:
         specifier: ^1.50.0
         version: 1.50.0
       tsup:
-        specifier: ^8.3.5
+        specifier: ^8.5.1
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
       typescript:
         specifier: ^5.9.3
@@ -192,6 +195,9 @@ importers:
       '@openkit/logger':
         specifier: workspace:*
         version: link:../../libs/logger
+      '@openkit/port-offset':
+        specifier: workspace:*
+        version: link:../../libs/port-offset
       '@openkit/shared':
         specifier: workspace:*
         version: link:../../libs/shared
@@ -365,9 +371,6 @@ importers:
 
   apps/website:
     dependencies:
-      '@openkit/shared':
-        specifier: workspace:*
-        version: link:../../libs/shared
       astro:
         specifier: ^5.8.0
         version: 5.18.0(@types/node@25.3.2)(jiti@2.6.1)(lightningcss@1.31.1)(rollup@4.59.0)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
@@ -397,10 +400,30 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
-  libs/logger: {}
+  libs/logger:
+    dependencies:
+      koffi:
+        specifier: ^2.15.2
+        version: 2.15.2
+
+  libs/port-offset:
+    dependencies:
+      '@openkit/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@openkit/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
 
   libs/shared:
     dependencies:
+      '@openkit/logger':
+        specifier: workspace:*
+        version: link:../logger
       picocolors:
         specifier: ^1.1.1
         version: 1.1.1

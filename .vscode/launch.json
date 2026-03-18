@@ -165,6 +165,13 @@
     {
       "type": "node-terminal",
       "request": "launch",
+      "name": "💨 Smoke (all)",
+      "command": "pnpm smoke",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
       "name": "⚙️ 🏃‍♂️ Build & Run (all)",
       "command": "pnpm build && pnpm dev",
       "cwd": "${workspaceFolder}"

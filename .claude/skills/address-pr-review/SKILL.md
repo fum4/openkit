@@ -34,9 +34,9 @@ gh repo view --json owner,name
 
 Extract `owner` and `name` for API calls.
 
-### Step 3: Fetch the Clode Review comment
+### Step 3: Fetch the Claude Review comment
 
-The code review is posted as a **PR issue comment** (not a PR review) by `github-actions[bot]`, with a title containing "Clode Review".
+The code review is posted as a **PR issue comment** (not a PR review) by `github-actions[bot]`, with a title containing "Claude Review".
 
 ```bash
 gh api repos/{owner}/{repo}/issues/{number}/comments
@@ -44,9 +44,9 @@ gh api repos/{owner}/{repo}/issues/{number}/comments
 
 From the results:
 
-1. Find comments where `user.login` is `github-actions[bot]` **and** the body contains "Clode Review"
+1. Find comments where `user.login` is `github-actions[bot]` **and** the body contains "Claude Review"
 2. Among matching comments, pick the **latest** by `created_at`
-3. If no Clode Review comment is found, inform the user and stop
+3. If no Claude Review comment is found, inform the user and stop
 
 Parse the comment body — it contains structured markdown with severity sections (e.g. `### 🟠 Medium`, `### 🟡 Minor`) and numbered items describing issues with file references.
 

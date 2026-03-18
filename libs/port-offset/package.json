@@ -1,0 +1,27 @@
+{
+  "name": "@openkit/port-offset",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "build:node-hook": "cd src/hooks/node && tsup",
+    "build:libc-hook": "cd src/hooks/libc && zig build -Doptimize=ReleaseFast",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check:types": "tsgo --noEmit -p tsconfig.json",
+    "check:format": "oxfmt --check src",
+    "check:lint": "oxlint src",
+    "fix:format": "oxfmt src",
+    "fix:lint": "oxlint --fix src"
+  },
+  "dependencies": {
+    "@openkit/logger": "workspace:*",
+    "@openkit/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
+  }
+}
