@@ -292,6 +292,14 @@ const chapters = [
     color: #b1b1b3;
   }
 
+  :global([data-theme="light"]) .highlight {
+    color: var(--accent);
+    background: rgba(13, 148, 136, 0.08);
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
   .section-route-icon {
     display: flex;
     justify-content: center;
@@ -547,6 +555,33 @@ const chapters = [
 
   .step-agents .vendor-mark {
     opacity: 0.95;
+  }
+
+  /* ─── Light mode ─────────────────────────────────────────── */
+  :global([data-theme="light"]) .codex-mark {
+    color: #1a1d24 !important;
+  }
+
+  :global([data-theme="light"]) .codex-mark :global(svg),
+  :global([data-theme="light"]) .codex-mark :global(path) {
+    color: #1a1d24 !important;
+    fill: #1a1d24 !important;
+    stroke: #1a1d24 !important;
+  }
+
+  :global([data-theme="light"]) .flow-stop {
+    box-shadow: 0 0 0 7px var(--bg-page);
+  }
+
+  :global([data-theme="light"]) .story-chapter::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(13, 148, 136, 0.15) 20%,
+      rgba(13, 148, 136, 0.25) 50%,
+      rgba(13, 148, 136, 0.15) 80%,
+      transparent 100%
+    );
   }
 
   .flow-steps strong {

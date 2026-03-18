@@ -10,10 +10,11 @@
           height="16"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#2dd4bf"
+          stroke="currentColor"
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
+          class="footer-logo-svg"
         >
           <path
             d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
@@ -31,7 +32,9 @@
       <span class="footer-sep">&bull;</span>
       <a href="https://github.com/fum4/openkit" target="_blank" rel="noopener">GitHub</a>
     </div>
-    <div class="footer-version" id="footer-version"></div>
+    <div class="footer-right">
+      <div class="footer-version" id="footer-version"></div>
+    </div>
   </div>
 </footer>
 
@@ -69,6 +72,19 @@
     border: 1px solid rgba(45, 212, 191, 0.08);
   }
 
+  .footer-logo-svg {
+    color: #2dd4bf;
+  }
+
+  :global([data-theme="light"]) .footer-logo-svg {
+    color: #0d9488;
+  }
+
+  :global([data-theme="light"]) .footer-logo-icon {
+    background: rgba(13, 148, 136, 0.06);
+    border-color: rgba(13, 148, 136, 0.12);
+  }
+
   .footer-links {
     display: flex;
     align-items: center;
@@ -92,6 +108,13 @@
     color: var(--text-secondary) !important;
   }
 
+  .footer-right {
+    width: 83px;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+
   .footer-version {
     font-size: 11px;
     color: var(--text-muted);
@@ -103,6 +126,10 @@
     .footer-inner {
       flex-direction: column;
       gap: 16px;
+    }
+
+    .footer-right {
+      width: auto;
     }
   }
 </style>

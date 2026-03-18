@@ -424,6 +424,90 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
     padding-top: 8px;
   }
 
+  /* ─── Light mode ─────────────────────────────────────────── */
+  :global([data-theme="light"]) .hero-grid {
+    background-image: radial-gradient(rgba(13, 148, 136, 0.1) 1px, transparent 1px);
+  }
+
+  :global([data-theme="light"]) .hero-glow {
+    background: radial-gradient(ellipse, rgba(13, 148, 136, 0.06) 0%, transparent 65%);
+  }
+
+  :global([data-theme="light"]) .hero-glow-secondary {
+    background: radial-gradient(ellipse, rgba(13, 148, 136, 0.03) 0%, transparent 70%);
+  }
+
+  :global([data-theme="light"]) .hero-badge {
+    background: rgba(13, 148, 136, 0.1);
+    border-color: rgba(13, 148, 136, 0.2);
+  }
+
+  /* Terminal stays dark in light mode */
+  :global([data-theme="light"]) .terminal {
+    background: #1e2128;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.08),
+      0 8px 16px rgba(0, 0, 0, 0.12),
+      0 32px 64px rgba(0, 0, 0, 0.18);
+  }
+
+  :global([data-theme="light"]) .terminal-bar {
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+
+  :global([data-theme="light"]) .terminal-body {
+    color: #f0f2f5;
+    background: #1a1d24;
+  }
+
+  :global([data-theme="light"]) .term-line:first-child {
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+
+  :global([data-theme="light"]) .term-prompt {
+    color: #2dd4bf;
+  }
+
+  :global([data-theme="light"]) .term-accent {
+    color: #2dd4bf;
+  }
+
+  :global([data-theme="light"]) .terminal-line {
+    color: #f0f2f5;
+    border-right-color: #2dd4bf;
+  }
+
+  :global([data-theme="light"]) .term-output span:not(.term-accent):not(.term-success) {
+    color: #9ca3af;
+  }
+
+  :global([data-theme="light"]) .term-success {
+    color: #34d399;
+  }
+
+  :global([data-theme="light"]) .terminal-title {
+    color: #6b7280;
+  }
+
+  :global([data-theme="light"]) .terminal-reflection {
+    background: linear-gradient(to bottom, rgba(13, 148, 136, 0.06), transparent);
+  }
+
+  :global([data-theme="light"]) .copy-btn:hover {
+    background: rgba(13, 148, 136, 0.08);
+  }
+
+  :global([data-theme="light"]) .step:hover {
+    border-color: rgba(13, 148, 136, 0.15);
+  }
+
+  :global([data-theme="light"]) .step-num {
+    background: rgba(13, 148, 136, 0.08);
+    border-color: rgba(13, 148, 136, 0.15);
+  }
+
   /* ─── Responsive ─────────────────────────────────────────── */
   @media (max-width: 960px) {
     .hero-content {

@@ -10,10 +10,11 @@
           height="22"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#2dd4bf"
+          stroke="currentColor"
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
+          class="nav-logo-svg"
         >
           <path
             d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
@@ -41,6 +42,30 @@
           ></path>
         </svg>
       </a>
+      <button
+        type="button"
+        class="theme-toggle"
+        id="theme-toggle"
+        aria-label="Toggle light/dark mode"
+      >
+        <span class="toggle-track">
+          <span class="toggle-thumb"></span>
+          <svg class="toggle-icon icon-moon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg class="toggle-icon icon-sun" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <circle cx="12" cy="12" r="6.5"></circle>
+            <rect x="10.75" y="0.5" width="2.5" height="3.5" rx="1.25"></rect>
+            <rect x="10.75" y="20" width="2.5" height="3.5" rx="1.25"></rect>
+            <rect x="3" y="4" width="2.5" height="3.5" rx="1.25" transform="rotate(-45 4.25 5.75)"></rect>
+            <rect x="17.25" y="18.25" width="2.5" height="3.5" rx="1.25" transform="rotate(-45 18.5 20)"></rect>
+            <rect x="0.5" y="10.75" width="3.5" height="2.5" rx="1.25"></rect>
+            <rect x="20" y="10.75" width="3.5" height="2.5" rx="1.25"></rect>
+            <rect x="4" y="17.25" width="3.5" height="2.5" rx="1.25" transform="rotate(-45 5.75 18.5)"></rect>
+            <rect x="18.25" y="4" width="3.5" height="2.5" rx="1.25" transform="rotate(-45 20 5.75)"></rect>
+          </svg>
+        </span>
+      </button>
       <a href="/#download" class="nav-cta">Download</a>
     </div>
   </div>
@@ -58,6 +83,16 @@
       });
       ticking = true;
     }
+  });
+
+  const toggle = document.getElementById("theme-toggle")!;
+  toggle.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    const next = current === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+    const meta = document.getElementById("meta-theme-color");
+    if (meta) meta.setAttribute("content", next === "light" ? "#f7f8fa" : "#0e1014");
   });
 </script>
 
@@ -116,6 +151,14 @@
     border: 1px solid rgba(45, 212, 191, 0.12);
   }
 
+  .nav-logo-svg {
+    color: #2dd4bf;
+  }
+
+  :global([data-theme="light"]) .nav-logo-svg {
+    color: #0d9488;
+  }
+
   .nav-links {
     display: flex;
     align-items: center;
@@ -165,6 +208,127 @@
     background: rgba(45, 212, 191, 0.2) !important;
     border-color: rgba(45, 212, 191, 0.35) !important;
     color: #5eead4 !important;
+  }
+
+  /* ─── Theme toggle ─────────────────────────────────────────── */
+  .theme-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .toggle-track {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition:
+      background 0.3s var(--ease-out-quart),
+      border-color 0.3s var(--ease-out-quart);
+  }
+
+  .theme-toggle:hover .toggle-track {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: none;
+    transition: transform 0.3s var(--ease-out-expo);
+  }
+
+  .toggle-icon {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    transition:
+      color 0.2s var(--ease-out-quart),
+      opacity 0.2s var(--ease-out-quart);
+  }
+
+  /* Moon icon: left side, centered on thumb's left position */
+  .icon-moon {
+    left: 2px;
+    color: #ffffff;
+    opacity: 1;
+  }
+
+  /* Sun icon: right side, centered on thumb's right position */
+  .icon-sun {
+    right: 2px;
+    color: rgba(255, 255, 255, 0.5);
+    opacity: 0.6;
+  }
+
+  /* Light mode: sun selected (right), moon unselected (left) */
+  :global([data-theme="light"]) .toggle-track {
+    background: rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  :global([data-theme="light"]) .theme-toggle:hover .toggle-track {
+    background: rgba(0, 0, 0, 0.12);
+    border-color: rgba(0, 0, 0, 0.14);
+  }
+
+  :global([data-theme="light"]) .toggle-thumb {
+    transform: translateX(20px);
+    background: rgba(0, 0, 0, 0.18);
+  }
+
+  :global([data-theme="light"]) .icon-sun {
+    color: #6b7280;
+    opacity: 1;
+  }
+
+  :global([data-theme="light"]) .icon-moon {
+    color: rgba(0, 0, 0, 0.4);
+    opacity: 0.6;
+  }
+
+  /* ─── Light mode nav overrides ─────────────────────────────── */
+  :global([data-theme="light"]) nav {
+    background: rgba(233, 235, 240, 0.7);
+  }
+
+  :global([data-theme="light"]) nav.scrolled {
+    background: rgba(233, 235, 240, 0.94);
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+  }
+
+  :global([data-theme="light"]) .nav-logo-icon {
+    background: rgba(13, 148, 136, 0.08);
+    border-color: rgba(13, 148, 136, 0.15);
+  }
+
+  :global([data-theme="light"]) .nav-cta {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #ffffff !important;
+  }
+
+  :global([data-theme="light"]) .nav-cta:hover {
+    background: #0b867b !important;
+    border-color: #0b867b !important;
+    color: #ffffff !important;
   }
 
   @media (max-width: 768px) {
