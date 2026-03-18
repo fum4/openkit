@@ -432,7 +432,7 @@ export function JiraDetailPanel({
     setIsCodingWithAgent(true);
     const result = await api.createFromJira(issueKey);
     setIsCodingWithAgent(false);
-    const launchPrompt = `Implement Jira issue ${issueKey}${issue?.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+    const launchPrompt = `Implement Jira issue ${issueKey}${issue?.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Run \`openkit task context\` to get full task details, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
     if (requiresWorktreeRecoveryPrompt(result)) {
       setPendingCodeWithAgent({ agent, prompt: launchPrompt, tabLabel: issueKey });
       setExistingWorktree({ id: result.worktreeId as string, branch: issueKey });

@@ -12,7 +12,7 @@ ok [command] [options]
 ## Command Inventory
 
 | Command                                                    | Description                                                              |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------ |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------ | --- |
 | `openkit [--no-open] [--auto-init]`                        | Start OpenKit server/UI for the current project.                         |
 | `ok [--no-open] [--auto-init]`                             | Alias for `openkit [--no-open] [--auto-init]`.                           |
 | `openkit init`                                             | Run setup wizard and create `.openkit/config.json`.                      |
@@ -27,6 +27,7 @@ ok [command] [options]
 | `openkit task [source] [--init] [--save] [--link]`         | Open source-specific issue picker, then continue with selected action.   |
 | `openkit task [source] [ID...] [--init] [--save] [--link]` | Fetch task(s) from explicit source and optionally initialize/link/save.  |
 | `openkit task resolve [ID...] [--json]`                    | Resolve issue source/normalized key without creating worktrees.          |
+| `openkit task context [<issue-id>] [--json]`               | Output merged task context (issue data, notes, hooks). Default markdown. |     |
 
 ---
 
@@ -372,6 +373,42 @@ This command:
 7. In batch mode, automatically creates a worktree for each task and runs `worktree-created` command hooks per successful creation
 
 Task/worktree links are persisted in `.openkit/issues/<source>/<id>/notes.json` (`linkedWorktreeId`) so CLI, server, and UI resolve associations consistently.
+
+---
+
+### `openkit task context [<issue-id>] [--json]`
+
+Output merged task context for the given issue or auto-detected from current worktree.
+
+```bash
+openkit task context
+openkit task context local 7
+openkit task context PROJ-123
+openkit task context --json
+openkit task context PROJ-123 --json
+```
+
+Reads issue data, notes (AI context, todos), and effective hooks (global config + per-issue overrides). Produces merged context with:
+
+- Issue summary (title, status, priority, assignee, labels)
+- AI context and todos from notes
+- Effective hooks (command steps and skills) with per-issue override state
+- Branch and worktree info if linked
+
+**Output format:**
+
+- Default (markdown): Human-readable formatted context
+- `--json`: Structured JSON with separate sections for issue, notes, and hooks
+
+**Auto-detection:**
+
+If no `<issue-id>` is provided, the command attempts to auto-detect from the current working directory:
+
+1. Check if current path is inside a worktree (`.openkit/worktrees/<id>/...`)
+2. Load the worktree's linked issue from `.openkit/issues/<source>/<id>/notes.json`
+3. Output context for that issue
+
+If auto-detection fails or ambiguous, returns an error asking for explicit `<issue-id>`.
 
 ---
 

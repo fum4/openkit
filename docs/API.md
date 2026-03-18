@@ -1848,7 +1848,7 @@ Update a notes section.
   `section` must be `"personal"` or `"aiContext"`.
 - **Response**: Updated notes object
 
-When updating `aiContext` and the issue has a linked worktree, `TASK.md` in the worktree is regenerated automatically.
+When updating `aiContext` and the issue has a linked worktree, the updated context is immediately available via `openkit task context`.
 
 #### `POST /api/notes/:source/:id/todos`
 
@@ -1981,7 +1981,7 @@ Delete a task and all its data.
 
 #### `POST /api/tasks/:id/create-worktree`
 
-Create a worktree from a local task. Generates a branch name, writes a `TASK.md` file in the worktree, and links the task to the worktree.
+Create a worktree from a local task. Generates a branch name and links the task to the worktree. Task context is retrievable via `openkit task context`.
 
 - **Request** (optional):
   ```json
@@ -2043,7 +2043,7 @@ Create a new terminal session for a worktree.
   {
     "cols": 120,
     "rows": 40,
-    "startupCommand": "exec claude 'Implement task in TASK.md'",
+    "startupCommand": "exec claude 'Run openkit task context to get task details, then implement'",
     "scope": "claude"
   }
   ```

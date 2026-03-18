@@ -200,7 +200,8 @@ export class HooksManager {
       CONFIG_DIR_NAME,
       "worktrees",
       worktreeId,
-      "hooks.json",
+      CONFIG_DIR_NAME,
+      "hooks-run.json",
     );
   }
 

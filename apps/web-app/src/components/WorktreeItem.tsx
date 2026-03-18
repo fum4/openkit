@@ -1,4 +1,4 @@
-import { ListTodo } from "lucide-react";
+import { FileText } from "lucide-react";
 import type { RefObject } from "react";
 
 import type { WorktreeInfo } from "../types";
@@ -122,7 +122,7 @@ export function WorktreeItem({
                 onSelectLocalIssue?.(worktree.localIssueId!);
               }}
             >
-              <ListTodo className="w-3.5 h-3.5" />
+              <FileText className="w-3.5 h-3.5" />
             </span>
           </Tooltip>
         )}

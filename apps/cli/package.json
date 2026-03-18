@@ -11,6 +11,7 @@
     "check:types": "tsgo --noEmit -p tsconfig.json",
     "check:format": "oxfmt --check src",
     "check:lint": "oxlint src",
+    "test": "vitest run",
     "fix:format": "oxfmt src",
     "fix:lint": "oxlint --fix src"
   },

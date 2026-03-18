@@ -1,4 +1,4 @@
-import { GitBranch, Link, ListTodo, MessageCircle, Plus, X } from "lucide-react";
+import { FileText, GitBranch, Link, MessageCircle, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
@@ -1944,7 +1944,7 @@ export function DetailPanel({
                     disabled={isRecoveringLocalTask}
                     className={`h-7 px-2.5 text-[11px] font-medium ${text.muted} hover:${text.secondary} hover:bg-white/[0.06] rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none`}
                   >
-                    <ListTodo className="w-3.5 h-3.5" />
+                    <FileText className="w-3.5 h-3.5" />
                     {isRecoveringLocalTask ? "Recovering..." : "Recover Task"}
                   </button>
                 )}
@@ -1954,7 +1954,7 @@ export function DetailPanel({
                     onClick={() => onCreateTask(worktree.id)}
                     className={`h-7 px-2.5 text-[11px] font-medium ${text.muted} hover:${text.secondary} hover:bg-white/[0.06] rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
                   >
-                    <ListTodo className="w-3.5 h-3.5" />
+                    <FileText className="w-3.5 h-3.5" />
                     Create Task
                   </button>
                 )}

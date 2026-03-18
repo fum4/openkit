@@ -53,7 +53,7 @@ describe("CreateForm", () => {
     await user.click(plusButton);
 
     expect(screen.getByText("Create worktree")).toBeInTheDocument();
-    expect(screen.getByText("Create task")).toBeInTheDocument();
+    expect(screen.getByText("Create issue")).toBeInTheDocument();
   });
 
   it("calls onCreateWorktree when 'Create worktree' is clicked", async () => {
@@ -71,7 +71,7 @@ describe("CreateForm", () => {
     expect(defaultProps.onCreateWorktree).toHaveBeenCalledOnce();
   });
 
-  it("calls onCreateCustomTask when 'Create task' is clicked", async () => {
+  it("calls onCreateCustomTask when 'Create issue' is clicked", async () => {
     const user = userEvent.setup();
 
     render(<CreateForm {...defaultProps} />);
@@ -81,7 +81,7 @@ describe("CreateForm", () => {
       (b) => !b.textContent?.includes("Worktrees") && !b.textContent?.includes("Issues"),
     )!;
     await user.click(plusButton);
-    await user.click(screen.getByText("Create task"));
+    await user.click(screen.getByText("Create issue"));
 
     expect(defaultProps.onCreateCustomTask).toHaveBeenCalledOnce();
   });

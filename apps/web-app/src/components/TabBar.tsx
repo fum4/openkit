@@ -1,8 +1,9 @@
-import { Folder, Loader2, Plus, Settings, X } from "lucide-react";
+import { Folder, GitBranch, Loader2, Plus, Settings, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useServer } from "../contexts/ServerContext";
 import type { Project } from "../contexts/ServerContext";
+import { useInstanceInfo } from "../hooks/useWorktrees";
 import { surface } from "../theme";
 import { Tooltip } from "./Tooltip";
 
@@ -29,6 +30,7 @@ export function TabBar({ onOpenSettings, onOverlapChange }: TabBarProps) {
   const tabsRef = useRef<HTMLDivElement>(null);
   const [overlaps, setOverlaps] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const instanceInfo = useInstanceInfo();
 
   const checkOverlap = useCallback(() => {
     if (!tabsRef.current) return;
@@ -148,6 +150,20 @@ export function TabBar({ onOpenSettings, onOverlapChange }: TabBarProps) {
           </button>
         </Tooltip>
       )} */}
+
+      {(instanceInfo.branch || instanceInfo.port) && (
+        <div className="mr-4 h-7 inline-flex items-center gap-1.5 text-[10px] text-[#6b7280] font-mono select-text">
+          <span className="text-[#9ca3af]">{instanceInfo.worktreeName ?? "root"}</span>
+          {instanceInfo.branch && (
+            <>
+              <span className="text-[#4b5563]">·</span>
+              <GitBranch className="w-3 h-3 flex-shrink-0" />
+              <span>{instanceInfo.branch}</span>
+            </>
+          )}
+          {instanceInfo.port && <span className="text-[#4b5563] ml-0.5">:{instanceInfo.port}</span>}
+        </div>
+      )}
 
       {onOpenSettings && appVersion && (
         <div className="mr-2 h-7 inline-flex items-center justify-center text-[10px] text-[#8f97a6]">

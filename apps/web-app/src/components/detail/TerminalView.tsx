@@ -31,7 +31,7 @@ interface TerminalViewProps {
 }
 
 const DEFAULT_AGENT_START_PROMPT =
-  "You are already in the correct worktree. Read TASK.md first, then implement the task. Treat AI context and todo checklist as highest-priority instructions.";
+  "You are already in the correct worktree. Run `openkit task context` to get full task details, then implement the task. Treat AI context and todo checklist as highest-priority instructions.";
 const LAUNCH_CONNECT_MAX_ATTEMPTS = 3;
 const LAUNCH_CONNECT_RETRY_DELAY_MS = 150;
 const BOOTING_SAFETY_TIMEOUT_MS = 30_000;

@@ -11,6 +11,8 @@ import {
   fetchGitHubStatus as apiFetchGitHubStatus,
   fetchLinearStatus as apiFetchLinearStatus,
   fetchConfig as apiFetchConfig,
+  fetchInstanceInfo as apiFetchInstanceInfo,
+  type InstanceInfo,
 } from "./api";
 
 export function useWorktrees(
@@ -179,6 +181,29 @@ export function usePorts() {
   }, [fetchPorts]);
 
   return { ports, refetchPorts: fetchPorts };
+}
+
+export function useInstanceInfo() {
+  const serverUrl = useServerUrlOptional();
+  const [instanceInfo, setInstanceInfo] = useState<InstanceInfo>({
+    branch: null,
+    isWorktree: false,
+    worktreeName: null,
+  });
+
+  useEffect(() => {
+    // Pass serverUrl as-is — when null, the API call uses relative URLs (browser mode)
+    apiFetchInstanceInfo(serverUrl).then(setInstanceInfo);
+  }, [serverUrl]);
+
+  // Derive port from serverUrl (Electron) or window.location (browser)
+  const port = serverUrl
+    ? new URL(serverUrl).port
+    : typeof window !== "undefined" && window.location.port
+      ? window.location.port
+      : null;
+
+  return { ...instanceInfo, port };
 }
 
 export function useJiraStatus() {

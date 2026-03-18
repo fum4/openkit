@@ -147,6 +147,10 @@ async function main() {
     return;
   }
 
+  // Capture original CWD before loadConfig() potentially chdir's to the main project root.
+  // This is needed to detect whether the server was started from inside a worktree.
+  const startupCwd = process.cwd();
+
   const { config, configPath } = loadConfig();
   const globalPrefs = loadGlobalPreferences();
   const portArg = parsePortArg(args);
@@ -159,7 +163,7 @@ async function main() {
     globalPrefs.basePort ??
     DEFAULT_PORT;
 
-  await startWorktreeServer(config, configPath, { port: requestedPort });
+  await startWorktreeServer(config, configPath, { port: requestedPort, startupCwd });
 }
 
 main().catch((error) => {
