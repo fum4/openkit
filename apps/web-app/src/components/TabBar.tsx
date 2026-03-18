@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useServer } from "../contexts/ServerContext";
 import type { Project } from "../contexts/ServerContext";
 import { useInstanceInfo } from "../hooks/useWorktrees";
-import { surface } from "../theme";
+import { palette, surface } from "../theme";
 import { Tooltip } from "./Tooltip";
 
 interface TabBarProps {
@@ -152,16 +152,20 @@ export function TabBar({ onOpenSettings, onOverlapChange }: TabBarProps) {
       )} */}
 
       {(instanceInfo.branch || instanceInfo.port) && (
-        <div className="mr-4 h-7 inline-flex items-center gap-1.5 text-[10px] text-[#6b7280] font-mono select-text">
-          <span className="text-[#9ca3af]">{instanceInfo.worktreeName ?? "root"}</span>
+        <div
+          className={`mr-4 h-7 inline-flex items-center gap-1.5 text-[10px] text-[${palette.text2}] font-mono select-text`}
+        >
+          <span className={`text-[${palette.text1}]`}>{instanceInfo.worktreeName ?? "root"}</span>
           {instanceInfo.branch && (
             <>
-              <span className="text-[#4b5563]">·</span>
+              <span className={`text-[${palette.text3}]`}>·</span>
               <GitBranch className="w-3 h-3 flex-shrink-0" />
               <span>{instanceInfo.branch}</span>
             </>
           )}
-          {instanceInfo.port && <span className="text-[#4b5563] ml-0.5">:{instanceInfo.port}</span>}
+          {instanceInfo.port && (
+            <span className={`text-[${palette.text3}] ml-0.5`}>:{instanceInfo.port}</span>
+          )}
         </div>
       )}
 

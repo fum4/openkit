@@ -14,9 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check:types": "tsgo --noEmit -p tsconfig.json",
-    "check:lint": "oxlint src",
-    "fix:lint": "oxlint --fix src"
+    "check:types": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",

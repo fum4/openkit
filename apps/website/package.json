@@ -8,9 +8,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "start": "pnpm exec nx run website:build && pnpm preview",
-    "check:types": "astro check",
-    "check:lint": "oxlint src/scripts",
-    "fix:lint": "oxlint --fix src/scripts"
+    "check:types": "astro check"
   },
   "dependencies": {
     "astro": "^5.8.0"

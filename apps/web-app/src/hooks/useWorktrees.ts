@@ -193,7 +193,11 @@ export function useInstanceInfo() {
 
   useEffect(() => {
     // Pass serverUrl as-is — when null, the API call uses relative URLs (browser mode)
-    apiFetchInstanceInfo(serverUrl).then(setInstanceInfo);
+    apiFetchInstanceInfo(serverUrl)
+      .then(setInstanceInfo)
+      .catch(() => {
+        // Instance info is best-effort — failure leaves the default state
+      });
   }, [serverUrl]);
 
   // Derive port from serverUrl (Electron) or window.location (browser)

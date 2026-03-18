@@ -6,9 +6,7 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "check:types": "tsgo --noEmit -p tsconfig.json",
-    "check:lint": "oxlint src",
-    "fix:lint": "oxlint --fix src"
+    "check:types": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@openkit/logger": "workspace:*",

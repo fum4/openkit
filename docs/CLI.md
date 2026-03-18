@@ -12,7 +12,7 @@ ok [command] [options]
 ## Command Inventory
 
 | Command                                                    | Description                                                              |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------ | --- |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `openkit [--no-open] [--auto-init]`                        | Start OpenKit server/UI for the current project.                         |
 | `ok [--no-open] [--auto-init]`                             | Alias for `openkit [--no-open] [--auto-init]`.                           |
 | `openkit init`                                             | Run setup wizard and create `.openkit/config.json`.                      |
@@ -27,7 +27,7 @@ ok [command] [options]
 | `openkit task [source] [--init] [--save] [--link]`         | Open source-specific issue picker, then continue with selected action.   |
 | `openkit task [source] [ID...] [--init] [--save] [--link]` | Fetch task(s) from explicit source and optionally initialize/link/save.  |
 | `openkit task resolve [ID...] [--json]`                    | Resolve issue source/normalized key without creating worktrees.          |
-| `openkit task context [<issue-id>] [--json]`               | Output merged task context (issue data, notes, hooks). Default markdown. |     |
+| `openkit task context [<issue-id>] [--json]`               | Output merged task context (issue data, notes, hooks). Default markdown. |
 
 ---
 
