@@ -107,8 +107,11 @@ describe("detectStartCommand", () => {
 
     const { log } = await import("../logger");
     expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining("EACCES: permission denied"),
-      expect.objectContaining({ domain: "detect-config" }),
+      expect.stringContaining("RN/Expo detection"),
+      expect.objectContaining({
+        domain: "detect-config",
+        error: expect.objectContaining({ message: "EACCES: permission denied" }),
+      }),
     );
   });
 });
