@@ -26,6 +26,7 @@
     "@openkit/agents": "workspace:*",
     "@openkit/integrations": "workspace:*",
     "@openkit/logger": "workspace:*",
+    "@openkit/port-offset": "workspace:*",
     "@openkit/shared": "workspace:*",
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/headless": "^6.0.0",

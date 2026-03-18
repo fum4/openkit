@@ -1,6 +1,6 @@
 import { fireEvent } from "@testing-library/react";
 
-import { render, screen, act } from "../../test/render";
+import { render, screen, act } from "../../__test__/render";
 import { PersonalNotesSection, AgentSection } from "./NotesSection";
 
 // Mock useNotes to control data without needing real API

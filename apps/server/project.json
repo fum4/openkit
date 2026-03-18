@@ -3,7 +3,7 @@
   "name": "server",
   "projectType": "application",
   "sourceRoot": "apps/server/src",
-  "implicitDependencies": ["native-port-resolution"],
+  "implicitDependencies": ["port-offset"],
   "targets": {
     "build": {
       "outputs": ["{workspaceRoot}/apps/server/dist"]

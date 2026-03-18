@@ -6,68 +6,28 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "commands": ["cd cgo && ./build.sh", "cd wasm && ./build.sh"],
+        "commands": ["pnpm build:cgo", "pnpm build:wasm"],
         "cwd": "libs/logger",
         "parallel": true
       },
       "inputs": [
-        "{projectRoot}/*.go",
+        "{projectRoot}/src/**/*.go",
         "{projectRoot}/go.mod",
-        "{projectRoot}/cgo/**/*.go",
-        "{projectRoot}/cgo/go.mod",
-        "{projectRoot}/cgo/build.sh",
-        "{projectRoot}/node/src/**/*.ts",
-        "{projectRoot}/wasm/**/*.go",
-        "{projectRoot}/wasm/go.mod",
-        "{projectRoot}/zig/**/*.zig"
+        "{projectRoot}/src/targets/cgo/**/*.go",
+        "{projectRoot}/src/targets/cgo/go.mod",
+        "{projectRoot}/src/targets/cgo/build.sh",
+        "{projectRoot}/src/bindings/**/*.ts",
+        "{projectRoot}/src/targets/wasm/**/*.go",
+        "{projectRoot}/src/targets/wasm/go.mod",
+        "{projectRoot}/src/bindings/zig/**/*.zig"
       ],
       "outputs": [
-        "{projectRoot}/liblogger.dylib",
-        "{projectRoot}/liblogger.so",
-        "{projectRoot}/liblogger.h",
-        "{projectRoot}/browser/src/logger.wasm",
-        "{projectRoot}/browser/src/wasm_exec.js"
+        "{projectRoot}/dist/liblogger.dylib",
+        "{projectRoot}/dist/liblogger.so",
+        "{projectRoot}/dist/liblogger.h",
+        "{projectRoot}/dist/logger.wasm",
+        "{projectRoot}/dist/wasm_exec.js"
       ]
-    },
-    "check:types": {
-      "executor": "nx:run-commands",
-      "options": {
-        "commands": ["cd node && pnpm check:types", "cd browser && pnpm check:types"],
-        "cwd": "libs/logger",
-        "parallel": true
-      }
-    },
-    "check:format": {
-      "executor": "nx:run-commands",
-      "options": {
-        "commands": ["cd node && pnpm check:format", "cd browser && pnpm check:format"],
-        "cwd": "libs/logger",
-        "parallel": true
-      }
-    },
-    "check:lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "commands": ["cd node && pnpm check:lint", "cd browser && pnpm check:lint"],
-        "cwd": "libs/logger",
-        "parallel": true
-      }
-    },
-    "fix:format": {
-      "executor": "nx:run-commands",
-      "options": {
-        "commands": ["cd node && pnpm fix:format", "cd browser && pnpm fix:format"],
-        "cwd": "libs/logger",
-        "parallel": true
-      }
-    },
-    "fix:lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "commands": ["cd node && pnpm fix:lint", "cd browser && pnpm fix:lint"],
-        "cwd": "libs/logger",
-        "parallel": true
-      }
     }
   },
   "tags": ["type:library", "lang:go", "lang:typescript", "lang:python", "lang:zig"]

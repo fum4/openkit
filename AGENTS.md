@@ -22,6 +22,10 @@ OpenKit's own MCP server has been removed from the codebase. The `openkit mcp` C
 - If the current name no longer fits, rename it as part of the change.
 - Be careful when editing file/folder content to keep structure and naming aligned.
 
+## README Requirement
+
+Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root. The README should briefly describe the package's purpose, key technologies, and basic usage. When creating a new app or library, include a README as part of the initial setup.
+
 ## Mirror File Requirement
 
 - `CLAUDE.md` and `AGENTS.md` must stay in sync.
@@ -40,7 +44,7 @@ OpenKit's own MCP server has been removed from the codebase. The `openkit mcp` C
 
 **Package manager**: pnpm
 
-**Test runner**: Vitest (co-located tests: `foo.ts` -> `foo.test.ts`). Run `pnpm test` for all, `pnpm nx run <project>:test` for one project.
+**Test runner**: Vitest. Run `pnpm test` for all, `pnpm nx run <project>:test` for one project.
 
 ## Testing
 
@@ -49,6 +53,7 @@ OpenKit's own MCP server has been removed from the codebase. The `openkit mcp` C
 - When writing or modifying tests, **always use the testing skill** (`.claude/skills/testing/`) if available. It contains the canonical patterns, query priorities, and conventions for this project.
 - **Do not modify existing tests lightly.** If a test fails, first verify whether the test caught a real bug before changing it. Changing a test to make it pass defeats the purpose — investigate first.
 - Put real effort into test quality. Tests should be thorough, covering edge cases, error paths, and boundary conditions — not just the happy path.
+- **Place test files in `__test__/` directories**, not co-located with source files. Each directory level that contains testable code should have its own `__test__/` subdirectory (e.g., `src/__test__/`, `src/adapters/__test__/`). Test files keep the `.test.ts`/`.test.tsx` suffix.
 - Write tests carefully — one behavior per `it()`, Arrange-Act-Assert structure, behavior-spec naming.
 - Mock at the boundary (fs, child_process, HTTP), not internal helpers.
 - Component tests use React Testing Library: query by role/label/text, use `userEvent`, never test implementation details.
@@ -139,6 +144,14 @@ OpenKit has a **Dev Mode** (App Settings → Dev Mode toggle) that symlinks each
 ## Dependencies
 
 **Always use `pnpm add` (or `pnpm add -D`) to install packages — never edit `package.json` dependencies manually.** Use the latest version unless a specific version is required.
+
+### Workspace Dependencies
+
+Cross-package imports within the monorepo **must** use pnpm workspace dependencies (`"@openkit/foo": "workspace:*"` in `package.json`), not `tsconfig.json` path aliases. Path aliases are only for self-referential imports within the same package (e.g., `@openkit/server/*` in the server's own tsconfig). Each lib that imports another workspace package must declare it as a dependency via `pnpm add @openkit/foo --workspace`. Package resolution relies on `package.json` `exports` fields (e.g., `"./*": "./src/*.ts"`), not tsconfig paths.
+
+## Configuration Flags
+
+**Initialize all configuration flags in config files at creation time, not on demand.** When adding a new user-facing setting or feature flag, write its default value into `.openkit/config.json` (or the relevant config file) during `init` / `autoInitConfig`. Do not rely on `?? defaultValue` fallbacks scattered across the codebase — that leads to inconsistent defaults, invisible settings, and config files that don't reflect the full set of available options. The config file should be the single source of truth for what's configurable and what the defaults are.
 
 ## Design Specs & Plans
 

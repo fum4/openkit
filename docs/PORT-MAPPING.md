@@ -298,12 +298,12 @@ The `PortManager.getEnvForOffset()` in the server can set `__WM_LIBLOGGER_PATH` 
 The native hook requires the [Zig](https://ziglang.org/) toolchain:
 
 ```bash
-cd libs/port-resolution && zig build -Doptimize=ReleaseFast
+cd libs/port-offset/hooks/libc && zig build -Doptimize=ReleaseFast
 ```
 
 The hook is **optional** -- if the built library is not found, only the Node.js hook is used. Building the hook requires `libs/logger` to be built first (Nx handles this dependency automatically via `dependsOn`).
 
-For full documentation, see [`libs/port-resolution/README.md`](../libs/port-resolution/README.md).
+For full documentation, see [`libs/port-offset/hooks/libc/README.md`](../libs/port-offset/hooks/libc/README.md).
 
 ## React Native / Expo Support
 

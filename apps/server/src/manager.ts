@@ -51,7 +51,7 @@ import { ACTIVITY_TYPES } from "./activity-event";
 import { loadLocalConfig, loadLocalGitPolicyConfig, updateLocalConfig } from "./local-config";
 import { NotesManager } from "./notes-manager";
 import { OpsLog } from "./ops-log";
-import { PortManager } from "./port-manager";
+import { PortManager } from "@openkit/port-offset/port-manager";
 import type { HooksInfo, PendingTaskContext } from "./task-context";
 import { writeTaskMd, generateTaskMd } from "./task-context";
 import type {
@@ -276,7 +276,7 @@ export class WorktreeManager {
     };
     this.config = this.withLocalConfig(this.config);
     this.portManager = new PortManager(config, configFilePath);
-    this.portManager.useNativeHook = this.config.useNativePortHook === true;
+    this.portManager.useNativeHook = this.config.useNativePortHook !== false;
     this.notesManager = new NotesManager(this.configDir);
     this.activityLog = new ActivityLog(this.configDir, this.config.activity);
     this.opsLog = new OpsLog(this.configDir, this.config.opsLog);
@@ -829,15 +829,13 @@ export class WorktreeManager {
     }
 
     try {
-      // Allocate a port offset for this worktree
+      // Allocate a port offset and build the full spawn environment
       const offset = this.portManager.allocateOffset();
-      const portEnv = this.portManager.getEnvForOffset(offset);
-      const ports = this.portManager.getPortsForOffset(offset);
+      const offsetEnv = this.portManager.buildOffsetEnvironment(offset, this.config.startCommand);
+      const ports = offsetEnv.ports;
 
-      // For RN/Expo, append --port <offset_port> so Metro gets the port directly
       const [cmd, ...baseArgs] = this.config.startCommand.split(" ");
-      const portArgs = this.portManager.getStartCommandPortArgs(this.config.startCommand, offset);
-      const args = [...baseArgs, ...portArgs];
+      const args = [...baseArgs, ...offsetEnv.extraArgs];
 
       const portsDisplay = ports.length > 0 ? ports.join(", ") : `offset=${offset}`;
       log.info(`Starting ${worktreeId} at ${workingDir} (ports: ${portsDisplay})`);
@@ -894,31 +892,24 @@ export class WorktreeManager {
         }
       };
 
-      const spawnEnv = { ...process.env, ...portEnv, FORCE_COLOR: "1" };
-      const framework = this.portManager.getFramework();
-      const usesPty = framework === "expo" || framework === "react-native";
+      const spawnEnv = { ...process.env, ...offsetEnv.env, FORCE_COLOR: "1" };
       let pid: number;
       let killFn: (signal?: string) => void;
 
-      if (usesPty) {
-        // RN/Expo: spawn via PTY so Metro gets a real TTY (QR code, interactive UI).
+      if (offsetEnv.needsPty) {
+        // Adapter-driven PTY spawn (e.g. RN/Expo needs a real TTY for Metro QR code).
         // Pass cmd + args directly to node-pty (no shell -lc wrapping) to avoid
         // shell metacharacter interpretation in startCommand.
         const pty = resolveNodePtyModule();
 
-        // Expo-specific env vars scoped to the PTY process only — CI=0 overrides
-        // Expo CLI's non-interactive detection (isTTY=false → disables networking).
-        // Scoped here rather than in getEnvForOffset() to avoid CI=0 leaking into
-        // other tools in the process tree (test runners, linters, build tools).
+        // spawnOnlyEnv contains adapter-scoped env vars (e.g. CI=0, EXPO_OFFLINE=0
+        // for Expo) that should not leak into other tools in the process tree.
         const ptyEnv: Record<string, string> = {
           ...spawnEnv,
+          ...offsetEnv.spawnOnlyEnv,
           TERM: "xterm-256color",
           COLORTERM: "truecolor",
         };
-        if (framework === "expo") {
-          ptyEnv.CI = "0";
-          ptyEnv.EXPO_OFFLINE = "0";
-        }
 
         const ptyProcess = pty.spawn(cmd, args, {
           name: "xterm-256color",
@@ -975,8 +966,8 @@ export class WorktreeManager {
         metadata: { ports, pid },
       });
 
-      // Best-effort: set up adb reverse for React Native / Expo projects
-      if (this.portManager.needsAdbReverse()) {
+      // Best-effort: set up adb reverse (adapter-driven, e.g. RN/Expo)
+      if (offsetEnv.needsAdbReverse) {
         this.runAdbReverse(ports);
       }
 
@@ -2160,7 +2151,7 @@ export class WorktreeManager {
       }
 
       this.config = this.withLocalConfig(this.config);
-      this.portManager.useNativeHook = this.config.useNativePortHook === true;
+      this.portManager.useNativeHook = this.config.useNativePortHook !== false;
       return { success: true };
     } catch (error) {
       return {

@@ -21,8 +21,13 @@ export default defineConfig({
       };
     } else {
       mkdirSync("dist/runtime", { recursive: true });
-      cpSync("src/runtime/port-hook.cjs", "dist/runtime/port-hook.cjs");
-      cpSync("../../libs/native-port-resolution/zig-out/lib", "dist/runtime", { recursive: true });
+      cpSync(
+        "../../libs/port-offset/src/hooks/node/dist/port-hook.cjs",
+        "dist/runtime/port-hook.cjs",
+      );
+      cpSync("../../libs/port-offset/src/hooks/libc/zig-out/lib", "dist/runtime", {
+        recursive: true,
+      });
     }
   },
   esbuildOptions(options) {

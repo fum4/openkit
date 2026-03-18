@@ -213,11 +213,9 @@ export interface SkillSummary {
   displayName: string;
   description: string;
   path: string;
-  builtIn: boolean;
 }
 
 export interface SkillDetail extends SkillSummary {
-  originalSkillMd?: string;
   skillMd: string;
   frontmatter: {
     name: string;

@@ -39,6 +39,7 @@
     "fix:format": "pnpm nx run-many -t fix:format --parallel",
     "fix:lint": "pnpm nx run-many -t fix:lint --parallel",
     "fix:all": "pnpm nx run-many -t fix:format,fix:lint --parallel",
+    "smoke": "pnpm nx run-many -t fix:format,fix:lint,check:types,build,test --parallel",
     "lint-staged": "lint-staged",
     "prepare": "husky"
   },

@@ -9,7 +9,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      exclude: ["src/standalone.ts", "src/runtime/**", "src/test/**"],
+      exclude: ["src/standalone.ts", "src/runtime/**", "src/__test__/**"],
     },
   },
   resolve: {
@@ -17,7 +17,11 @@ export default defineConfig({
       "@openkit/shared": path.resolve(__dirname, "../../libs/shared/src"),
       "@openkit/integrations": path.resolve(__dirname, "../../libs/integrations/src"),
       "@openkit/agents": path.resolve(__dirname, "../../libs/agents/src"),
-      "@openkit/logger/node": path.resolve(__dirname, "../../libs/logger/node/src"),
+      "@openkit/logger/node": path.resolve(
+        __dirname,
+        "../../libs/logger/src/bindings/node/logger.ts",
+      ),
+      "@openkit/port-offset": path.resolve(__dirname, "../../libs/port-offset/src"),
       "@openkit/server": path.resolve(__dirname, "./src"),
     },
   },

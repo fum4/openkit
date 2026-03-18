@@ -1,4 +1,4 @@
-import { render, screen, act, waitFor } from "../../test/render";
+import { render, screen, act, waitFor } from "../../__test__/render";
 import { TerminalView } from "./TerminalView";
 
 // ─── Mocks ──────────────────────────────────────────────────────

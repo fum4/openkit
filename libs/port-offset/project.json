@@ -1,0 +1,17 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "port-offset",
+  "projectType": "library",
+  "sourceRoot": "libs/port-offset/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["logger:build"],
+      "options": {
+        "commands": ["pnpm build:node-hook", "pnpm build:libc-hook"],
+        "cwd": "libs/port-offset",
+        "parallel": true
+      }
+    }
+  }
+}

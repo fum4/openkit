@@ -36,7 +36,7 @@ export default defineConfig({
           // @hono/node-server + @hono/node-ws
           "export { noop as serveStatic, noop as createAdaptorServer, noop as createNodeWebSocket };",
           // @openkit/agents
-          "export { noop as BUNDLED_SKILLS, noop as CLAUDE_SKILL, noop as CURSOR_RULE, noop as VSCODE_PROMPT };",
+          "export { noop as CLAUDE_SKILL, noop as CURSOR_RULE, noop as VSCODE_PROMPT };",
           // node-pty
           "export { noop as spawn };",
         ].join("\n");
@@ -63,11 +63,11 @@ export default defineConfig({
     environment: "happy-dom",
     globals: true,
     include: ["**/*.test.{ts,tsx}"],
-    setupFiles: ["test/setup.ts"],
+    setupFiles: ["__test__/setup.ts"],
     coverage: {
       provider: "v8",
       include: ["**/*.{ts,tsx}"],
-      exclude: ["main.tsx", "test/**"],
+      exclude: ["main.tsx", "__test__/**"],
     },
   },
 });
