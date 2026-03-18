@@ -14,7 +14,6 @@ else
     exit 1
 fi
 
-# Output to dist/ so FFI adapters find it
 mkdir -p ../../../dist
 go build -buildmode=c-shared -o "../../../dist/$OUTPUT" .
 

@@ -88,12 +88,10 @@ function isReactNativeProject(projectDir: string): boolean {
     const isFileNotFound =
       err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT";
     if (!isFileNotFound) {
-      log.warn(
-        `Failed to read ${pkgPath} for RN/Expo detection: ${err instanceof Error ? err.message : String(err)}`,
-        {
-          domain: "detect-config",
-        },
-      );
+      log.warn(`Failed to read ${pkgPath} for RN/Expo detection`, {
+        domain: "detect-config",
+        error: err,
+      });
     }
     return false;
   }

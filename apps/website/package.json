@@ -15,7 +15,6 @@
     "fix:lint": "oxlint --fix src/scripts"
   },
   "dependencies": {
-    "@openkit/shared": "workspace:*",
     "astro": "^5.8.0"
   },
   "devDependencies": {

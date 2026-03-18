@@ -5,4 +5,3 @@ export const CLI_COMMAND_ALIAS = "ok";
 export const LEGACY_CLI_COMMAND = "OpenKit";
 export const CONFIG_DIR_NAME = ".openkit";
 export const DEFAULT_PORT = 6969;
-export const SITE_URL = "https://dawg-chi.vercel.app";
