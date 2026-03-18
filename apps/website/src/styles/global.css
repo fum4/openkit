@@ -1,5 +1,7 @@
 /* ─── CSS Variables ─────────────────────────────────────────── */
 :root {
+  color-scheme: dark;
+
   --bg-page: #0c0e12;
   --bg-panel: #12151a;
   --bg-raised: #1a1e25;
@@ -26,6 +28,28 @@
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
+/* ─── Light mode ───────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-page: #f7f8fa;
+  --bg-panel: #ffffff;
+  --bg-raised: #f0f1f4;
+  --bg-input: #e5e7eb;
+
+  --border-subtle: rgba(0, 0, 0, 0.07);
+  --border-medium: rgba(0, 0, 0, 0.12);
+
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+
+  --accent: #0d9488;
+  --accent-muted: #0f766e;
+  --accent-glow: rgba(13, 148, 136, 0.12);
+  --accent-deep: #115e59;
+}
+
 /* ─── Reset & Base ─────────────────────────────────────────── */
 *,
 *::before,
@@ -39,6 +63,7 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 body {
@@ -63,6 +88,10 @@ body::before {
   background-size: 256px 256px;
 }
 
+[data-theme="light"] body::before {
+  opacity: 0.02;
+}
+
 a {
   color: var(--accent);
   text-decoration: none;
@@ -71,6 +100,10 @@ a {
 
 a:hover {
   color: #5eead4;
+}
+
+[data-theme="light"] a:hover {
+  color: #0f766e;
 }
 
 code,
@@ -104,6 +137,17 @@ section {
   );
   max-width: 600px;
   margin: 0 auto;
+}
+
+[data-theme="light"] .section-divider {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(13, 148, 136, 0.2) 20%,
+    rgba(13, 148, 136, 0.3) 50%,
+    rgba(13, 148, 136, 0.2) 80%,
+    transparent 100%
+  );
 }
 
 /* ─── Scroll animations ───────────────────────────────────── */
@@ -199,6 +243,26 @@ h3 {
   animation: glow-pulse 3s ease-in-out infinite;
 }
 
+[data-theme="light"] .glow-pulse {
+  animation: glow-pulse-light 3s ease-in-out infinite;
+}
+
+@keyframes glow-pulse-light {
+  0%,
+  100% {
+    box-shadow:
+      0 0 14px rgba(13, 148, 136, 0.2),
+      0 0 28px rgba(13, 148, 136, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 22px rgba(13, 148, 136, 0.3),
+      0 0 40px rgba(13, 148, 136, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
 /* ─── Split download button ───────────────────────────────── */
 .download-split {
   position: relative;
@@ -220,6 +284,17 @@ h3 {
   transform: translateY(-1px);
 }
 
+[data-theme="light"] .download-split {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+[data-theme="light"] .download-split:hover {
+  border-color: #0b867b;
+  background: #0b867b;
+  transform: translateY(-1px);
+}
+
 .download-main-btn {
   display: inline-flex;
   align-items: center;
@@ -234,6 +309,14 @@ h3 {
 
 .download-main-btn:hover {
   color: var(--accent) !important;
+}
+
+[data-theme="light"] .download-main-btn {
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .download-main-btn svg {
+  color: #ffffff;
 }
 
 .download-toggle-btn {
@@ -256,8 +339,22 @@ h3 {
   color: #5eead4;
 }
 
+[data-theme="light"] .download-toggle-btn {
+  border-left-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+[data-theme="light"] .download-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
 .download-split.open .download-toggle-btn {
   background: rgba(45, 212, 191, 0.14);
+}
+
+[data-theme="light"] .download-split.open .download-toggle-btn {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .download-split.open {
@@ -290,6 +387,13 @@ h3 {
   display: none;
 }
 
+[data-theme="light"] .download-menu {
+  background: #ffffff;
+  box-shadow:
+    0 16px 28px rgba(0, 0, 0, 0.1),
+    0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
 .download-split.open .download-menu {
   display: block;
 }
@@ -319,6 +423,14 @@ h3 {
   color: var(--text-primary);
 }
 
+[data-theme="light"] .download-option {
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .download-option:hover {
+  background: rgba(13, 148, 136, 0.06);
+}
+
 .download-option-title {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -328,6 +440,13 @@ h3 {
 /* ─── Gradient text ────────────────────────────────────────── */
 .text-gradient {
   background: linear-gradient(135deg, #2dd4bf 0%, #5eead4 40%, #99f6e4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="light"] .text-gradient {
+  background: var(--accent);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

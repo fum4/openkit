@@ -91,6 +91,15 @@ const steps = [
     transform: translateY(-2px);
   }
 
+  :global([data-theme="light"]) .step:hover {
+    border-color: rgba(13, 148, 136, 0.15);
+  }
+
+  :global([data-theme="light"]) .step-num {
+    background: rgba(13, 148, 136, 0.08);
+    border-color: rgba(13, 148, 136, 0.15);
+  }
+
   .step-num {
     display: inline-flex;
     align-items: center;

@@ -567,6 +567,37 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
     background: rgba(45, 212, 191, 0.08);
   }
 
+  :global([data-theme="light"]) .copy-btn:hover {
+    background: rgba(13, 148, 136, 0.08);
+  }
+
+  /* CLI blocks stay dark in light mode */
+  :global([data-theme="light"]) .cli-block {
+    background: #12151a;
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :global([data-theme="light"]) .cli-line {
+    color: #f0f2f5;
+  }
+
+  :global([data-theme="light"]) .cli-prompt {
+    color: #2dd4bf;
+  }
+
+  :global([data-theme="light"]) .cli-comment {
+    color: #6b7280;
+  }
+
+  :global([data-theme="light"]) .cli-block .copy-btn {
+    color: #6b7280;
+  }
+
+  :global([data-theme="light"]) .cli-block .copy-btn:hover {
+    color: #2dd4bf;
+    background: rgba(45, 212, 191, 0.08);
+  }
+
   .copy-btn :global(.check-icon) {
     display: none;
     color: var(--accent);
@@ -593,6 +624,11 @@ const checkSvg = `<svg class="check-icon" width="14" height="14" viewBox="0 0 24
     color: var(--text-secondary);
     line-height: 1.6;
     margin-bottom: 20px;
+  }
+
+  :global([data-theme="light"]) .callout {
+    background: rgba(13, 148, 136, 0.04);
+    border-color: rgba(13, 148, 136, 0.12);
   }
 
   .callout-icon {

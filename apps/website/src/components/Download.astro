@@ -86,6 +86,15 @@ import DownloadSplitButton from "./DownloadSplitButton.astro";
     color: #fff !important;
   }
 
+  :global([data-theme="light"]) .download-card {
+    background: #e9ebf0;
+    border-color: rgba(0, 0, 0, 0.06);
+  }
+
+  :global([data-theme="light"]) .releases-link:hover {
+    color: #111827 !important;
+  }
+
   @media (max-width: 768px) {
     .download-card {
       padding: 24px;
