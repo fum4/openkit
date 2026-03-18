@@ -13,9 +13,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:types": "tsgo --noEmit -p tsconfig.json",
-    "check:format": "oxfmt --check src/bindings",
     "check:lint": "oxlint src/bindings",
-    "fix:format": "oxfmt src/bindings",
     "fix:lint": "oxlint --fix src/bindings"
   },
   "dependencies": {

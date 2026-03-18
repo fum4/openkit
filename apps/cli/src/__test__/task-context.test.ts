@@ -31,7 +31,7 @@ vi.mock("../logger", () => ({
   },
 }));
 
-vi.mock("@openkit/shared/task-context", () => ({
+vi.mock("@openkit/agents", () => ({
   formatTaskContext: vi.fn(),
   formatTaskContextJson: vi.fn(),
 }));

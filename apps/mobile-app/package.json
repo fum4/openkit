@@ -16,9 +16,7 @@
     "start:ios": "expo start --ios --no-dev --minify",
     "start:web": "expo start --web --no-dev --minify",
     "check:types": "tsgo --noEmit -p tsconfig.json",
-    "check:format": "oxfmt --check app",
     "check:lint": "oxlint app",
-    "fix:format": "oxfmt app",
     "fix:lint": "oxlint --fix app"
   },
   "dependencies": {

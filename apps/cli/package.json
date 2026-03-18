@@ -8,11 +8,11 @@
     "build": "tsup",
     "preview": "node dist/cli/index.js",
     "start": "pnpm exec nx run cli:build && pnpm preview",
-    "check:types": "tsgo --noEmit -p tsconfig.json",
-    "check:format": "oxfmt --check src",
-    "check:lint": "oxlint src",
     "test": "vitest run",
-    "fix:format": "oxfmt src",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check:types": "tsgo --noEmit -p tsconfig.json",
+    "check:lint": "oxlint src",
     "fix:lint": "oxlint --fix src"
   },
   "dependencies": {
