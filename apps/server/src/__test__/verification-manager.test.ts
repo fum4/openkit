@@ -5,7 +5,7 @@ vi.mock("child_process");
 vi.mock("@openkit/shared/constants", () => ({
   CONFIG_DIR_NAME: ".openkit",
 }));
-vi.mock("./logger", () => ({
+vi.mock("../logger", () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 

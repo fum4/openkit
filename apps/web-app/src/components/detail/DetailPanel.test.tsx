@@ -1,4 +1,4 @@
-import { render, screen, waitFor, userEvent } from "../../test/render";
+import { render, screen, waitFor, userEvent } from "../../__test__/render";
 import { DetailPanel } from "./DetailPanel";
 import type { WorktreeInfo } from "../../types";
 
