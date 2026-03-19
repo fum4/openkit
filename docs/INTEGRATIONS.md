@@ -375,7 +375,7 @@ Navigate to the **Integrations** view in the OpenKit UI. Each integration has a 
 - **Jira**: API token setup form (base URL, email, token). After connecting: project key, refresh interval, and data lifecycle settings with auto-save.
 - **Linear**: API key setup form. After connecting: team key, refresh interval, and data lifecycle settings with auto-save.
 
-Both Jira and Linear cards include an `Auto-start agent` section. You first choose one agent (`Claude`, `Codex`, `Gemini`, or `OpenCode`), then configure toggles. When auto-start is enabled, OpenKit watches freshly fetched issue lists and, for newly discovered issues, creates (or reuses) the issue worktree, starts the selected agent terminal session using the standard TASK.md-first workflow, and records activity feed events for both task detection and auto-start. Additional toggles control whether the selected agent runs with skip-permissions mode, whether the UI auto-focuses the selected agent terminal, and whether issue status should auto-transition on agent start (including selecting the target status name).
+Both Jira and Linear cards include an `Auto-start agent` section. You first choose one agent (`Claude`, `Codex`, `Gemini`, or `OpenCode`), then configure toggles. When auto-start is enabled, OpenKit watches freshly fetched issue lists and, for newly discovered issues, creates (or reuses) the issue worktree, starts the selected agent terminal session, and records activity feed events for both task detection and auto-start. Agents can retrieve task context by running `openkit task context`. Additional toggles control whether the selected agent runs with skip-permissions mode, whether the UI auto-focuses the selected agent terminal, and whether issue status should auto-transition on agent start (including selecting the target status name).
 
 Jira and Linear detail panels also support issue updates directly from OpenKit:
 
@@ -464,7 +464,7 @@ Issue data is saved to disk under `.openkit/issues/` with the following structur
       notes.json          # Personal notes, AI context, linked worktree ID
   local/
     LOCAL-1/
-      task.json           # Local issue data
+      issue.json          # Local issue data
       attachments/        # Any attached files
 ```
 

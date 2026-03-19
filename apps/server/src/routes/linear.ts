@@ -239,7 +239,7 @@ export function registerLinearRoutes(app: Hono, manager: WorktreeManager) {
       const saveOn = projectConfig.dataLifecycle?.saveOn ?? "view";
 
       if (saveOn === "view") {
-        // Persist issue data to disk for TASK.md generation and MCP tools
+        // Persist issue data to disk for CLI context retrieval and MCP tools
         const tasksDir = path.join(configDir, CONFIG_DIR_NAME, "tasks");
         saveTaskData(
           {

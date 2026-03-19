@@ -29,23 +29,19 @@ When the user mentions an issue key (like PROJ-123, ENG-42, LOCAL-1), a ticket n
 4. Confirm the issue summary from output.
 5. Enter worktree directory under `.openkit/worktrees/`.
 6. Emit checkpoint: `openkit activity phase --phase task-started`.
-7. Read task context:
-   - `.openkit/issues/<source>/<issue-id>/task.json` (local) or `issue.json` (jira/linear)
-   - `.openkit/issues/<source>/<issue-id>/notes.json`
-   - `TASK.md` when present in the worktree
-8. Read hook configuration from `.openkit/hooks.json`.
-9. Emit checkpoint: `openkit activity phase --phase pre-hooks-started`.
-10. Run pre-implementation hooks before coding. If a hook references a skill (`skillName`), invoke that skill and summarize the result.
-11. Emit checkpoint: `openkit activity phase --phase pre-hooks-completed`.
-12. Emit checkpoint: `openkit activity phase --phase implementation-started`.
-13. Plan before coding, then implement. Follow AI context and todo checklist in notes/TASK.md. User-defined context takes priority over issue tracker text.
-14. Emit checkpoint: `openkit activity phase --phase implementation-completed`.
-15. Emit checkpoint: `openkit activity phase --phase post-hooks-started`.
-16. Run post-implementation hooks.
-17. Emit checkpoint: `openkit activity phase --phase post-hooks-completed`.
-18. Run `openkit activity check-flow --json`. If `compliant` is `false`, execute all listed `missingActions`, rerun the check, and only proceed when `compliant` is `true`.
-19. If you need user input at any point: `openkit activity await-input --message "<what you need>"`.
-20. Summarize changes, risks, verification results, and include the final check-flow result.
+7. Run `openkit task context` to get full task details (issue data, AI context, todos, effective hooks with per-issue overrides applied).
+8. Emit checkpoint: `openkit activity phase --phase pre-hooks-started`.
+9. Run pre-implementation hooks before coding. If a hook references a skill (`skillName`), invoke that skill and summarize the result.
+10. Emit checkpoint: `openkit activity phase --phase pre-hooks-completed`.
+11. Emit checkpoint: `openkit activity phase --phase implementation-started`.
+12. Plan before coding, then implement. Follow AI context and todo checklist. User-defined context takes priority over issue tracker text.
+13. Emit checkpoint: `openkit activity phase --phase implementation-completed`.
+14. Emit checkpoint: `openkit activity phase --phase post-hooks-started`.
+15. Run post-implementation hooks.
+16. Emit checkpoint: `openkit activity phase --phase post-hooks-completed`.
+17. Run `openkit activity check-flow --json`. If `compliant` is `false`, execute all listed `missingActions`, rerun the check, and only proceed when `compliant` is `true`.
+18. If you need user input at any point: `openkit activity await-input --message "<what you need>"`.
+19. Summarize changes, risks, verification results, and include the final check-flow result.
 
 ## Guardrails
 

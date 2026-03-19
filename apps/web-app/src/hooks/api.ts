@@ -1767,6 +1767,23 @@ export async function fetchPorts(serverUrl: string | null = null): Promise<{
   }
 }
 
+// Fetch instance identity (branch, worktree info)
+export interface InstanceInfo {
+  branch: string | null;
+  isWorktree: boolean;
+  worktreeName: string | null;
+}
+
+export async function fetchInstanceInfo(serverUrl: string | null = null): Promise<InstanceInfo> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/instance`);
+    if (!res.ok) throw new Error("Failed to fetch instance info");
+    return await res.json();
+  } catch {
+    return { branch: null, isWorktree: false, worktreeName: null };
+  }
+}
+
 // Fetch Jira status
 export async function fetchJiraStatus(serverUrl: string | null = null): Promise<JiraStatus | null> {
   try {

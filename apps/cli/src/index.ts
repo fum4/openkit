@@ -158,10 +158,11 @@ function printTaskHelp() {
   log.plain(`${APP_NAME} task — create worktrees from issue IDs
 
 Usage:
-  ${CLI_COMMAND} task [source|resolve] [ID...] [--init|--save|--link]
+  ${CLI_COMMAND} task [source|resolve|context] [ID...] [--init|--save|--link]
   ${CLI_COMMAND} task [source] [--init|--save|--link]          # prompt for ID from source issues
   ${CLI_COMMAND} task [ID...] [--init|--save|--link]            # auto-resolve source
   ${CLI_COMMAND} task resolve [ID...] [--json]                  # deterministic resolver only
+  ${CLI_COMMAND} task context [ID] [--json]                     # output merged task context for agents
 
 Examples:
   ${CLI_COMMAND} task jira PROJ-123
@@ -169,12 +170,13 @@ Examples:
   ${CLI_COMMAND} task local 7 --init
   ${CLI_COMMAND} task NOM-42 --init
   ${CLI_COMMAND} task resolve 123 --json
+  ${CLI_COMMAND} task context ENG-42 --json
 
 Options:
   --init        Skip prompt and initialize (create/link) worktree immediately
   --save        Skip prompt and only save/fetch task data
   --link        Skip action prompt and jump directly to worktree picker
-  --json        JSON output (for "task resolve")
+  --json        JSON output (for "task resolve" and "task context")
   --help, -h    Show task command help`);
 }
 
@@ -239,8 +241,14 @@ async function main() {
       args.push(arg);
     }
 
-    const { runTask, runTaskAuto, runTaskInteractive, runTaskResolve, runTaskSourceInteractive } =
-      await import("./task");
+    const {
+      runTask,
+      runTaskAuto,
+      runTaskContext,
+      runTaskInteractive,
+      runTaskResolve,
+      runTaskSourceInteractive,
+    } = await import("./task");
     const sources = ["jira", "linear", "local"];
 
     if (args.length === 0) {
@@ -267,8 +275,14 @@ async function main() {
       return;
     }
 
-    if (jsonOutput) {
-      log.error("--json is only supported with 'task resolve'.");
+    if (first === "context") {
+      const contextIssueId = args[1];
+      runTaskContext(contextIssueId, { json: jsonOutput });
+      return;
+    }
+
+    if (jsonOutput && first !== "resolve" && first !== "context") {
+      log.error("--json is only supported with 'task resolve' or 'task context'.");
       process.exit(1);
     }
 
@@ -349,7 +363,10 @@ async function main() {
   log.plain(`  Base port: ${basePort}`);
   log.plain("");
 
-  const { port: actualPort } = await startWorktreeServer(config, configPath, { port: basePort });
+  const { port: actualPort } = await startWorktreeServer(config, configPath, {
+    port: basePort,
+    startupCwd: projectDir,
+  });
 
   if (!noOpen) {
     const url = `http://localhost:${actualPort}`;

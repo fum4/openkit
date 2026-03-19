@@ -1,30 +1,8 @@
-import path from "path";
 import { Hono } from "hono";
 
-import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
-import type { WorktreeManager } from "../manager";
 import type { IssueSource, NotesManager } from "../notes-manager";
-import { regenerateTaskMd } from "../task-context";
-import type { HooksManager } from "../verification-manager";
 
-export function registerNotesRoutes(
-  app: Hono,
-  manager: WorktreeManager,
-  notesManager: NotesManager,
-  hooksManager?: HooksManager,
-) {
-  const configDir = manager.getConfigDir();
-  const worktreesPath = path.join(configDir, CONFIG_DIR_NAME, "worktrees");
-  const getHooksSnapshot = (worktreeId: string) => {
-    if (!hooksManager) return undefined;
-    const config = hooksManager.getConfig();
-    const effectiveSkills = hooksManager.getEffectiveSkills(worktreeId, notesManager);
-    return {
-      checks: config.steps,
-      skills: effectiveSkills,
-    };
-  };
-
+export function registerNotesRoutes(app: Hono, notesManager: NotesManager) {
   // Get notes for an issue
   app.get("/api/notes/:source/:id", (c) => {
     const source = c.req.param("source") as IssueSource;
@@ -62,23 +40,6 @@ export function registerNotesRoutes(
       body.content,
     );
 
-    // Regenerate TASK.md in linked worktree when aiContext changes
-    if (body.section === "aiContext" && notes.linkedWorktreeId) {
-      try {
-        regenerateTaskMd(
-          source,
-          id,
-          notes.linkedWorktreeId,
-          notesManager,
-          configDir,
-          worktreesPath,
-          getHooksSnapshot(notes.linkedWorktreeId),
-        );
-      } catch {
-        // Non-critical — don't fail the notes update
-      }
-    }
-
     return c.json(notes);
   });
 
@@ -98,22 +59,6 @@ export function registerNotesRoutes(
 
     const notes = notesManager.addTodo(source, id, body.text);
 
-    if (notes.linkedWorktreeId) {
-      try {
-        regenerateTaskMd(
-          source,
-          id,
-          notes.linkedWorktreeId,
-          notesManager,
-          configDir,
-          worktreesPath,
-          getHooksSnapshot(notes.linkedWorktreeId),
-        );
-      } catch {
-        /* non-critical */
-      }
-    }
-
     return c.json(notes);
   });
 
@@ -131,22 +76,6 @@ export function registerNotesRoutes(
 
     try {
       const notes = notesManager.updateTodo(source, id, todoId, body);
-
-      if (notes.linkedWorktreeId) {
-        try {
-          regenerateTaskMd(
-            source,
-            id,
-            notes.linkedWorktreeId,
-            notesManager,
-            configDir,
-            worktreesPath,
-            getHooksSnapshot(notes.linkedWorktreeId),
-          );
-        } catch {
-          /* non-critical */
-        }
-      }
 
       return c.json(notes);
     } catch (err) {
@@ -206,23 +135,6 @@ export function registerNotesRoutes(
       body as Record<string, "inherit" | "enable" | "disable">,
     );
 
-    // Regenerate TASK.md in linked worktree when hook skills change
-    if (notes.linkedWorktreeId && hooksManager) {
-      try {
-        regenerateTaskMd(
-          source,
-          id,
-          notes.linkedWorktreeId,
-          notesManager,
-          configDir,
-          worktreesPath,
-          getHooksSnapshot(notes.linkedWorktreeId),
-        );
-      } catch {
-        // Non-critical
-      }
-    }
-
     return c.json(notes);
   });
 
@@ -237,22 +149,6 @@ export function registerNotesRoutes(
     }
 
     const notes = notesManager.deleteTodo(source, id, todoId);
-
-    if (notes.linkedWorktreeId) {
-      try {
-        regenerateTaskMd(
-          source,
-          id,
-          notes.linkedWorktreeId,
-          notesManager,
-          configDir,
-          worktreesPath,
-          getHooksSnapshot(notes.linkedWorktreeId),
-        );
-      } catch {
-        /* non-critical */
-      }
-    }
 
     return c.json(notes);
   });

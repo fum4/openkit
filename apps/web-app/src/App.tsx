@@ -391,6 +391,7 @@ export default function App() {
   // Track if config existed when we first connected (to detect "deleted while open")
   const [hadConfigOnConnect, setHadConfigOnConnect] = useState<boolean | null>(null);
   const [isAutoInitializing, setIsAutoInitializing] = useState(false);
+  const [isInSetupFlow, setIsInSetupFlow] = useState(false);
 
   // Track config state for setup screen logic
   useEffect(() => {
@@ -426,16 +427,18 @@ export default function App() {
     }
   }, [configLoading, serverUrl, config, hadConfigOnConnect, isElectron]);
 
-  // Reset hadConfigOnConnect when serverUrl changes (switching projects)
+  // Reset setup state when serverUrl changes (switching projects)
   useEffect(() => {
     setHadConfigOnConnect(null);
+    setIsInSetupFlow(false);
   }, [serverUrl]);
 
   // Show setup screen when:
   // - Config is missing AND we have a server connection (Electron mode)
   // - AND we're not auto-initializing
-  // - AND (this is a new project without config OR config was deleted while open)
-  const needsSetup = isElectron && serverUrl && !configLoading && !config && !isAutoInitializing;
+  // - OR the user is actively in the setup flow (config may already exist but flow isn't complete)
+  const needsSetup =
+    isInSetupFlow || (isElectron && serverUrl && !configLoading && !config && !isAutoInitializing);
 
   // In Electron mode with multi-project: show welcome when no projects
   // In web/single-project mode: show welcome when no config
@@ -450,6 +453,7 @@ export default function App() {
   const showLoadingState = isElectron && projects.length > 0 && !serverUrl && !showErrorState;
 
   const handleSetupComplete = () => {
+    setIsInSetupFlow(false);
     // Clear stale workspace state from a previous config
     const scopedKeySource = isElectron ? activeProject?.id : serverUrl;
     if (scopedKeySource) {
@@ -2249,7 +2253,7 @@ export default function App() {
       const agent = resolveAutoStartAgent(jiraStatus?.autoStartAgent);
       const skipPermissions = jiraStatus?.autoStartClaudeSkipPermissions ?? true;
       const focusTerminal = jiraStatus?.autoStartClaudeFocusTerminal ?? true;
-      const prompt = `Implement Jira issue ${issue.key}${issue.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+      const prompt = `Implement Jira issue ${issue.key}${issue.summary ? ` (${issue.summary})` : ""}. You are already in the correct worktree. Run \`openkit task context\` to get full task details, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
       logAutoClaude("Starting Jira auto-launch", { issueKey: issue.key, agent });
       const result = await api.createFromJira(issue.key);
       logAutoClaude("Jira create-from-issue response received", {
@@ -2335,7 +2339,7 @@ export default function App() {
       const agent = resolveAutoStartAgent(linearStatus?.autoStartAgent);
       const skipPermissions = linearStatus?.autoStartClaudeSkipPermissions ?? true;
       const focusTerminal = linearStatus?.autoStartClaudeFocusTerminal ?? true;
-      const prompt = `Implement Linear issue ${issue.identifier}${issue.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+      const prompt = `Implement Linear issue ${issue.identifier}${issue.title ? ` (${issue.title})` : ""}. You are already in the correct worktree. Run \`openkit task context\` to get full task details, then execute the task using the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
       logAutoClaude("Starting Linear auto-launch", { identifier: issue.identifier, agent });
       const result = await api.createFromLinear(issue.identifier);
       logAutoClaude("Linear create-from-issue response received", {
@@ -2424,7 +2428,7 @@ export default function App() {
       const agent = resolveAutoStartAgent(config?.localAutoStartAgent);
       const skipPermissions = config?.localAutoStartClaudeSkipPermissions ?? true;
       const focusTerminal = config?.localAutoStartClaudeFocusTerminal ?? true;
-      const prompt = `Implement local task ${task.id}${task.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Read TASK.md first, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
+      const prompt = `Implement local task ${task.id}${task.title ? ` (${task.title})` : ""}. You are already in the correct worktree. Run \`openkit task context\` to get full task details, then execute the normal OpenKit flow: run pre-implementation hooks before coding, run required custom hooks when conditions match, and run post-implementation hooks before finishing. Treat AI context and todo checklist as highest-priority instructions. If you need user approval or instructions, run openkit activity await-input before asking.`;
       logAutoClaude("Starting local task auto-launch", { taskId: task.id, agent });
       const result = await api.createWorktreeFromCustomTask(task.id);
       logAutoClaude("Local task create-worktree response received", {
@@ -2739,6 +2743,7 @@ export default function App() {
         <ProjectSetupScreen
           projectName={projectName ?? activeProject?.name ?? null}
           onSetupComplete={handleSetupComplete}
+          onSetupStarted={() => setIsInSetupFlow(true)}
           onRememberChoice={handleRememberChoice}
         />
         {renderTabBar()}

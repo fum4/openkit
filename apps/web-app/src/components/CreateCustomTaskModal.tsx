@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ListTodo, Paperclip, X } from "lucide-react";
+import { FileText, Paperclip, X } from "lucide-react";
 
 import { useErrorToast } from "../hooks/useErrorToast";
 import { customTask, getLabelColor, text } from "../theme";
@@ -103,7 +103,7 @@ export function CreateCustomTaskModal({
   return (
     <Modal
       title="Create Task"
-      icon={<ListTodo className="w-4 h-4 text-amber-400" />}
+      icon={<FileText className="w-4 h-4 text-amber-400" />}
       onClose={onClose}
       onSubmit={handleSubmit}
       width="lg"

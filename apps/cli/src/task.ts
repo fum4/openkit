@@ -5,6 +5,9 @@ import { input, select } from "@inquirer/prompts";
 
 import { APP_NAME, CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { copyEnvFiles } from "@openkit/shared/env-files";
+import { formatTaskContext, formatTaskContextJson } from "@openkit/agents";
+import type { TaskContextData, HooksInfo } from "@openkit/agents";
+import type { HookStep, HookSkillRef } from "@openkit/shared/worktree-types";
 import { log } from "./logger";
 import {
   loadJiraCredentials,
@@ -71,8 +74,8 @@ function issuesDir(configDir: string, source: Source): string {
 }
 
 function hasStoredIssue(configDir: string, source: Source, issueId: string): boolean {
-  const fileName = source === "local" ? "task.json" : "issue.json";
-  return existsSync(path.join(issuesDir(configDir, source), issueId, fileName));
+  const dir = path.join(issuesDir(configDir, source), issueId);
+  return existsSync(path.join(dir, "issue.json")) || existsSync(path.join(dir, "task.json"));
 }
 
 function normalizeLocalId(issueId: string): string {
@@ -477,7 +480,9 @@ function fetchLocalIssueChoices(configDir: string): IssueChoice[] {
   const results: IssueChoice[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const taskFile = path.join(dir, entry.name, "task.json");
+    const issueFile = path.join(dir, entry.name, "issue.json");
+    const legacyFile = path.join(dir, entry.name, "task.json");
+    const taskFile = existsSync(issueFile) ? issueFile : legacyFile;
     if (!existsSync(taskFile)) continue;
     try {
       const task = JSON.parse(readFileSync(taskFile, "utf-8")) as { id?: string; title?: string };
@@ -761,7 +766,9 @@ async function processLocalTask(
 ) {
   const id = taskId.toUpperCase().startsWith("LOCAL-") ? taskId.toUpperCase() : `LOCAL-${taskId}`;
   const issueDir = path.join(configDir, CONFIG_DIR_NAME, "issues", "local", id);
-  const taskFile = path.join(issueDir, "task.json");
+  const issueFile = path.join(issueDir, "issue.json");
+  const legacyFile = path.join(issueDir, "task.json");
+  const taskFile = existsSync(issueFile) ? issueFile : legacyFile;
 
   if (!existsSync(taskFile)) {
     if (batch) {
@@ -785,6 +792,187 @@ async function processLocalTask(
   await handleWorktreeAction(task.id, batch, configDir, options, (worktreeId) => {
     saveLinkedWorktreeToNotes(configDir, "local", task.id, worktreeId);
   });
+}
+
+// ─── Task Context ────────────────────────────────────────────────────────────
+// These helpers are exported for testing.
+
+interface NotesData {
+  aiContext?: { content?: string } | null;
+  todos?: Array<{ id: string; text: string; checked: boolean; createdAt: string }>;
+  hookSkills?: Record<string, string>;
+}
+
+/** Exported for testing. */
+export function detectWorktreeId(): string | null {
+  let dir = process.cwd();
+  const sep = path.sep;
+  const marker = `${sep}${CONFIG_DIR_NAME}${sep}worktrees${sep}`;
+
+  // Check if cwd or any parent is under .openkit/worktrees/
+  while (true) {
+    const idx = dir.indexOf(marker);
+    if (idx >= 0) {
+      // Extract the worktree ID -- first path segment after .openkit/worktrees/
+      const rest = dir.substring(idx + marker.length);
+      const id = rest.split(sep)[0];
+      if (id) return id;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+function detectLinkedIssue(configDir: string): { source: Source; issueId: string } | null {
+  const worktreeId = detectWorktreeId();
+  if (!worktreeId) return null;
+
+  const issuesBase = path.join(configDir, CONFIG_DIR_NAME, "issues");
+  if (!existsSync(issuesBase)) return null;
+
+  for (const source of ["local", "jira", "linear"] as Source[]) {
+    const sourceDir = path.join(issuesBase, source);
+    if (!existsSync(sourceDir)) continue;
+    for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const notesPath = path.join(sourceDir, entry.name, "notes.json");
+      if (!existsSync(notesPath)) continue;
+      try {
+        const notes = JSON.parse(readFileSync(notesPath, "utf-8"));
+        if (notes.linkedWorktreeId === worktreeId) {
+          return { source, issueId: entry.name };
+        }
+      } catch {
+        // skip malformed
+      }
+    }
+  }
+  return null;
+}
+
+/** Exported for testing. */
+export function loadIssueDataForContext(
+  issueDir: string,
+  source: Source,
+  issueId: string,
+): TaskContextData | null {
+  const issueFile = path.join(issueDir, "issue.json");
+  const legacyFile = path.join(issueDir, "task.json");
+  const filePath = existsSync(issueFile) ? issueFile : legacyFile;
+  if (!existsSync(filePath)) return null;
+
+  try {
+    const raw = JSON.parse(readFileSync(filePath, "utf-8"));
+    return {
+      source,
+      issueId,
+      identifier: raw.identifier ?? raw.id ?? raw.key ?? issueId,
+      title: raw.title ?? raw.summary ?? "",
+      description: raw.description ?? "",
+      status: raw.status ?? "",
+      url: raw.url ?? "",
+      comments: raw.comments,
+      attachments: raw.attachments,
+      linkedResources: raw.linkedResources,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Exported for testing. */
+export function loadNotesFile(issueDir: string): NotesData {
+  const notesPath = path.join(issueDir, "notes.json");
+  if (!existsSync(notesPath)) return {};
+  try {
+    return JSON.parse(readFileSync(notesPath, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+/** Exported for testing. */
+export function resolveEffectiveHooks(configDir: string, notes: NotesData): HooksInfo | null {
+  const hooksPath = path.join(configDir, CONFIG_DIR_NAME, "hooks.json");
+  if (!existsSync(hooksPath)) return null;
+
+  let config: { steps?: HookStep[]; skills?: HookSkillRef[] };
+  try {
+    config = JSON.parse(readFileSync(hooksPath, "utf-8"));
+  } catch {
+    return null;
+  }
+
+  const steps = config.steps ?? [];
+  const skills = config.skills ?? [];
+  const overrides = notes.hookSkills ?? {};
+
+  // Apply per-issue skill overrides
+  const effectiveSkills = skills.map((skill) => {
+    const trigger = skill.trigger ?? "post-implementation";
+    const key = `${trigger}:${skill.skillName}`;
+    const override = overrides[key];
+    if (override === "enable") return { ...skill, enabled: true };
+    if (override === "disable") return { ...skill, enabled: false };
+    return skill;
+  });
+
+  return { checks: steps, skills: effectiveSkills };
+}
+
+export function runTaskContext(issueId: string | undefined, options: { json?: boolean }): void {
+  const configDir = findConfigDir();
+  if (!configDir) {
+    log.error(`No config found. Run "${APP_NAME} init" first.`);
+    process.exit(1);
+  }
+
+  let source: Source;
+  let resolvedId: string;
+
+  if (issueId) {
+    let resolved: ReturnType<typeof resolveTaskSource>;
+    try {
+      resolved = resolveTaskSource(configDir, issueId);
+    } catch (err) {
+      log.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+    source = resolved.source;
+    resolvedId = resolved.resolvedId;
+  } else {
+    const detected = detectLinkedIssue(configDir);
+    if (!detected) {
+      log.error("Not in a worktree or no linked issue found. Provide an issue ID.");
+      process.exit(1);
+    }
+    source = detected.source;
+    resolvedId = detected.issueId;
+  }
+
+  const dir = path.join(configDir, CONFIG_DIR_NAME, "issues", source, resolvedId);
+  const data = loadIssueDataForContext(dir, source, resolvedId);
+  if (!data) {
+    log.error(`Issue ${source}:${resolvedId} not found.`);
+    process.exit(1);
+  }
+
+  const notes = loadNotesFile(dir);
+  const hooks = resolveEffectiveHooks(configDir, notes);
+
+  if (options.json) {
+    log.plain(
+      JSON.stringify(
+        formatTaskContextJson(data, notes.aiContext?.content, notes.todos, hooks),
+        null,
+        2,
+      ),
+    );
+  } else {
+    log.plain(formatTaskContext(data, notes.aiContext?.content, notes.todos, hooks));
+  }
 }
 
 // ─── Shared ──────────────────────────────────────────────────────────────────

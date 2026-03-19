@@ -1,229 +1,197 @@
-import { generateTaskMd, type TaskContextData, type HooksInfo } from "../task-context";
-import { createTestHookStep, createTestHookSkillRef } from "./fixtures";
+import { describe, expect, it } from "vitest";
+import { formatTaskContext, formatTaskContextJson } from "@openkit/agents";
+import type { TaskContextData, HooksInfo } from "@openkit/agents";
 
-function createTaskData(overrides: Partial<TaskContextData> = {}): TaskContextData {
+function makeData(overrides?: Partial<TaskContextData>): TaskContextData {
   return {
-    source: "jira",
-    issueId: "PROJ-123",
-    identifier: "PROJ-123",
-    title: "Fix login bug",
-    description: "Users cannot log in on mobile",
-    status: "In Progress",
-    url: "https://jira.example.com/browse/PROJ-123",
+    source: "local",
+    issueId: "LOCAL-1",
+    identifier: "LOCAL-1",
+    title: "Test task",
+    description: "A test description",
+    status: "todo",
+    url: "",
     ...overrides,
   };
 }
 
-describe("generateTaskMd", () => {
-  it("generates basic markdown with header and metadata", () => {
-    const data = createTaskData();
-
-    const result = generateTaskMd(data);
-
-    expect(result).toContain("# PROJ-123 — Fix login bug");
-    expect(result).toContain("**Source:** jira");
-    expect(result).toContain("**Status:** In Progress");
-    expect(result).toContain("**URL:** https://jira.example.com/browse/PROJ-123");
+describe("formatTaskContext", () => {
+  it("renders header with identifier and title", () => {
+    const md = formatTaskContext(makeData());
+    expect(md).toContain("# LOCAL-1 — Test task");
+    expect(md).toContain("**Source:** local");
+    expect(md).toContain("**Status:** todo");
   });
 
-  it("includes description section", () => {
-    const data = createTaskData({ description: "Detailed description here" });
-
-    const result = generateTaskMd(data);
-
-    expect(result).toContain("## Description");
-    expect(result).toContain("Detailed description here");
+  it("does not include workflow contract boilerplate", () => {
+    const md = formatTaskContext(makeData());
+    expect(md).not.toContain("Workflow Contract");
+    expect(md).not.toContain("Agent Communication");
+    expect(md).not.toContain("openkit activity phase");
   });
 
-  it("omits description section when empty", () => {
-    const data = createTaskData({ description: "" });
-
-    const result = generateTaskMd(data);
-
-    expect(result).not.toContain("## Description");
+  it("renders extra context when provided", () => {
+    const md = formatTaskContext(makeData(), "Follow TDD strictly");
+    expect(md).toContain("## Extra Context");
+    expect(md).toContain("take priority over the description and comments");
+    expect(md).toContain("Follow TDD strictly");
   });
 
-  it("includes AI context when provided", () => {
-    const data = createTaskData();
-
-    const result = generateTaskMd(data, "Custom AI instructions here");
-
-    expect(result).toContain("## AI Context");
-    expect(result).toContain("Custom AI instructions here");
+  it("omits extra context section when null", () => {
+    const md = formatTaskContext(makeData(), null);
+    expect(md).not.toContain("## Extra Context");
   });
 
-  it("omits AI context when null", () => {
-    const data = createTaskData();
-
-    const result = generateTaskMd(data, null);
-
-    expect(result).not.toContain("## AI Context");
+  it("renders description", () => {
+    const md = formatTaskContext(makeData({ description: "Fix the bug" }));
+    expect(md).toContain("## Description");
+    expect(md).toContain("Fix the bug");
   });
 
-  it("includes comments section", () => {
-    const data = createTaskData({
-      comments: [
-        { author: "Alice", body: "This is a comment", created: "2024-01-15T10:00:00Z" },
-        { author: "Bob", body: "Another comment" },
-      ],
-    });
-
-    const result = generateTaskMd(data);
-
-    expect(result).toContain("## Comments");
-    expect(result).toContain("**Alice (2024-01-15):** This is a comment");
-    expect(result).toContain("**Bob:** Another comment");
+  it("renders comments with dates and guidance", () => {
+    const md = formatTaskContext(
+      makeData({
+        comments: [{ author: "Alice", body: "Looks good", created: "2026-03-15T10:00:00Z" }],
+      }),
+    );
+    expect(md).toContain("Discussion history from the issue tracker");
+    expect(md).toContain("**Alice (2026-03-15):** Looks good");
   });
 
-  it("includes todos section with checked and unchecked items", () => {
-    const todos = [
-      { id: "t1", text: "Write tests", checked: false, createdAt: "2024-01-01T00:00:00Z" },
-      { id: "t2", text: "Update docs", checked: true, createdAt: "2024-01-01T00:00:00Z" },
-    ];
-
-    const result = generateTaskMd(createTaskData(), null, todos);
-
-    expect(result).toContain("## Todos");
-    expect(result).toContain("- [ ] Write tests `(todo-id: t1)`");
-    expect(result).toContain("- [x] Update docs `(todo-id: t2)`");
+  it("renders todos with checkbox syntax", () => {
+    const md = formatTaskContext(makeData(), null, [
+      { id: "t1", text: "First", checked: false, createdAt: "2026-01-01T00:00:00Z" },
+      { id: "t2", text: "Second", checked: true, createdAt: "2026-01-01T00:00:00Z" },
+    ]);
+    expect(md).toContain("- [ ] First `(todo-id: t1)`");
+    expect(md).toContain("- [x] Second `(todo-id: t2)`");
   });
 
-  it("includes attachments section when files have local paths", () => {
-    const data = createTaskData({
-      attachments: [
-        { filename: "screenshot.png", localPath: "/tmp/screenshot.png", mimeType: "image/png" },
-      ],
-    });
-
-    const result = generateTaskMd(data);
-
-    expect(result).toContain("## Attachments");
-    expect(result).toContain("`screenshot.png` (image/png) — `/tmp/screenshot.png`");
+  it("renders attachments with local paths", () => {
+    const md = formatTaskContext(
+      makeData({
+        attachments: [{ filename: "img.png", localPath: "/tmp/img.png", mimeType: "image/png" }],
+      }),
+    );
+    expect(md).toContain("`img.png` (image/png)");
   });
 
-  it("includes linked resources section", () => {
-    const data = createTaskData({
-      linkedResources: [
-        { title: "Design Doc", url: "https://example.com/doc", sourceType: "confluence" },
-      ],
-    });
-
-    const result = generateTaskMd(data);
-
-    expect(result).toContain("## Linked Resources");
-    expect(result).toContain("[Design Doc](https://example.com/doc) (confluence)");
-  });
-
-  it("includes pre-implementation hooks", () => {
+  it("renders pre-implementation hooks", () => {
     const hooks: HooksInfo = {
       checks: [
-        createTestHookStep({
-          name: "Type Check",
-          command: "pnpm typecheck",
-          trigger: "pre-implementation",
-        }),
-      ],
-      skills: [
-        createTestHookSkillRef({
-          skillName: "code-review",
-          trigger: "pre-implementation",
-        }),
-      ],
-    };
-
-    const result = generateTaskMd(createTaskData(), null, undefined, hooks);
-
-    expect(result).toContain("## Hooks (Pre-Implementation)");
-    expect(result).toContain("**Type Check:** `pnpm typecheck`");
-    expect(result).toContain("### code-review");
-  });
-
-  it("includes post-implementation hooks", () => {
-    const hooks: HooksInfo = {
-      checks: [
-        createTestHookStep({
+        {
+          id: "s1",
           name: "Lint",
           command: "pnpm lint",
-          trigger: "post-implementation",
-        }),
-      ],
-      skills: [],
-    };
-
-    const result = generateTaskMd(createTaskData(), null, undefined, hooks);
-
-    expect(result).toContain("## Hooks (Post-Implementation)");
-    expect(result).toContain("**Lint:** `pnpm lint`");
-  });
-
-  it("includes prompt hooks in pre-implementation section", () => {
-    const hooks: HooksInfo = {
-      checks: [
-        createTestHookStep({
-          name: "Review Plan",
-          command: "",
-          kind: "prompt",
-          prompt: "Review the implementation plan",
+          enabled: true,
           trigger: "pre-implementation",
-        }),
+        },
       ],
       skills: [],
     };
-
-    const result = generateTaskMd(createTaskData(), null, undefined, hooks);
-
-    expect(result).toContain("### Prompt Hooks");
-    expect(result).toContain("**Review Plan:** Review the implementation plan");
+    const md = formatTaskContext(makeData(), null, undefined, hooks);
+    expect(md).toContain("## Hooks (Pre-Implementation)");
+    expect(md).toContain("**Lint:** `pnpm lint`");
   });
 
-  it("includes custom condition-based hooks", () => {
+  it("renders post-implementation hooks", () => {
     const hooks: HooksInfo = {
       checks: [
-        createTestHookStep({
-          name: "Run E2E",
-          command: "pnpm test:e2e",
-          trigger: "custom",
-          condition: "When UI components change",
-        }),
-      ],
-      skills: [],
-    };
-
-    const result = generateTaskMd(createTaskData(), null, undefined, hooks);
-
-    expect(result).toContain("## Hooks (Custom — Condition-Based)");
-    expect(result).toContain("**When:** When UI components change");
-    expect(result).toContain("`pnpm test:e2e`");
-  });
-
-  it("skips disabled hooks", () => {
-    const hooks: HooksInfo = {
-      checks: [
-        createTestHookStep({
-          name: "Disabled Step",
-          command: "echo disabled",
-          enabled: false,
+        {
+          id: "s1",
+          name: "Test",
+          command: "pnpm test",
+          enabled: true,
           trigger: "post-implementation",
-        }),
+        },
       ],
       skills: [],
     };
-
-    const result = generateTaskMd(createTaskData(), null, undefined, hooks);
-
-    expect(result).not.toContain("Disabled Step");
+    const md = formatTaskContext(makeData(), null, undefined, hooks);
+    expect(md).toContain("## Hooks (Post-Implementation)");
+    expect(md).toContain("**Test:** `pnpm test`");
   });
 
-  it("always includes workflow contract section", () => {
-    const result = generateTaskMd(createTaskData());
-
-    expect(result).toContain("## Workflow Contract (Mandatory)");
-    expect(result).toContain("openkit activity phase --phase task-started");
+  it("renders prompt hooks separately from command hooks", () => {
+    const hooks: HooksInfo = {
+      checks: [
+        {
+          id: "s1",
+          name: "Lint",
+          command: "pnpm lint",
+          enabled: true,
+          trigger: "pre-implementation",
+        },
+        {
+          id: "s2",
+          name: "Review plan",
+          command: "",
+          prompt: "Review the plan before coding",
+          kind: "prompt",
+          enabled: true,
+          trigger: "pre-implementation",
+        },
+      ],
+      skills: [],
+    };
+    const md = formatTaskContext(makeData(), null, undefined, hooks);
+    expect(md).toContain("### Pipeline Checks");
+    expect(md).toContain("### Prompt Hooks");
+    expect(md).toContain("**Review plan:** Review the plan before coding");
   });
 
-  it("ends with auto-generated footer", () => {
-    const result = generateTaskMd(createTaskData());
+  it("does not include auto-generated footer", () => {
+    const md = formatTaskContext(makeData());
+    expect(md).not.toContain("Auto-generated");
+  });
+});
 
-    expect(result).toContain("*Auto-generated by OpenKit.");
+describe("formatTaskContextJson", () => {
+  it("returns structured object with reshaped hooks", () => {
+    const hooks: HooksInfo = {
+      checks: [
+        {
+          id: "s1",
+          name: "Lint",
+          command: "pnpm lint",
+          enabled: true,
+          trigger: "pre-implementation",
+        },
+        { id: "s2", name: "Test", command: "pnpm test", enabled: true },
+      ],
+      skills: [{ skillName: "my-skill", enabled: true, trigger: "pre-implementation" }],
+    };
+    const result = formatTaskContextJson(
+      makeData(),
+      "ctx",
+      [{ id: "t1", text: "Do it", checked: false, createdAt: "2026-01-01T00:00:00Z" }],
+      hooks,
+    );
+    expect(result.identifier).toBe("LOCAL-1");
+    expect(result.aiContext).toBe("ctx");
+    expect(result.hooks.pre.commands).toHaveLength(1);
+    expect(result.hooks.pre.skills).toHaveLength(1);
+    expect(result.hooks.post.commands).toHaveLength(1);
+  });
+
+  it("places prompt hooks in prompts array, not commands", () => {
+    const hooks: HooksInfo = {
+      checks: [
+        {
+          id: "s1",
+          name: "Review",
+          command: "",
+          prompt: "Review the plan",
+          kind: "prompt",
+          enabled: true,
+          trigger: "pre-implementation",
+        },
+      ],
+      skills: [],
+    };
+    const result = formatTaskContextJson(makeData(), null, undefined, hooks);
+    expect(result.hooks.pre.prompts).toHaveLength(1);
+    expect(result.hooks.pre.prompts[0].name).toBe("Review");
+    expect(result.hooks.pre.commands).toHaveLength(0);
   });
 });

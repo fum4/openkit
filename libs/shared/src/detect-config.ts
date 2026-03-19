@@ -84,7 +84,6 @@ function isReactNativeProject(projectDir: string): boolean {
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     return "react-native" in deps || "expo" in deps;
   } catch (err: unknown) {
-    // ENOENT is expected when package.json doesn't exist — silent fallback.
     const isFileNotFound =
       err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT";
     if (!isFileNotFound) {

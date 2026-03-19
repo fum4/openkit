@@ -10,13 +10,10 @@ import {
 import { Hono } from "hono";
 import path from "path";
 
-import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 import type { NotesManager } from "../notes-manager";
 import { generateBranchName } from "../branch-name";
-import { regenerateTaskMd } from "../task-context";
-import type { HooksManager } from "../verification-manager";
 
 const taskLog = log.get("task");
 
@@ -92,7 +89,10 @@ function ensureCounterAtLeast(configDir: string, minimumValue: number): void {
 }
 
 function loadTask(configDir: string, id: string): CustomTask | null {
-  const filePath = path.join(getTasksDir(configDir), id, "task.json");
+  const dir = path.join(getTasksDir(configDir), id);
+  const issuePath = path.join(dir, "issue.json");
+  const legacyPath = path.join(dir, "task.json");
+  const filePath = existsSync(issuePath) ? issuePath : legacyPath;
   if (!existsSync(filePath)) return null;
   return JSON.parse(readFileSync(filePath, "utf-8")) as CustomTask;
 }
@@ -100,7 +100,7 @@ function loadTask(configDir: string, id: string): CustomTask | null {
 function saveTask(configDir: string, task: CustomTask): void {
   const dir = path.join(ensureTasksDir(configDir), task.id);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, "task.json"), JSON.stringify(task, null, 2));
+  writeFileSync(path.join(dir, "issue.json"), JSON.stringify(task, null, 2));
 }
 
 interface TaskAttachment {
@@ -191,26 +191,9 @@ export function registerTaskRoutes(
   app: Hono,
   manager: WorktreeManager,
   notesManager: NotesManager,
-  hooksManager?: HooksManager,
 ) {
   const configDir = manager.getConfigDir();
-  const worktreesPath = path.join(configDir, CONFIG_DIR_NAME, "worktrees");
   const getProjectName = () => manager.getProjectName() ?? undefined;
-  const getHooksSnapshot = (worktreeId: string) => {
-    if (!hooksManager) {
-      log.warn("hooksManager not provided to registerTaskRoutes — hooks will be skipped", {
-        domain: "tasks",
-        worktreeId,
-      });
-      return undefined;
-    }
-    const config = hooksManager.getConfig();
-    const effectiveSkills = hooksManager.getEffectiveSkills(worktreeId, notesManager);
-    return {
-      checks: config.steps,
-      skills: effectiveSkills,
-    };
-  };
   const logTaskEvent = (options: {
     action: string;
     message: string;
@@ -470,34 +453,7 @@ export function registerTaskRoutes(
     task.updatedAt = new Date().toISOString();
     saveTask(configDir, task);
 
-    // Regenerate TASK.md in linked worktree when task content changes
     const linkedWorktreeId = resolveActiveLinkedWorktreeId(task.id);
-    if (linkedWorktreeId) {
-      try {
-        regenerateTaskMd(
-          "local",
-          task.id,
-          linkedWorktreeId,
-          notesManager,
-          configDir,
-          worktreesPath,
-          getHooksSnapshot(linkedWorktreeId),
-        );
-      } catch (err) {
-        // Non-critical — don't fail the task update, but log for diagnosability
-        logTaskEvent({
-          action: "task.regenerate-taskmd",
-          message: `Failed to regenerate TASK.md for task ${task.id}`,
-          level: "warning",
-          status: "failed",
-          worktreeId: linkedWorktreeId,
-          metadata: {
-            taskId: task.id,
-            error: err instanceof Error ? err.message : String(err),
-          },
-        });
-      }
-    }
 
     logTaskEvent({
       action: "task.update",
@@ -556,35 +512,6 @@ export function registerTaskRoutes(
       },
     });
 
-    // Load AI context notes
-    const notes = notesManager.loadNotes("local", task.id);
-    const aiContext = notes.aiContext?.content ?? null;
-
-    // Get attachments for TASK.md
-    const attachments = listAttachments(configDir, task.id);
-
-    // Set pending context so TASK.md gets written after worktree creation
-    manager.setPendingWorktreeContext(task.id, {
-      data: {
-        source: "local",
-        issueId: task.id,
-        identifier: task.id,
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        url: "",
-        attachments:
-          attachments.length > 0
-            ? attachments.map((a) => ({
-                filename: a.filename,
-                localPath: a.localPath,
-                mimeType: a.mimeType,
-              }))
-            : undefined,
-      },
-      aiContext,
-    });
-
     try {
       const taskId = task.id;
       const result = await manager.createWorktree(
@@ -598,7 +525,6 @@ export function registerTaskRoutes(
       );
 
       if (!result.success) {
-        manager.clearPendingWorktreeContext(taskId);
         if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
           const canonicalWorktreeId = result.worktreeId;
           logTaskEvent({
@@ -654,7 +580,6 @@ export function registerTaskRoutes(
       });
       return c.json(result);
     } catch (err) {
-      manager.clearPendingWorktreeContext(task.id);
       logTaskEvent({
         action: "task.create-worktree",
         message: `Worktree creation threw for local task ${task.id}`,

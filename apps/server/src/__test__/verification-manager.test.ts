@@ -49,7 +49,7 @@ describe("HooksManager", () => {
 
       const calls = vi.mocked(existsSync).mock.calls;
       const hooksJsonCalls = calls.filter(([p]) =>
-        (p as string).endsWith(path.join("wt-1", "hooks.json")),
+        (p as string).endsWith(path.join("wt-1", ".openkit", "hooks-run.json")),
       );
 
       expect(hooksJsonCalls.length).toBeGreaterThan(0);
@@ -69,7 +69,7 @@ describe("HooksManager", () => {
 
       const writeCalls = vi.mocked(writeFileSync).mock.calls;
       const hooksWrite = writeCalls.find(([p]) =>
-        (p as string).endsWith(path.join("wt-1", "hooks.json")),
+        (p as string).endsWith(path.join("wt-1", ".openkit", "hooks-run.json")),
       );
       expect(hooksWrite).toBeDefined();
 
@@ -148,7 +148,7 @@ describe("HooksManager", () => {
       // writeFileSync should NOT have been called for hooks.json persistence
       const writeCalls = vi.mocked(writeFileSync).mock.calls;
       const hooksPersistCalls = writeCalls.filter(([p]) =>
-        (p as string).endsWith(path.join("wt-1", "hooks.json")),
+        (p as string).endsWith(path.join("wt-1", ".openkit", "hooks-run.json")),
       );
       expect(hooksPersistCalls).toHaveLength(0);
     });
@@ -186,7 +186,7 @@ describe("HooksManager", () => {
       // writeFileSync SHOULD have been called for hooks.json persistence
       const writeCalls = vi.mocked(writeFileSync).mock.calls;
       const hooksPersistCalls = writeCalls.filter(([p]) =>
-        (p as string).endsWith(path.join("wt-1", "hooks.json")),
+        (p as string).endsWith(path.join("wt-1", ".openkit", "hooks-run.json")),
       );
       expect(hooksPersistCalls.length).toBeGreaterThan(0);
     });

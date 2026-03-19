@@ -2,18 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Git Commits
+## Mirror File Requirement
 
-**Never commit unless the user explicitly asks.** Do not auto-commit after implementing changes, fixing tests, or completing tasks. The user controls when commits happen.
-
-## MCP Status (Removed)
-
-OpenKit's own MCP server has been removed from the codebase. The `openkit mcp` CLI command, the `/mcp` HTTP transport endpoint, and the `/api/mcp/*` setup routes no longer exist. The `@modelcontextprotocol/sdk` dependency has been removed.
-
-- Do not add MCP server functionality back.
-- Do not reference `openkit mcp`, `/mcp`, or `/api/mcp/*` routes in new code.
-- Third-party MCP server management (`/api/mcp-servers/*`) is still active and maintained.
-- Skill deployment via the skills API is the replacement for agent integration.
+- `CLAUDE.md` and `AGENTS.md` must stay in sync.
+- Any change made to one must be applied to the other in the same update.
 
 ## Naming and File Hygiene
 
@@ -25,11 +17,6 @@ OpenKit's own MCP server has been removed from the codebase. The `openkit mcp` C
 ## README Requirement
 
 Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root. The README should briefly describe the package's purpose, key technologies, and basic usage. When creating a new app or library, include a README as part of the initial setup. **Keep READMEs updated** — when adding, removing, or changing modules/exports in a package, update its README to reflect the current state. A stale README is worse than no README.
-
-## Mirror File Requirement
-
-- `CLAUDE.md` and `AGENTS.md` must stay in sync.
-- Any change made to one must be applied to the other in the same update.
 
 ## CLI-First Agent Design
 
@@ -66,6 +53,7 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 - Never use Prettier in this repository.
 - Use `oxlint` for linting and `oxfmt` for formatting.
 - **Always use scripts from `package.json` for checks** (e.g. `pnpm check:*`, `pnpm fix:*`). Do not invoke tools directly via `npx` or bare binary names — use `pnpm <script>` to ensure the correct versions and configuration are used.
+- **Every source file must have a JSDoc comment at the top** explaining what the file is for. Keep it to 1-3 sentences — enough for a developer to understand the file's purpose without reading the code. When changing a file's responsibility, update the JSDoc to match.
 
 ## Error Handling
 
@@ -82,7 +70,7 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 
 ## Operational Logging
 
-- Treat ops logging as mandatory for all agent/workflow operations.
+- Treat ops logging as mandatory for all operations.
 - Always log start and terminal outcome (success/failure) for git operations, CLI commands, HTTP requests, workflow transitions, notifications, and other behind-the-scenes actions.
 - Include actionable metadata whenever available (for example command, args, cwd, status code, request/response payload metadata, worktreeId, projectName, and error details).
 - Errors that surface as toasts must also be present in ops logs; toasts do not replace logging.
@@ -133,9 +121,8 @@ OpenKit has a **Dev Mode** (App Settings → Dev Mode toggle) that symlinks each
 
 ## Import Policy
 
-- Do not use parent-relative imports (for example `../` or `../../`) in app/lib source files.
-- Only same-folder relative imports are allowed (for example `./file`).
-- For anything outside the current folder, use configured aliases.
+- Do not use parent-relative imports (for example `../` or `../../`) to import from other apps or libs.
+- **Use barrel exports for libraries.** Each lib should have an `index.ts` that re-exports its public API. Consumers import from the package root (for example `@openkit/agents`), not internal subpaths. The barrel keeps the public surface explicit and makes it easy to see what a module offers at a glance. When a lib uses non-TS assets (for example `.md` files), ensure vitest configs have the appropriate loader plugin so tests can resolve barrel imports.
 
 ## UI Theme Consistency
 
@@ -186,6 +173,7 @@ Comprehensive documentation lives in `/docs/`. **Always check the relevant docs 
 - When adding/changing config fields → update `docs/CONFIGURATION.md`
 - When changing Electron behavior → update `docs/ELECTRON.md`
 - When adding/changing notifications or activity events → update `docs/NOTIFICATIONS.md`
+- When adding/changing CLI commands or flags → update `docs/CLI.md` and the website docs page (`apps/website/src/pages/getting-started.astro`)
 - When adding/changing user-facing features → update `README.md`
 - When adding a new system or concept → create a new doc file in `/docs/` and add it to the table below and in `README.md`
 

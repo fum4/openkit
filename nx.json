@@ -38,14 +38,6 @@
     "check:types": {
       "cache": true,
       "inputs": ["default", "^default"]
-    },
-    "check:format": {
-      "cache": true,
-      "inputs": ["default"]
-    },
-    "check:lint": {
-      "cache": true,
-      "inputs": ["default"]
     }
   }
 }

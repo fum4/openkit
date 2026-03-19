@@ -82,7 +82,7 @@ Key responsibilities:
 - **Process management**: `startWorktree()` spawns the dev command with port-offset env vars; `stopWorktree()` sends SIGTERM
 - **Canonical ID resolution**: worktree IDs are resolved exact-first, then case-insensitive; ambiguous case-insensitive matches return an explicit error
 - **SSE notification**: Maintains a set of event listeners and calls `notifyListeners()` on every state change
-- **Issue integration**: `createWorktreeFromJira()` and `createWorktreeFromLinear()` fetch issue data, generate a branch name, write `TASK.md`, and link the issue to the worktree (auto-reusing matching existing worktrees by default)
+- **Issue integration**: `createWorktreeFromJira()` and `createWorktreeFromLinear()` fetch issue data, generate a branch name, link the issue to the worktree, and optionally auto-reuse matching existing worktrees
 - **Config management**: `reloadConfig()`, `updateConfig()`, `getConfig()` (`.openkit/config.json` for shared project settings; `.openkit/local-config.json` for local agent git policy preferences)
 - **Log capture**: Stdout/stderr from spawned processes is captured (last 100 lines) and forwarded to listeners with debounced batching (250ms)
 - **Activity tracking**: Owns an `ActivityLog` instance, emitting lifecycle events (`creation_started`, `creation_completed`, `creation_failed`, `started`, `stopped`, `crashed`) during worktree operations
@@ -238,7 +238,6 @@ sequenceDiagram
     WM->>Git: git worktree add <path> -b <branch> <baseRef>
     WM->>WM: Copy .env* files from main project
     WM->>Git: <installCommand> (e.g. pnpm install)
-    WM->>WM: Write TASK.md (if pending context)
     WM->>WM: Remove from creatingWorktrees map
     WM->>WM: notifyListeners() (SSE: status "stopped")
 
@@ -259,7 +258,7 @@ sequenceDiagram
     WM->>WM: notifyListeners() (SSE: status "running", ports, pid)
 ```
 
-The creation is asynchronous -- the HTTP response returns immediately with a placeholder entry (status `"creating"`) so the UI can show progress. The actual `git worktree add`, dependency installation, and `TASK.md` generation happen in the background, with status updates pushed via SSE.
+The creation is asynchronous -- the HTTP response returns immediately with a placeholder entry (status `"creating"`) so the UI can show progress. The actual `git worktree add` and dependency installation happen in the background, with status updates pushed via SSE. Task context (issue data, notes, hooks) is retrieved on demand via the `openkit task context` CLI command.
 
 ### 2. Terminal Sessions
 

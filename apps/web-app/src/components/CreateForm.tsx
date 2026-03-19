@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { GitBranch, ListTodo, Plus } from "lucide-react";
+import { FileText, GitBranch, Plus } from "lucide-react";
 
 import { integration, surface, tab, text } from "../theme";
 import { JiraIcon, LinearIcon } from "../icons";
@@ -117,8 +117,8 @@ export function CreateForm({
             }}
             className={menuItemClass}
           >
-            <ListTodo className={`w-4 h-4 ${integration.localIssue}`} />
-            Create task
+            <FileText className={`w-4 h-4 ${integration.localIssue}`} />
+            Create issue
           </button>
           {(jiraConfigured || linearConfigured) && (
             <>

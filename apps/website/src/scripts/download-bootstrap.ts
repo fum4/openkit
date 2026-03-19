@@ -15,7 +15,6 @@ function bindIntentLoad() {
   const toggleButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>("[data-download-toggle]"),
   );
-  if (toggleButtons.length === 0) return;
 
   toggleButtons.forEach((toggle) => {
     toggle.addEventListener("click", async (event) => {

@@ -5,7 +5,7 @@ import {
   ChevronDown,
   GitCommitHorizontal,
   GitBranch,
-  ListTodo,
+  FileText,
   Network,
   RotateCcw,
   Settings,
@@ -712,7 +712,7 @@ export function ConfigurationPanel({
         {/* Local Issues Card */}
         <div className={`rounded-xl ${surface.panel} border border-white/[0.08] p-5`}>
           <h3 className={`text-xs font-semibold ${text.primary} mb-4 flex items-center gap-2`}>
-            <ListTodo className={`w-3.5 h-3.5 ${text.muted}`} />
+            <FileText className={`w-3.5 h-3.5 ${text.muted}`} />
             Local Issues
           </h3>
           <div className="flex flex-col gap-4">

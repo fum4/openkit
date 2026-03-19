@@ -1,6 +1,6 @@
 {
   "name": "@openkit/desktop-app",
-  "version": "0.0.61",
+  "version": "0.0.62",
   "private": true,
   "repository": {
     "type": "git",
@@ -20,11 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check:types": "tsgo --noEmit -p tsconfig.json",
-    "check:format": "oxfmt --check src",
-    "check:lint": "oxlint src",
-    "fix:format": "oxfmt src",
-    "fix:lint": "oxlint --fix src"
+    "check:types": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@openkit/logger": "workspace:*",

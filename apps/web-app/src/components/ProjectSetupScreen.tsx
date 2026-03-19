@@ -30,6 +30,7 @@ import { GitHubIcon, JiraIcon, LinearIcon } from "../icons";
 interface ProjectSetupScreenProps {
   projectName: string | null;
   onSetupComplete: () => void;
+  onSetupStarted?: () => void;
   onRememberChoice?: (choice: "auto" | "manual") => void;
 }
 
@@ -53,6 +54,7 @@ const SKILL_SETUP_SUPPORTED_AGENTS = new Set<AgentId>([
 export function ProjectSetupScreen({
   projectName,
   onSetupComplete,
+  onSetupStarted,
   onRememberChoice,
 }: ProjectSetupScreenProps) {
   const api = useApi();
@@ -435,6 +437,7 @@ export function ProjectSetupScreen({
   const handleAutoSetup = async () => {
     setIsLoading(true);
     setError(null);
+    onSetupStarted?.();
 
     try {
       const result = await api.initConfig({ force: true });
@@ -460,6 +463,7 @@ export function ProjectSetupScreen({
   const handleManualSubmit = async () => {
     setIsLoading(true);
     setError(null);
+    onSetupStarted?.();
 
     try {
       const result = await api.initConfig({ ...formValues, ...extraValues, force: true });
