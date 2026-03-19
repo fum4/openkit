@@ -26,6 +26,8 @@ import type {
   AvailablePlugin,
   MarketplaceSummary,
   SkillScanResult,
+  DiffListResponse,
+  DiffFileContentResponse,
 } from "../types";
 
 // API functions now accept an optional serverUrl parameter
@@ -358,6 +360,74 @@ export async function pushChanges(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to push",
+    };
+  }
+}
+
+export async function fetchDiffFiles(
+  worktreeId: string,
+  includeCommitted: boolean,
+  serverUrl: string | null = null,
+): Promise<DiffListResponse> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const params = new URLSearchParams({ includeCommitted: String(includeCommitted) });
+    const res = await fetch(
+      `${base}/api/worktrees/${encodeURIComponent(worktreeId)}/diff?${params}`,
+    );
+    if (!isJsonResponse(res)) {
+      return {
+        success: false,
+        files: [],
+        baseBranch: "",
+        error: `Server returned ${res.status} ${res.statusText}`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      files: [],
+      baseBranch: "",
+      error: err instanceof Error ? err.message : "Failed to fetch diff files",
+    };
+  }
+}
+
+export async function fetchDiffFileContent(
+  worktreeId: string,
+  filePath: string,
+  fileStatus: string,
+  includeCommitted: boolean,
+  oldPath?: string,
+  serverUrl: string | null = null,
+): Promise<DiffFileContentResponse> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const params = new URLSearchParams({
+      path: filePath,
+      status: fileStatus,
+      includeCommitted: String(includeCommitted),
+    });
+    if (oldPath) params.set("oldPath", oldPath);
+    const res = await fetch(
+      `${base}/api/worktrees/${encodeURIComponent(worktreeId)}/diff/file?${params}`,
+    );
+    if (!isJsonResponse(res)) {
+      return {
+        success: false,
+        oldContent: "",
+        newContent: "",
+        error: `Server returned ${res.status} ${res.statusText}`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      oldContent: "",
+      newContent: "",
+      error: err instanceof Error ? err.message : "Failed to fetch file content",
     };
   }
 }

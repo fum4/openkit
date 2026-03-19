@@ -464,6 +464,49 @@ Create a GitHub pull request for a worktree's branch.
 - **Error** (400/404): `{ success: false, error: "..." }`
 - **Error** (409): `{ success: false, error: "Worktree \"...\" is ambiguous. Matches: ..." }`
 
+#### `GET /api/worktrees/:id/diff`
+
+List changed files in a worktree (uncommitted + optionally committed changes).
+
+- **Query params**:
+  - `includeCommitted` (boolean, default `false`) — include committed changes vs `origin/<baseBranch>`
+- **Response** (200):
+  ```json
+  {
+    "success": true,
+    "files": [
+      {
+        "path": "src/app.ts",
+        "status": "modified",
+        "linesAdded": 10,
+        "linesRemoved": 3,
+        "isBinary": false
+      }
+    ],
+    "baseBranch": "main"
+  }
+  ```
+- **Error** (400/404): `{ success: false, files: [], baseBranch: "", error: "..." }`
+
+#### `GET /api/worktrees/:id/diff/file`
+
+Get original and modified content for a single file (for Monaco DiffEditor).
+
+- **Query params**:
+  - `path` (string, required) — file path relative to worktree root
+  - `status` (string, default `"modified"`) — file status (`modified`, `added`, `deleted`, `renamed`, `untracked`)
+  - `includeCommitted` (boolean, default `false`) — use `origin/<baseBranch>` as ref instead of `HEAD`
+  - `oldPath` (string, optional) — original path for renamed files
+- **Response** (200):
+  ```json
+  {
+    "success": true,
+    "oldContent": "// original file content...",
+    "newContent": "// modified file content..."
+  }
+  ```
+- **Error** (400/404): `{ success: false, oldContent: "", newContent: "", error: "..." }`
+
 ---
 
 ## Agent CLI

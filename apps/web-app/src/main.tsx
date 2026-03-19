@@ -1,4 +1,5 @@
 import "./index.css";
+import "./monaco-setup";
 
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";

@@ -13,12 +13,21 @@ import { ConfirmDialog } from "../ConfirmDialog";
 import { GitHubIcon } from "../../icons";
 import { Modal } from "../Modal";
 import { DetailHeader } from "./DetailHeader";
+import { DiffViewerTab } from "./DiffViewerTab";
 import { LogsViewer } from "./LogsViewer";
 import { TerminalView } from "./TerminalView";
 import { HooksTab } from "./HooksTab";
 import { log } from "../../logger";
 
-type WorktreeTab = "logs" | "terminal" | "claude" | "codex" | "gemini" | "opencode" | "hooks";
+type WorktreeTab =
+  | "logs"
+  | "terminal"
+  | "changes"
+  | "claude"
+  | "codex"
+  | "gemini"
+  | "opencode"
+  | "hooks";
 
 interface DetailPanelScopeCache {
   tabCache: Record<string, WorktreeTab>;
@@ -1687,6 +1696,15 @@ export function DetailPanel({
             >
               Hooks
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("changes")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors duration-150 ${
+                activeTab === "changes" ? detailTab.active : detailTab.inactive
+              }`}
+            >
+              Changes
+            </button>
             {openClaudeTabs.has(worktree.id) && (
               <div
                 className={`inline-flex items-center rounded-md transition-colors duration-150 ${
@@ -2172,6 +2190,7 @@ export function DetailPanel({
           onAgentExit={(exitCode) => handleOpenCodeExit(wtId, exitCode)}
         />
       ))}
+      <DiffViewerTab worktree={worktree} visible={activeTab === "changes" && !isCreating} />
       <HooksTab
         worktreeId={worktree.id}
         visible={activeTab === "hooks" && !isCreating}
