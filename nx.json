@@ -27,11 +27,25 @@
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"]
     },
-    "test": {
+    "test:unit": {
       "cache": true,
       "inputs": ["default", "^default"]
     },
-    "test:coverage": {
+    "test:unit:coverage": {
+      "cache": true,
+      "inputs": ["default", "^default"]
+    },
+    "test:e2e": {
+      "cache": true,
+      "dependsOn": ["desktop-app:build"],
+      "inputs": ["default", "^default"]
+    },
+    "test:e2e:ui": {
+      "cache": true,
+      "dependsOn": ["desktop-app:build"],
+      "inputs": ["default", "^default"]
+    },
+    "test:e2e:report": {
       "cache": true,
       "inputs": ["default", "^default"]
     },

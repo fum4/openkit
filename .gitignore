@@ -11,4 +11,3 @@ release/
 *.log
 coverage/
 .superpowers/
-scripts/claude-auth/claude-credentials.json

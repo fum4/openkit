@@ -340,6 +340,10 @@ The marketing website (`apps/website`) builds with Astro to `apps/website/dist/`
 
 The Expo app (`apps/mobile-app`) exports platform bundles to `apps/mobile-app/dist/ios/` and `apps/mobile-app/dist/android/`.
 
+### E2E: Playwright + Electron
+
+The `apps/e2e` package uses Playwright's Electron support to launch the real desktop app and test full user flows (onboarding, workspace interactions). Tests run with `__WM_PORT_OFFSET__=900` for instance isolation. The Nx target `e2e:e2e` depends on `desktop-app:build`, which cascades through all required app builds.
+
 ### Runtime artifacts: port hooks
 
 **`libs/port-offset/hooks/node/port-hook.cjs`** is a pure CommonJS file with zero dependencies. It is copied verbatim to `apps/server/dist/runtime/port-hook.cjs` during the build. It cannot be bundled because it must be loadable via Node's `--require` flag in any process.

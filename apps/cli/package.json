@@ -8,9 +8,9 @@
     "build": "tsup",
     "preview": "node dist/cli/index.js",
     "start": "pnpm exec nx run cli:build && pnpm preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:unit:coverage": "vitest run --coverage",
     "check:types": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {

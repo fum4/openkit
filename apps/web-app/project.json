@@ -7,7 +7,7 @@
     "build": {
       "outputs": ["{workspaceRoot}/apps/web-app/dist"]
     },
-    "test": {
+    "test:unit": {
       "dependsOn": ["logger:build"]
     }
   }

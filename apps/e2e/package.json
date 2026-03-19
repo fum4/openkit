@@ -1,0 +1,16 @@
+{
+  "name": "@openkit/e2e",
+  "version": "0.0.62",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "electron": "^40.6.1",
+    "playwright-core": "^1.58.2"
+  }
+}
