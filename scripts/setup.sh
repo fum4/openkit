@@ -113,7 +113,7 @@ if [ ${#brew_missing[@]} -gt 0 ]; then
   brew_formula_for() {
     case "$1" in
       node)    echo "node" ;;
-      go)      echo "go" ;;
+      go)      echo "go@1.25" ;;
       tinygo)  echo "tinygo-org/tools/tinygo" ;;
       zig)     echo "zig" ;;
       *)       echo "$1" ;;
@@ -188,11 +188,34 @@ if [ ${#brew_missing[@]} -gt 0 ]; then
     brew install "${to_install[@]}"
     echo ""
     success "Dependencies installed."
+
+    # go@1.25 is keg-only (not linked by default) — link it so `go` is in PATH
+    for formula in "${to_install[@]}"; do
+      if [ "$formula" = "go@1.25" ]; then
+        brew link go@1.25 --force 2>/dev/null && success "go@1.25 linked as the active Go version."
+        break
+      fi
+    done
   else
     warn "Skipped dependency installation."
   fi
 else
   success "All dependencies are available."
+fi
+
+# ── Go version check ──────────────────────────────────────────────────────
+
+if has_cmd go; then
+  GO_VERSION=$(go version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
+  GO_MAJOR=$(echo "$GO_VERSION" | cut -d. -f1)
+  GO_MINOR=$(echo "$GO_VERSION" | cut -d. -f2)
+  if [ -n "$GO_MAJOR" ] && [ -n "$GO_MINOR" ]; then
+    if [ "$GO_MAJOR" -gt 1 ] || { [ "$GO_MAJOR" -eq 1 ] && [ "$GO_MINOR" -gt 25 ]; }; then
+      echo ""
+      warn "Go $GO_VERSION is not compatible — TinyGo requires Go ≤ 1.25."
+      warn "Downgrade to go@1.25 (brew install go@1.25) or use mise to manage versions per project."
+    fi
+  fi
 fi
 
 # ── Enable Corepack (pnpm via packageManager field) ───────────────────────
