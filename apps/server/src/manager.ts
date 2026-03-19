@@ -899,17 +899,30 @@ export class WorktreeManager {
               `Worktree "${worktreeId}" exited with code 127 — invalidating PATH cache and retrying`,
               { domain: "worktree", command: cmd },
             );
-            this.startWorktree(id).catch((err) => {
-              log.error("Retry after exit 127 failed:", {
-                domain: "worktree",
-                worktreeId,
-                error: err,
+            // Do NOT clear retriedAfter127 here — it must persist across the retry
+            // to prevent infinite loops. It's only cleared on non-127 exit or
+            // when the worktree is removed via clearTransientWorktreeState().
+            this.startWorktree(id)
+              .then((result) => {
+                if (!result.success) {
+                  log.error("Retry after exit 127 returned failure:", {
+                    domain: "worktree",
+                    worktreeId,
+                    error: result.error,
+                  });
+                }
+              })
+              .catch((err) => {
+                log.error("Retry after exit 127 threw:", {
+                  domain: "worktree",
+                  worktreeId,
+                  error: err,
+                });
               });
-            });
             return;
           }
 
-          // Clear retry tracking on final failure so future manual retries get one attempt
+          // Clear retry tracking on non-127 failure so future 127s get a fresh retry
           this.retriedAfter127.delete(worktreeId);
 
           const diagnosticHint = isCommandNotFound
@@ -1001,16 +1014,19 @@ export class WorktreeManager {
         });
 
         if (!childProcess.pid) {
-          log.error("Failed to spawn worktree process (no PID)", {
+          const spawnError = `Failed to spawn worktree process "${cmd}" (no PID)`;
+          log.error(spawnError, {
             domain: "worktree",
             worktreeId,
             command: cmd,
             args,
             cwd: workingDir,
           });
+          this.portManager.releaseOffset(offset);
+          return { success: false, error: spawnError };
         }
 
-        pid = childProcess.pid ?? -1;
+        pid = childProcess.pid;
         killFn = (signal) => childProcess.kill(signal as NodeJS.Signals);
         childProcess.on("error", (err) => {
           // Spawn itself failed (e.g. command not found without shell, permission denied)
@@ -1032,8 +1048,6 @@ export class WorktreeManager {
         lastActivity: Date.now(),
         logs,
       });
-      // Clear retry flag on successful spawn so future 127s get a fresh retry
-      this.retriedAfter127.delete(worktreeId);
 
       this.notifyListeners();
       this.activityLog.addEvent({
