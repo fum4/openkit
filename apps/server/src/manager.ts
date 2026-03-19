@@ -667,6 +667,7 @@ export class WorktreeManager {
     this.creatingWorktrees.delete(worktreeId);
     this.worktreeCallbacks.delete(worktreeId);
     this.pendingWorktreeContext.delete(worktreeId);
+    this.retriedAfter127.delete(worktreeId);
   }
 
   private pruneGitWorktreeMetadata(gitRoot: string): void {
@@ -845,13 +846,16 @@ export class WorktreeManager {
         ...offsetEnv.env,
         FORCE_COLOR: "1",
       };
+      // Capture PATH as a string for logging in handleExit closure
+      // instead of retaining the full spawnEnv object in memory.
+      const spawnPath = spawnEnv.PATH ?? "";
 
       const portsDisplay = ports.length > 0 ? ports.join(", ") : `offset=${offset}`;
       log.info(`Starting ${worktreeId}: ${cmd} ${args.join(" ")}`, {
         domain: "worktree",
         cwd: workingDir,
         ports: portsDisplay,
-        PATH: spawnEnv.PATH,
+        PATH: spawnPath,
       });
 
       const wtColor = getWorktreeColor(worktreeId);
@@ -927,7 +931,7 @@ export class WorktreeManager {
             cwd: workingDir,
             exitCode: code,
             diagnosticHint,
-            PATH: spawnEnv.PATH,
+            PATH: spawnPath,
           });
 
           this.activityLog.addEvent({

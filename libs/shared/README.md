@@ -16,7 +16,7 @@ Core shared utilities used across all OpenKit apps and libs. Imported as `@openk
 | `git`                | Git helpers: repo root, worktree branch extraction, branch name validation                      |
 | `git-policy`         | Policy resolution for agent git operations (commit/push/PR) per worktree or global config       |
 | `global-preferences` | User-level preferences (`~/.openkit/app-preferences.json`) — base port, dev mode, window bounds |
-| `logger`             | Project-scoped logger instance for the shared module                                            |
+| `logger`             | Structured logger creation for the shared package                                               |
 | `notes-types`        | Types for issue notes: linked worktrees, context, todos, git policy overrides                   |
 | `perf-types`         | Metrics types for process, agent session, worktree, and system performance snapshots            |
 | `task-context`       | TASK.md generation for agent workflows (issue details, hooks, todos, attachments)               |

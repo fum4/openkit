@@ -122,6 +122,8 @@ OpenKit has a **Dev Mode** (App Settings → Dev Mode toggle) that symlinks each
 - Use `log.info()` for informational output, `log.success()` for completion messages (green ● prefix), `log.warn()` for warnings, `log.error()` for errors, `log.debug()` for debug-only output, and `log.plain()` for unformatted output.
 - Always include a `domain` field in the metadata object to namespace logs by feature area (for example `{ domain: "GitHub" }`, `{ domain: "auto-launch" }`, `{ domain: "project-switch" }`). The logger extracts `domain` from metadata into a dedicated field on the `LogEntry`, keeping logs filterable by feature.
 - **Sink**: call `Logger.setSink(serverUrl, projectName)` at startup to POST log entries to the server. The server writes them to the ops-log and notifies real-time listeners. All processes (including the server itself) POST to the same endpoint — the server is the single ops-log writer.
+- When logging errors, always pass the error object as a whole in the metadata — not just `error.message`. The logger extracts stack traces and structured details that a message string alone loses. For example: `log.error("Operation failed:", { domain: "worktree", error })` — not `log.error(\`Operation failed: ${error.message}\`)`.
+- Do not use `process.stderr.write()`, `process.stdout.write()`, or any other raw output for logging. The logger is the only sanctioned output channel.
 - There are no exceptions to the logging rule.
 
 ## TypeScript Preference

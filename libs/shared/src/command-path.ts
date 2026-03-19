@@ -25,6 +25,8 @@ import { existsSync } from "fs";
 import { homedir } from "os";
 import path from "path";
 
+import { log } from "./logger";
+
 /**
  * Fallback bin paths used when shell PATH resolution fails.
  * Covers Homebrew (Apple Silicon + Intel), MacPorts, pip/pipx, and system defaults.
@@ -48,6 +50,9 @@ function resolveShellPath(): string | undefined {
 
   try {
     const shell = process.env.SHELL || "/bin/zsh";
+    // -ilc: interactive login shell + command. Works for bash, zsh, and sh.
+    // Fish shell uses different syntax (-lc without -i) but is rare enough
+    // that we fall back to EXTRA_BIN_PATHS for it rather than special-casing.
     const result = execFileSync(shell, ["-ilc", "echo -n $PATH"], {
       encoding: "utf-8",
       timeout: 5000,
@@ -57,8 +62,10 @@ function resolveShellPath(): string | undefined {
     if (result && result.includes("/")) {
       resolvedShellPath = result;
     }
-  } catch {
-    // Shell resolution failed — fall back to EXTRA_BIN_PATHS only
+  } catch (error) {
+    // Shell resolution can fail in non-interactive environments (CI, containers,
+    // fish shell). Fall back to EXTRA_BIN_PATHS which covers common locations.
+    log.error("Shell PATH resolution failed", { domain: "command-path", error });
   }
 
   return resolvedShellPath;
