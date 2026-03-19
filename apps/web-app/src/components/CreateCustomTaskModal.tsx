@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Paperclip, X } from "lucide-react";
 
 import { useErrorToast } from "../hooks/useErrorToast";
@@ -44,7 +44,19 @@ export function CreateCustomTaskModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   useErrorToast(error, "create-custom-task-modal");
 
-  // Stable object URLs for file previews
+  const isDirty =
+    title.trim() !== "" ||
+    description.trim() !== "" ||
+    labelInput.trim() !== "" ||
+    labels.length > 0 ||
+    files.length > 0;
+
+  const handleClose = () => {
+    if (isDirty && !window.confirm("Discard changes?")) return;
+    onClose();
+  };
+
+  // Stable object URLs for file previews — revoked when files change or modal unmounts
   const fileUrls = useMemo(
     () =>
       files.map((f) =>
@@ -54,6 +66,9 @@ export function CreateCustomTaskModal({
       ),
     [files],
   );
+  useEffect(() => {
+    return () => fileUrls.forEach((url) => url && URL.revokeObjectURL(url));
+  }, [fileUrls]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,14 +119,15 @@ export function CreateCustomTaskModal({
     <Modal
       title="Create Task"
       icon={<FileText className="w-4 h-4 text-amber-400" />}
-      onClose={onClose}
+      onClose={handleClose}
       onSubmit={handleSubmit}
+      closeOnBackdrop={false}
       width="lg"
       footer={
         <>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className={`px-3 py-1.5 text-xs rounded-lg ${text.muted} hover:${text.secondary} transition-colors`}
           >
             Cancel
