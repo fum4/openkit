@@ -35,7 +35,7 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 
 ## Testing
 
-**Tests are the most important aspect of this codebase.** They are the safety net for refactoring, bug prevention, and CI/CD readiness. Every code change — feature, bugfix, or refactor — must include corresponding tests. Writing tests is not optional or secondary; it is the primary deliverable alongside working code.
+**Tests are critical.** They are the safety net for refactoring, bug prevention, and CI/CD readiness. Every code change — feature, bugfix, or refactor — must include corresponding tests. Writing tests is not optional or secondary; it is the primary deliverable alongside working code.
 
 - When writing or modifying tests, **always use the testing skill** (`.claude/skills/testing/`) if available. It contains the canonical patterns, query priorities, and conventions for this project.
 - **Do not modify existing tests lightly.** If a test fails, first verify whether the test caught a real bug before changing it. Changing a test to make it pass defeats the purpose — investigate first.
@@ -70,10 +70,13 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 
 ## Operational Logging
 
-- Treat ops logging as mandatory for all operations.
-- Always log start and terminal outcome (success/failure) for git operations, CLI commands, HTTP requests, workflow transitions, notifications, and other behind-the-scenes actions.
-- Include actionable metadata whenever available (for example command, args, cwd, status code, request/response payload metadata, worktreeId, projectName, and error details).
-- Errors that surface as toasts must also be present in ops logs; toasts do not replace logging.
+**Logging is critical.** In a packaged Electron app, there is no terminal, no stdout, no way to attach a debugger. The ops log is our only window into what happened. If something goes wrong and it wasn't logged, it didn't happen — we have zero ability to diagnose it. Every operation, every decision, every failure must leave a trace.
+
+- **Log everything.** Every operation start, every outcome (success or failure), every state transition. Git operations, CLI commands, HTTP requests, child process spawns, workflow transitions, config changes, notifications — all of it.
+- Include actionable metadata on every log entry: what operation, what inputs (command, args, cwd), what identifiers (worktreeId, projectName, pid), what outcome (status code, exit code, error). The goal is that the ops log alone is sufficient to reconstruct what happened without reproducing the issue.
+- When spawning child processes, log the command, arguments, working directory, and PATH before spawning. If the process crashes, capture and log its last output (stdout/stderr) — this is often the only way to see why it failed.
+- Activity events (toasts, activity feed) are for the user. Ops log entries are for debugging. Both are always required — a toast without a corresponding log entry is useless for diagnosis, and a log entry without a toast leaves the user unaware.
+- When in doubt, log it. A verbose ops log is infinitely more valuable than a clean one that's missing the entry you need.
 
 ## Child Process PATH Handling
 

@@ -874,6 +874,12 @@ export class WorktreeManager {
 
       const handleExit = (code: number | null) => {
         const processInfo = this.runningProcesses.get(worktreeId);
+
+        // Capture process output BEFORE deleting — needed for crash diagnostics.
+        const lastOutput = processInfo
+          ? processInfo.logs.slice(-20).join("\n")
+          : "(no output captured)";
+
         if (processInfo) {
           this.portManager.releaseOffset(processInfo.offset);
         }
@@ -894,8 +900,10 @@ export class WorktreeManager {
               { domain: "worktree", command: cmd },
             );
             this.startWorktree(id).catch((err) => {
-              log.error(`Retry after exit 127 failed for "${worktreeId}": ${err}`, {
+              log.error("Retry after exit 127 failed:", {
                 domain: "worktree",
+                worktreeId,
+                error: err,
               });
             });
             return;
@@ -909,16 +917,8 @@ export class WorktreeManager {
             : undefined;
           const detail = diagnosticHint ?? `Process exited with code ${code}`;
 
-          log.error(`Worktree "${worktreeId}" crashed (exit code ${code})`, {
-            domain: "worktree",
-            command: cmd,
-            args,
-            cwd: workingDir,
-            exitCode: code,
-            diagnosticHint,
-            PATH: spawnPath,
-          });
-
+          // Always emit the activity event — even if logging fails. The activity event
+          // is the primary way users see crash info in the UI (toast + activity feed).
           this.activityLog.addEvent({
             category: "worktree",
             type: "crashed",
@@ -933,7 +933,19 @@ export class WorktreeManager {
               args,
               cwd: workingDir,
               diagnosticHint,
+              lastOutput,
             },
+          });
+
+          log.error(`Worktree "${worktreeId}" crashed (exit code ${code})`, {
+            domain: "worktree",
+            command: cmd,
+            args,
+            cwd: workingDir,
+            exitCode: code,
+            diagnosticHint,
+            lastOutput,
+            PATH: spawnPath,
           });
         } else {
           log.info(`Worktree "${worktreeId}" exited with code ${code}`, {
