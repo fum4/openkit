@@ -1000,9 +1000,26 @@ export class WorktreeManager {
           detached: false,
         });
 
-        pid = childProcess.pid!;
+        if (!childProcess.pid) {
+          log.error("Failed to spawn worktree process (no PID)", {
+            domain: "worktree",
+            worktreeId,
+            command: cmd,
+            args,
+            cwd: workingDir,
+          });
+        }
+
+        pid = childProcess.pid ?? -1;
         killFn = (signal) => childProcess.kill(signal as NodeJS.Signals);
-        childProcess.on("exit", (code) => handleExit(code));
+        childProcess.on("error", (err) => {
+          // Spawn itself failed (e.g. command not found without shell, permission denied)
+          pushLogLines(`[spawn error] ${err.message}`);
+          log.error("Worktree spawn error:", { domain: "worktree", worktreeId, error: err });
+        });
+        // Use 'close' instead of 'exit' — 'close' fires after all stdio streams
+        // have been consumed, so we capture all output before handling the exit.
+        childProcess.on("close", (code) => handleExit(code));
         childProcess.stdout?.on("data", (data) => pushLogLines(data.toString()));
         childProcess.stderr?.on("data", (data) => pushLogLines(data.toString()));
       }
