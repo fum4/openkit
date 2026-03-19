@@ -273,15 +273,6 @@ export function createWorktreeServer(manager: WorktreeManager) {
       },
     });
   });
-  manager.setTaskHooksProvider((worktreeId) => {
-    const config = hooksManager.getConfig();
-    const effectiveSkills = hooksManager.getEffectiveSkills(worktreeId, notesManager);
-    return {
-      checks: config.steps,
-      skills: effectiveSkills,
-    };
-  });
-
   const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
   app.use("*", cors());
@@ -352,8 +343,8 @@ export function createWorktreeServer(manager: WorktreeManager) {
   registerSkillRoutes(app, manager);
   registerClaudePluginRoutes(app, manager);
   registerClaudeCustomAgentRoutes(app, manager);
-  registerTaskRoutes(app, manager, notesManager, hooksManager);
-  registerNotesRoutes(app, manager, notesManager, hooksManager);
+  registerTaskRoutes(app, manager, notesManager);
+  registerNotesRoutes(app, notesManager);
   registerTerminalRoutes(app, manager, terminalManager, upgradeWebSocket);
   registerHooksRoutes(app, manager, hooksManager, notesManager);
   registerPerfRoutes(app, perfMonitor);
@@ -479,11 +470,14 @@ function ensureCliInPath() {
 export async function startWorktreeServer(
   config: WorktreeConfig,
   configFilePath?: string | null,
-  options?: { exitOnClose?: boolean; port?: number },
+  options?: { exitOnClose?: boolean; port?: number; startupCwd?: string },
 ): Promise<{ manager: WorktreeManager; close: () => Promise<void>; port: number }> {
   const exitOnClose = options?.exitOnClose ?? true;
   const requestedPort = options?.port ?? DEFAULT_PORT;
   const manager = new WorktreeManager(config, configFilePath ?? null);
+  if (options?.startupCwd) {
+    manager.setStartupCwd(options.startupCwd);
+  }
   const commandLog = log.get("command");
   setCommandMonitorSink((event) => {
     const commandText = [event.command, ...event.args].join(" ");

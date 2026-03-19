@@ -8,11 +8,10 @@
     "build": "tsup",
     "preview": "node dist/cli/index.js",
     "start": "pnpm exec nx run cli:build && pnpm preview",
-    "check:types": "tsgo --noEmit -p tsconfig.json",
-    "check:format": "oxfmt --check src",
-    "check:lint": "oxlint src",
-    "fix:format": "oxfmt src",
-    "fix:lint": "oxlint --fix src"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check:types": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.3.0",

@@ -1,5 +1,6 @@
 import path from "path";
 import { defineConfig } from "vitest/config";
+import { mdRawPlugin } from "../../libs/shared/src/vite-md-plugin";
 
 export default defineConfig({
   test: {
@@ -25,4 +26,5 @@ export default defineConfig({
       "@openkit/server": path.resolve(__dirname, "./src"),
     },
   },
+  plugins: [mdRawPlugin()],
 });

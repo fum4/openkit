@@ -738,7 +738,7 @@ Cached issue data from integrations, organized by source and issue identifier.
       notes.json          # User notes, todos, git policy
   local/
     <uuid>/               # UUID of the local task
-      task.json           # Local task data (CustomTask)
+      issue.json          # Local task data (CustomTask)
       notes.json          # User notes, todos, git policy
       attachments/        # Uploaded files
         screenshot.png
@@ -753,7 +753,9 @@ Contains the full cached Jira issue including summary, description (Markdown), s
 
 Contains the full cached Linear issue including identifier, title, description, state, priority, assignee, labels, comments, attachments, and the fetch timestamp.
 
-### `task.json` (Local Issues)
+### `issue.json` (Local Issues)
+
+Contains local task data (replacing the legacy `task.json` filename). Falls back to `task.json` for migration purposes when `issue.json` is not present.
 
 ```json
 {
@@ -822,21 +824,21 @@ Each issue (regardless of source) can have a `notes.json` file stored alongside 
 }
 ```
 
-| Field                 | Type             | Description                                         |
-| --------------------- | ---------------- | --------------------------------------------------- |
-| `linkedWorktreeId`    | `string \| null` | ID of the worktree created from this issue          |
-| `personal`            | `object \| null` | Free-form personal notes (visible only in UI)       |
-| `personal.content`    | `string`         | Note text                                           |
-| `personal.updatedAt`  | `string`         | ISO 8601 timestamp                                  |
-| `aiContext`           | `object \| null` | Context injected into the `TASK.md` file for agents |
-| `aiContext.content`   | `string`         | Context text                                        |
-| `aiContext.updatedAt` | `string`         | ISO 8601 timestamp                                  |
-| `todos`               | `array`          | Checklist items (trackable by agents via MCP tools) |
-| `todos[].id`          | `string`         | UUID                                                |
-| `todos[].text`        | `string`         | Todo text                                           |
-| `todos[].checked`     | `boolean`        | Whether completed                                   |
-| `todos[].createdAt`   | `string`         | ISO 8601 timestamp                                  |
-| `gitPolicy`           | `object`         | Per-worktree git policy overrides                   |
+| Field                 | Type             | Description                                             |
+| --------------------- | ---------------- | ------------------------------------------------------- |
+| `linkedWorktreeId`    | `string \| null` | ID of the worktree created from this issue              |
+| `personal`            | `object \| null` | Free-form personal notes (visible only in UI)           |
+| `personal.content`    | `string`         | Note text                                               |
+| `personal.updatedAt`  | `string`         | ISO 8601 timestamp                                      |
+| `aiContext`           | `object \| null` | Context retrieved via `openkit task context` for agents |
+| `aiContext.content`   | `string`         | Context text                                            |
+| `aiContext.updatedAt` | `string`         | ISO 8601 timestamp                                      |
+| `todos`               | `array`          | Checklist items (trackable by agents via MCP tools)     |
+| `todos[].id`          | `string`         | UUID                                                    |
+| `todos[].text`        | `string`         | Todo text                                               |
+| `todos[].checked`     | `boolean`        | Whether completed                                       |
+| `todos[].createdAt`   | `string`         | ISO 8601 timestamp                                      |
+| `gitPolicy`           | `object`         | Per-worktree git policy overrides                       |
 
 ### Git Policy Overrides
 
@@ -877,9 +879,7 @@ The keys are MCP server IDs (from the registry), and the values are `Record<stri
 
 ## Worktree Directory (`.openkit/worktrees/`)
 
-Git worktrees are stored under `.openkit/worktrees/<worktreeId>/`. Each subdirectory is a full git worktree checkout. When a worktree is created from an issue, a `TASK.md` file is generated in the worktree root containing the issue context, description, comments, AI context notes, and todos.
-
-The `TASK.md` file is automatically added to the worktree's git exclude file (`.git/worktrees/<name>/info/exclude`) so it does not appear as an untracked file.
+Git worktrees are stored under `.openkit/worktrees/<worktreeId>/`. Each subdirectory is a full git worktree checkout. When a worktree is created from an issue, the issue context (description, comments, AI context notes, and todos) is retrievable via the `openkit task context` CLI command.
 
 ### Per-Worktree Hooks Data
 

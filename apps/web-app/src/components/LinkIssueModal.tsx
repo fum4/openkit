@@ -1,4 +1,4 @@
-import { Link, ListTodo, Loader2, Search } from "lucide-react";
+import { FileText, Link, Loader2, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { CustomTaskSummary, JiraIssueSummary, LinearIssueSummary } from "../types";
@@ -165,7 +165,7 @@ export function LinkIssueModal({
                       onClick={() => handleLink("local", task.id)}
                       className={itemClass}
                     >
-                      <ListTodo className={`w-4 h-4 flex-shrink-0 ${integration.localIssue}`} />
+                      <FileText className={`w-4 h-4 flex-shrink-0 ${integration.localIssue}`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className={`text-[10px] font-mono ${text.muted}`}>{task.id}</span>

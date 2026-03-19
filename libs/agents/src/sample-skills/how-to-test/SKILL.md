@@ -16,7 +16,7 @@ Write a concise, developer-friendly guide for manually testing the changes in th
 
 2. Run `git diff main..HEAD` to understand what changed
 
-3. Read TASK.md to understand the intent of the changes
+3. Run `openkit task context` to understand the intent of the changes
 
 4. Write a testing walkthrough:
    - **Setup** — what needs to be running (e.g. `pnpm dev`), any env vars or test data needed

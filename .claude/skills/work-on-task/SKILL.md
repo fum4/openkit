@@ -31,28 +31,24 @@ If the source is ambiguous, ask before running commands.
 4. Confirm the issue summary from output.
 5. Enter worktree directory under `.openkit/worktrees/`.
 6. Emit workflow checkpoint: `openkit activity phase --phase task-started`.
-7. Read task context from:
-   - `.openkit/issues/<source>/<issue-id>/task.json` (local) or `issue.json` (jira/linear)
-   - `.openkit/issues/<source>/<issue-id>/notes.json`
-   - `TASK.md` when present
-8. Inspect `.openkit/hooks.json`.
-9. Emit workflow checkpoint: `openkit activity phase --phase pre-hooks-started`.
-10. Run pre-implementation checks before changing code.
-11. Emit workflow checkpoint: `openkit activity phase --phase pre-hooks-completed`.
-12. Emit workflow checkpoint: `openkit activity phase --phase implementation-started`.
-13. Implement the task.
-14. Emit workflow checkpoint: `openkit activity phase --phase implementation-completed`.
-15. Emit workflow checkpoint: `openkit activity phase --phase post-hooks-started`.
-16. Run post-implementation checks.
-17. Emit workflow checkpoint: `openkit activity phase --phase post-hooks-completed`.
-18. Before finalizing, run `openkit activity check-flow --json`.
-19. If `compliant` is `false`, do not finalize. Execute all listed `missingActions`, rerun `openkit activity check-flow --json`, and only proceed when `compliant` is `true`.
-20. If you need user approval/instructions at any point, notify OpenKit before asking:
+7. Run `openkit task context` to get full task details (issue data, AI context, todos, effective hooks with per-issue overrides applied).
+8. Emit workflow checkpoint: `openkit activity phase --phase pre-hooks-started`.
+9. Run pre-implementation checks before changing code.
+10. Emit workflow checkpoint: `openkit activity phase --phase pre-hooks-completed`.
+11. Emit workflow checkpoint: `openkit activity phase --phase implementation-started`.
+12. Implement the task.
+13. Emit workflow checkpoint: `openkit activity phase --phase implementation-completed`.
+14. Emit workflow checkpoint: `openkit activity phase --phase post-hooks-started`.
+15. Run post-implementation checks.
+16. Emit workflow checkpoint: `openkit activity phase --phase post-hooks-completed`.
+17. Before finalizing, run `openkit activity check-flow --json`.
+18. If `compliant` is `false`, do not finalize. Execute all listed `missingActions`, rerun `openkit activity check-flow --json`, and only proceed when `compliant` is `true`.
+19. If you need user approval/instructions at any point, notify OpenKit before asking:
 
 - MCP flow: call `notify` with `requiresUserAction: true`.
 - Terminal flow: run `openkit activity await-input --message "<what you need>"`.
 
-21. Summarize changes, risks, verification results, and include the final `openkit activity check-flow --json` result.
+20. Summarize changes, risks, verification results, and include the final `openkit activity check-flow --json` result.
 
 ## Guardrails
 

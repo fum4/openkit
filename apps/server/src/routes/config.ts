@@ -530,6 +530,39 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
     });
   });
 
+  // -- Instance identity (port, branch, worktree) --
+
+  app.get("/api/instance", (c) => {
+    // Use the original startup CWD to detect worktree status, since the server
+    // may have chdir'd to the main project root during config resolution.
+    const startupCwd = manager.getStartupCwd();
+
+    let branch: string | null = null;
+    try {
+      branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+        cwd: startupCwd,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+    } catch {
+      // Not a git repo or git not available
+    }
+
+    let isWorktree = false;
+    let worktreeName: string | null = null;
+    try {
+      const gitContent = readFileSync(path.join(startupCwd, ".git"), "utf-8").trim();
+      isWorktree = gitContent.startsWith("gitdir: ");
+      if (isWorktree) {
+        worktreeName = path.basename(startupCwd);
+      }
+    } catch {
+      // .git is a directory (main working tree) or doesn't exist
+    }
+
+    return c.json({ branch, isWorktree, worktreeName });
+  });
+
   // -- Local Config API (local-config.json — not synced to git) --
 
   app.get("/api/local-config", (c) => {

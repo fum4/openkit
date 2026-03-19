@@ -52,8 +52,6 @@ import { loadLocalConfig, loadLocalGitPolicyConfig, updateLocalConfig } from "./
 import { NotesManager } from "./notes-manager";
 import { OpsLog } from "./ops-log";
 import { PortManager } from "@openkit/port-offset/port-manager";
-import type { HooksInfo, PendingTaskContext } from "./task-context";
-import { writeTaskMd, generateTaskMd } from "./task-context";
 import type {
   WorktreeLifecycleHookTrigger,
   RunningProcess,
@@ -209,8 +207,6 @@ export class WorktreeManager {
 
   private githubManager: GitHubManager | null = null;
 
-  private pendingWorktreeContext: Map<string, PendingTaskContext> = new Map();
-
   private worktreeCallbacks: Map<
     string,
     {
@@ -245,7 +241,7 @@ export class WorktreeManager {
       ) => Promise<void>)
     | null = null;
 
-  private taskHooksProvider: ((worktreeId: string) => HooksInfo | null) | null = null;
+  private startupCwd: string | null = null;
 
   private readAgentGitPolicyConfig(): {
     allowAgentCommits: boolean;
@@ -513,10 +509,6 @@ export class WorktreeManager {
     this.worktreeLifecycleHookRunner = runner;
   }
 
-  setTaskHooksProvider(provider: (worktreeId: string) => HooksInfo | null): void {
-    this.taskHooksProvider = provider;
-  }
-
   private notifyListeners(): void {
     const worktrees = this.getWorktrees();
     this.eventListeners.forEach((listener) => listener(worktrees));
@@ -536,14 +528,6 @@ export class WorktreeManager {
 
   getOpsLog(): OpsLog {
     return this.opsLog;
-  }
-
-  setPendingWorktreeContext(id: string, ctx: PendingTaskContext): void {
-    this.pendingWorktreeContext.set(id, ctx);
-  }
-
-  clearPendingWorktreeContext(id: string): void {
-    this.pendingWorktreeContext.delete(id);
   }
 
   private listWorktreeDirectoryIds(): string[] {
@@ -662,7 +646,6 @@ export class WorktreeManager {
   private clearTransientWorktreeState(worktreeId: string): void {
     this.creatingWorktrees.delete(worktreeId);
     this.worktreeCallbacks.delete(worktreeId);
-    this.pendingWorktreeContext.delete(worktreeId);
   }
 
   private pruneGitWorktreeMetadata(gitRoot: string): void {
@@ -723,8 +706,10 @@ export class WorktreeManager {
       if (linked) {
         const issueDir = this.notesManager.getIssueDir(linked.source, linked.issueId);
         if (linked.source === "local") {
-          // Read the local task.json for identifier and status
-          const taskFile = path.join(issueDir, "task.json");
+          // Read the local issue.json for identifier and status (fall back to task.json for migration)
+          const issueFile = path.join(issueDir, "issue.json");
+          const legacyFile = path.join(issueDir, "task.json");
+          const taskFile = existsSync(issueFile) ? issueFile : legacyFile;
           if (existsSync(taskFile)) {
             try {
               const taskData = JSON.parse(readFileSync(taskFile, "utf-8"));
@@ -1363,23 +1348,6 @@ export class WorktreeManager {
         });
       }
 
-      // Write TASK.md if we have pending context for this worktree
-      const pendingCtx = this.pendingWorktreeContext.get(worktreeId);
-      if (pendingCtx) {
-        try {
-          const notes = this.notesManager.loadNotes(
-            pendingCtx.data.source,
-            pendingCtx.data.issueId,
-          );
-          const hooks = this.taskHooksProvider?.(worktreeId) ?? undefined;
-          const content = generateTaskMd(pendingCtx.data, pendingCtx.aiContext, notes.todos, hooks);
-          writeTaskMd(worktreePath, content);
-        } catch {
-          // Non-critical — don't fail worktree creation
-        }
-        this.pendingWorktreeContext.delete(worktreeId);
-      }
-
       updateStatus("Running worktree-created hooks...");
       await this.runWorktreeLifecycleHooks("worktree-created", worktreeId, worktreePath);
 
@@ -1411,9 +1379,6 @@ export class WorktreeManager {
       const message = error instanceof Error ? error.message : "Failed to create worktree";
       log.error(`Failed to create ${worktreeId}: ${message}`);
       updateStatus(`Error: ${message}`);
-
-      // Clean up pending context on error
-      this.pendingWorktreeContext.delete(worktreeId);
 
       // Call failure callback (e.g. to NOT link worktree)
       const callbacks = this.worktreeCallbacks.get(worktreeId);
@@ -2022,6 +1987,14 @@ export class WorktreeManager {
     return this.configDir;
   }
 
+  setStartupCwd(cwd: string): void {
+    this.startupCwd = cwd;
+  }
+
+  getStartupCwd(): string {
+    return this.startupCwd ?? this.configDir;
+  }
+
   suppressFileChangeNotification(category: FileChangeCategory): void {
     this.suppressedFileChangeCategories.add(category);
   }
@@ -2425,30 +2398,8 @@ export class WorktreeManager {
     const notes = this.notesManager.loadNotes("jira", resolvedKey);
     const aiContext = notes.aiContext?.content ?? null;
 
-    // Set pending context so TASK.md gets written after worktree creation
     const worktreesPath = this.getWorktreesAbsolutePath();
     const worktreePath = path.join(worktreesPath, resolvedKey);
-
-    this.setPendingWorktreeContext(resolvedKey, {
-      data: {
-        source: "jira",
-        issueId: resolvedKey,
-        identifier: taskData.key,
-        title: taskData.summary,
-        description: taskData.description,
-        status: taskData.status,
-        url: taskData.url,
-        comments: taskData.comments.slice(0, 10),
-        attachments: taskData.attachments
-          .filter((a) => a.localPath)
-          .map((a) => ({
-            filename: a.filename,
-            localPath: a.localPath,
-            mimeType: a.mimeType,
-          })),
-      },
-      aiContext,
-    });
 
     // Create worktree using custom branch or generated name from rule
     const worktreeBranch =
@@ -2469,7 +2420,6 @@ export class WorktreeManager {
     );
 
     if (!result.success) {
-      this.clearPendingWorktreeContext(resolvedKey);
       if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
         const canonicalWorktreeId = result.worktreeId;
         this.notesManager.setLinkedWorktreeId("jira", resolvedKey, canonicalWorktreeId);
@@ -2514,7 +2464,7 @@ export class WorktreeManager {
         comments: taskData.comments.slice(0, 10),
       },
       aiContext,
-      instructions: `Worktree is being created at ${worktreePath}. Once creation completes (check with list_worktrees), navigate to the worktree directory and start implementing the task. A TASK.md file with full context will be available in the worktree root.`,
+      instructions: `Worktree is being created at ${worktreePath}. Once creation completes (check with list_worktrees), navigate to the worktree directory and start implementing the task. Run \`openkit task context\` in the worktree to get full task details.`,
     };
   }
 
@@ -2600,7 +2550,6 @@ export class WorktreeManager {
     const notes = this.notesManager.loadNotes("linear", resolvedId);
     const aiContext = notes.aiContext?.content ?? null;
 
-    // Set pending context so TASK.md gets written after worktree creation
     const worktreesPath = this.getWorktreesAbsolutePath();
     const worktreePath = path.join(worktreesPath, resolvedId);
 
@@ -2609,25 +2558,6 @@ export class WorktreeManager {
       body: c.body ?? "",
       created: c.createdAt,
     }));
-
-    this.setPendingWorktreeContext(resolvedId, {
-      data: {
-        source: "linear",
-        issueId: resolvedId,
-        identifier: issueDetail.identifier,
-        title: issueDetail.title,
-        description: issueDetail.description ?? "",
-        status: issueDetail.state.name,
-        url: issueDetail.url,
-        comments: linearComments,
-        linkedResources: issueDetail.attachments.map((a) => ({
-          title: a.title,
-          url: a.url,
-          sourceType: a.sourceType,
-        })),
-      },
-      aiContext,
-    });
 
     // Create worktree using custom branch or generated name from rule
     const worktreeBranch =
@@ -2672,7 +2602,6 @@ export class WorktreeManager {
     }
 
     if (!result.success) {
-      this.clearPendingWorktreeContext(resolvedId);
       if (result.code === "WORKTREE_EXISTS" && result.worktreeId) {
         const canonicalWorktreeId = result.worktreeId;
         this.notesManager.setLinkedWorktreeId("linear", resolvedId, canonicalWorktreeId);
@@ -2715,7 +2644,7 @@ export class WorktreeManager {
         comments: linearComments,
       },
       aiContext,
-      instructions: `Worktree is being created at ${worktreePath}. Once creation completes (check with list_worktrees), navigate to the worktree directory and start implementing the task. A TASK.md file with full context will be available in the worktree root.`,
+      instructions: `Worktree is being created at ${worktreePath}. Once creation completes (check with list_worktrees), navigate to the worktree directory and start implementing the task. Run \`openkit task context\` in the worktree to get full task details.`,
     };
   }
 }

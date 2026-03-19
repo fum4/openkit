@@ -15,7 +15,6 @@ function bindIntentLoad() {
   const toggleButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>("[data-download-toggle]"),
   );
-  if (toggleButtons.length === 0) return;
 
   toggleButtons.forEach((toggle) => {
     toggle.addEventListener("click", async (event) => {
@@ -31,6 +30,9 @@ function bindIntentLoad() {
 
 function initDownloadBootstrap() {
   bindIntentLoad();
+  // Load download script eagerly so the main button gets the correct
+  // artifact URL immediately, not just when the dropdown is toggled.
+  loadDownloadEnhancements();
 }
 
 if (document.readyState === "complete") {

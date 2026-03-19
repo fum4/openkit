@@ -48,7 +48,7 @@ References to skills from the `~/.openkit/skills/` registry. When hooks run, ski
 
 ### Prompt Steps
 
-Prompt steps are plain-language instructions sent to the agent (not shell commands). They are configured in hooks and rendered into `TASK.md` so agents execute them at the appropriate hook phase.
+Prompt steps are plain-language instructions sent to the agent (not shell commands). They are configured in hooks and retrieved via `openkit task context` so agents execute them at the appropriate hook phase.
 
 - Stored as hook steps with `kind: "prompt"` and `prompt` text.
 - Prompt steps are never executed via `run_hooks`.
@@ -178,7 +178,7 @@ When hooks are triggered for a worktree:
 1. The `HooksManager` filters steps by the target trigger type and enabled state.
 2. If a trigger has no enabled hook entries at all (no command steps, prompt steps, or skills), the run is treated as a no-op and returns immediately.
 3. All matching enabled command steps run in parallel via `execFile` in the worktree directory.
-4. Prompt steps are skipped by runtime execution and interpreted by the agent from `TASK.md`.
+4. Prompt steps are skipped by runtime execution and interpreted by the agent via `openkit task context`.
 5. Results (command steps and skill results) are collected and persisted to `.openkit/worktrees/{worktreeId}/hooks.json`.
 6. Skill results are reported by agents into the same file using key `skillName + trigger`.
 7. `worktree-created` and `worktree-removed` command hooks are triggered automatically by CLI-backed create/remove flows (server mode, MCP standalone mode, and `openkit task --init` worktree creation). Prompt and skill entries for these lifecycle triggers are configured and reported the same way as other agent-interpreted hook items.
