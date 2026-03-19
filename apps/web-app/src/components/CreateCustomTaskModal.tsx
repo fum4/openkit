@@ -3,6 +3,7 @@ import { FileText, Paperclip, X } from "lucide-react";
 
 import { useErrorToast } from "../hooks/useErrorToast";
 import { customTask, getLabelColor, text } from "../theme";
+import { ConfirmModal } from "./ConfirmModal";
 import { Modal } from "./Modal";
 import { ImageModal } from "./ImageModal";
 import { AttachmentThumbnail } from "./AttachmentThumbnail";
@@ -36,6 +37,7 @@ export function CreateCustomTaskModal({
   const [files, setFiles] = useState<File[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [previewImage, setPreviewImage] = useState<{
     src: string;
     filename: string;
@@ -52,7 +54,10 @@ export function CreateCustomTaskModal({
     files.length > 0;
 
   const handleClose = () => {
-    if (isDirty && !window.confirm("Discard changes?")) return;
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+      return;
+    }
     onClose();
   };
 
@@ -303,6 +308,16 @@ export function CreateCustomTaskModal({
           filename={previewImage.filename}
           type={previewImage.type}
           onClose={() => setPreviewImage(null)}
+        />
+      )}
+
+      {showDiscardConfirm && (
+        <ConfirmModal
+          title="Discard changes?"
+          message="Your task details will be lost."
+          confirmLabel="Discard"
+          onConfirm={onClose}
+          onCancel={() => setShowDiscardConfirm(false)}
         />
       )}
     </Modal>
