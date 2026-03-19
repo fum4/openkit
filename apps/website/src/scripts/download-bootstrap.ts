@@ -31,6 +31,9 @@ function bindIntentLoad() {
 
 function initDownloadBootstrap() {
   bindIntentLoad();
+  // Load download script eagerly so the main button gets the correct
+  // artifact URL immediately, not just when the dropdown is toggled.
+  loadDownloadEnhancements();
 }
 
 if (document.readyState === "complete") {

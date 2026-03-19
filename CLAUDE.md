@@ -24,7 +24,7 @@ OpenKit's own MCP server has been removed from the codebase. The `openkit mcp` C
 
 ## README Requirement
 
-Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root. The README should briefly describe the package's purpose, key technologies, and basic usage. When creating a new app or library, include a README as part of the initial setup.
+Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root. The README should briefly describe the package's purpose, key technologies, and basic usage. When creating a new app or library, include a README as part of the initial setup. **Keep READMEs updated** — when adding, removing, or changing modules/exports in a package, update its README to reflect the current state. A stale README is worse than no README.
 
 ## Mirror File Requirement
 
@@ -78,6 +78,7 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 - When writing `try/catch`, `Promise.catch`, error callbacks, or conditional error branches, always ask: "If this fails in production, will I be able to diagnose it from the logs alone?" If the answer is no, add more context.
 - Include actionable metadata in error logs: what operation failed, what inputs caused it, and any IDs or state needed to reproduce (for example worktreeId, projectName, endpoint, status code).
 - Never swallow errors silently. If you genuinely cannot handle an error, re-throw it or log it at `warn`/`error` level with context — do not leave an empty catch block.
+- **Errors returned to users and logged must always contain the maximum possible diagnostic information.** Generic messages like "process failed" or "exit code 127" are never acceptable on their own. Always include: what command/operation was attempted, what inputs/arguments were used, what environment was in play (for example PATH, working directory), and a human-readable diagnostic hint explaining the likely cause. The goal is that any error — whether in a toast, activity feed event, API response, or log entry — gives enough context to diagnose the problem without needing to reproduce it.
 
 ## Operational Logging
 
@@ -85,6 +86,15 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 - Always log start and terminal outcome (success/failure) for git operations, CLI commands, HTTP requests, workflow transitions, notifications, and other behind-the-scenes actions.
 - Include actionable metadata whenever available (for example command, args, cwd, status code, request/response payload metadata, worktreeId, projectName, and error details).
 - Errors that surface as toasts must also be present in ops logs; toasts do not replace logging.
+
+## Child Process PATH Handling
+
+**Always use `withAugmentedPathEnv()` from `@openkit/shared/command-path` when spawning child processes that run user-installed tools** (for example `pnpm`, `npm`, `node`, `adb`, `brew`). Never pass bare `process.env` — in packaged Electron apps, `process.env.PATH` is minimal (`/usr/bin:/bin:/usr/sbin:/sbin`) and does not include Homebrew, nvm, fnm, volta, or `~/.local/bin`.
+
+- `withAugmentedPathEnv()` resolves the user's full shell PATH by spawning their login shell once, then caches it for the lifetime of the process. This captures everything from `.zshrc`/`.bash_profile` including version managers.
+- If a spawned process exits with code 127 ("command not found"), call `invalidateShellPath()` to force re-resolution, then retry the spawn once. The user may have installed the missing tool since the last resolution. The worktree manager already implements this retry-on-127 pattern — follow it for any new spawn sites.
+- System utilities in `/usr/bin` (for example `git`, `rm`, `pgrep`, `lsof`) work without augmentation but using it is harmless and preferred for consistency.
+- `resolveCommandPath(command)` resolves a bare command name to its absolute path using the augmented PATH — use it for `execFile()` calls where you want to fail early with a clear error if the command doesn't exist.
 
 ## Debugging
 
