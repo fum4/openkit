@@ -1,9 +1,8 @@
 /**
- * Application entry point. Bootstraps Monaco workers, React Query,
- * global error handling, and renders the root App component.
+ * Application entry point. Bootstraps React Query, global error handling,
+ * and renders the root App component.
  */
 import "./index.css";
-import "./monaco-setup";
 
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
