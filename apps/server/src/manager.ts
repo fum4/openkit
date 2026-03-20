@@ -106,7 +106,12 @@ const OPEN_PROJECT_TARGETS = new Set<NonNullable<WorktreeConfig["openProjectTarg
 ]);
 
 const AGENT_GIT_POLICY_KEYS = ["allowAgentCommits", "allowAgentPushes", "allowAgentPRs"] as const;
-const LOCAL_CONFIG_KEYS = [...AGENT_GIT_POLICY_KEYS, "useNativePortHook"] as const;
+const LOCAL_CONFIG_KEYS = [
+  ...AGENT_GIT_POLICY_KEYS,
+  "useNativePortHook",
+  "autoCleanupOnPrMerge",
+  "autoCleanupOnPrClose",
+] as const;
 
 function isConfiguredOpenProjectTarget(
   value: unknown,
@@ -260,6 +265,8 @@ export class WorktreeManager {
       allowAgentPushes: policy.allowAgentPushes,
       allowAgentPRs: policy.allowAgentPRs,
       useNativePortHook: local.useNativePortHook === true,
+      autoCleanupOnPrMerge: local.autoCleanupOnPrMerge ?? config.autoCleanupOnPrMerge,
+      autoCleanupOnPrClose: local.autoCleanupOnPrClose ?? config.autoCleanupOnPrClose,
     };
   }
 
@@ -400,6 +407,8 @@ export class WorktreeManager {
           ? fileConfig.openProjectTarget
           : this.config.openProjectTarget,
         showDiffStats: fileConfig.showDiffStats ?? this.config.showDiffStats,
+        autoCleanupOnPrMerge: fileConfig.autoCleanupOnPrMerge ?? this.config.autoCleanupOnPrMerge,
+        autoCleanupOnPrClose: fileConfig.autoCleanupOnPrClose ?? this.config.autoCleanupOnPrClose,
         activity: sanitizeActivityConfig(fileConfig.activity ?? this.config.activity),
       });
 
@@ -2014,6 +2023,8 @@ export class WorktreeManager {
         allowAgentPushes: boolean;
         allowAgentPRs: boolean;
         useNativePortHook: boolean;
+        autoCleanupOnPrMerge: boolean;
+        autoCleanupOnPrClose: boolean;
       }> = {};
 
       for (const key of LOCAL_CONFIG_KEYS) {

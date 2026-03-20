@@ -14,6 +14,8 @@ export interface LocalConfig {
   useNativePortHook?: boolean;
   shortcuts?: Record<string, string>;
   arrowNavEnabled?: boolean;
+  autoCleanupOnPrMerge?: boolean;
+  autoCleanupOnPrClose?: boolean;
 }
 
 function getLocalConfigPath(configDir: string): string {
@@ -39,6 +41,12 @@ function sanitizeLocalConfig(value: unknown): LocalConfig {
   }
   if (typeof raw.arrowNavEnabled === "boolean") {
     next.arrowNavEnabled = raw.arrowNavEnabled;
+  }
+  if (typeof raw.autoCleanupOnPrMerge === "boolean") {
+    next.autoCleanupOnPrMerge = raw.autoCleanupOnPrMerge;
+  }
+  if (typeof raw.autoCleanupOnPrClose === "boolean") {
+    next.autoCleanupOnPrClose = raw.autoCleanupOnPrClose;
   }
   if (raw.shortcuts && typeof raw.shortcuts === "object") {
     const shortcuts: Record<string, string> = {};
@@ -78,6 +86,14 @@ export function ensureLocalConfigDefaults(configDir: string): void {
   }
   if (current.arrowNavEnabled === undefined) {
     current.arrowNavEnabled = true;
+    needsWrite = true;
+  }
+  if (current.autoCleanupOnPrMerge === undefined) {
+    current.autoCleanupOnPrMerge = false;
+    needsWrite = true;
+  }
+  if (current.autoCleanupOnPrClose === undefined) {
+    current.autoCleanupOnPrClose = false;
     needsWrite = true;
   }
   if (!current.shortcuts) {
