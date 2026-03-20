@@ -24,6 +24,8 @@ export const test = base.extend<{
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openkit-e2e-"));
 
     execFileSync("git", ["init"], { cwd: dir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "e2e"], { cwd: dir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "e2e@test"], { cwd: dir, stdio: "ignore" });
     execFileSync("git", ["commit", "--allow-empty", "-m", "init"], {
       cwd: dir,
       stdio: "ignore",

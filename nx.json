@@ -32,26 +32,22 @@
       "inputs": ["default", "^default"]
     },
     "test:unit:watch": {
-      "cache": true,
-      "inputs": ["default", "^default"]
+      "cache": false
     },
     "test:unit:coverage": {
       "cache": true,
       "inputs": ["default", "^default"]
     },
     "test:e2e": {
-      "cache": true,
-      "dependsOn": ["desktop-app:build"],
-      "inputs": ["default", "^default"]
+      "cache": false,
+      "dependsOn": ["desktop-app:build"]
     },
     "test:e2e:ui": {
-      "cache": true,
-      "dependsOn": ["desktop-app:build"],
-      "inputs": ["default", "^default"]
+      "cache": false,
+      "dependsOn": ["desktop-app:build"]
     },
     "test:e2e:report": {
-      "cache": true,
-      "inputs": ["default", "^default"]
+      "cache": false
     },
     "check:types": {
       "cache": true,
