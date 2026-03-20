@@ -113,7 +113,7 @@ if [ ${#brew_missing[@]} -gt 0 ]; then
   brew_formula_for() {
     case "$1" in
       node)    echo "node" ;;
-      go)      echo "go@1.25" ;;
+      go)      echo "go@1.25" ;;  # pinned: TinyGo requires Go ≤ 1.25 — update when TinyGo supports newer versions
       tinygo)  echo "tinygo-org/tools/tinygo" ;;
       zig)     echo "zig" ;;
       *)       echo "$1" ;;
@@ -189,10 +189,15 @@ if [ ${#brew_missing[@]} -gt 0 ]; then
     echo ""
     success "Dependencies installed."
 
+    # Clear the shell's command-location cache so just-installed binaries are found
+    hash -r 2>/dev/null
+
     # go@1.25 is keg-only (not linked by default) — link it so `go` is in PATH
     for formula in "${to_install[@]}"; do
       if [ "$formula" = "go@1.25" ]; then
-        brew link go@1.25 --force 2>/dev/null && success "go@1.25 linked as the active Go version."
+        brew link go@1.25 --force 2>/dev/null \
+          && success "go@1.25 linked as the active Go version." \
+          || warn "Could not link go@1.25 — you may need to run 'brew link go@1.25 --force' manually."
         break
       fi
     done
