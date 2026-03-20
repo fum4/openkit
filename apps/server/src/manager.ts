@@ -320,7 +320,7 @@ export class WorktreeManager {
 
     const classifyOpenkitFile = (filename: string): FileChangeCategory | null => {
       if (filename === "config.json") return "config";
-      if (filename === "local-config.json") return "local-config";
+      if (filename === "config.local.json") return "local-config";
       if (filename === "hooks.json") return "hooks";
       if (filename.startsWith("branch-name")) return "branch-rules";
       if (filename.startsWith("commit-message")) return "commit-rules";

@@ -5,7 +5,7 @@ import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
 
 import type { WorktreeConfig } from "./types";
 
-const LOCAL_CONFIG_FILE_NAME = "local-config.json";
+const LOCAL_CONFIG_FILE_NAME = "config.local.json";
 
 export interface LocalConfig {
   allowAgentCommits?: boolean;

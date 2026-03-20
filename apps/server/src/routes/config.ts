@@ -563,7 +563,7 @@ export function registerConfigRoutes(app: Hono, manager: WorktreeManager) {
     return c.json({ branch, isWorktree, worktreeName });
   });
 
-  // -- Local Config API (local-config.json — not synced to git) --
+  // -- Local Config API (config.local.json — not synced to git) --
 
   app.get("/api/local-config", (c) => {
     const configDir = manager.getConfigDir();
