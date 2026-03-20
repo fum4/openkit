@@ -62,15 +62,15 @@ pnpm dev
 
 OpenKit uses **Vitest** for unit and component testing across the workspace.
 
-| Command                         | Description                          |
-| ------------------------------- | ------------------------------------ |
-| `pnpm test`                     | Run all tests via Nx                 |
-| `pnpm test:affected`            | Run tests only for affected projects |
-| `pnpm test:coverage`            | Run all tests with V8 coverage       |
-| `pnpm nx run server:test`       | Run server tests                     |
-| `pnpm nx run web-app:test`      | Run web-app tests                    |
-| `pnpm nx run shared:test`       | Run shared lib tests                 |
-| `pnpm nx run server:test:watch` | Run server tests in watch mode       |
+| Command                              | Description                          |
+| ------------------------------------ | ------------------------------------ |
+| `pnpm test:unit`                     | Run all unit tests via Nx            |
+| `pnpm test:unit:affected`            | Run tests only for affected projects |
+| `pnpm test:unit:coverage`            | Run all tests with V8 coverage       |
+| `pnpm nx run server:test:unit`       | Run server tests                     |
+| `pnpm nx run web-app:test:unit`      | Run web-app tests                    |
+| `pnpm nx run shared:test:unit`       | Run shared lib tests                 |
+| `pnpm nx run server:test:unit:watch` | Run server tests in watch mode       |
 
 ### Test Organization
 
@@ -102,6 +102,20 @@ Test utilities:
 Runtime note: UI assets are optional in core installs. The CLI can install optional UI components with `openkit ui` (web bundle and/or desktop app).
 
 App script contract: app packages expose a non-watch `preview` script for running built artifacts and a `start` script that builds first, then runs preview. `desktop-app` follows the same direction and uses Nx (`desktop-app:build`) inside its `start` script so dependent app artifacts are built before launch.
+
+## E2E Testing
+
+OpenKit uses **Playwright** with Electron support for end-to-end tests. E2E tests launch the real desktop app and exercise full user flows.
+
+| Command                          | Description                                  |
+| -------------------------------- | -------------------------------------------- |
+| `pnpm e2e`                       | Run all E2E tests (builds desktop-app first) |
+| `pnpm nx run e2e:e2e:ui`         | Interactive Playwright UI for debugging      |
+| `cd apps/e2e && pnpm e2e:report` | View last test report                        |
+
+Tests use `__WM_PORT_OFFSET__=900` for instance isolation — the test Electron app gets its own userData directory and single-instance lock, so it won't conflict with any running dev instance.
+
+On failure, check `apps/e2e/playwright-report/` for screenshots and traces.
 
 ## Nx Workspace
 

@@ -7,7 +7,13 @@
     "build": {
       "outputs": ["{workspaceRoot}/apps/web-app/dist"]
     },
-    "test": {
+    "test:unit": {
+      "dependsOn": ["logger:build"]
+    },
+    "test:watch": {
+      "dependsOn": ["logger:build"]
+    },
+    "test:unit:coverage": {
       "dependsOn": ["logger:build"]
     }
   }

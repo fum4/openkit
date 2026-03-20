@@ -17,9 +17,9 @@
     "package": "pnpm package:mac && pnpm package:linux",
     "package:mac": "pnpm exec electron-builder --config electron-builder.yml --mac --publish never",
     "package:linux": "pnpm exec electron-builder --config electron-builder.yml --linux AppImage --publish never",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:unit:coverage": "vitest run --coverage",
     "check:types": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {

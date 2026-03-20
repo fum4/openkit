@@ -1,6 +1,5 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
-import path from "path";
 
 const webAppPort = Number.parseInt(process.env.OPENKIT_WEB_APP_PORT ?? "5173");
 const serverPort = Number.parseInt(process.env.OPENKIT_SERVER_PORT ?? "6969");
@@ -43,12 +42,7 @@ export default defineConfig({
       },
     },
   ],
-  root: path.resolve(__dirname, "src"),
   base: "./",
-  build: {
-    outDir: path.resolve(__dirname, "dist"),
-    emptyOutDir: true,
-  },
   server: {
     port: webAppPort,
     proxy: {
@@ -62,12 +56,12 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     globals: true,
-    include: ["**/*.test.{ts,tsx}"],
-    setupFiles: ["__test__/setup.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["src/__test__/setup.ts"],
     coverage: {
       provider: "v8",
-      include: ["**/*.{ts,tsx}"],
-      exclude: ["main.tsx", "__test__/**"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/main.tsx", "src/__test__/**"],
     },
   },
 });

@@ -123,22 +123,43 @@
     {
       "type": "node-terminal",
       "request": "launch",
-      "name": "🧪 Test (all)",
-      "command": "pnpm test",
+      "name": "🧪 Test (unit)",
+      "command": "pnpm test:unit",
       "cwd": "${workspaceFolder}"
     },
     {
       "type": "node-terminal",
       "request": "launch",
-      "name": "🧪 Test (affected)",
-      "command": "pnpm test:affected",
+      "name": "🧪 Test (unit:affected)",
+      "command": "pnpm test:unit:affected",
       "cwd": "${workspaceFolder}"
     },
     {
       "type": "node-terminal",
       "request": "launch",
-      "name": "🧪 Test (coverage)",
-      "command": "pnpm test:coverage",
+      "name": "🧪 Test (unit:coverage)",
+      "command": "pnpm test:unit:coverage",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🧪 Test (e2e)",
+      "command": "pnpm test:e2e",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🧪 Test (e2e:ui)",
+      "command": "pnpm test:e2e:ui",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "🧪 Test (e2e:report)",
+      "command": "pnpm test:e2e:report",
       "cwd": "${workspaceFolder}"
     },
     {

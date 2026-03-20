@@ -12,10 +12,13 @@ jobs:
   check-affected:
     runs-on: ubuntu-latest
     outputs:
-      cli_startup: ${{ steps.set-outputs.outputs.cli_startup }}
+      cli: ${{ steps.set-outputs.outputs.cli }}
       server: ${{ steps.set-outputs.outputs.server }}
       web_app: ${{ steps.set-outputs.outputs.web_app }}
+      desktop_app: ${{ steps.set-outputs.outputs.desktop_app }}
       shared: ${{ steps.set-outputs.outputs.shared }}
+      port_offset: ${{ steps.set-outputs.outputs.port_offset }}
+      e2e: ${{ steps.e2e-affected.outputs.affected }}
 
     steps:
       - uses: actions/checkout@v6
@@ -24,32 +27,26 @@ jobs:
       - uses: ./.github/actions/setup-deps
         with:
           deps: pnpm,node
-      - id: smoke-affected
-        uses: ./.github/actions/check-affected-target
-        with:
-          base-sha: ${{ github.event.pull_request.base.sha }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-          targets: build
-          project-type: app
-          include-projects: cli,server
       - id: test-affected
         uses: ./.github/actions/check-affected-target
         with:
           base-sha: ${{ github.event.pull_request.base.sha }}
           head-sha: ${{ github.event.pull_request.head.sha }}
-          targets: test
+          targets: test:unit
+      - id: e2e-affected
+        uses: ./.github/actions/check-affected-target
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          targets: test:e2e
       - id: set-outputs
         shell: bash
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          SMOKE_AFFECTED: ${{ steps.smoke-affected.outputs.affected }}
           TEST_PROJECTS: ${{ steps.test-affected.outputs.projects }}
         run: |
           set -euo pipefail
 
-          # Per-project test flags
-          for project in server web-app shared; do
+          for project in cli server web-app desktop-app shared port-offset; do
             key="${project//-/_}"
             if [[ ",${TEST_PROJECTS}," == *",${project},"* ]]; then
               echo "${key}=true" >> "${GITHUB_OUTPUT}"
@@ -58,17 +55,9 @@ jobs:
             fi
           done
 
-          # CLI startup smoke test — also runs when CI infra files change
-          cli_startup="${SMOKE_AFFECTED}"
-          changed="$(git diff --name-only --no-renames "${BASE_SHA}" "${HEAD_SHA}")"
-          if echo "${changed}" | grep -Eq '^(\.github/workflows/test\.yml$|\.github/actions/setup-deps/|\.github/actions/check-affected-target/)'; then
-            cli_startup="true"
-          fi
-          echo "cli_startup=${cli_startup}" >> "${GITHUB_OUTPUT}"
-
   smoke-cli:
     needs: check-affected
-    if: needs.check-affected.outputs.cli_startup == 'true'
+    if: needs.check-affected.outputs.cli == 'true'
     name: cli (smoke) (${{ matrix.os_name }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12
@@ -125,6 +114,19 @@ jobs:
           cat "${{ matrix.log_file }}" || true
           exit 1
 
+  unit-cli:
+    needs: check-affected
+    if: needs.check-affected.outputs.cli == 'true'
+    name: cli (unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
+      - run: pnpm nx run cli:test:unit:coverage
+
   unit-server:
     needs: check-affected
     if: needs.check-affected.outputs.server == 'true'
@@ -136,8 +138,11 @@ jobs:
       - uses: ./.github/actions/setup-deps
         with:
           deps: pnpm,node
-      - run: pnpm nx run server:test
+      - run: pnpm nx run server:test:unit:coverage
 
+  # web-app needs go,tinygo because it imports @openkit/logger/browser (WASM),
+  # which requires the logger build. Other packages use the Node FFI logger
+  # that degrades gracefully without the native build.
   unit-web-app:
     needs: check-affected
     if: needs.check-affected.outputs.web_app == 'true'
@@ -149,7 +154,7 @@ jobs:
       - uses: ./.github/actions/setup-deps
         with:
           deps: pnpm,node,go,tinygo
-      - run: pnpm nx run web-app:test
+      - run: pnpm nx run web-app:test:unit:coverage
 
   unit-shared:
     needs: check-affected
@@ -162,4 +167,43 @@ jobs:
       - uses: ./.github/actions/setup-deps
         with:
           deps: pnpm,node
-      - run: pnpm nx run shared:test
+      - run: pnpm nx run shared:test:unit:coverage
+
+  unit-desktop-app:
+    needs: check-affected
+    if: needs.check-affected.outputs.desktop_app == 'true'
+    name: desktop-app (unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
+      - run: pnpm nx run desktop-app:test:unit:coverage
+
+  unit-port-offset:
+    needs: check-affected
+    if: needs.check-affected.outputs.port_offset == 'true'
+    name: port-offset (unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
+      - run: pnpm nx run port-offset:test:unit:coverage
+
+  e2e:
+    needs: check-affected
+    if: needs.check-affected.outputs.e2e == 'true'
+    name: e2e
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node,go,tinygo,zig
+      - run: pnpm nx run e2e:test:e2e
