@@ -8,6 +8,9 @@ import {
   withAugmentedPathEnv,
 } from "@openkit/shared/command-path";
 import { configureGitUser } from "@openkit/integrations/github/gh-client";
+import { getChangedFiles, getFileContent } from "@openkit/integrations/github/git-diff";
+import type { DiffFileInfo } from "@openkit/shared/worktree-types";
+
 import type { WorktreeManager } from "../manager";
 
 const DEVICE_LOGIN_URL = "https://github.com/login/device";
@@ -290,6 +293,86 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
     }
     const result = await ghManager.pushBranch(resolved.worktree.path, resolved.worktreeId);
     return c.json(result, result.success ? 200 : 400);
+  });
+
+  app.get("/api/worktrees/:id/diff", async (c) => {
+    try {
+      const id = c.req.param("id");
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+      }
+      const includeCommitted = c.req.query("includeCommitted") === "true";
+      const baseBranch = manager.getConfig().baseBranch;
+      const result = await getChangedFiles(resolved.worktree.path, baseBranch, includeCommitted);
+      return c.json({
+        success: true,
+        files: result.files,
+        baseBranch,
+        error: result.error,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          files: [],
+          baseBranch: "",
+          error: error instanceof Error ? error.message : "Failed to get diff",
+        },
+        400,
+      );
+    }
+  });
+
+  app.get("/api/worktrees/:id/diff/file", async (c) => {
+    try {
+      const id = c.req.param("id");
+      const filePath = c.req.query("path");
+      const rawStatus = c.req.query("status") ?? "modified";
+      const validStatuses = new Set(["modified", "added", "deleted", "renamed", "untracked"]);
+      if (!filePath) {
+        return c.json(
+          { success: false, oldContent: "", newContent: "", error: "path query param is required" },
+          400,
+        );
+      }
+      if (!validStatuses.has(rawStatus)) {
+        return c.json(
+          { success: false, oldContent: "", newContent: "", error: `Invalid status: ${rawStatus}` },
+          400,
+        );
+      }
+      const fileStatus = rawStatus as DiffFileInfo["status"];
+      const oldPath = c.req.query("oldPath") || undefined;
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json(
+          { success: false, oldContent: "", newContent: "", error: resolved.error },
+          toResolutionStatus(resolved.code),
+        );
+      }
+      const includeCommitted = c.req.query("includeCommitted") === "true";
+      const baseBranch = manager.getConfig().baseBranch;
+      const result = await getFileContent(
+        resolved.worktree.path,
+        filePath,
+        fileStatus,
+        baseBranch,
+        includeCommitted,
+        oldPath,
+      );
+      return c.json({ success: !result.error, ...result });
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          oldContent: "",
+          newContent: "",
+          error: error instanceof Error ? error.message : "Failed to get file content",
+        },
+        400,
+      );
+    }
   });
 
   app.post("/api/worktrees/:id/create-pr", async (c) => {

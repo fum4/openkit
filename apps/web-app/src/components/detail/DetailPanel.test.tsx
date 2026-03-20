@@ -17,6 +17,9 @@ vi.mock("./TerminalView", () => ({
 vi.mock("./HooksTab", () => ({
   HooksTab: () => <div data-testid="hooks-tab" />,
 }));
+vi.mock("./DiffViewerTab", () => ({
+  DiffViewerTab: () => <div data-testid="diff-viewer-tab" />,
+}));
 vi.mock("../ConfirmDialog", () => ({
   ConfirmDialog: () => <div data-testid="confirm-dialog" />,
 }));

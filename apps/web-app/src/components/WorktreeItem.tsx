@@ -58,9 +58,11 @@ export function WorktreeItem({
         <div className="flex items-center gap-1.5">
           <span className={`text-xs font-semibold ${text.primary} truncate`}>{worktree.id}</span>
           {showDiffStats && !isCreating && !!(worktree.linesAdded || worktree.linesRemoved) && (
-            <span className="flex items-center gap-1 flex-shrink-0 text-[10px] font-medium ml-1">
-              <span className="text-accent/60">+{worktree.linesAdded ?? 0}</span>
-              <span style={{ color: palette.red }} className="opacity-60">
+            <span className="flex items-center gap-1 flex-shrink-0 text-[10px] font-mono font-medium ml-1">
+              <span style={{ color: palette.green }} className="opacity-70">
+                +{worktree.linesAdded ?? 0}
+              </span>
+              <span style={{ color: palette.red }} className="opacity-70">
                 -{worktree.linesRemoved ?? 0}
               </span>
             </span>

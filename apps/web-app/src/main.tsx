@@ -1,3 +1,7 @@
+/**
+ * Application entry point. Bootstraps React Query, global error handling,
+ * and renders the root App component.
+ */
 import "./index.css";
 
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";

@@ -148,6 +148,9 @@ export function reportDetailedErrorToast(
 export function GlobalErrorToasts() {
   useEffect(() => {
     const onUnhandledError = (event: ErrorEvent) => {
+      // Cross-origin script errors (e.g. Monaco CDN workers) surface as "Script error."
+      // with no actionable info — suppress them.
+      if (event.message === "Script error.") return;
       reportPersistentErrorToast(event.error ?? event.message, DEFAULT_ERROR_MESSAGE, {
         scope: "window:error",
       });

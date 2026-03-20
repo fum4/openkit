@@ -344,6 +344,14 @@ export interface SkillScanResult {
   alreadyInRegistry: boolean;
 }
 
+// ─── Diff Viewer ────────────────────────────────────────────────
+
+export type {
+  DiffFileInfo,
+  DiffListResponse,
+  DiffFileContentResponse,
+} from "@openkit/shared/worktree-types";
+
 // ─── Jira types ─────────────────────────────────────────────────
 
 export interface JiraIssueDetail {
