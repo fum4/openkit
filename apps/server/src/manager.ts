@@ -441,6 +441,66 @@ export class WorktreeManager {
     return this.githubManager;
   }
 
+  private async handlePrStateChange(
+    worktreeId: string,
+    _oldState: string,
+    newState: string,
+  ): Promise<void> {
+    const config = this.getConfig();
+
+    if (newState === "merged" && !config.autoCleanupOnPrMerge) return;
+    if (newState === "closed" && !config.autoCleanupOnPrClose) return;
+
+    // Safety gate: check for uncommitted or unpushed changes
+    const git = this.githubManager?.getCachedGitStatus(worktreeId);
+    if (git) {
+      const hasUnpushed = git.ahead > 0 || git.noUpstream;
+      if (git.hasUncommitted || hasUnpushed) {
+        log.info(`Auto-cleanup skipped for "${worktreeId}" — dirty state`, {
+          domain: "auto-cleanup",
+          worktreeId,
+          hasUncommitted: git.hasUncommitted,
+          hasUnpushed,
+        });
+        this.activityLog.addEvent({
+          category: "worktree",
+          type: ACTIVITY_TYPES.AUTO_CLEANUP_SKIPPED,
+          severity: "warning",
+          title: "Auto-cleanup skipped",
+          detail: `Worktree "${worktreeId}" has uncommitted/unpushed changes — skipped auto-cleanup (PR was ${newState})`,
+          worktreeId,
+          projectName: this.activityProjectName(),
+        });
+        return;
+      }
+    }
+
+    log.info(`Auto-cleaning worktree "${worktreeId}" — PR was ${newState}`, {
+      domain: "auto-cleanup",
+      worktreeId,
+    });
+
+    const result = await this.removeWorktree(worktreeId);
+
+    if (result.success) {
+      this.activityLog.addEvent({
+        category: "worktree",
+        type: ACTIVITY_TYPES.AUTO_CLEANUP,
+        severity: "info",
+        title: "Worktree auto-deleted",
+        detail: `Worktree "${worktreeId}" was auto-deleted — PR was ${newState}`,
+        worktreeId,
+        projectName: this.activityProjectName(),
+      });
+    } else {
+      log.warn(`Auto-cleanup failed for "${worktreeId}": ${result.error}`, {
+        domain: "auto-cleanup",
+        worktreeId,
+        error: result.error,
+      });
+    }
+  }
+
   async initGitHub(): Promise<void> {
     this.githubManager = new GitHubManager();
     try {
@@ -448,6 +508,8 @@ export class WorktreeManager {
       this.githubManager.startPolling(
         () => this.getWorktrees(),
         () => this.notifyListeners(),
+        (worktreeId, oldState, newState) =>
+          this.handlePrStateChange(worktreeId, oldState, newState),
       );
       const status = this.githubManager.getStatus();
       if (status.repo) {
