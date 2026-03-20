@@ -119,7 +119,11 @@ export class GitHubManager {
     return this.config?.defaultBranch ?? null;
   }
 
-  startPolling(getWorktrees: () => WorktreeInfo[], onUpdate: () => void): void {
+  startPolling(
+    getWorktrees: () => WorktreeInfo[],
+    onUpdate: () => void,
+    onPrStateChange?: (worktreeId: string, oldState: string, newState: string) => void,
+  ): void {
     if (!this.isAvailable()) return;
 
     // Git status polling — every 3s
@@ -172,6 +176,20 @@ export class GitHubManager {
               pr &&
               (prev.url !== pr.url || prev.state !== pr.state || prev.isDraft !== pr.isDraft));
           if (prChanged) {
+            // Fire state-change callback for terminal transitions (not on cold start)
+            if (
+              onPrStateChange &&
+              prev && // prev must exist (not cold start)
+              pr &&
+              (pr.state === "merged" || pr.state === "closed")
+            ) {
+              const oldState = prev.isDraft ? "draft" : prev.state;
+              try {
+                onPrStateChange(wt.id, oldState, pr.state);
+              } catch {
+                // Don't let callback errors break polling
+              }
+            }
             this.prCache.set(wt.id, pr);
             changed = true;
           }
