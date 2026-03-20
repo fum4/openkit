@@ -9,6 +9,12 @@
     },
     "test:unit": {
       "dependsOn": ["logger:build"]
+    },
+    "test:watch": {
+      "dependsOn": ["logger:build"]
+    },
+    "test:unit:coverage": {
+      "dependsOn": ["logger:build"]
     }
   }
 }
