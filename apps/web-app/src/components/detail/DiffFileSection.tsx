@@ -106,9 +106,7 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
           ) : (
             <Chevron className="w-3.5 h-3.5 text-[#6b7280] flex-shrink-0" />
           )}
-          <span className="font-mono text-[11px] text-white/90 truncate text-left">
-            {file.path}
-          </span>
+          <span className="text-[11px] text-[#9ca3af] truncate text-left">{file.path}</span>
           <span
             className="text-[10px] font-mono font-semibold flex-shrink-0"
             style={{ color: statusColor }}
