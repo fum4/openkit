@@ -328,14 +328,22 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
     try {
       const id = c.req.param("id");
       const filePath = c.req.query("path");
-      const fileStatus = (c.req.query("status") ?? "modified") as DiffFileInfo["status"];
-      const oldPath = c.req.query("oldPath") || undefined;
+      const rawStatus = c.req.query("status") ?? "modified";
+      const validStatuses = new Set(["modified", "added", "deleted", "renamed", "untracked"]);
       if (!filePath) {
         return c.json(
           { success: false, oldContent: "", newContent: "", error: "path query param is required" },
           400,
         );
       }
+      if (!validStatuses.has(rawStatus)) {
+        return c.json(
+          { success: false, oldContent: "", newContent: "", error: `Invalid status: ${rawStatus}` },
+          400,
+        );
+      }
+      const fileStatus = rawStatus as DiffFileInfo["status"];
+      const oldPath = c.req.query("oldPath") || undefined;
       const resolved = manager.resolveWorktree(id);
       if (!resolved.success) {
         return c.json(
@@ -353,7 +361,7 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
         includeCommitted,
         oldPath,
       );
-      return c.json({ success: true, ...result });
+      return c.json({ success: !result.error, ...result });
     } catch (error) {
       return c.json(
         {

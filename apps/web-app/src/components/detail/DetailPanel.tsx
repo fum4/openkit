@@ -413,7 +413,31 @@ export function DetailPanel({
     [detailScopeKey],
   );
 
-  const activeTab = worktree ? (tabPerWorktree[worktree.id] ?? "logs") : "logs";
+  const AGENT_TABS = new Set<WorktreeTab>(["claude", "codex", "gemini", "opencode"]);
+  const agentTabOpenSets: Record<string, Set<string>> = {
+    claude: openClaudeTabs,
+    codex: openCodexTabs,
+    gemini: openGeminiTabs,
+    opencode: openOpenCodeTabs,
+  };
+
+  const resolveTab = (tab: WorktreeTab | undefined, wId: string): WorktreeTab => {
+    if (!tab) {
+      // Try persisted preference
+      try {
+        const stored = localStorage.getItem("openkit:detail-tab") as WorktreeTab | null;
+        if (stored && !AGENT_TABS.has(stored)) return stored;
+      } catch {}
+      return "changes";
+    }
+    // If the stored tab is an agent tab, check if it's open for this worktree
+    if (AGENT_TABS.has(tab) && !agentTabOpenSets[tab]?.has(wId)) {
+      return "changes";
+    }
+    return tab;
+  };
+
+  const activeTab = worktree ? resolveTab(tabPerWorktree[worktree.id], worktree.id) : "changes";
   const terminalProjectScopeKey = detailScopeKey;
 
   const setTabForWorktree = useCallback(
@@ -429,6 +453,12 @@ export function DetailPanel({
     (tab: WorktreeTab) => {
       if (!worktree) return;
       setTabForWorktree(worktree.id, tab);
+      // Persist non-agent tabs globally so new worktrees open to the same tab
+      if (!AGENT_TABS.has(tab)) {
+        try {
+          localStorage.setItem("openkit:detail-tab", tab);
+        } catch {}
+      }
     },
     [setTabForWorktree, worktree],
   );
@@ -1668,6 +1698,15 @@ export function DetailPanel({
           <div className="flex gap-1">
             <button
               type="button"
+              onClick={() => setActiveTab("changes")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors duration-150 ${
+                activeTab === "changes" ? detailTab.active : detailTab.inactive
+              }`}
+            >
+              Changes
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab("logs")}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors duration-150 ${
                 activeTab === "logs" ? detailTab.active : detailTab.inactive
@@ -1695,15 +1734,6 @@ export function DetailPanel({
               }`}
             >
               Hooks
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("changes")}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors duration-150 ${
-                activeTab === "changes" ? detailTab.active : detailTab.inactive
-              }`}
-            >
-              Changes
             </button>
             {openClaudeTabs.has(worktree.id) && (
               <div

@@ -47,6 +47,7 @@ describe("DiffFileSection", () => {
     viewMode: "unified" as const,
     worktreeId: "test-1",
     includeCommitted: false,
+    refreshKey: 0,
   };
 
   beforeEach(() => {
@@ -125,17 +126,17 @@ describe("DiffFileSection", () => {
     });
   });
 
-  it("shows file too large placeholder when both contents are empty", async () => {
+  it("renders editor for empty file content (e.g. empty new file)", async () => {
     mockFetchDiffFileContent.mockResolvedValue({
       success: true,
       oldContent: "",
       newContent: "",
     });
 
-    render(<DiffFileSection {...defaultProps} expanded file={makeFile({ status: "modified" })} />);
+    render(<DiffFileSection {...defaultProps} expanded file={makeFile({ status: "added" })} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/File too large/)).toBeInTheDocument();
+      expect(screen.getByTestId("diff-monaco-editor")).toBeInTheDocument();
     });
   });
 });

@@ -51,6 +51,9 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
       return 224;
     }
   });
+  const sidebarWidthRef = useRef(sidebarWidth);
+  sidebarWidthRef.current = sidebarWidth;
+  const [refreshKey, setRefreshKey] = useState(0);
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const contentRef = useRef<HTMLDivElement>(null);
   const fetchCountRef = useRef(0);
@@ -73,6 +76,13 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
         return;
       }
       setFiles(res.files);
+      setRefreshKey((k) => k + 1);
+      // Surface partial/full errors from git operations
+      if (res.error && res.files.length === 0) {
+        setError(res.error);
+      } else if (res.error) {
+        log.warn("Partial diff error", { domain: "diff", error: res.error });
+      }
       // Auto-expand if fewer than threshold
       if (res.files.length < FILES_EXPANDED_THRESHOLD) {
         setExpandedFiles(new Set(res.files.map((f) => f.path)));
@@ -190,9 +200,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Toolbar */}
-      <div
-        className={`flex-shrink-0 flex items-center justify-between px-4 py-2 border-b ${border.subtle}`}
-      >
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-white/[0.04]">
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-[#6b7280]">
             {files.length} {files.length === 1 ? "file" : "files"} changed
@@ -265,7 +273,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
         {files.length > 0 && (
           <>
             <div
-              className={`flex-shrink-0 border-r ${border.subtle} bg-surface-panel overflow-hidden`}
+              className={`flex-shrink-0 border-r ${border.subtle} bg-[#0f1116] overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_-2px_0_4px_rgba(0,0,0,0.15)]`}
               style={{ width: sidebarWidth, minWidth: 140, maxWidth: 480 }}
             >
               <DiffFileSidebar
@@ -277,7 +285,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
             <ResizableHandle
               onResize={(delta) => setSidebarWidth((w) => Math.min(480, Math.max(140, w + delta)))}
               onResizeEnd={() =>
-                localStorage.setItem("openkit:diff-sidebar-width", String(sidebarWidth))
+                localStorage.setItem("openkit:diff-sidebar-width", String(sidebarWidthRef.current))
               }
             />
           </>
@@ -313,6 +321,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                 viewMode={viewMode}
                 worktreeId={worktree.id}
                 includeCommitted={includeCommitted}
+                refreshKey={refreshKey}
               />
             ))
           )}

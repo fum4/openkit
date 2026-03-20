@@ -1,3 +1,7 @@
+/**
+ * Application entry point. Bootstraps Monaco workers, React Query,
+ * global error handling, and renders the root App component.
+ */
 import "./index.css";
 import "./monaco-setup";
 

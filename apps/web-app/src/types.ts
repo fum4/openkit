@@ -346,28 +346,11 @@ export interface SkillScanResult {
 
 // ─── Diff Viewer ────────────────────────────────────────────────
 
-export interface DiffFileInfo {
-  path: string;
-  oldPath?: string;
-  status: "modified" | "added" | "deleted" | "renamed" | "untracked";
-  linesAdded: number;
-  linesRemoved: number;
-  isBinary: boolean;
-}
-
-export interface DiffListResponse {
-  success: boolean;
-  files: DiffFileInfo[];
-  baseBranch: string;
-  error?: string;
-}
-
-export interface DiffFileContentResponse {
-  success: boolean;
-  oldContent: string;
-  newContent: string;
-  error?: string;
-}
+export type {
+  DiffFileInfo,
+  DiffListResponse,
+  DiffFileContentResponse,
+} from "@openkit/shared/worktree-types";
 
 // ─── Jira types ─────────────────────────────────────────────────
 

@@ -51,6 +51,7 @@ interface DiffMonacoEditorProps {
   modified: string;
   filePath: string;
   viewMode: "unified" | "split";
+  onReady?: () => void;
 }
 
 export function DiffMonacoEditor({
@@ -58,6 +59,7 @@ export function DiffMonacoEditor({
   modified,
   filePath,
   viewMode,
+  onReady,
 }: DiffMonacoEditorProps) {
   const language = detectLanguage(filePath);
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
@@ -96,10 +98,11 @@ export function DiffMonacoEditor({
       setEditorHeight(contentHeight);
     };
 
-    editor.onDidUpdateDiff(updateHeight);
-    editor.getModifiedEditor().onDidContentSizeChange(updateHeight);
-    editor.getOriginalEditor().onDidContentSizeChange(updateHeight);
-    updateHeight();
+    // Give Monaco a tick to compute the diff and measure content, then show
+    setTimeout(() => {
+      updateHeight();
+      onReady?.();
+    });
   }, []);
 
   return (

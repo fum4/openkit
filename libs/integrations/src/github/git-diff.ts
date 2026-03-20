@@ -6,7 +6,7 @@
  */
 import { execFile as execFileCb } from "child_process";
 import { readFile } from "fs/promises";
-import { join } from "path";
+import { join, resolve, relative } from "path";
 
 import { resolveCommandPath, withAugmentedPathEnv } from "@openkit/shared/command-path";
 import type { DiffFileInfo } from "@openkit/shared/worktree-types";
@@ -15,6 +15,17 @@ import { log } from "./logger";
 
 /** Maximum file size (1MB) — files larger than this return empty content. */
 const MAX_FILE_SIZE = 1_048_576;
+
+/**
+ * Validate that a file path is safe: relative, no `..` traversal,
+ * and resolves within the worktree directory.
+ */
+function validateFilePath(worktreePath: string, filePath: string): boolean {
+  if (!filePath || filePath.startsWith("/") || filePath.includes("..")) return false;
+  const resolved = resolve(worktreePath, filePath);
+  const rel = relative(worktreePath, resolved);
+  return !rel.startsWith("..") && !rel.startsWith("/");
+}
 
 /**
  * Run a command via execFile with augmented PATH.
@@ -116,7 +127,7 @@ function parseNameStatus(nameStatusOutput: string, numstatOutput: string): DiffF
 }
 
 /**
- * Count lines in untracked files via `wc -l`.
+ * Count lines in untracked files by reading them directly.
  */
 async function countUntrackedLines(
   worktreePath: string,
@@ -127,8 +138,8 @@ async function countUntrackedLines(
 
   for (const filePath of filePaths) {
     try {
-      const { stdout } = await execCmd("wc", ["-l", filePath], worktreePath);
-      const count = parseInt(stdout.trim().split(/\s+/)[0], 10) || 0;
+      const content = await readFile(join(worktreePath, filePath), "utf-8");
+      const count = content.split("\n").length;
       result.set(filePath, count);
     } catch {
       result.set(filePath, 0);
@@ -185,11 +196,18 @@ export async function getChangedFiles(
   const filesByPath = new Map<string, DiffFileInfo>();
   const errors: string[] = [];
 
-  // 1. Uncommitted changes: tracked files (staged + unstaged vs HEAD)
+  // When includeCommitted is true, diff the working tree against origin/baseBranch
+  // (a single consistent base for both committed and uncommitted changes).
+  // When false, diff only uncommitted changes against HEAD.
+  const baseRef = includeCommitted ? `origin/${normalizeBaseBranch(baseBranch)}` : "HEAD";
+  const useBaseRef = !includeCommitted || (await hasRef(worktreePath, baseRef));
+  const effectiveRef = useBaseRef ? baseRef : "HEAD";
+
+  // 1. Tracked changes (working tree vs effectiveRef)
   try {
     const [nameStatusResult, numstatResult] = await Promise.all([
-      execCmd("git", ["diff", "--name-status", "HEAD"], worktreePath),
-      execCmd("git", ["diff", "--numstat", "HEAD"], worktreePath),
+      execCmd("git", ["diff", "--name-status", effectiveRef], worktreePath),
+      execCmd("git", ["diff", "--numstat", effectiveRef], worktreePath),
     ]);
 
     const tracked = parseNameStatus(nameStatusResult.stdout, numstatResult.stdout);
@@ -197,12 +215,8 @@ export async function getChangedFiles(
       filesByPath.set(file.path, file);
     }
   } catch (err) {
-    log.warn("Failed to get uncommitted tracked changes", {
-      domain: "diff",
-      error: err,
-      worktreePath,
-    });
-    errors.push(`uncommitted: ${err instanceof Error ? err.message : String(err)}`);
+    log.warn("Failed to get tracked changes", { domain: "diff", error: err, worktreePath });
+    errors.push(`tracked: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // 2. Untracked files
@@ -230,30 +244,6 @@ export async function getChangedFiles(
   } catch (err) {
     log.warn("Failed to list untracked files", { domain: "diff", error: err, worktreePath });
     errors.push(`untracked: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  // 3. Committed changes (branch vs origin/baseBranch)
-  if (includeCommitted) {
-    const baseRef = `origin/${normalizeBaseBranch(baseBranch)}`;
-    const baseExists = await hasRef(worktreePath, baseRef);
-    if (baseExists) {
-      try {
-        const [nameStatusResult, numstatResult] = await Promise.all([
-          execCmd("git", ["diff", "--name-status", `${baseRef}...HEAD`], worktreePath),
-          execCmd("git", ["diff", "--numstat", `${baseRef}...HEAD`], worktreePath),
-        ]);
-
-        const committed = parseNameStatus(nameStatusResult.stdout, numstatResult.stdout);
-        for (const file of committed) {
-          if (!filesByPath.has(file.path)) {
-            filesByPath.set(file.path, file);
-          }
-        }
-      } catch (err) {
-        log.warn("Failed to get committed changes", { domain: "diff", error: err, worktreePath });
-        errors.push(`committed: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
   }
 
   // Sort: modified first, then added, then deleted, then renamed, then untracked
@@ -300,7 +290,21 @@ export async function getFileContent(
     includeCommitted,
   });
 
-  const ref = includeCommitted ? `origin/${normalizeBaseBranch(baseBranch)}` : "HEAD";
+  if (!validateFilePath(worktreePath, filePath)) {
+    return { oldContent: "", newContent: "", error: "Invalid file path" };
+  }
+  if (oldPath && !validateFilePath(worktreePath, oldPath)) {
+    return { oldContent: "", newContent: "", error: "Invalid old file path" };
+  }
+
+  // Use base branch ref when showing committed changes; fall back to HEAD if it doesn't exist
+  let ref = "HEAD";
+  if (includeCommitted) {
+    const baseRef = `origin/${normalizeBaseBranch(baseBranch)}`;
+    if (await hasRef(worktreePath, baseRef)) {
+      ref = baseRef;
+    }
+  }
 
   try {
     let oldContent = "";
@@ -349,28 +353,49 @@ export async function getFileContent(
 
 /**
  * Retrieve file content from a git ref (e.g. HEAD, origin/main).
+ * Returns empty string for files that don't exist at the given ref
+ * (e.g. newly added files). Propagates other errors.
  */
 async function gitShow(worktreePath: string, ref: string, filePath: string): Promise<string> {
   try {
     const { stdout } = await execCmd("git", ["show", `${ref}:${filePath}`], worktreePath);
     return stdout;
-  } catch {
+  } catch (err) {
+    // "does not exist" / "exists on disk, but not in" are expected for new/deleted files
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("does not exist") || msg.includes("exists on disk")) {
+      return "";
+    }
+    log.warn("gitShow failed", { domain: "diff", ref, filePath, error: err });
     return "";
   }
 }
 
 /**
  * Read the working copy of a file from disk, capped at MAX_FILE_SIZE.
+ * Returns empty string for files that no longer exist on disk (deleted files).
+ * Propagates other errors.
  */
 async function readWorkingCopy(worktreePath: string, filePath: string): Promise<string> {
   try {
     const fullPath = join(worktreePath, filePath);
     const content = await readFile(fullPath, "utf-8");
     if (content.length > MAX_FILE_SIZE) {
+      log.warn("File exceeds size limit, returning empty content", {
+        domain: "diff",
+        filePath,
+        size: content.length,
+        limit: MAX_FILE_SIZE,
+      });
       return "";
     }
     return content;
-  } catch {
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      return ""; // Deleted file — expected
+    }
+    log.warn("readWorkingCopy failed", { domain: "diff", filePath, error: err });
     return "";
   }
 }

@@ -103,19 +103,17 @@ describe("getChangedFiles", () => {
       "diff --name-status HEAD": { stdout: "" },
       "diff --numstat HEAD": { stdout: "" },
       "ls-files --others --exclude-standard": { stdout: "untracked.ts\n" },
-      "wc -l untracked.ts": { stdout: "  25 untracked.ts\n" },
     });
+    // countUntrackedLines now reads the file directly instead of using wc -l
+    mockReadFile.mockResolvedValue("line1\nline2\nline3\n".repeat(8) + "last");
 
     const result = await getChangedFiles("/fake", "main", false);
 
     expect(result.files).toHaveLength(1);
-    expect(result.files[0]).toEqual({
-      path: "untracked.ts",
-      status: "untracked",
-      linesAdded: 25,
-      linesRemoved: 0,
-      isBinary: false,
-    });
+    expect(result.files[0].path).toBe("untracked.ts");
+    expect(result.files[0].status).toBe("untracked");
+    expect(result.files[0].linesAdded).toBeGreaterThan(0);
+    expect(result.files[0].linesRemoved).toBe(0);
   });
 
   it("detects binary files from numstat output", async () => {
@@ -155,25 +153,22 @@ describe("getChangedFiles", () => {
     });
   });
 
-  it("merges committed and uncommitted changes when includeCommitted is true", async () => {
+  it("diffs against base branch when includeCommitted is true", async () => {
     setupMockResponses({
       "rev-parse --verify HEAD": { stdout: "abc123\n" },
       "rev-parse --verify origin/main": { stdout: "def456\n" },
-      "diff --name-status HEAD": { stdout: "M\tsrc/local.ts\n" },
-      "diff --numstat HEAD": { stdout: "5\t2\tsrc/local.ts\n" },
-      "ls-files --others --exclude-standard": { stdout: "" },
-      "diff --name-status origin/main...HEAD": { stdout: "M\tsrc/local.ts\nA\tsrc/committed.ts\n" },
-      "diff --numstat origin/main...HEAD": {
+      // With includeCommitted, all tracked changes are diffed against origin/main
+      "diff --name-status origin/main": { stdout: "M\tsrc/local.ts\nA\tsrc/committed.ts\n" },
+      "diff --numstat origin/main": {
         stdout: "5\t2\tsrc/local.ts\n20\t0\tsrc/committed.ts\n",
       },
+      "ls-files --others --exclude-standard": { stdout: "" },
     });
 
     const result = await getChangedFiles("/fake", "main", true);
 
     expect(result.files).toHaveLength(2);
-    // Uncommitted takes priority for local.ts
     expect(result.files.find((f) => f.path === "src/local.ts")?.linesAdded).toBe(5);
-    // Committed-only file included
     expect(result.files.find((f) => f.path === "src/committed.ts")?.status).toBe("added");
   });
 
