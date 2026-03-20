@@ -334,7 +334,13 @@ Both fields default to unlimited. When both are set, the first limit hit trigger
 | **Default**  | `false`   |
 | **Required** | No        |
 
-When `true`, a worktree is automatically deleted when its associated GitHub PR is merged.
+When `true`, a worktree is automatically deleted when its associated GitHub PR is merged. Requires the GitHub CLI (`gh`) to be installed and authenticated.
+
+**Safety gate**: worktrees with uncommitted changes or unpushed commits are never auto-deleted — they are skipped and a warning toast is shown instead.
+
+**Activity notifications**: a successful auto-delete emits an `auto-cleanup` info event in the activity feed; a skipped worktree emits an `auto-cleanup-skipped` warning toast.
+
+This flag is a personal preference and lives in `config.local.json` by default (not committed to git). Move it to `config.json` to make it a team-wide default.
 
 #### `autoCleanupOnPrClose`
 
@@ -344,7 +350,13 @@ When `true`, a worktree is automatically deleted when its associated GitHub PR i
 | **Default**  | `false`   |
 | **Required** | No        |
 
-When `true`, a worktree is automatically deleted when its associated GitHub PR is closed without being merged.
+When `true`, a worktree is automatically deleted when its associated GitHub PR is closed without being merged. Requires the GitHub CLI (`gh`) to be installed and authenticated.
+
+**Safety gate**: worktrees with uncommitted changes or unpushed commits are never auto-deleted — they are skipped and a warning toast is shown instead.
+
+**Activity notifications**: a successful auto-delete emits an `auto-cleanup` info event in the activity feed; a skipped worktree emits an `auto-cleanup-skipped` warning toast.
+
+This flag is a personal preference and lives in `config.local.json` by default (not committed to git). Move it to `config.json` to make it a team-wide default.
 
 ---
 
