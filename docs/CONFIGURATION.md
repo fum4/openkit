@@ -7,7 +7,7 @@ OpenKit uses several configuration files at both the project level (`.openkit/` 
 ## Table of Contents
 
 - [Project Configuration (`.openkit/config.json`)](#project-configuration-openkitconfigjson)
-- [Local User Configuration (`.openkit/local-config.json`)](#local-user-configuration-openkitlocal-configjson)
+- [Local User Configuration (`.openkit/config.local.json`)](#local-user-configuration-openkitconfiglocaljson)
 - [Integrations (`.openkit/integrations.json`)](#integrations-openkitintegrationsjson)
 - [Hooks (`.openkit/hooks.json`)](#hooks-openkithooksjson)
 - [Branch Naming Rules (`.openkit/scripts/branch-name.mjs`)](#branch-naming-rules)
@@ -326,9 +326,29 @@ Ops log (debug log) retention configuration. Controls how long operational trace
 
 Both fields default to unlimited. When both are set, the first limit hit triggers pruning (oldest entries are dropped). Ops log events are persisted to `.openkit/ops-log.jsonl` in JSONL format. Like activity retention, changing these settings requires explicit confirmation via an "Apply" button with impact estimation.
 
+#### `autoCleanupOnPrMerge`
+
+| Property     | Value     |
+| ------------ | --------- |
+| **Type**     | `boolean` |
+| **Default**  | `false`   |
+| **Required** | No        |
+
+When `true`, a worktree is automatically deleted when its associated GitHub PR is merged.
+
+#### `autoCleanupOnPrClose`
+
+| Property     | Value     |
+| ------------ | --------- |
+| **Type**     | `boolean` |
+| **Default**  | `false`   |
+| **Required** | No        |
+
+When `true`, a worktree is automatically deleted when its associated GitHub PR is closed without being merged.
+
 ---
 
-## Local User Configuration (`.openkit/local-config.json`)
+## Local User Configuration (`.openkit/config.local.json`)
 
 Local-only, non-committed settings that still affect agent workflow behavior.
 
@@ -853,7 +873,7 @@ The `gitPolicy` object allows overriding the global agent git policy on a per-wo
 **Resolution order:**
 
 1. Per-worktree override (from the linked issue's `notes.json`) -- if `"allow"` or `"deny"`, use that
-2. Local user config (`allowAgentCommits`, `allowAgentPushes`, `allowAgentPRs` in `local-config.json`) -- used when override is `"inherit"` or absent
+2. Local user config (`allowAgentCommits`, `allowAgentPushes`, `allowAgentPRs` in `config.local.json`) -- used when override is `"inherit"` or absent
 3. Default: `false` (deny)
 
 ---
@@ -906,7 +926,7 @@ Created automatically during `openkit init`. Uses a whitelist approach: everythi
 This means:
 
 - **Committed**: `config.json`, `.gitignore`
-- **Not committed**: `local-config.json`, `integrations.json`, `server.json`, `hooks.json`, `mcp-env.json`, `worktrees/`, `issues/`, `scripts/`
+- **Not committed**: `config.local.json`, `integrations.json`, `server.json`, `hooks.json`, `mcp-env.json`, `worktrees/`, `issues/`, `scripts/`
 
 If you want to share branch naming or commit message rules with your team, add the scripts directory to the whitelist:
 
