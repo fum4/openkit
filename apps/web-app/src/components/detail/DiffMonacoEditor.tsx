@@ -6,8 +6,7 @@
  */
 import { DiffEditor } from "@monaco-editor/react";
 import type { DiffOnMount } from "@monaco-editor/react";
-import { useCallback, useEffect, useState } from "react";
-import { ensureMonacoConfigured } from "../../monaco-setup";
+import { useCallback, useState } from "react";
 import { palette } from "../../theme";
 
 const OPENKIT_THEME = "openkit-dark";
@@ -64,11 +63,6 @@ export function DiffMonacoEditor({
 }: DiffMonacoEditorProps) {
   const language = detectLanguage(filePath);
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
-  const [monacoReady, setMonacoReady] = useState(false);
-
-  useEffect(() => {
-    ensureMonacoConfigured().then(() => setMonacoReady(true));
-  }, []);
 
   const handleMount: DiffOnMount = useCallback((editor, monaco) => {
     if (!themeRegistered) {
@@ -114,8 +108,6 @@ export function DiffMonacoEditor({
       onReady?.();
     });
   }, []);
-
-  if (!monacoReady) return null;
 
   return (
     <div style={{ height: editorHeight }}>

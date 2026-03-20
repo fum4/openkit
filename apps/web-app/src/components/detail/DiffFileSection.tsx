@@ -4,7 +4,7 @@
  * Renders a header bar with file info and, when expanded, lazy-fetches
  * the file content and renders a DiffMonacoEditor instance.
  */
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchDiffFileContent } from "../../hooks/api";
@@ -101,11 +101,7 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
           onMouseEnter={doFetch}
           className="w-full flex items-center gap-2 px-4 py-2 text-xs hover:bg-white/[0.03] transition-colors duration-100"
         >
-          {expanded && !diffReady && !error && !file.isBinary ? (
-            <Loader2 className="w-3.5 h-3.5 text-[#6b7280] animate-spin flex-shrink-0" />
-          ) : (
-            <Chevron className="w-3.5 h-3.5 text-[#6b7280] flex-shrink-0" />
-          )}
+          <Chevron className="w-3.5 h-3.5 text-[#6b7280] flex-shrink-0" />
           <span className="text-[11px] text-[#9ca3af] truncate text-left">{file.path}</span>
           <span
             className="text-[10px] font-mono font-semibold flex-shrink-0"

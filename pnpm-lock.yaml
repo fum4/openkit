@@ -344,9 +344,6 @@ importers:
       hono:
         specifier: ^4.12.3
         version: 4.12.3
-      monaco-editor:
-        specifier: ^0.55.1
-        version: 0.55.1
       msw:
         specifier: ^2.12.10
         version: 2.12.10(@types/node@25.3.2)(typescript@5.9.3)
