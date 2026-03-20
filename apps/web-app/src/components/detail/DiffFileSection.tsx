@@ -131,7 +131,7 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
         </button>
 
         {expanded && (
-          <div className={diffReady || file.isBinary || error ? "px-4 pb-3" : ""}>
+          <div className={diffReady || file.isBinary || error ? "px-4" : ""}>
             {file.isBinary ? (
               <div className="text-xs text-[#6b7280] py-6 text-center">
                 Binary file — cannot display diff

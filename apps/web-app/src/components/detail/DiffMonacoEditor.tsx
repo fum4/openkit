@@ -6,7 +6,8 @@
  */
 import { DiffEditor } from "@monaco-editor/react";
 import type { DiffOnMount } from "@monaco-editor/react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { ensureMonacoConfigured } from "../../monaco-setup";
 import { palette } from "../../theme";
 
 const OPENKIT_THEME = "openkit-dark";
@@ -63,6 +64,11 @@ export function DiffMonacoEditor({
 }: DiffMonacoEditorProps) {
   const language = detectLanguage(filePath);
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
+  const [monacoReady, setMonacoReady] = useState(false);
+
+  useEffect(() => {
+    ensureMonacoConfigured().then(() => setMonacoReady(true));
+  }, []);
 
   const handleMount: DiffOnMount = useCallback((editor, monaco) => {
     if (!themeRegistered) {
@@ -98,12 +104,18 @@ export function DiffMonacoEditor({
       setEditorHeight(contentHeight);
     };
 
-    // Give Monaco a tick to compute the diff and measure content, then show
+    // Keep height in sync as Monaco lays out (e.g. hideUnchangedRegions collapsing)
+    editor.getModifiedEditor().onDidContentSizeChange(updateHeight);
+    editor.getOriginalEditor().onDidContentSizeChange(updateHeight);
+
+    // Signal ready after initial layout
     setTimeout(() => {
       updateHeight();
       onReady?.();
     });
   }, []);
+
+  if (!monacoReady) return null;
 
   return (
     <div style={{ height: editorHeight }}>
