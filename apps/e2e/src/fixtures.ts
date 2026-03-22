@@ -20,7 +20,7 @@ export const test = base.extend<{
   window: Page;
   testProject: TestProject;
 }>({
-  testProject: async (_deps, use) => {
+  testProject: async ({}, use) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openkit-e2e-"));
 
     execFileSync("git", ["init"], { cwd: dir, stdio: "ignore" });
@@ -36,7 +36,7 @@ export const test = base.extend<{
     fs.rmSync(dir, { recursive: true, force: true });
   },
 
-  electronApp: async (_deps, use) => {
+  electronApp: async ({}, use) => {
     const mainPath = path.resolve(import.meta.dirname, "../../../apps/desktop-app/dist/main.js");
 
     const app = await _electron.launch({
