@@ -6,7 +6,15 @@ import type { WorktreeInfo } from "../../types";
 
 // Mock heavy sub-components to avoid rendering entire trees
 vi.mock("./DetailHeader", () => ({
-  DetailHeader: () => <div data-testid="detail-header" />,
+  DetailHeader: ({ onRemove }: { onRemove?: () => void }) => (
+    <div data-testid="detail-header">
+      {onRemove && (
+        <button type="button" onClick={onRemove}>
+          Remove worktree
+        </button>
+      )}
+    </div>
+  ),
 }));
 vi.mock("./LogsViewer", () => ({
   LogsViewer: () => <div data-testid="logs-viewer" />,
@@ -21,7 +29,27 @@ vi.mock("./DiffViewerTab", () => ({
   DiffViewerTab: () => <div data-testid="diff-viewer-tab" />,
 }));
 vi.mock("../ConfirmDialog", () => ({
-  ConfirmDialog: () => <div data-testid="confirm-dialog" />,
+  ConfirmDialog: ({
+    children,
+    onConfirm,
+    onCancel,
+    isLoading,
+  }: {
+    children: React.ReactNode;
+    onConfirm: () => void;
+    onCancel: () => void;
+    isLoading?: boolean;
+  }) => (
+    <div data-testid="confirm-dialog">
+      {children}
+      <button type="button" onClick={onConfirm} disabled={isLoading}>
+        Confirm
+      </button>
+      <button type="button" onClick={onCancel} disabled={isLoading}>
+        Cancel
+      </button>
+    </div>
+  ),
 }));
 vi.mock("../Modal", () => ({
   Modal: ({
@@ -80,6 +108,8 @@ vi.mock("../../contexts/ServerContext", () => ({
 
 // Controllable mock for fetchRestorableAgentSessions
 const mockFetchRestorableAgentSessions = vi.fn();
+const mockRemoveWorktree = vi.fn();
+const mockDeleteCustomTask = vi.fn();
 
 vi.mock("../../hooks/useApi", () => ({
   useApi: () => ({
@@ -89,7 +119,7 @@ vi.mock("../../hooks/useApi", () => ({
     fetchActiveTerminalSession: vi.fn().mockResolvedValue({ success: false, sessionId: null }),
     startWorktree: vi.fn().mockResolvedValue({ success: true }),
     stopWorktree: vi.fn().mockResolvedValue({ success: true }),
-    removeWorktree: vi.fn().mockResolvedValue({ success: true }),
+    removeWorktree: mockRemoveWorktree,
     commitChanges: vi.fn().mockResolvedValue({ success: true }),
     pushChanges: vi.fn().mockResolvedValue({ success: true }),
     createPullRequest: vi.fn().mockResolvedValue({ success: true }),
@@ -97,6 +127,7 @@ vi.mock("../../hooks/useApi", () => ({
     renameWorktree: vi.fn().mockResolvedValue({ success: true }),
     recoverLocalTask: vi.fn().mockResolvedValue({ success: true }),
     runHooks: vi.fn().mockResolvedValue({ success: true }),
+    deleteCustomTask: mockDeleteCustomTask,
   }),
 }));
 
@@ -147,6 +178,8 @@ beforeEach(() => {
     activeSessionId: null,
     historyMatches: [],
   });
+  mockRemoveWorktree.mockResolvedValue({ success: true, worktreeId: "wt-1" });
+  mockDeleteCustomTask.mockResolvedValue({ success: true });
 });
 
 describe("DetailPanel", () => {
@@ -223,6 +256,93 @@ describe("DetailPanel", () => {
       expect(defaultProps.onCodeWithClaude).not.toHaveBeenCalledWith(
         expect.objectContaining({ worktreeId: "wt-1" }),
       );
+    });
+  });
+
+  describe("worktree delete — linked task", () => {
+    it("does not show linked task checkbox when worktree has no localIssueId", async () => {
+      const user = userEvent.setup();
+      const worktree = createWorktree();
+      render(<DetailPanel {...defaultProps} worktree={worktree} />);
+
+      await user.click(screen.getByRole("button", { name: "Remove worktree" }));
+
+      expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument();
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    });
+
+    it("shows linked task checkbox when worktree has a localIssueId", async () => {
+      const user = userEvent.setup();
+      const worktree = createWorktree({ localIssueId: "task-42" });
+      render(<DetailPanel {...defaultProps} worktree={worktree} />);
+
+      await user.click(screen.getByRole("button", { name: "Remove worktree" }));
+
+      expect(screen.getByText(/Also delete the linked task "task-42"/)).toBeInTheDocument();
+      expect(screen.getByRole("checkbox")).not.toBeChecked();
+    });
+
+    it("only removes the worktree when checkbox is unchecked", async () => {
+      const user = userEvent.setup();
+      const worktree = createWorktree({ localIssueId: "task-42" });
+      render(<DetailPanel {...defaultProps} worktree={worktree} />);
+
+      await user.click(screen.getByRole("button", { name: "Remove worktree" }));
+      await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+      await waitFor(() => {
+        expect(mockRemoveWorktree).toHaveBeenCalledWith("wt-1");
+      });
+      expect(mockDeleteCustomTask).not.toHaveBeenCalled();
+    });
+
+    it("removes both worktree and linked task when checkbox is checked", async () => {
+      const user = userEvent.setup();
+      const worktree = createWorktree({ localIssueId: "task-42" });
+      render(<DetailPanel {...defaultProps} worktree={worktree} />);
+
+      await user.click(screen.getByRole("button", { name: "Remove worktree" }));
+      await user.click(screen.getByRole("checkbox"));
+      await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+      await waitFor(() => {
+        expect(mockRemoveWorktree).toHaveBeenCalledWith("wt-1");
+        expect(mockDeleteCustomTask).toHaveBeenCalledWith("task-42");
+      });
+    });
+
+    it("resets checkbox to unchecked when dialog is reopened", async () => {
+      const user = userEvent.setup();
+      const worktree = createWorktree({ localIssueId: "task-42" });
+      render(<DetailPanel {...defaultProps} worktree={worktree} />);
+
+      // Open, check, cancel
+      await user.click(screen.getByRole("button", { name: "Remove worktree" }));
+      await user.click(screen.getByRole("checkbox"));
+      expect(screen.getByRole("checkbox")).toBeChecked();
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      // Reopen — checkbox should be reset
+      await user.click(screen.getByRole("button", { name: "Remove worktree" }));
+      expect(screen.getByRole("checkbox")).not.toBeChecked();
+    });
+
+    it("still completes worktree deletion flow when linked task deletion throws", async () => {
+      mockDeleteCustomTask.mockRejectedValue(new Error("Network error"));
+      const onDeleted = vi.fn();
+      const user = userEvent.setup();
+      const worktree = createWorktree({ localIssueId: "task-42" });
+      render(<DetailPanel {...defaultProps} worktree={worktree} onDeleted={onDeleted} />);
+
+      await user.click(screen.getByRole("button", { name: "Remove worktree" }));
+      await user.click(screen.getByRole("checkbox"));
+      await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+      // Worktree was removed; UI should close and notify despite the task deletion error
+      await waitFor(() => {
+        expect(mockRemoveWorktree).toHaveBeenCalledWith("wt-1");
+        expect(onDeleted).toHaveBeenCalled();
+      });
     });
   });
 

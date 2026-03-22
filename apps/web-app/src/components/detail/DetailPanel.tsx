@@ -325,6 +325,7 @@ export function DetailPanel({
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [isDeletingWorktree, setIsDeletingWorktree] = useState(false);
+  const [deleteLinkedTask, setDeleteLinkedTask] = useState(false);
   const [installedAgents, setInstalledAgents] = useState<Set<CodingAgent> | null>(null);
   const [isResolvingAgentRestore, setIsResolvingAgentRestore] = useState<RestorableAgent | null>(
     null,
@@ -1437,7 +1438,10 @@ export function DetailPanel({
     onUpdate();
   };
 
-  const handleRemove = () => setShowRemoveModal(true);
+  const handleRemove = () => {
+    setDeleteLinkedTask(false);
+    setShowRemoveModal(true);
+  };
 
   const pruneDeletedWorktreeUiState = (deletedId: string) => {
     const scopeCache = getScopeCache();
@@ -1552,11 +1556,26 @@ export function DetailPanel({
     setError(null);
     setIsDeletingWorktree(true);
     const deletedId = worktree.id;
+    const linkedTaskId = deleteLinkedTask ? worktree.localIssueId : undefined;
     try {
       const result = await api.removeWorktree(deletedId);
       if (!result.success) {
         setError(result.error || "Failed to remove worktree");
         return;
+      }
+
+      if (linkedTaskId) {
+        try {
+          await api.deleteCustomTask(linkedTaskId);
+        } catch (err) {
+          log.error("Failed to delete linked task after worktree removal", {
+            domain: "worktree",
+            worktreeId: deletedId,
+            linkedTaskId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          // Worktree is already gone — continue closing the dialog
+        }
       }
 
       setShowRemoveModal(false);
@@ -2260,6 +2279,20 @@ export function DetailPanel({
           <p className={`text-xs ${text.secondary}`}>
             Delete "{worktree.id}"? This will delete the worktree directory.
           </p>
+          {worktree.localIssueId && (
+            <label
+              className={`flex items-center gap-2 mt-3 text-xs ${text.secondary} cursor-pointer select-none`}
+            >
+              <input
+                type="checkbox"
+                checked={deleteLinkedTask}
+                onChange={(e) => setDeleteLinkedTask(e.target.checked)}
+                disabled={isDeletingWorktree}
+                className="rounded"
+              />
+              Also delete the linked task "{worktree.localIssueId}"
+            </label>
+          )}
         </ConfirmDialog>
       )}
 

@@ -1,6 +1,12 @@
+/**
+ * Detail panel for local (custom) tasks — displays and edits task metadata,
+ * manages the linked worktree, and handles task deletion.
+ */
 import { useEffect, useRef, useState } from "react";
 import { GitBranch, Paperclip, Trash2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+
+import { log } from "../../logger";
 
 import { useCustomTaskDetail } from "../../hooks/useCustomTaskDetail";
 import { useApi } from "../../hooks/useApi";
@@ -120,6 +126,7 @@ export function CustomTaskDetailPanel({
     prompt: string;
   } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLinkedWorktree, setDeleteLinkedWorktree] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -140,9 +147,44 @@ export function CustomTaskDetailPanel({
   };
 
   const handleDelete = async () => {
-    await api.deleteCustomTask(taskId);
-    queryClient.invalidateQueries({ queryKey: ["customTasks"] });
-    onDeleted();
+    const linkedWorktreeId = deleteLinkedWorktree ? task?.linkedWorktreeId : undefined;
+    log.info("Deleting custom task", { domain: "custom-task", taskId, linkedWorktreeId });
+    try {
+      const result = await api.deleteCustomTask(taskId);
+      if (!result.success) {
+        const msg = result.error ?? "Failed to delete task";
+        log.error("Task deletion failed", { domain: "custom-task", taskId, error: msg });
+        reportPersistentErrorToast(msg, "Failed to delete task", { scope: "custom-task:delete" });
+        return;
+      }
+      if (linkedWorktreeId) {
+        const worktreeResult = await api.removeWorktree(linkedWorktreeId);
+        if (!worktreeResult.success) {
+          const msg = worktreeResult.error ?? "Failed to delete linked worktree";
+          log.error("Linked worktree deletion failed after task delete", {
+            domain: "custom-task",
+            taskId,
+            linkedWorktreeId,
+            error: msg,
+          });
+          reportPersistentErrorToast(msg, "Failed to delete linked worktree", {
+            scope: "custom-task:delete-worktree",
+          });
+          // Task is already deleted — still close and notify
+        }
+      }
+      log.info("Custom task deleted", { domain: "custom-task", taskId, linkedWorktreeId });
+      queryClient.invalidateQueries({ queryKey: ["customTasks"] });
+      onDeleted();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.error("Unexpected error deleting custom task", {
+        domain: "custom-task",
+        taskId,
+        error: msg,
+      });
+      reportPersistentErrorToast(msg, "Failed to delete task", { scope: "custom-task:delete" });
+    }
   };
 
   const handleCreateWorktree = async () => {
@@ -391,7 +433,11 @@ export function CustomTaskDetailPanel({
           <div className="flex-shrink-0 pt-1 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowDeleteConfirm(true)}
+              aria-label="Delete task"
+              onClick={() => {
+                setDeleteLinkedWorktree(false);
+                setShowDeleteConfirm(true);
+              }}
               className={`p-1.5 rounded-lg ${text.muted} hover:text-red-400 hover:bg-red-900/20 transition-colors`}
             >
               <Trash2 className="w-4 h-4" />
@@ -657,6 +703,19 @@ export function CustomTaskDetailPanel({
               <p className={`text-xs ${text.secondary} mb-4`}>
                 This will permanently delete "{task.title}". This cannot be undone.
               </p>
+              {task.linkedWorktreeId && (
+                <label
+                  className={`flex items-center gap-2 mb-4 text-xs ${text.secondary} cursor-pointer select-none`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={deleteLinkedWorktree}
+                    onChange={(e) => setDeleteLinkedWorktree(e.target.checked)}
+                    className="rounded"
+                  />
+                  Also delete the linked worktree "{task.linkedWorktreeId}"
+                </label>
+              )}
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
