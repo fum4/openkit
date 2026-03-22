@@ -16,7 +16,14 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchDiffFiles, fetchPrDiffFiles, fetchPrDiffFileContent } from "../../hooks/api";
+import {
+  fetchDiffFiles,
+  fetchPrDiffFiles,
+  fetchPrDiffFileContent,
+  stageFiles,
+  unstageFiles,
+  stageAllFiles,
+} from "../../hooks/api";
 import { useServerUrlOptional } from "../../contexts/ServerContext";
 import { log } from "../../logger";
 import { border, detailTab, palette } from "../../theme";
@@ -250,6 +257,27 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     setExpandedFiles(new Set());
   }, []);
 
+  const handleStageFile = useCallback(
+    async (filePath: string) => {
+      await stageFiles(worktree.id, [filePath], serverUrl);
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
+
+  const handleUnstageFile = useCallback(
+    async (filePath: string) => {
+      await unstageFiles(worktree.id, [filePath], serverUrl);
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
+
+  const handleStageAll = useCallback(async () => {
+    await stageAllFiles(worktree.id, serverUrl);
+    fetchFiles();
+  }, [worktree.id, serverUrl, fetchFiles]);
+
   const setFileRef = useCallback((path: string, el: HTMLDivElement | null) => {
     if (el) {
       fileRefs.current.set(path, el);
@@ -402,6 +430,10 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                 files={files}
                 selectedFile={selectedFile}
                 onSelectFile={handleSelectFile}
+                onStageFile={handleStageFile}
+                onUnstageFile={handleUnstageFile}
+                onStageAll={handleStageAll}
+                showStagingActions={!showMergedDiff && !includeCommitted}
               />
             </div>
             <ResizableHandle
