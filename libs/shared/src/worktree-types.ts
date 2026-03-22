@@ -258,6 +258,13 @@ export interface PrDiffListResponse extends DiffListResponse {
   localHeadSha: string;
 }
 
+export interface WorktreeSettings {
+  /** Override global auto-delete-on-merge setting for this worktree */
+  autoCleanupOnMerge?: boolean;
+  /** Override global auto-delete-on-close setting for this worktree */
+  autoCleanupOnClose?: boolean;
+}
+
 export interface DiffFileContentResponse {
   success: boolean;
   oldContent: string;

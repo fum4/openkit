@@ -102,7 +102,7 @@ export function CreateCustomTaskModal({
 
   return (
     <Modal
-      title="Create Task"
+      title="Create Issue"
       icon={<FileText className="w-4 h-4 text-amber-400" />}
       onClose={onClose}
       onSubmit={handleSubmit}
@@ -121,7 +121,7 @@ export function CreateCustomTaskModal({
             disabled={!title.trim() || isCreating}
             className={`px-4 py-1.5 text-xs font-medium rounded-lg ${customTask.button} disabled:opacity-50 transition-colors`}
           >
-            {isCreating ? "Creating..." : "Create Task"}
+            {isCreating ? "Creating..." : "Create Issue"}
           </button>
         </>
       }

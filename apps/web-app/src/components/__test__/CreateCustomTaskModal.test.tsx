@@ -18,7 +18,7 @@ describe("CreateCustomTaskModal", () => {
   it("renders the form with title, priority, labels, and description fields", () => {
     render(<CreateCustomTaskModal {...defaultProps} />);
 
-    expect(screen.getByRole("heading", { name: "Create Task" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Create Issue" })).toBeInTheDocument();
     expect(screen.getByText("Title")).toBeInTheDocument();
     expect(screen.getByText("Priority")).toBeInTheDocument();
     expect(screen.getByText("Labels")).toBeInTheDocument();
@@ -26,20 +26,20 @@ describe("CreateCustomTaskModal", () => {
     expect(screen.getByPlaceholderText("What needs to be done?")).toBeInTheDocument();
   });
 
-  it("disables Create Task button when title is empty", () => {
+  it("disables Create Issue button when title is empty", () => {
     render(<CreateCustomTaskModal {...defaultProps} />);
 
-    expect(screen.getByRole("button", { name: "Create Task" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create Issue" })).toBeDisabled();
   });
 
-  it("enables Create Task button when title is provided", async () => {
+  it("enables Create Issue button when title is provided", async () => {
     const user = userEvent.setup();
 
     render(<CreateCustomTaskModal {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("What needs to be done?"), "My task");
 
-    expect(screen.getByRole("button", { name: "Create Task" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Create Issue" })).toBeEnabled();
   });
 
   it("selects priority by clicking priority buttons", async () => {
@@ -49,7 +49,7 @@ describe("CreateCustomTaskModal", () => {
 
     await user.type(screen.getByPlaceholderText("What needs to be done?"), "My task");
     await user.click(screen.getByRole("button", { name: "High" }));
-    await user.click(screen.getByRole("button", { name: "Create Task" }));
+    await user.click(screen.getByRole("button", { name: "Create Issue" }));
 
     await waitFor(() => {
       expect(defaultProps.onCreate).toHaveBeenCalledWith(
@@ -115,7 +115,7 @@ describe("CreateCustomTaskModal", () => {
     await user.type(screen.getByPlaceholderText("What needs to be done?"), "My task");
     await user.type(screen.getByPlaceholderText("Add a label..."), "urgent{enter}");
     await user.click(screen.getByRole("button", { name: "High" }));
-    await user.click(screen.getByRole("button", { name: "Create Task" }));
+    await user.click(screen.getByRole("button", { name: "Create Issue" }));
 
     await waitFor(() => {
       expect(defaultProps.onCreate).toHaveBeenCalledWith({
@@ -138,7 +138,7 @@ describe("CreateCustomTaskModal", () => {
     render(<CreateCustomTaskModal {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("What needs to be done?"), "My task");
-    await user.click(screen.getByRole("button", { name: "Create Task" }));
+    await user.click(screen.getByRole("button", { name: "Create Issue" }));
 
     await waitFor(() => {
       expect(screen.getByText("Server error")).toBeInTheDocument();

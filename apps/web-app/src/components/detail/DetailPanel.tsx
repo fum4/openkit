@@ -2047,7 +2047,7 @@ export function DetailPanel({
                     className={`h-7 px-2.5 text-[11px] font-medium ${text.muted} hover:${text.secondary} hover:bg-white/[0.06] rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    Create Task
+                    Create Issue
                   </button>
                 )}
                 {onLinkIssue && (
