@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## README Requirement
 
-Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root. The README should briefly describe the package's purpose, key technologies, and basic usage. When creating a new app or library, include a README as part of the initial setup.
+Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root. The README should briefly describe the package's purpose, key technologies, and basic usage. When creating a new app or library, include a README as part of the initial setup. **Keep READMEs updated** — when adding, removing, or changing modules/exports in a package, update its README to reflect the current state. A stale README is worse than no README.
 
 ## CLI-First Agent Design
 
@@ -35,7 +35,7 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 
 ## Testing
 
-**Tests are the most important aspect of this codebase.** They are the safety net for refactoring, bug prevention, and CI/CD readiness. Every code change — feature, bugfix, or refactor — must include corresponding tests. Writing tests is not optional or secondary; it is the primary deliverable alongside working code.
+**Tests are critical.** They are the safety net for refactoring, bug prevention, and CI/CD readiness. Every code change — feature, bugfix, or refactor — must include corresponding tests. Writing tests is not optional or secondary; it is the primary deliverable alongside working code.
 
 - When writing or modifying tests, **always use the testing skill** (`.claude/skills/testing/`) if available. It contains the canonical patterns, query priorities, and conventions for this project.
 - **Do not modify existing tests lightly.** If a test fails, first verify whether the test caught a real bug before changing it. Changing a test to make it pass defeats the purpose — investigate first.
@@ -66,13 +66,26 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 - When writing `try/catch`, `Promise.catch`, error callbacks, or conditional error branches, always ask: "If this fails in production, will I be able to diagnose it from the logs alone?" If the answer is no, add more context.
 - Include actionable metadata in error logs: what operation failed, what inputs caused it, and any IDs or state needed to reproduce (for example worktreeId, projectName, endpoint, status code).
 - Never swallow errors silently. If you genuinely cannot handle an error, re-throw it or log it at `warn`/`error` level with context — do not leave an empty catch block.
+- **Errors returned to users and logged must always contain the maximum possible diagnostic information.** Generic messages like "process failed" or "exit code 127" are never acceptable on their own. Always include: what command/operation was attempted, what inputs/arguments were used, what environment was in play (for example PATH, working directory), and a human-readable diagnostic hint explaining the likely cause. The goal is that any error — whether in a toast, activity feed event, API response, or log entry — gives enough context to diagnose the problem without needing to reproduce it.
 
 ## Operational Logging
 
-- Treat ops logging as mandatory for all operations.
-- Always log start and terminal outcome (success/failure) for git operations, CLI commands, HTTP requests, workflow transitions, notifications, and other behind-the-scenes actions.
-- Include actionable metadata whenever available (for example command, args, cwd, status code, request/response payload metadata, worktreeId, projectName, and error details).
-- Errors that surface as toasts must also be present in ops logs; toasts do not replace logging.
+**Logging is critical.** In a packaged Electron app, there is no terminal, no stdout, no way to attach a debugger. The ops log is our only window into what happened. If something goes wrong and it wasn't logged, it didn't happen — we have zero ability to diagnose it. Every operation, every decision, every failure must leave a trace.
+
+- **Log everything.** Every operation start, every outcome (success or failure), every state transition. Git operations, CLI commands, HTTP requests, child process spawns, workflow transitions, config changes, notifications — all of it.
+- Include actionable metadata on every log entry: what operation, what inputs (command, args, cwd), what identifiers (worktreeId, projectName, pid), what outcome (status code, exit code, error). The goal is that the ops log alone is sufficient to reconstruct what happened without reproducing the issue.
+- When spawning child processes, log the command, arguments, working directory, and PATH before spawning. If the process crashes, capture and log its last output (stdout/stderr) — this is often the only way to see why it failed.
+- Activity events (toasts, activity feed) are for the user. Ops log entries are for debugging. Both are always required — a toast without a corresponding log entry is useless for diagnosis, and a log entry without a toast leaves the user unaware.
+- When in doubt, log it. A verbose ops log is infinitely more valuable than a clean one that's missing the entry you need.
+
+## Child Process PATH Handling
+
+**Always use `withAugmentedPathEnv()` from `@openkit/shared/command-path` when spawning child processes that run user-installed tools** (for example `pnpm`, `npm`, `node`, `adb`, `brew`). Never pass bare `process.env` — in packaged Electron apps, `process.env.PATH` is minimal (`/usr/bin:/bin:/usr/sbin:/sbin`) and does not include Homebrew, nvm, fnm, volta, or `~/.local/bin`.
+
+- `withAugmentedPathEnv()` resolves the user's full shell PATH by spawning their login shell once, then caches it for the lifetime of the process. This captures everything from `.zshrc`/`.bash_profile` including version managers.
+- If a spawned process exits with code 127 ("command not found"), call `invalidateShellPath()` to force re-resolution, then retry the spawn once. The user may have installed the missing tool since the last resolution. The worktree manager already implements this retry-on-127 pattern — follow it for any new spawn sites.
+- System utilities in `/usr/bin` (for example `git`, `rm`, `pgrep`, `lsof`) work without augmentation but using it is harmless and preferred for consistency.
+- `resolveCommandPath(command)` resolves a bare command name to its absolute path using the augmented PATH — use it for `execFile()` calls where you want to fail early with a clear error if the command doesn't exist.
 
 ## Debugging
 
@@ -100,6 +113,8 @@ OpenKit has a **Dev Mode** (App Settings → Dev Mode toggle) that symlinks each
 - Use `log.info()` for informational output, `log.success()` for completion messages (green ● prefix), `log.warn()` for warnings, `log.error()` for errors, `log.debug()` for debug-only output, and `log.plain()` for unformatted output.
 - Always include a `domain` field in the metadata object to namespace logs by feature area (for example `{ domain: "GitHub" }`, `{ domain: "auto-launch" }`, `{ domain: "project-switch" }`). The logger extracts `domain` from metadata into a dedicated field on the `LogEntry`, keeping logs filterable by feature.
 - **Sink**: call `Logger.setSink(serverUrl, projectName)` at startup to POST log entries to the server. The server writes them to the ops-log and notifies real-time listeners. All processes (including the server itself) POST to the same endpoint — the server is the single ops-log writer.
+- When logging errors, always pass the error object as a whole in the metadata — not just `error.message`. The logger extracts stack traces and structured details that a message string alone loses. For example: `log.error("Operation failed:", { domain: "worktree", error })` — not `log.error(\`Operation failed: ${error.message}\`)`.
+- Do not use `process.stderr.write()`, `process.stdout.write()`, or any other raw output for logging. The logger is the only sanctioned output channel.
 - There are no exceptions to the logging rule.
 
 ## TypeScript Preference

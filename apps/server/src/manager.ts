@@ -20,6 +20,7 @@ import pc from "picocolors";
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { toErrorMessage } from "@openkit/shared/errors";
 import { copyEnvFiles } from "@openkit/shared/env-files";
+import { invalidateShellPath, withAugmentedPathEnv } from "@openkit/shared/command-path";
 import { log } from "./logger";
 import { generateBranchName } from "./branch-name";
 import { getGitRoot, getWorktreeBranch, validateBranchName } from "@openkit/shared/git";
@@ -207,6 +208,9 @@ export class WorktreeManager {
   private opsLog: OpsLog;
 
   private runningProcesses: Map<string, RunningProcess> = new Map();
+
+  /** Tracks worktrees that have already been retried after exit code 127 to prevent infinite loops. */
+  private retriedAfter127: Set<string> = new Set();
 
   private creatingWorktrees: Map<string, WorktreeInfo> = new Map();
 
@@ -726,6 +730,7 @@ export class WorktreeManager {
   private clearTransientWorktreeState(worktreeId: string): void {
     this.creatingWorktrees.delete(worktreeId);
     this.worktreeCallbacks.delete(worktreeId);
+    this.retriedAfter127.delete(worktreeId);
   }
 
   private pruneGitWorktreeMetadata(gitRoot: string): void {
@@ -901,9 +906,22 @@ export class WorktreeManager {
 
       const [cmd, ...baseArgs] = this.config.startCommand.split(" ");
       const args = [...baseArgs, ...offsetEnv.extraArgs];
+      const spawnEnv: Record<string, string | undefined> = {
+        ...withAugmentedPathEnv(),
+        ...offsetEnv.env,
+        FORCE_COLOR: "1",
+      };
+      // Capture PATH as a string for logging in handleExit closure
+      // instead of retaining the full spawnEnv object in memory.
+      const spawnPath = spawnEnv.PATH ?? "";
 
       const portsDisplay = ports.length > 0 ? ports.join(", ") : `offset=${offset}`;
-      log.info(`Starting ${worktreeId} at ${workingDir} (ports: ${portsDisplay})`);
+      log.info(`Starting ${worktreeId}: ${cmd} ${args.join(" ")}`, {
+        domain: "worktree",
+        cwd: workingDir,
+        ports: portsDisplay,
+        PATH: spawnPath,
+      });
 
       const wtColor = getWorktreeColor(worktreeId);
       const coloredName = pc.bold(wtColor(worktreeId));
@@ -935,8 +953,13 @@ export class WorktreeManager {
       };
 
       const handleExit = (code: number | null) => {
-        log.info(`Worktree "${worktreeId}" exited with code ${code}`);
         const processInfo = this.runningProcesses.get(worktreeId);
+
+        // Capture process output BEFORE deleting — needed for crash diagnostics.
+        const lastOutput = processInfo
+          ? processInfo.logs.slice(-20).join("\n")
+          : "(no output captured)";
+
         if (processInfo) {
           this.portManager.releaseOffset(processInfo.offset);
         }
@@ -945,19 +968,85 @@ export class WorktreeManager {
 
         // Emit crashed event if exit was unexpected (non-zero and not user-initiated stop)
         if (code !== null && code !== 0) {
+          const isCommandNotFound = code === 127;
+
+          // On "command not found", invalidate the cached shell PATH and retry once.
+          // The user may have installed the tool after OpenKit resolved its PATH.
+          if (isCommandNotFound && !this.retriedAfter127.has(worktreeId)) {
+            this.retriedAfter127.add(worktreeId);
+            invalidateShellPath();
+            log.warn(
+              `Worktree "${worktreeId}" exited with code 127 — invalidating PATH cache and retrying`,
+              { domain: "worktree", command: cmd },
+            );
+            // Do NOT clear retriedAfter127 here — it must persist across the retry
+            // to prevent infinite loops. It's only cleared on non-127 exit or
+            // when the worktree is removed via clearTransientWorktreeState().
+            this.startWorktree(id)
+              .then((result) => {
+                if (!result.success) {
+                  log.error("Retry after exit 127 returned failure:", {
+                    domain: "worktree",
+                    worktreeId,
+                    error: result.error,
+                  });
+                }
+              })
+              .catch((err) => {
+                log.error("Retry after exit 127 threw:", {
+                  domain: "worktree",
+                  worktreeId,
+                  error: err,
+                });
+              });
+            return;
+          }
+
+          // Clear retry tracking on non-127 failure so future 127s get a fresh retry
+          this.retriedAfter127.delete(worktreeId);
+
+          const diagnosticHint = isCommandNotFound
+            ? `Command "${cmd}" was not found in PATH. This usually means the tool is not installed or PATH is incomplete in the packaged app.`
+            : undefined;
+          const detail = diagnosticHint ?? `Process exited with code ${code}`;
+
+          // Always emit the activity event — even if logging fails. The activity event
+          // is the primary way users see crash info in the UI (toast + activity feed).
           this.activityLog.addEvent({
             category: "worktree",
             type: "crashed",
             severity: "error",
             title: `Worktree "${worktreeId}" crashed (exit code ${code})`,
+            detail,
             worktreeId,
             projectName: this.activityProjectName(),
-            metadata: { exitCode: code },
+            metadata: {
+              exitCode: code,
+              command: cmd,
+              args,
+              cwd: workingDir,
+              diagnosticHint,
+              lastOutput,
+            },
+          });
+
+          log.error(`Worktree "${worktreeId}" crashed (exit code ${code})`, {
+            domain: "worktree",
+            command: cmd,
+            args,
+            cwd: workingDir,
+            exitCode: code,
+            diagnosticHint,
+            lastOutput,
+            PATH: spawnPath,
+          });
+        } else {
+          log.info(`Worktree "${worktreeId}" exited with code ${code}`, {
+            domain: "worktree",
           });
         }
       };
 
-      const spawnEnv = { ...process.env, ...offsetEnv.env, FORCE_COLOR: "1" };
       let pid: number;
       let killFn: (signal?: string) => void;
 
@@ -1004,9 +1093,29 @@ export class WorktreeManager {
           detached: false,
         });
 
-        pid = childProcess.pid!;
+        if (!childProcess.pid) {
+          const spawnError = `Failed to spawn worktree process "${cmd}" (no PID)`;
+          log.error(spawnError, {
+            domain: "worktree",
+            worktreeId,
+            command: cmd,
+            args,
+            cwd: workingDir,
+          });
+          this.portManager.releaseOffset(offset);
+          return { success: false, error: spawnError };
+        }
+
+        pid = childProcess.pid;
         killFn = (signal) => childProcess.kill(signal as NodeJS.Signals);
-        childProcess.on("exit", (code) => handleExit(code));
+        childProcess.on("error", (err) => {
+          // Spawn itself failed (e.g. command not found without shell, permission denied)
+          pushLogLines(`[spawn error] ${err.message}`);
+          log.error("Worktree spawn error:", { domain: "worktree", worktreeId, error: err });
+        });
+        // Use 'close' instead of 'exit' — 'close' fires after all stdio streams
+        // have been consumed, so we capture all output before handling the exit.
+        childProcess.on("close", (code) => handleExit(code));
         childProcess.stdout?.on("data", (data) => pushLogLines(data.toString()));
         childProcess.stderr?.on("data", (data) => pushLogLines(data.toString()));
       }
@@ -1041,10 +1150,13 @@ export class WorktreeManager {
       const message = error instanceof Error ? error.message : "Failed to start process";
       log.error(`Failed to start worktree "${worktreeId}": ${message}`, {
         domain: "worktree",
+        startCommand: this.config.startCommand,
+        cwd: workingDir,
+        error,
       });
       return {
         success: false,
-        error: message,
+        error: `Failed to start "${this.config.startCommand}" in ${workingDir}: ${message}`,
       };
     }
   }
@@ -1425,6 +1537,7 @@ export class WorktreeManager {
         await execFile(installCmd, installArgs, {
           cwd: worktreePath,
           encoding: "utf-8",
+          env: withAugmentedPathEnv(),
         });
       }
 
