@@ -11,6 +11,8 @@ export interface LocalConfig {
   allowAgentPRs?: boolean;
   shortcuts?: Record<string, string>;
   arrowNavEnabled?: boolean;
+  autoCleanupOnPrMerge?: boolean;
+  autoCleanupOnPrClose?: boolean;
 }
 
 export function useLocalConfig() {

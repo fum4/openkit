@@ -72,6 +72,23 @@ describe("loadLocalConfig", () => {
 
     expect(result).toEqual({});
   });
+
+  it("parses autoCleanupOnPrMerge and autoCleanupOnPrClose fields", () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        autoCleanupOnPrMerge: true,
+        autoCleanupOnPrClose: false,
+      }),
+    );
+
+    const result = loadLocalConfig("/project");
+
+    expect(result).toEqual({
+      autoCleanupOnPrMerge: true,
+      autoCleanupOnPrClose: false,
+    });
+  });
 });
 
 describe("loadLocalGitPolicyConfig", () => {

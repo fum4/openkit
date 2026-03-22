@@ -1,3 +1,7 @@
+/**
+ * Manages GitHub integration state: PR polling, git status caching, and
+ * orchestrating gh CLI operations (auth, push, PR creation) for worktrees.
+ */
 import type { WorktreeInfo } from "@openkit/shared/worktree-types";
 
 import {
@@ -16,6 +20,7 @@ import {
   logoutGh,
   pushBranch,
 } from "./gh-client";
+import { log } from "./logger";
 import type { GitHubConfig, GitStatusInfo, PRInfo } from "./types";
 
 export class GitHubManager {
@@ -124,7 +129,15 @@ export class GitHubManager {
     return { owner: this.config.owner, repo: this.config.repo };
   }
 
-  startPolling(getWorktrees: () => WorktreeInfo[], onUpdate: () => void): void {
+  startPolling(
+    getWorktrees: () => WorktreeInfo[],
+    onUpdate: () => void,
+    onPrStateChange?: (
+      worktreeId: string,
+      oldState: string,
+      newState: string,
+    ) => void | Promise<void>,
+  ): void {
     if (!this.isAvailable()) return;
 
     // Git status polling — every 3s
@@ -177,6 +190,28 @@ export class GitHubManager {
               pr &&
               (prev.url !== pr.url || prev.state !== pr.state || prev.isDraft !== pr.isDraft));
           if (prChanged) {
+            // Fire state-change callback for non-terminal → terminal transitions only
+            if (onPrStateChange && prev && pr) {
+              const oldState = prev.isDraft ? "draft" : prev.state;
+              const isTerminalTransition =
+                (pr.state === "merged" || pr.state === "closed") &&
+                oldState !== "merged" &&
+                oldState !== "closed";
+
+              if (isTerminalTransition) {
+                try {
+                  await onPrStateChange(wt.id, oldState, pr.state);
+                } catch (err) {
+                  log.warn("onPrStateChange callback failed", {
+                    domain: "GitHub",
+                    worktreeId: wt.id,
+                    oldState,
+                    newState: pr.state,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                }
+              }
+            }
             this.prCache.set(wt.id, pr);
             changed = true;
           }

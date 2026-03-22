@@ -32,23 +32,26 @@ If no PR is found, inform the user and stop.
 gh repo view --json owner,name
 ```
 
-Extract `owner` and `name` for API calls.
+Extract `owner` and `repo` for API calls.
 
-### Step 3: Fetch the Claude Review comment
+### Step 3: Fetch all review comments
 
-The code review is posted as a **PR issue comment** (not a PR review) by `github-actions[bot]`, with a title containing "Claude Review".
+Fetch both issue comments and PR review comments (use `--paginate` to ensure all pages are returned):
 
 ```bash
-gh api repos/{owner}/{repo}/issues/{number}/comments
+gh api --paginate repos/{owner}/{repo}/issues/{number}/comments
+gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments
 ```
 
-From the results:
+#### 3a: Claude Review (primary)
 
-1. Find comments where `user.login` is `github-actions[bot]` **and** the body contains "Claude Review"
-2. Among matching comments, pick the **latest** by `created_at`
-3. If no Claude Review comment is found, inform the user and stop
+From the issue comments, find the **latest** comment where `user.login` is `github-actions[bot]` and the body contains "Claude Review". Parse its structured markdown (severity sections like `### 🟠 Medium`, `### 🟡 Minor`).
 
-Parse the comment body — it contains structured markdown with severity sections (e.g. `### 🟠 Medium`, `### 🟡 Minor`) and numbered items describing issues with file references.
+#### 3b: Other bot reviews (secondary)
+
+Also collect comments from other review bots (e.g. `coderabbitai[bot]`). These are typically posted as PR review comments (line-level) rather than issue comments. Include their feedback in the analysis alongside the Claude Review.
+
+If no review comments are found from any bot, inform the user and stop.
 
 ### Step 4: Analyze and recommend
 

@@ -107,7 +107,12 @@ const OPEN_PROJECT_TARGETS = new Set<NonNullable<WorktreeConfig["openProjectTarg
 ]);
 
 const AGENT_GIT_POLICY_KEYS = ["allowAgentCommits", "allowAgentPushes", "allowAgentPRs"] as const;
-const LOCAL_CONFIG_KEYS = [...AGENT_GIT_POLICY_KEYS, "useNativePortHook"] as const;
+const LOCAL_CONFIG_KEYS = [
+  ...AGENT_GIT_POLICY_KEYS,
+  "useNativePortHook",
+  "autoCleanupOnPrMerge",
+  "autoCleanupOnPrClose",
+] as const;
 
 function isConfiguredOpenProjectTarget(
   value: unknown,
@@ -261,6 +266,8 @@ export class WorktreeManager {
       allowAgentPushes: policy.allowAgentPushes,
       allowAgentPRs: policy.allowAgentPRs,
       useNativePortHook: local.useNativePortHook === true,
+      autoCleanupOnPrMerge: local.autoCleanupOnPrMerge ?? config.autoCleanupOnPrMerge,
+      autoCleanupOnPrClose: local.autoCleanupOnPrClose ?? config.autoCleanupOnPrClose,
     };
   }
 
@@ -321,7 +328,7 @@ export class WorktreeManager {
 
     const classifyOpenkitFile = (filename: string): FileChangeCategory | null => {
       if (filename === "config.json") return "config";
-      if (filename === "local-config.json") return "local-config";
+      if (filename === "config.local.json") return "local-config";
       if (filename === "hooks.json") return "hooks";
       if (filename.startsWith("branch-name")) return "branch-rules";
       if (filename.startsWith("commit-message")) return "commit-rules";
@@ -401,6 +408,8 @@ export class WorktreeManager {
           ? fileConfig.openProjectTarget
           : this.config.openProjectTarget,
         showDiffStats: fileConfig.showDiffStats ?? this.config.showDiffStats,
+        autoCleanupOnPrMerge: fileConfig.autoCleanupOnPrMerge ?? this.config.autoCleanupOnPrMerge,
+        autoCleanupOnPrClose: fileConfig.autoCleanupOnPrClose ?? this.config.autoCleanupOnPrClose,
         activity: sanitizeActivityConfig(fileConfig.activity ?? this.config.activity),
       });
 
@@ -433,6 +442,75 @@ export class WorktreeManager {
     return this.githubManager;
   }
 
+  private async handlePrStateChange(
+    worktreeId: string,
+    oldState: string,
+    newState: string,
+  ): Promise<void> {
+    const config = this.getConfig();
+
+    if (newState === "merged" && !config.autoCleanupOnPrMerge) return;
+    if (newState === "closed" && !config.autoCleanupOnPrClose) return;
+
+    // Safety gate: check for uncommitted or unpushed changes
+    const git = this.githubManager?.getCachedGitStatus(worktreeId);
+    if (git) {
+      const hasUnpushed = git.ahead > 0 || git.noUpstream;
+      if (git.hasUncommitted || hasUnpushed) {
+        log.info(
+          `Auto-cleanup skipped for "${worktreeId}" — dirty state (PR ${oldState} → ${newState})`,
+          {
+            domain: "auto-cleanup",
+            worktreeId,
+            oldState,
+            newState,
+            hasUncommitted: git.hasUncommitted,
+            hasUnpushed,
+          },
+        );
+        this.activityLog.addEvent({
+          category: "worktree",
+          type: ACTIVITY_TYPES.AUTO_CLEANUP_SKIPPED,
+          severity: "warning",
+          title: "Auto-cleanup skipped",
+          detail: `Worktree "${worktreeId}" has uncommitted/unpushed changes — skipped auto-cleanup (PR ${oldState} → ${newState})`,
+          worktreeId,
+          projectName: this.activityProjectName(),
+        });
+        return;
+      }
+    }
+
+    log.info(`Auto-cleaning worktree "${worktreeId}" — PR ${oldState} → ${newState}`, {
+      domain: "auto-cleanup",
+      worktreeId,
+      oldState,
+      newState,
+    });
+
+    const result = await this.removeWorktree(worktreeId);
+
+    if (result.success) {
+      this.activityLog.addEvent({
+        category: "worktree",
+        type: ACTIVITY_TYPES.AUTO_CLEANUP,
+        severity: "info",
+        title: "Worktree auto-deleted",
+        detail: `Worktree "${worktreeId}" was auto-deleted (PR ${oldState} → ${newState})`,
+        worktreeId,
+        projectName: this.activityProjectName(),
+      });
+    } else {
+      log.warn(`Auto-cleanup failed for "${worktreeId}": ${result.error}`, {
+        domain: "auto-cleanup",
+        worktreeId,
+        oldState,
+        newState,
+        error: result.error,
+      });
+    }
+  }
+
   async initGitHub(): Promise<void> {
     this.githubManager = new GitHubManager();
     try {
@@ -440,6 +518,8 @@ export class WorktreeManager {
       this.githubManager.startPolling(
         () => this.getWorktrees(),
         () => this.notifyListeners(),
+        (worktreeId, oldState, newState) =>
+          this.handlePrStateChange(worktreeId, oldState, newState),
       );
       const status = this.githubManager.getStatus();
       if (status.repo) {
@@ -2195,6 +2275,8 @@ export class WorktreeManager {
         allowAgentPushes: boolean;
         allowAgentPRs: boolean;
         useNativePortHook: boolean;
+        autoCleanupOnPrMerge: boolean;
+        autoCleanupOnPrClose: boolean;
       }> = {};
 
       for (const key of LOCAL_CONFIG_KEYS) {
