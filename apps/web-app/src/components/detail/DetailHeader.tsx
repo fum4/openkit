@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
+import { Settings, ChevronDown, CornerDownRight } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
+import { fetchWorktreeSettings, updateWorktreeSettings } from "../../hooks/api";
 import type { WorktreeInfo } from "../../types";
 import {
   CursorIcon,
@@ -16,6 +19,8 @@ import {
   ZedIcon,
 } from "../../icons";
 import { action, badge, button, status, text } from "../../theme";
+import { useServerUrlOptional } from "../../contexts/ServerContext";
+import { ToggleSwitch } from "../ToggleSwitch";
 import { Tooltip } from "../Tooltip";
 
 interface DetailHeaderProps {
@@ -274,6 +279,47 @@ export function DetailHeader({
   const isRoot = worktree.isRoot;
   const editable = !isRunning && !isCreating && !isRoot;
 
+  const serverUrl = useServerUrlOptional();
+  const queryClient = useQueryClient();
+  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+
+  const settingsQuery = useQuery({
+    queryKey: ["worktree-settings", worktree.id],
+    queryFn: () => fetchWorktreeSettings(worktree.id, serverUrl),
+    enabled: showSettingsDropdown,
+    staleTime: 30_000,
+  });
+
+  const settingsMutation = useMutation({
+    mutationFn: (patch: {
+      autoCleanupOnMerge?: boolean | null;
+      autoCleanupOnClose?: boolean | null;
+    }) => updateWorktreeSettings(worktree.id, patch, serverUrl),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["worktree-settings", worktree.id] });
+    },
+  });
+
+  const settingsDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showSettingsDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (settingsDropdownRef.current && !settingsDropdownRef.current.contains(e.target as Node)) {
+        setShowSettingsDropdown(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowSettingsDropdown(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showSettingsDropdown]);
+
   return (
     <div className="flex-shrink-0 px-5 py-4">
       <div className="flex items-center justify-between">
@@ -303,6 +349,57 @@ export function DetailHeader({
           )}
           {!isCreating && (
             <>
+              {!isRoot && (
+                <div ref={settingsDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowSettingsDropdown((v) => !v)}
+                    className={`group h-7 px-1.5 text-[11px] font-medium ${button.secondary} rounded-md transition-colors duration-150 inline-flex items-center gap-0.5`}
+                    aria-label="Worktree settings"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-[#6b7280] group-hover:text-[#9ca3af]" />
+                    <ChevronDown className="w-3 h-3 text-[#6b7280] group-hover:text-[#9ca3af]" />
+                  </button>
+                  {showSettingsDropdown && (
+                    <div className="absolute right-0 top-full mt-1 z-50 bg-[#1a1d24] border border-white/[0.08] rounded-lg shadow-xl py-1.5 min-w-[220px]">
+                      {settingsQuery.isLoading ? (
+                        <div className="px-3 py-2 text-[11px] text-[#6b7280]">Loading...</div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between px-3 py-1.5">
+                            <span className="text-[11px] text-[#9ca3af]">
+                              Auto-delete on PR merge
+                            </span>
+                            <ToggleSwitch
+                              checked={settingsQuery.data?.autoCleanupOnMerge ?? false}
+                              onToggle={() =>
+                                settingsMutation.mutate({
+                                  autoCleanupOnMerge: !settingsQuery.data?.autoCleanupOnMerge,
+                                })
+                              }
+                              size="sm"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between px-3 py-1.5">
+                            <span className="text-[11px] text-[#9ca3af]">
+                              Auto-delete on PR close
+                            </span>
+                            <ToggleSwitch
+                              checked={settingsQuery.data?.autoCleanupOnClose ?? false}
+                              onToggle={() =>
+                                settingsMutation.mutate({
+                                  autoCleanupOnClose: !settingsQuery.data?.autoCleanupOnClose,
+                                })
+                              }
+                              size="sm"
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {isRoot ? (
                 <button
                   type="button"
@@ -312,18 +409,7 @@ export function DetailHeader({
                   title="Move uncommitted changes to a new worktree"
                   className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-accent rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 10.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1-.75-.75ZM2 10a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 10Zm12.25 4a.75.75 0 0 1 .75.75v1.5h1.5a.75.75 0 0 1 0 1.5h-1.5v1.5a.75.75 0 0 1-1.5 0v-1.5h-1.5a.75.75 0 0 1 0-1.5h1.5v-1.5a.75.75 0 0 1 .75-.75Z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <CornerDownRight className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
                   Move to worktree
                 </button>
               ) : (

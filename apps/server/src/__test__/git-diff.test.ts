@@ -64,10 +64,16 @@ describe("getChangedFiles", () => {
   it("returns modified, added, and deleted files from git diff output", async () => {
     setupMockResponses({
       "rev-parse --verify HEAD": { stdout: "abc123\n" },
-      "diff --name-status HEAD": { stdout: "M\tsrc/app.ts\nA\tsrc/new.ts\nD\tsrc/old.ts\n" },
-      "diff --numstat HEAD": {
+      // Staged diff (--cached must come before bare "diff --name-status" to win substring match)
+      "diff --name-status --cached": {
+        stdout: "M\tsrc/app.ts\nA\tsrc/new.ts\nD\tsrc/old.ts\n",
+      },
+      "diff --numstat --cached": {
         stdout: "10\t3\tsrc/app.ts\n15\t0\tsrc/new.ts\n0\t20\tsrc/old.ts\n",
       },
+      // Unstaged diff (bare, no ref)
+      "diff --name-status": { stdout: "" },
+      "diff --numstat": { stdout: "" },
       "ls-files --others --exclude-standard": { stdout: "" },
     });
 
@@ -80,6 +86,7 @@ describe("getChangedFiles", () => {
       linesAdded: 10,
       linesRemoved: 3,
       isBinary: false,
+      staged: true,
     });
     expect(result.files[1]).toEqual({
       path: "src/new.ts",
@@ -87,6 +94,7 @@ describe("getChangedFiles", () => {
       linesAdded: 15,
       linesRemoved: 0,
       isBinary: false,
+      staged: true,
     });
     expect(result.files[2]).toEqual({
       path: "src/old.ts",
@@ -94,14 +102,17 @@ describe("getChangedFiles", () => {
       linesAdded: 0,
       linesRemoved: 20,
       isBinary: false,
+      staged: true,
     });
   });
 
   it("handles untracked files", async () => {
     setupMockResponses({
       "rev-parse --verify HEAD": { stdout: "abc123\n" },
-      "diff --name-status HEAD": { stdout: "" },
-      "diff --numstat HEAD": { stdout: "" },
+      "diff --name-status --cached": { stdout: "" },
+      "diff --numstat --cached": { stdout: "" },
+      "diff --name-status": { stdout: "" },
+      "diff --numstat": { stdout: "" },
       "ls-files --others --exclude-standard": { stdout: "untracked.ts\n" },
     });
     // countUntrackedLines now reads the file directly instead of using wc -l
@@ -114,13 +125,16 @@ describe("getChangedFiles", () => {
     expect(result.files[0].status).toBe("untracked");
     expect(result.files[0].linesAdded).toBeGreaterThan(0);
     expect(result.files[0].linesRemoved).toBe(0);
+    expect(result.files[0].staged).toBe(false);
   });
 
   it("detects binary files from numstat output", async () => {
     setupMockResponses({
       "rev-parse --verify HEAD": { stdout: "abc123\n" },
-      "diff --name-status HEAD": { stdout: "M\timage.png\n" },
-      "diff --numstat HEAD": { stdout: "-\t-\timage.png\n" },
+      "diff --name-status --cached": { stdout: "M\timage.png\n" },
+      "diff --numstat --cached": { stdout: "-\t-\timage.png\n" },
+      "diff --name-status": { stdout: "" },
+      "diff --numstat": { stdout: "" },
       "ls-files --others --exclude-standard": { stdout: "" },
     });
 
@@ -135,8 +149,10 @@ describe("getChangedFiles", () => {
   it("handles renamed files with old path", async () => {
     setupMockResponses({
       "rev-parse --verify HEAD": { stdout: "abc123\n" },
-      "diff --name-status HEAD": { stdout: "R100\told-name.ts\tnew-name.ts\n" },
-      "diff --numstat HEAD": { stdout: "0\t0\tnew-name.ts\n" },
+      "diff --name-status --cached": { stdout: "R100\told-name.ts\tnew-name.ts\n" },
+      "diff --numstat --cached": { stdout: "0\t0\tnew-name.ts\n" },
+      "diff --name-status": { stdout: "" },
+      "diff --numstat": { stdout: "" },
       "ls-files --others --exclude-standard": { stdout: "" },
     });
 
@@ -150,18 +166,21 @@ describe("getChangedFiles", () => {
       linesAdded: 0,
       linesRemoved: 0,
       isBinary: false,
+      staged: true,
     });
   });
 
   it("handles renamed files with {old => new} numstat format", async () => {
     setupMockResponses({
       "rev-parse --verify HEAD": { stdout: "abc123\n" },
-      "diff --name-status HEAD": {
+      "diff --name-status --cached": {
         stdout: "R100\tsrc/__test__/ops-log.test.ts\tsrc/__test__/log-store.test.ts\n",
       },
-      "diff --numstat HEAD": {
+      "diff --numstat --cached": {
         stdout: "55\t53\tsrc/__test__/{ops-log.test.ts => log-store.test.ts}\n",
       },
+      "diff --name-status": { stdout: "" },
+      "diff --numstat": { stdout: "" },
       "ls-files --others --exclude-standard": { stdout: "" },
     });
 
@@ -175,6 +194,7 @@ describe("getChangedFiles", () => {
       linesAdded: 55,
       linesRemoved: 53,
       isBinary: false,
+      staged: true,
     });
   });
 
@@ -200,8 +220,10 @@ describe("getChangedFiles", () => {
   it("returns empty list for clean worktree", async () => {
     setupMockResponses({
       "rev-parse --verify HEAD": { stdout: "abc123\n" },
-      "diff --name-status HEAD": { stdout: "" },
-      "diff --numstat HEAD": { stdout: "" },
+      "diff --name-status --cached": { stdout: "" },
+      "diff --numstat --cached": { stdout: "" },
+      "diff --name-status": { stdout: "" },
+      "diff --numstat": { stdout: "" },
       "ls-files --others --exclude-standard": { stdout: "" },
     });
 
@@ -223,8 +245,10 @@ describe("getChangedFiles", () => {
   it("handles git command failures gracefully", async () => {
     setupMockResponses({
       "rev-parse --verify HEAD": { stdout: "abc123\n" },
-      "diff --name-status HEAD": { throws: true, stdout: "" },
-      "diff --numstat HEAD": { throws: true, stdout: "" },
+      "diff --name-status --cached": { throws: true, stdout: "" },
+      "diff --numstat --cached": { throws: true, stdout: "" },
+      "diff --name-status": { throws: true, stdout: "" },
+      "diff --numstat": { throws: true, stdout: "" },
       "ls-files --others --exclude-standard": { throws: true, stdout: "" },
     });
 
@@ -233,6 +257,70 @@ describe("getChangedFiles", () => {
     // Should not throw, just return empty with error details
     expect(result.files).toHaveLength(0);
     expect(result.error).toBeDefined();
+  });
+
+  it("separates staged and unstaged files when includeCommitted is false", async () => {
+    mockExec.mockImplementation((_cmd: string, args: string[]) => {
+      const key = args.join(" ");
+      if (key === "rev-parse --verify HEAD") return { stdout: "abc123\n", stderr: "" };
+      if (key === "diff --name-status --cached")
+        return { stdout: "M\tsrc/staged.ts\n", stderr: "" };
+      if (key === "diff --numstat --cached") return { stdout: "5\t2\tsrc/staged.ts\n", stderr: "" };
+      if (key === "diff --name-status") return { stdout: "M\tsrc/unstaged.ts\n", stderr: "" };
+      if (key === "diff --numstat") return { stdout: "3\t1\tsrc/unstaged.ts\n", stderr: "" };
+      if (key.includes("ls-files")) return { stdout: "", stderr: "" };
+      return { stdout: "", stderr: "" };
+    });
+
+    const result = await getChangedFiles("/fake", "main", false);
+
+    const stagedFile = result.files.find((f) => f.path === "src/staged.ts");
+    const unstagedFile = result.files.find((f) => f.path === "src/unstaged.ts");
+
+    expect(stagedFile).toBeDefined();
+    expect(stagedFile?.staged).toBe(true);
+    expect(unstagedFile).toBeDefined();
+    expect(unstagedFile?.staged).toBe(false);
+    // Staged files should come first in the sorted output
+    expect(result.files.indexOf(stagedFile!)).toBeLessThan(result.files.indexOf(unstagedFile!));
+  });
+
+  it("does not set staged field when includeCommitted is true", async () => {
+    setupMockResponses({
+      "rev-parse --verify HEAD": { stdout: "abc123\n" },
+      "rev-parse --verify origin/main": { stdout: "def456\n" },
+      "diff --name-status origin/main": { stdout: "M\tsrc/local.ts\nA\tsrc/committed.ts\n" },
+      "diff --numstat origin/main": {
+        stdout: "5\t2\tsrc/local.ts\n20\t0\tsrc/committed.ts\n",
+      },
+      "ls-files --others --exclude-standard": { stdout: "" },
+    });
+
+    const result = await getChangedFiles("/fake", "main", true);
+
+    expect(result.files).toHaveLength(2);
+    for (const file of result.files) {
+      expect(file.staged).toBeUndefined();
+    }
+  });
+
+  it("untracked files have staged: false when includeCommitted is false", async () => {
+    setupMockResponses({
+      "rev-parse --verify HEAD": { stdout: "abc123\n" },
+      "diff --name-status --cached": { stdout: "" },
+      "diff --numstat --cached": { stdout: "" },
+      "diff --name-status": { stdout: "" },
+      "diff --numstat": { stdout: "" },
+      "ls-files --others --exclude-standard": { stdout: "new-file.ts\n" },
+    });
+    mockReadFile.mockResolvedValue("content\n");
+
+    const result = await getChangedFiles("/fake", "main", false);
+
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0].path).toBe("new-file.ts");
+    expect(result.files[0].status).toBe("untracked");
+    expect(result.files[0].staged).toBe(false);
   });
 });
 

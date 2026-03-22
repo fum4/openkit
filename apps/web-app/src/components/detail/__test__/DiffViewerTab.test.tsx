@@ -214,7 +214,7 @@ describe("DiffViewerTab", () => {
       render(<DiffViewerTab worktree={mergedWorktree} visible />);
 
       await waitFor(() => {
-        expect(screen.getByText("Merged")).toBeInTheDocument();
+        expect(screen.getByText("Show merged")).toBeInTheDocument();
       });
     });
 
@@ -233,10 +233,10 @@ describe("DiffViewerTab", () => {
       render(<DiffViewerTab worktree={mergedWorktree} visible />);
 
       await waitFor(() => {
-        expect(screen.getByText("Merged")).toBeInTheDocument();
+        expect(screen.getByText("Show merged")).toBeInTheDocument();
       });
 
-      const mergedLabel = screen.getByText("Merged");
+      const mergedLabel = screen.getByText("Show merged");
       const toggleContainer = mergedLabel.parentElement!;
       const toggle = toggleContainer.querySelector("button")!;
       await user.click(toggle);
@@ -251,11 +251,11 @@ describe("DiffViewerTab", () => {
       render(<DiffViewerTab worktree={mergedWorktree} visible />);
 
       await waitFor(() => {
-        expect(screen.getByText("Merged")).toBeInTheDocument();
+        expect(screen.getByText("Show merged")).toBeInTheDocument();
       });
 
       // Committed should be hidden (no new commits after merge)
-      expect(screen.queryByText("Committed")).not.toBeInTheDocument();
+      expect(screen.queryByText("Show committed")).not.toBeInTheDocument();
     });
 
     it("shows Committed toggle when there are post-merge commits", async () => {
@@ -267,14 +267,14 @@ describe("DiffViewerTab", () => {
       render(<DiffViewerTab worktree={mergedWorktree} visible />);
 
       await waitFor(() => {
-        expect(screen.getByText("Committed")).toBeInTheDocument();
+        expect(screen.getByText("Show committed")).toBeInTheDocument();
       });
     });
 
     it("does not show Merged toggle for non-merged worktrees", () => {
       render(<DiffViewerTab worktree={makeWorktree()} visible />);
 
-      expect(screen.queryByText("Merged")).not.toBeInTheDocument();
+      expect(screen.queryByText("Show merged")).not.toBeInTheDocument();
     });
   });
 });

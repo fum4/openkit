@@ -325,7 +325,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
         <div className="flex items-center gap-1.5">
           {isMerged && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-[#6b7280] select-none">Merged</span>
+              <span className="text-[11px] text-[#6b7280] select-none">Show merged</span>
               <ToggleSwitch
                 checked={showMergedDiff}
                 onToggle={() => setShowMergedDiff((prev) => !prev)}
@@ -335,7 +335,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
           )}
           {showCommittedToggle && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-[#6b7280] select-none">Committed</span>
+              <span className="text-[11px] text-[#6b7280] select-none">Show committed</span>
               <ToggleSwitch
                 checked={includeCommitted}
                 onToggle={() => setIncludeCommitted((prev) => !prev)}

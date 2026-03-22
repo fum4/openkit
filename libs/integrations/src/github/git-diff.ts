@@ -203,27 +203,60 @@ export async function getChangedFiles(
   const filesByPath = new Map<string, DiffFileInfo>();
   const errors: string[] = [];
 
-  // When includeCommitted is true, diff the working tree against origin/baseBranch
-  // (a single consistent base for both committed and uncommitted changes).
-  // When false, diff only uncommitted changes against HEAD.
-  const baseRef = includeCommitted ? `origin/${normalizeBaseBranch(baseBranch)}` : "HEAD";
-  const useBaseRef = !includeCommitted || (await hasRef(worktreePath, baseRef));
-  const effectiveRef = useBaseRef ? baseRef : "HEAD";
-
-  // 1. Tracked changes (working tree vs effectiveRef)
-  try {
-    const [nameStatusResult, numstatResult] = await Promise.all([
-      execCmd("git", ["diff", "--name-status", effectiveRef], worktreePath),
-      execCmd("git", ["diff", "--numstat", effectiveRef], worktreePath),
-    ]);
-
-    const tracked = parseNameStatus(nameStatusResult.stdout, numstatResult.stdout);
-    for (const file of tracked) {
-      filesByPath.set(file.path, file);
+  if (!includeCommitted) {
+    // 1a. Staged changes (index vs HEAD)
+    try {
+      const [nameStatusResult, numstatResult] = await Promise.all([
+        execCmd("git", ["diff", "--name-status", "--cached"], worktreePath),
+        execCmd("git", ["diff", "--numstat", "--cached"], worktreePath),
+      ]);
+      const staged = parseNameStatus(nameStatusResult.stdout, numstatResult.stdout);
+      for (const file of staged) {
+        file.staged = true;
+        filesByPath.set(`staged:${file.path}`, file);
+      }
+    } catch (err) {
+      log.warn("Failed to get staged changes", { domain: "diff", error: err, worktreePath });
+      errors.push(`staged: ${err instanceof Error ? err.message : String(err)}`);
     }
-  } catch (err) {
-    log.warn("Failed to get tracked changes", { domain: "diff", error: err, worktreePath });
-    errors.push(`tracked: ${err instanceof Error ? err.message : String(err)}`);
+
+    // 1b. Unstaged changes (working tree vs index)
+    try {
+      const [nameStatusResult, numstatResult] = await Promise.all([
+        execCmd("git", ["diff", "--name-status"], worktreePath),
+        execCmd("git", ["diff", "--numstat"], worktreePath),
+      ]);
+      const unstaged = parseNameStatus(nameStatusResult.stdout, numstatResult.stdout);
+      for (const file of unstaged) {
+        file.staged = false;
+        filesByPath.set(`unstaged:${file.path}`, file);
+      }
+    } catch (err) {
+      log.warn("Failed to get unstaged changes", { domain: "diff", error: err, worktreePath });
+      errors.push(`unstaged: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    // When includeCommitted is true, diff the working tree against origin/baseBranch
+    // (a single consistent base for both committed and uncommitted changes).
+    const baseRef = `origin/${normalizeBaseBranch(baseBranch)}`;
+    const useBaseRef = await hasRef(worktreePath, baseRef);
+    const effectiveRef = useBaseRef ? baseRef : "HEAD";
+
+    // 1. Tracked changes (working tree vs effectiveRef)
+    try {
+      const [nameStatusResult, numstatResult] = await Promise.all([
+        execCmd("git", ["diff", "--name-status", effectiveRef], worktreePath),
+        execCmd("git", ["diff", "--numstat", effectiveRef], worktreePath),
+      ]);
+
+      const tracked = parseNameStatus(nameStatusResult.stdout, numstatResult.stdout);
+      for (const file of tracked) {
+        filesByPath.set(file.path, file);
+      }
+    } catch (err) {
+      log.warn("Failed to get tracked changes", { domain: "diff", error: err, worktreePath });
+      errors.push(`tracked: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   // 2. Untracked files
@@ -237,13 +270,15 @@ export async function getChangedFiles(
     if (untrackedPaths.length > 0) {
       const lineCounts = await countUntrackedLines(worktreePath, untrackedPaths);
       for (const filePath of untrackedPaths) {
-        if (!filesByPath.has(filePath)) {
-          filesByPath.set(filePath, {
+        const mapKey = includeCommitted ? filePath : `unstaged:${filePath}`;
+        if (!filesByPath.has(mapKey)) {
+          filesByPath.set(mapKey, {
             path: filePath,
             status: "untracked",
             linesAdded: lineCounts.get(filePath) ?? 0,
             linesRemoved: 0,
             isBinary: false,
+            ...(includeCommitted ? {} : { staged: false }),
           });
         }
       }
@@ -253,7 +288,7 @@ export async function getChangedFiles(
     errors.push(`untracked: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Sort: modified first, then added, then deleted, then renamed, then untracked
+  // Sort: staged files first (when in staging mode), then by status, then alphabetically
   const statusOrder: Record<DiffFileInfo["status"], number> = {
     modified: 0,
     added: 1,
@@ -262,6 +297,10 @@ export async function getChangedFiles(
     untracked: 4,
   };
   const files = [...filesByPath.values()].sort((a, b) => {
+    // Staged files first when in staging mode
+    if (a.staged !== undefined && b.staged !== undefined && a.staged !== b.staged) {
+      return a.staged ? -1 : 1;
+    }
     const orderDiff = statusOrder[a.status] - statusOrder[b.status];
     if (orderDiff !== 0) return orderDiff;
     return a.path.localeCompare(b.path);
