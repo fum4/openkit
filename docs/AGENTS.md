@@ -245,7 +245,7 @@ Three operations are governed by git policy:
 
 ### Global Settings
 
-Global toggles are stored in `.openkit/local-config.json` (local-only, not committed):
+Global toggles are stored in `.openkit/config.local.json` (local-only, not committed):
 
 ```json
 {

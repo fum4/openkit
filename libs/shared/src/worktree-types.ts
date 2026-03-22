@@ -70,6 +70,10 @@ export interface WorktreeConfig {
     retentionDays?: number;
     maxSizeMB?: number;
   };
+  /** Auto-delete worktree when its PR is merged (default: false) */
+  autoCleanupOnPrMerge?: boolean;
+  /** Auto-delete worktree when its PR is closed without merge (default: false) */
+  autoCleanupOnPrClose?: boolean;
 }
 
 export interface WorktreeInfo {

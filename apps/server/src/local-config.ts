@@ -1,11 +1,17 @@
+/**
+ * Reads and writes the project-local config file (config.local.json) which stores
+ * per-machine settings like agent git policy, keyboard shortcuts, and auto-cleanup flags.
+ */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
 
+import { log } from "./logger";
+
 import type { WorktreeConfig } from "./types";
 
-const LOCAL_CONFIG_FILE_NAME = "local-config.json";
+const LOCAL_CONFIG_FILE_NAME = "config.local.json";
 
 export interface LocalConfig {
   allowAgentCommits?: boolean;
@@ -14,6 +20,8 @@ export interface LocalConfig {
   useNativePortHook?: boolean;
   shortcuts?: Record<string, string>;
   arrowNavEnabled?: boolean;
+  autoCleanupOnPrMerge?: boolean;
+  autoCleanupOnPrClose?: boolean;
 }
 
 function getLocalConfigPath(configDir: string): string {
@@ -39,6 +47,12 @@ function sanitizeLocalConfig(value: unknown): LocalConfig {
   }
   if (typeof raw.arrowNavEnabled === "boolean") {
     next.arrowNavEnabled = raw.arrowNavEnabled;
+  }
+  if (typeof raw.autoCleanupOnPrMerge === "boolean") {
+    next.autoCleanupOnPrMerge = raw.autoCleanupOnPrMerge;
+  }
+  if (typeof raw.autoCleanupOnPrClose === "boolean") {
+    next.autoCleanupOnPrClose = raw.autoCleanupOnPrClose;
   }
   if (raw.shortcuts && typeof raw.shortcuts === "object") {
     const shortcuts: Record<string, string> = {};
@@ -80,6 +94,14 @@ export function ensureLocalConfigDefaults(configDir: string): void {
     current.arrowNavEnabled = true;
     needsWrite = true;
   }
+  if (current.autoCleanupOnPrMerge === undefined) {
+    current.autoCleanupOnPrMerge = false;
+    needsWrite = true;
+  }
+  if (current.autoCleanupOnPrClose === undefined) {
+    current.autoCleanupOnPrClose = false;
+    needsWrite = true;
+  }
   if (!current.shortcuts) {
     current.shortcuts = { ...DEFAULT_SHORTCUTS };
     needsWrite = true;
@@ -107,7 +129,12 @@ export function loadLocalConfig(configDir: string): LocalConfig {
 
   try {
     return sanitizeLocalConfig(JSON.parse(readFileSync(localConfigPath, "utf-8")));
-  } catch {
+  } catch (err) {
+    log.warn("Failed to parse local config, using defaults", {
+      domain: "config",
+      path: localConfigPath,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return {};
   }
 }

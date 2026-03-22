@@ -39,6 +39,8 @@ export interface WorktreeConfig {
     retentionDays?: number;
     maxSizeMB?: number;
   };
+  autoCleanupOnPrMerge?: boolean;
+  autoCleanupOnPrClose?: boolean;
 }
 
 export function useConfig() {

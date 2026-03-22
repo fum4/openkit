@@ -200,7 +200,7 @@ Returns `null` for `config` and `projectName` if the config file has been delete
 
 Update project configuration fields.
 
-`allowAgentCommits`, `allowAgentPushes`, and `allowAgentPRs` are persisted to `.openkit/local-config.json` (local-only, non-committed). Other config fields are persisted to `.openkit/config.json`.
+`allowAgentCommits`, `allowAgentPushes`, and `allowAgentPRs` are persisted to `.openkit/config.local.json` (local-only, non-committed). Other config fields are persisted to `.openkit/config.json`.
 
 - **Request**: Partial `WorktreeConfig` object (any fields to update)
 - **Response**: `{ success: true, ... }`
@@ -355,7 +355,7 @@ Check which per-integration commit message rule overrides exist.
 
 ## Local Config
 
-Manage `.openkit/local-config.json` -- local-only, non-committed settings including agent git policy and keyboard shortcuts.
+Manage `.openkit/config.local.json` -- local-only, non-committed settings including agent git policy and keyboard shortcuts.
 
 #### `GET /api/local-config`
 
