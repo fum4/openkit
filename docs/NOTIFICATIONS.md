@@ -124,8 +124,8 @@ Primary event types surfaced in the feed are defined in `ACTIVITY_TYPES` (`libs/
 | `WORKTREE_STARTED`     | `started`              | worktree | Dev server started                                       |
 | `WORKTREE_STOPPED`     | `stopped`              | worktree | Dev server stopped                                       |
 | `WORKTREE_CRASHED`     | `crashed`              | worktree | Dev server crashed (non-zero exit)                       |
-| `AUTO_CLEANUP`         | `auto-cleanup`         | worktree | Worktree auto-deleted after PR merged/closed             |
-| `AUTO_CLEANUP_SKIPPED` | `auto-cleanup-skipped` | worktree | Auto-cleanup skipped due to uncommitted/unpushed changes |
+| `AUTO_CLEANUP`         | `auto_cleanup`         | worktree | Worktree auto-deleted after PR merged/closed             |
+| `AUTO_CLEANUP_SKIPPED` | `auto_cleanup_skipped` | worktree | Auto-cleanup skipped due to uncommitted/unpushed changes |
 | `CONNECTION_LOST`      | `connection_lost`      | system   | Lost connection                                          |
 | `CONNECTION_RESTORED`  | `connection_restored`  | system   | Connection restored                                      |
 | `CONFIG_NEEDS_PUSH`    | `config_needs_push`    | system   | Config changes need push                                 |

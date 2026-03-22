@@ -43,8 +43,8 @@ export const ACTIVITY_TYPES = {
   WORKTREE_STARTED: "started",
   WORKTREE_STOPPED: "stopped",
   WORKTREE_CRASHED: "crashed",
-  AUTO_CLEANUP: "auto-cleanup",
-  AUTO_CLEANUP_SKIPPED: "auto-cleanup-skipped",
+  AUTO_CLEANUP: "auto_cleanup",
+  AUTO_CLEANUP_SKIPPED: "auto_cleanup_skipped",
 
   // System events
   CONNECTION_LOST: "connection_lost",
@@ -79,8 +79,8 @@ export const DEFAULT_ACTIVITY_CONFIG: ActivityConfig = {
     "skill_failed",
     "crashed",
     "connection_lost",
-    "auto-cleanup-skipped",
-    "auto-cleanup",
+    "auto_cleanup_skipped",
+    "auto_cleanup",
   ],
   osNotificationEvents: ["agent_awaiting_input"],
 };

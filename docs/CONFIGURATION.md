@@ -338,7 +338,7 @@ When `true`, a worktree is automatically deleted when its associated GitHub PR i
 
 **Safety gate**: worktrees with uncommitted changes or unpushed commits are never auto-deleted — they are skipped and a warning toast is shown instead.
 
-**Activity notifications**: a successful auto-delete emits an `auto-cleanup` info event in the activity feed; a skipped worktree emits an `auto-cleanup-skipped` warning toast.
+**Activity notifications**: a successful auto-delete emits an `auto_cleanup` info event in the activity feed; a skipped worktree emits an `auto_cleanup_skipped` warning toast.
 
 This flag is a personal preference and lives in `config.local.json` by default (not committed to git). Move it to `config.json` to make it a team-wide default.
 
@@ -354,7 +354,7 @@ When `true`, a worktree is automatically deleted when its associated GitHub PR i
 
 **Safety gate**: worktrees with uncommitted changes or unpushed commits are never auto-deleted — they are skipped and a warning toast is shown instead.
 
-**Activity notifications**: a successful auto-delete emits an `auto-cleanup` info event in the activity feed; a skipped worktree emits an `auto-cleanup-skipped` warning toast.
+**Activity notifications**: a successful auto-delete emits an `auto_cleanup` info event in the activity feed; a skipped worktree emits an `auto_cleanup_skipped` warning toast.
 
 This flag is a personal preference and lives in `config.local.json` by default (not committed to git). Move it to `config.json` to make it a team-wide default.
 

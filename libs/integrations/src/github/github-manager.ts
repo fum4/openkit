@@ -123,7 +123,11 @@ export class GitHubManager {
   startPolling(
     getWorktrees: () => WorktreeInfo[],
     onUpdate: () => void,
-    onPrStateChange?: (worktreeId: string, oldState: string, newState: string) => void,
+    onPrStateChange?: (
+      worktreeId: string,
+      oldState: string,
+      newState: string,
+    ) => void | Promise<void>,
   ): void {
     if (!this.isAvailable()) return;
 
@@ -186,7 +190,7 @@ export class GitHubManager {
             ) {
               const oldState = prev.isDraft ? "draft" : prev.state;
               try {
-                onPrStateChange(wt.id, oldState, pr.state);
+                await onPrStateChange(wt.id, oldState, pr.state);
               } catch (err) {
                 log.warn("onPrStateChange callback failed", {
                   domain: "GitHub",
