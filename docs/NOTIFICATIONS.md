@@ -101,34 +101,34 @@ interface ActivityEvent {
 
 Primary event types surfaced in the feed are defined in `ACTIVITY_TYPES` (`libs/shared/src/activity-event.ts`):
 
-| Constant               | Type string            | Category | Description                                    |
-| ---------------------- | ---------------------- | -------- | ---------------------------------------------- |
-| `NOTIFY`               | `notify`               | agent    | Agent sends a status update                    |
-| `COMMIT_COMPLETED`     | `commit_completed`     | agent    | Agent committed successfully                   |
-| `COMMIT_FAILED`        | `commit_failed`        | agent    | Agent commit failed                            |
-| `PUSH_COMPLETED`       | `push_completed`       | agent    | Agent pushed successfully                      |
-| `PUSH_FAILED`          | `push_failed`          | agent    | Agent push failed                              |
-| `PR_CREATED`           | `pr_created`           | agent    | Agent created a PR                             |
-| `SKILL_STARTED`        | `skill_started`        | agent    | Hook skill started                             |
-| `SKILL_COMPLETED`      | `skill_completed`      | agent    | Hook skill completed                           |
-| `SKILL_FAILED`         | `skill_failed`         | agent    | Hook skill failed                              |
-| `HOOKS_STARTED`        | `hooks_started`        | agent    | Hook command run started                       |
-| `HOOKS_RAN`            | `hooks_ran`            | agent    | Hook pipeline completed                        |
-| `AGENT_AWAITING_INPUT` | `agent_awaiting_input` | agent    | Agent is blocked waiting on user input         |
-| `TASK_DETECTED`        | `task_detected`        | agent    | Newly fetched Jira/Linear/local issue detected |
-| `AUTO_TASK_CLAIMED`    | `auto_task_claimed`    | agent    | Selected agent auto-started for the task       |
-| `WORKFLOW_PHASE`       | `workflow_phase`       | agent    | Agent workflow phase transition                |
-| `CREATION_STARTED`     | `creation_started`     | worktree | Worktree creation started                      |
-| `CREATION_COMPLETED`   | `creation_completed`   | worktree | Worktree created successfully                  |
-| `CREATION_FAILED`      | `creation_failed`      | worktree | Worktree creation failed                       |
-| `WORKTREE_STARTED`     | `started`              | worktree | Dev server started                             |
-| `WORKTREE_STOPPED`     | `stopped`              | worktree | Dev server stopped                             |
-| `WORKTREE_CRASHED`     | `crashed`              | worktree | Dev server crashed (non-zero exit)             |
-| `AUTO_CLEANUP`         | `auto-cleanup`         | worktree | Worktree auto-deleted after PR merged/closed   |
+| Constant               | Type string            | Category | Description                                              |
+| ---------------------- | ---------------------- | -------- | -------------------------------------------------------- |
+| `NOTIFY`               | `notify`               | agent    | Agent sends a status update                              |
+| `COMMIT_COMPLETED`     | `commit_completed`     | agent    | Agent committed successfully                             |
+| `COMMIT_FAILED`        | `commit_failed`        | agent    | Agent commit failed                                      |
+| `PUSH_COMPLETED`       | `push_completed`       | agent    | Agent pushed successfully                                |
+| `PUSH_FAILED`          | `push_failed`          | agent    | Agent push failed                                        |
+| `PR_CREATED`           | `pr_created`           | agent    | Agent created a PR                                       |
+| `SKILL_STARTED`        | `skill_started`        | agent    | Hook skill started                                       |
+| `SKILL_COMPLETED`      | `skill_completed`      | agent    | Hook skill completed                                     |
+| `SKILL_FAILED`         | `skill_failed`         | agent    | Hook skill failed                                        |
+| `HOOKS_STARTED`        | `hooks_started`        | agent    | Hook command run started                                 |
+| `HOOKS_RAN`            | `hooks_ran`            | agent    | Hook pipeline completed                                  |
+| `AGENT_AWAITING_INPUT` | `agent_awaiting_input` | agent    | Agent is blocked waiting on user input                   |
+| `TASK_DETECTED`        | `task_detected`        | agent    | Newly fetched Jira/Linear/local issue detected           |
+| `AUTO_TASK_CLAIMED`    | `auto_task_claimed`    | agent    | Selected agent auto-started for the task                 |
+| `WORKFLOW_PHASE`       | `workflow_phase`       | agent    | Agent workflow phase transition                          |
+| `CREATION_STARTED`     | `creation_started`     | worktree | Worktree creation started                                |
+| `CREATION_COMPLETED`   | `creation_completed`   | worktree | Worktree created successfully                            |
+| `CREATION_FAILED`      | `creation_failed`      | worktree | Worktree creation failed                                 |
+| `WORKTREE_STARTED`     | `started`              | worktree | Dev server started                                       |
+| `WORKTREE_STOPPED`     | `stopped`              | worktree | Dev server stopped                                       |
+| `WORKTREE_CRASHED`     | `crashed`              | worktree | Dev server crashed (non-zero exit)                       |
+| `AUTO_CLEANUP`         | `auto-cleanup`         | worktree | Worktree auto-deleted after PR merged/closed             |
 | `AUTO_CLEANUP_SKIPPED` | `auto-cleanup-skipped` | worktree | Auto-cleanup skipped due to uncommitted/unpushed changes |
-| `CONNECTION_LOST`      | `connection_lost`      | system   | Lost connection                                |
-| `CONNECTION_RESTORED`  | `connection_restored`  | system   | Connection restored                            |
-| `CONFIG_NEEDS_PUSH`    | `config_needs_push`    | system   | Config changes need push                       |
+| `CONNECTION_LOST`      | `connection_lost`      | system   | Lost connection                                          |
+| `CONNECTION_RESTORED`  | `connection_restored`  | system   | Connection restored                                      |
+| `CONFIG_NEEDS_PUSH`    | `config_needs_push`    | system   | Config changes need push                                 |
 
 `agent_connected` and `agent_disconnected` remain in the constants map but are not currently emitted.
 

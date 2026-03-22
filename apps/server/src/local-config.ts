@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
 import path from "path";
 
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
@@ -69,6 +69,14 @@ const DEFAULT_SHORTCUTS: Record<string, string> = {
 };
 
 export function ensureLocalConfigDefaults(configDir: string): void {
+  // Migrate old local-config.json → config.local.json
+  const configDirPath = path.join(configDir, CONFIG_DIR_NAME);
+  const oldPath = path.join(configDirPath, "local-config.json");
+  const newPath = getLocalConfigPath(configDir);
+  if (existsSync(oldPath) && !existsSync(newPath)) {
+    renameSync(oldPath, newPath);
+  }
+
   const current = loadLocalConfig(configDir);
   let needsWrite = false;
 

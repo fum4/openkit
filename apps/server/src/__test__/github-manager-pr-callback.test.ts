@@ -3,6 +3,7 @@
  * Verifies that terminal PR state transitions (open->merged, open->closed)
  * fire the callback, while cold starts (no previous state) do not.
  */
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { GitHubManager } from "@openkit/integrations/github/github-manager";
 import * as ghClient from "@openkit/integrations/github/gh-client";
 

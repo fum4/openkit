@@ -443,7 +443,7 @@ export class WorktreeManager {
 
   private async handlePrStateChange(
     worktreeId: string,
-    _oldState: string,
+    oldState: string,
     newState: string,
   ): Promise<void> {
     const config = this.getConfig();
@@ -456,18 +456,23 @@ export class WorktreeManager {
     if (git) {
       const hasUnpushed = git.ahead > 0 || git.noUpstream;
       if (git.hasUncommitted || hasUnpushed) {
-        log.info(`Auto-cleanup skipped for "${worktreeId}" — dirty state`, {
-          domain: "auto-cleanup",
-          worktreeId,
-          hasUncommitted: git.hasUncommitted,
-          hasUnpushed,
-        });
+        log.info(
+          `Auto-cleanup skipped for "${worktreeId}" — dirty state (PR ${oldState} → ${newState})`,
+          {
+            domain: "auto-cleanup",
+            worktreeId,
+            oldState,
+            newState,
+            hasUncommitted: git.hasUncommitted,
+            hasUnpushed,
+          },
+        );
         this.activityLog.addEvent({
           category: "worktree",
           type: ACTIVITY_TYPES.AUTO_CLEANUP_SKIPPED,
           severity: "warning",
           title: "Auto-cleanup skipped",
-          detail: `Worktree "${worktreeId}" has uncommitted/unpushed changes — skipped auto-cleanup (PR was ${newState})`,
+          detail: `Worktree "${worktreeId}" has uncommitted/unpushed changes — skipped auto-cleanup (PR ${oldState} → ${newState})`,
           worktreeId,
           projectName: this.activityProjectName(),
         });
@@ -475,9 +480,11 @@ export class WorktreeManager {
       }
     }
 
-    log.info(`Auto-cleaning worktree "${worktreeId}" — PR was ${newState}`, {
+    log.info(`Auto-cleaning worktree "${worktreeId}" — PR ${oldState} → ${newState}`, {
       domain: "auto-cleanup",
       worktreeId,
+      oldState,
+      newState,
     });
 
     const result = await this.removeWorktree(worktreeId);
@@ -488,7 +495,7 @@ export class WorktreeManager {
         type: ACTIVITY_TYPES.AUTO_CLEANUP,
         severity: "info",
         title: "Worktree auto-deleted",
-        detail: `Worktree "${worktreeId}" was auto-deleted — PR was ${newState}`,
+        detail: `Worktree "${worktreeId}" was auto-deleted (PR ${oldState} → ${newState})`,
         worktreeId,
         projectName: this.activityProjectName(),
       });
@@ -496,6 +503,8 @@ export class WorktreeManager {
       log.warn(`Auto-cleanup failed for "${worktreeId}": ${result.error}`, {
         domain: "auto-cleanup",
         worktreeId,
+        oldState,
+        newState,
         error: result.error,
       });
     }

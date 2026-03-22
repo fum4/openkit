@@ -16,6 +16,7 @@ import {
   logoutGh,
   pushBranch,
 } from "./gh-client";
+import { log } from "./logger";
 import type { GitHubConfig, GitStatusInfo, PRInfo } from "./types";
 
 export class GitHubManager {
@@ -186,8 +187,12 @@ export class GitHubManager {
               const oldState = prev.isDraft ? "draft" : prev.state;
               try {
                 onPrStateChange(wt.id, oldState, pr.state);
-              } catch {
-                // Don't let callback errors break polling
+              } catch (err) {
+                log.warn("onPrStateChange callback failed", {
+                  domain: "GitHub",
+                  worktreeId: wt.id,
+                  error: err instanceof Error ? err.message : String(err),
+                });
               }
             }
             this.prCache.set(wt.id, pr);

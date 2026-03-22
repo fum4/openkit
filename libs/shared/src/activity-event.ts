@@ -80,6 +80,7 @@ export const DEFAULT_ACTIVITY_CONFIG: ActivityConfig = {
     "crashed",
     "connection_lost",
     "auto-cleanup-skipped",
+    "auto-cleanup",
   ],
   osNotificationEvents: ["agent_awaiting_input"],
 };
