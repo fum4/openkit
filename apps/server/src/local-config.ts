@@ -1,7 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
+/**
+ * Reads and writes the project-local config file (config.local.json) which stores
+ * per-machine settings like agent git policy, keyboard shortcuts, and auto-cleanup flags.
+ */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 
 import { CONFIG_DIR_NAME } from "@openkit/shared/constants";
+
+import { log } from "./logger";
 
 import type { WorktreeConfig } from "./types";
 
@@ -69,14 +75,6 @@ const DEFAULT_SHORTCUTS: Record<string, string> = {
 };
 
 export function ensureLocalConfigDefaults(configDir: string): void {
-  // Migrate old local-config.json → config.local.json
-  const configDirPath = path.join(configDir, CONFIG_DIR_NAME);
-  const oldPath = path.join(configDirPath, "local-config.json");
-  const newPath = getLocalConfigPath(configDir);
-  if (existsSync(oldPath) && !existsSync(newPath)) {
-    renameSync(oldPath, newPath);
-  }
-
   const current = loadLocalConfig(configDir);
   let needsWrite = false;
 
@@ -131,7 +129,12 @@ export function loadLocalConfig(configDir: string): LocalConfig {
 
   try {
     return sanitizeLocalConfig(JSON.parse(readFileSync(localConfigPath, "utf-8")));
-  } catch {
+  } catch (err) {
+    log.warn("Failed to parse local config, using defaults", {
+      domain: "config",
+      path: localConfigPath,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return {};
   }
 }
