@@ -2,7 +2,8 @@
  * Tests for the DiffFileSidebar component.
  *
  * Verifies file list rendering, status icons, line count badges,
- * folder grouping, and click handling.
+ * folder grouping, click handling, and staged/unstaged section splits
+ * with stage/unstage actions.
  */
 import { render, screen, userEvent } from "../../../__test__/render";
 import { DiffFileSidebar } from "../DiffFileSidebar";
@@ -107,5 +108,137 @@ describe("DiffFileSidebar", () => {
     await user.click(screen.getByText("src"));
 
     expect(screen.queryByText("app.ts")).not.toBeInTheDocument();
+  });
+
+  describe("staging sections", () => {
+    const stagedFile = makeFile({ path: "src/staged.ts", staged: true });
+    const unstagedFile = makeFile({ path: "src/unstaged.ts", staged: false });
+
+    it("renders flat list when showStagingActions is false", () => {
+      const files = [stagedFile, unstagedFile];
+
+      render(<DiffFileSidebar {...defaultProps} files={files} showStagingActions={false} />);
+
+      expect(screen.queryByText(/staged changes/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/^changes/i)).not.toBeInTheDocument();
+      expect(screen.getByText("staged.ts")).toBeInTheDocument();
+      expect(screen.getByText("unstaged.ts")).toBeInTheDocument();
+    });
+
+    it("renders flat list when showStagingActions is omitted", () => {
+      const files = [stagedFile, unstagedFile];
+
+      render(<DiffFileSidebar {...defaultProps} files={files} />);
+
+      expect(screen.queryByText(/staged changes/i)).not.toBeInTheDocument();
+      expect(screen.getByText("staged.ts")).toBeInTheDocument();
+      expect(screen.getByText("unstaged.ts")).toBeInTheDocument();
+    });
+
+    it("shows staged files under Staged Changes section", () => {
+      const files = [stagedFile, unstagedFile];
+
+      render(<DiffFileSidebar {...defaultProps} files={files} showStagingActions />);
+
+      expect(screen.getByText(/staged changes \(1\)/i)).toBeInTheDocument();
+      expect(screen.getByText("staged.ts")).toBeInTheDocument();
+    });
+
+    it("shows unstaged files under Changes section", () => {
+      const files = [stagedFile, unstagedFile];
+
+      render(<DiffFileSidebar {...defaultProps} files={files} showStagingActions />);
+
+      expect(screen.getByText(/^changes \(1\)$/i)).toBeInTheDocument();
+      expect(screen.getByText("unstaged.ts")).toBeInTheDocument();
+    });
+
+    it("omits Staged Changes section when there are no staged files", () => {
+      const files = [unstagedFile];
+
+      render(<DiffFileSidebar {...defaultProps} files={files} showStagingActions />);
+
+      expect(screen.queryByText(/staged changes/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/^changes \(1\)$/i)).toBeInTheDocument();
+    });
+
+    it("calls onStageAll when Stage all button is clicked", async () => {
+      const onStageAll = vi.fn();
+      const user = userEvent.setup();
+      const files = [unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageAll={onStageAll}
+        />,
+      );
+
+      await user.click(screen.getByTitle("Stage all"));
+
+      expect(onStageAll).toHaveBeenCalledTimes(1);
+    });
+
+    it("calls onUnstageFile when unstage button is clicked for a staged file", async () => {
+      const onUnstageFile = vi.fn();
+      const user = userEvent.setup();
+      const files = [stagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onUnstageFile={onUnstageFile}
+        />,
+      );
+
+      await user.click(screen.getByTitle("Unstage"));
+
+      expect(onUnstageFile).toHaveBeenCalledWith(stagedFile.path);
+    });
+
+    it("calls onStageFile when stage button is clicked for an unstaged file", async () => {
+      const onStageFile = vi.fn();
+      const user = userEvent.setup();
+      const files = [unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageFile={onStageFile}
+        />,
+      );
+
+      await user.click(screen.getByTitle("Stage"));
+
+      expect(onStageFile).toHaveBeenCalledWith(unstagedFile.path);
+    });
+
+    it("does not call onSelectFile when stage/unstage button is clicked", async () => {
+      const onSelectFile = vi.fn();
+      const onStageFile = vi.fn();
+      const user = userEvent.setup();
+      const files = [unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          files={files}
+          selectedFile={null}
+          onSelectFile={onSelectFile}
+          showStagingActions
+          onStageFile={onStageFile}
+        />,
+      );
+
+      await user.click(screen.getByTitle("Stage"));
+
+      expect(onStageFile).toHaveBeenCalledTimes(1);
+      expect(onSelectFile).not.toHaveBeenCalled();
+    });
   });
 });
