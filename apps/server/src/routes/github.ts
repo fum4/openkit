@@ -7,8 +7,9 @@ import {
   resolveCommandPath,
   withAugmentedPathEnv,
 } from "@openkit/shared/command-path";
-import { configureGitUser } from "@openkit/integrations/github/gh-client";
+import { configureGitUser, findPRForBranch } from "@openkit/integrations/github/gh-client";
 import { getChangedFiles, getFileContent } from "@openkit/integrations/github/git-diff";
+import { getPrDiffFiles, getPrFileContent } from "@openkit/integrations/github/pr-diff";
 import type { DiffFileInfo } from "@openkit/shared/worktree-types";
 
 import type { WorktreeManager } from "../manager";
@@ -369,6 +370,175 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
           oldContent: "",
           newContent: "",
           error: error instanceof Error ? error.message : "Failed to get file content",
+        },
+        400,
+      );
+    }
+  });
+
+  app.get("/api/worktrees/:id/pr-diff", async (c) => {
+    const ghManager = manager.getGitHubManager();
+    if (!ghManager?.isAvailable()) {
+      return c.json(
+        {
+          success: false,
+          files: [],
+          baseBranch: "",
+          baseSha: "",
+          mergeSha: "",
+          error: "GitHub integration not available",
+        },
+        400,
+      );
+    }
+    try {
+      const id = c.req.param("id");
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json(
+          {
+            success: false,
+            files: [],
+            baseBranch: "",
+            baseSha: "",
+            mergeSha: "",
+            error: resolved.error,
+          },
+          toResolutionStatus(resolved.code),
+        );
+      }
+
+      // Get PR number from cache, fall back to live fetch
+      let pr = ghManager.getCachedPR(resolved.worktreeId);
+      if (pr === undefined) {
+        const repoConfig = ghManager.getRepoConfig();
+        if (repoConfig) {
+          pr = await findPRForBranch(repoConfig.owner, repoConfig.repo, resolved.worktree.branch);
+        }
+      }
+      if (!pr) {
+        return c.json(
+          {
+            success: false,
+            files: [],
+            baseBranch: "",
+            baseSha: "",
+            mergeSha: "",
+            error: "No PR found for this worktree",
+          },
+          404,
+        );
+      }
+
+      const repoConfig = ghManager.getRepoConfig();
+      if (!repoConfig) {
+        return c.json(
+          {
+            success: false,
+            files: [],
+            baseBranch: "",
+            baseSha: "",
+            mergeSha: "",
+            error: "Repository config not available",
+          },
+          400,
+        );
+      }
+
+      const result = await getPrDiffFiles(repoConfig.owner, repoConfig.repo, pr.number);
+      return c.json(result, result.success ? 200 : 400);
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          files: [],
+          baseBranch: "",
+          baseSha: "",
+          mergeSha: "",
+          error: error instanceof Error ? error.message : "Failed to get PR diff",
+        },
+        400,
+      );
+    }
+  });
+
+  app.get("/api/worktrees/:id/pr-diff/file", async (c) => {
+    const ghManager = manager.getGitHubManager();
+    if (!ghManager?.isAvailable()) {
+      return c.json(
+        {
+          success: false,
+          oldContent: "",
+          newContent: "",
+          error: "GitHub integration not available",
+        },
+        400,
+      );
+    }
+    try {
+      const id = c.req.param("id");
+      const filePath = c.req.query("path");
+      const status = c.req.query("status") ?? "modified";
+      const baseSha = c.req.query("baseSha");
+      const mergeSha = c.req.query("mergeSha");
+      const oldPath = c.req.query("oldPath") || undefined;
+
+      if (!filePath) {
+        return c.json(
+          { success: false, oldContent: "", newContent: "", error: "path query param is required" },
+          400,
+        );
+      }
+      if (!baseSha || !mergeSha) {
+        return c.json(
+          {
+            success: false,
+            oldContent: "",
+            newContent: "",
+            error: "baseSha and mergeSha query params are required",
+          },
+          400,
+        );
+      }
+
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json(
+          { success: false, oldContent: "", newContent: "", error: resolved.error },
+          toResolutionStatus(resolved.code),
+        );
+      }
+
+      const repoConfig = ghManager.getRepoConfig();
+      if (!repoConfig) {
+        return c.json(
+          {
+            success: false,
+            oldContent: "",
+            newContent: "",
+            error: "Repository config not available",
+          },
+          400,
+        );
+      }
+
+      const result = await getPrFileContent(
+        repoConfig.owner,
+        repoConfig.repo,
+        filePath,
+        status as "modified" | "added" | "deleted" | "renamed" | "untracked",
+        baseSha,
+        mergeSha,
+        oldPath,
+      );
+      return c.json(result, result.success ? 200 : 400);
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          oldContent: "",
+          newContent: "",
+          error: error instanceof Error ? error.message : "Failed to get PR file content",
         },
         400,
       );

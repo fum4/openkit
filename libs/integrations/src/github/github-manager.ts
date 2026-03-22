@@ -119,6 +119,11 @@ export class GitHubManager {
     return this.config?.defaultBranch ?? null;
   }
 
+  getRepoConfig(): { owner: string; repo: string } | null {
+    if (!this.config) return null;
+    return { owner: this.config.owner, repo: this.config.repo };
+  }
+
   startPolling(getWorktrees: () => WorktreeInfo[], onUpdate: () => void): void {
     if (!this.isAvailable()) return;
 

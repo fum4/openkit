@@ -28,6 +28,7 @@ import type {
   SkillScanResult,
   DiffListResponse,
   DiffFileContentResponse,
+  PrDiffListResponse,
 } from "../types";
 
 // API functions now accept an optional serverUrl parameter
@@ -428,6 +429,76 @@ export async function fetchDiffFileContent(
       oldContent: "",
       newContent: "",
       error: err instanceof Error ? err.message : "Failed to fetch file content",
+    };
+  }
+}
+
+export async function fetchPrDiffFiles(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<PrDiffListResponse> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/pr-diff`);
+    if (!isJsonResponse(res)) {
+      return {
+        success: false,
+        files: [],
+        baseBranch: "",
+        baseSha: "",
+        mergeSha: "",
+        error: `Server returned ${res.status} ${res.statusText}`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      files: [],
+      baseBranch: "",
+      baseSha: "",
+      mergeSha: "",
+      error: err instanceof Error ? err.message : "Failed to fetch PR diff files",
+    };
+  }
+}
+
+export async function fetchPrDiffFileContent(
+  worktreeId: string,
+  filePath: string,
+  fileStatus: string,
+  baseSha: string,
+  mergeSha: string,
+  oldPath?: string,
+  serverUrl: string | null = null,
+): Promise<DiffFileContentResponse> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const params = new URLSearchParams({
+      path: filePath,
+      status: fileStatus,
+      baseSha,
+      mergeSha,
+    });
+    if (oldPath) params.set("oldPath", oldPath);
+    const res = await fetch(
+      `${base}/api/worktrees/${encodeURIComponent(worktreeId)}/pr-diff/file?${params}`,
+    );
+    if (!isJsonResponse(res)) {
+      return {
+        success: false,
+        oldContent: "",
+        newContent: "",
+        error: `Server returned ${res.status} ${res.statusText}`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      oldContent: "",
+      newContent: "",
+      error: err instanceof Error ? err.message : "Failed to fetch PR file content",
     };
   }
 }

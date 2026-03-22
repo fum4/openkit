@@ -350,6 +350,7 @@ export type {
   DiffFileInfo,
   DiffListResponse,
   DiffFileContentResponse,
+  PrDiffListResponse,
 } from "@openkit/shared/worktree-types";
 
 // ─── Jira types ─────────────────────────────────────────────────

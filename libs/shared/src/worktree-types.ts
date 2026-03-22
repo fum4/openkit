@@ -238,6 +238,13 @@ export interface DiffListResponse {
   error?: string;
 }
 
+export interface PrDiffListResponse extends DiffListResponse {
+  /** SHA of the PR base (e.g. the tip of main at merge time) */
+  baseSha: string;
+  /** SHA of the merge commit */
+  mergeSha: string;
+}
+
 export interface DiffFileContentResponse {
   success: boolean;
   oldContent: string;
