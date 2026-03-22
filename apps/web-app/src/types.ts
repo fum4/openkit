@@ -1,5 +1,4 @@
-/** Sentinel ID used for the root project entry in the worktree list. */
-export const ROOT_WORKTREE_ID = "root";
+export { ROOT_WORKTREE_ID } from "@openkit/shared/worktree-types";
 
 export interface WorktreeInfo {
   id: string;

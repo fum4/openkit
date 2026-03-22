@@ -138,6 +138,16 @@ export async function getPrDiffFiles(
       return mapped;
     });
 
+    if (files.length >= 100) {
+      log.warn("PR diff may be truncated — GitHub API returns max 100 files per page", {
+        domain: "diff",
+        owner,
+        repo,
+        prNumber,
+        fileCount: files.length,
+      });
+    }
+
     log.info("Fetched PR diff files successfully", {
       domain: "diff",
       owner,
@@ -236,6 +246,12 @@ export async function getPrFileContent(
         baseSha,
         error: errMsg,
       });
+      return {
+        success: false,
+        oldContent: "",
+        newContent: "",
+        error: `Failed to fetch old content: ${errMsg}`,
+      };
     }
   }
 
@@ -277,6 +293,12 @@ export async function getPrFileContent(
         mergeSha,
         error: errMsg,
       });
+      return {
+        success: false,
+        oldContent: "",
+        newContent: "",
+        error: `Failed to fetch new content: ${errMsg}`,
+      };
     }
   }
 

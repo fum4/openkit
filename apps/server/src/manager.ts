@@ -1289,8 +1289,11 @@ export class WorktreeManager {
         { cwd: gitRoot, encoding: "utf-8" },
       );
       unpushedCount = parseInt(stdout.trim(), 10) || 0;
-    } catch {
-      // No upstream or no commits ahead — that's fine
+    } catch (err) {
+      log.warn("Could not count unpushed commits — assuming 0", {
+        domain: "worktree",
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     // Check there's actually something to move
@@ -1301,8 +1304,11 @@ export class WorktreeManager {
         encoding: "utf-8",
       });
       hasUncommitted = stdout.trim().length > 0;
-    } catch {
-      // Ignore
+    } catch (err) {
+      log.warn("Could not check uncommitted changes — assuming none", {
+        domain: "worktree",
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     if (unpushedCount === 0 && !hasUncommitted) {
@@ -1312,8 +1318,9 @@ export class WorktreeManager {
       };
     }
 
-    // Stash uncommitted changes (including untracked files)
-    let hasStash = false;
+    // Stash uncommitted changes (including untracked files).
+    // We capture the stash ref to avoid race conditions with other stash operations.
+    let stashRef: string | null = null;
     if (hasUncommitted) {
       try {
         const { stdout } = await execFile(
@@ -1321,7 +1328,18 @@ export class WorktreeManager {
           ["stash", "push", "--include-untracked", "-m", `openkit-move-to-${request.branch}`],
           { cwd: gitRoot, encoding: "utf-8" },
         );
-        hasStash = !stdout.includes("No local changes");
+        if (!stdout.includes("No local changes")) {
+          // Get the exact ref of the stash we just created
+          const { stdout: refOut } = await execFile(
+            "git",
+            ["stash", "list", "--max-count=1", "--format=%H"],
+            {
+              cwd: gitRoot,
+              encoding: "utf-8",
+            },
+          );
+          stashRef = refOut.trim() || null;
+        }
       } catch (error) {
         return {
           success: false,
@@ -1334,9 +1352,9 @@ export class WorktreeManager {
     const result = await this.createWorktree(request);
     if (!result.success) {
       // Restore stash if worktree creation failed
-      if (hasStash) {
+      if (stashRef) {
         try {
-          await execFile("git", ["stash", "pop"], { cwd: gitRoot, encoding: "utf-8" });
+          await execFile("git", ["stash", "apply", stashRef], { cwd: gitRoot, encoding: "utf-8" });
         } catch {
           log.error("Failed to restore stash after failed worktree creation", {
             domain: "worktree",
@@ -1349,6 +1367,16 @@ export class WorktreeManager {
     // Reset root branch to remove unpushed commits
     if (unpushedCount > 0) {
       try {
+        // Record pre-reset HEAD so recovery is possible if the reset goes wrong
+        const { stdout: preResetHead } = await execFile("git", ["rev-parse", "HEAD"], {
+          cwd: gitRoot,
+          encoding: "utf-8",
+        });
+        log.info(`Pre-reset HEAD: ${preResetHead.trim()} — resetting ${unpushedCount} commits`, {
+          domain: "worktree",
+          preResetHead: preResetHead.trim(),
+          unpushedCount,
+        });
         await execFile("git", ["reset", "--hard", `HEAD~${unpushedCount}`], {
           cwd: gitRoot,
           encoding: "utf-8",
@@ -1363,9 +1391,10 @@ export class WorktreeManager {
     }
 
     // Apply stash in the new worktree once it's ready
-    if (hasStash) {
+    if (stashRef) {
       const worktreeId = result.worktree?.id;
       if (worktreeId) {
+        const capturedStashRef = stashRef;
         // The worktree creation is async — register a callback to apply stash when done
         const existingCallbacks = this.worktreeCallbacks.get(worktreeId);
         const existingOnSuccess = existingCallbacks?.onSuccess;
@@ -1374,15 +1403,16 @@ export class WorktreeManager {
           onSuccess: (id) => {
             existingOnSuccess?.(id);
             const worktreePath = path.join(this.getWorktreesAbsolutePath(), id);
-            // Apply stash in the new worktree
-            execFile("git", ["stash", "pop"], { cwd: worktreePath, encoding: "utf-8" }).catch(
-              (err) => {
-                log.error(
-                  `Failed to apply stash in worktree "${id}": ${err instanceof Error ? err.message : String(err)}`,
-                  { domain: "worktree" },
-                );
-              },
-            );
+            // Apply stash by exact ref to avoid race conditions with other stash operations
+            execFile("git", ["stash", "apply", capturedStashRef], {
+              cwd: worktreePath,
+              encoding: "utf-8",
+            }).catch((err) => {
+              log.error(
+                `Failed to apply stash in worktree "${id}": ${err instanceof Error ? err.message : String(err)}`,
+                { domain: "worktree", stashRef: capturedStashRef },
+              );
+            });
           },
         });
       }
