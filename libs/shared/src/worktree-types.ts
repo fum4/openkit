@@ -72,6 +72,9 @@ export interface WorktreeConfig {
   };
 }
 
+/** Sentinel ID used for the root project entry in the worktree list. */
+export const ROOT_WORKTREE_ID = "root";
+
 export interface WorktreeInfo {
   /** Unique identifier (typically ticket ID like ADH-1234) */
   id: string;
@@ -81,6 +84,8 @@ export interface WorktreeInfo {
   branch: string;
   /** Current status */
   status: "running" | "stopped" | "starting" | "creating";
+  /** Whether this entry represents the root project (not a child worktree) */
+  isRoot?: boolean;
   /** Status message for in-progress operations like creation */
   statusMessage?: string;
   /** All offset ports if running */
@@ -243,6 +248,10 @@ export interface PrDiffListResponse extends DiffListResponse {
   baseSha: string;
   /** SHA of the merge commit */
   mergeSha: string;
+  /** SHA of the PR branch head when the PR was merged */
+  headSha: string;
+  /** SHA of the local worktree HEAD (for detecting post-merge commits) */
+  localHeadSha: string;
 }
 
 export interface DiffFileContentResponse {

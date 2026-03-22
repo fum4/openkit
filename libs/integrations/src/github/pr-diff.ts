@@ -73,7 +73,7 @@ export async function getPrDiffFiles(
   owner: string,
   repo: string,
   prNumber: number,
-): Promise<PrDiffListResponse> {
+): Promise<Omit<PrDiffListResponse, "localHeadSha">> {
   log.info("Fetching PR diff files", {
     domain: "diff",
     owner,
@@ -87,13 +87,14 @@ export async function getPrDiffFiles(
       "api",
       `repos/${owner}/${repo}/pulls/${prNumber}`,
       "--jq",
-      "{base_sha: .base.sha, base_ref: .base.ref, merge_commit_sha: .merge_commit_sha}",
+      "{base_sha: .base.sha, base_ref: .base.ref, merge_commit_sha: .merge_commit_sha, head_sha: .head.sha}",
     ]);
 
     const meta = JSON.parse(metaOut.trim()) as {
       base_sha: string;
       base_ref: string;
       merge_commit_sha: string | null;
+      head_sha: string;
     };
 
     if (!meta.merge_commit_sha) {
@@ -109,6 +110,7 @@ export async function getPrDiffFiles(
         baseBranch: meta.base_ref ?? "",
         baseSha: meta.base_sha ?? "",
         mergeSha: "",
+        headSha: meta.head_sha ?? "",
         error: "PR has not been merged yet",
       };
     }
@@ -150,6 +152,7 @@ export async function getPrDiffFiles(
       baseBranch: meta.base_ref,
       baseSha: meta.base_sha,
       mergeSha: meta.merge_commit_sha,
+      headSha: meta.head_sha,
     };
   } catch (err) {
     log.error("Failed to fetch PR diff files", {
@@ -165,6 +168,7 @@ export async function getPrDiffFiles(
       baseBranch: "",
       baseSha: "",
       mergeSha: "",
+      headSha: "",
       error: err instanceof Error ? err.message : "Failed to fetch PR diff files",
     };
   }

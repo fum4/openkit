@@ -446,7 +446,24 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       }
 
       const result = await getPrDiffFiles(repoConfig.owner, repoConfig.repo, pr.number);
-      return c.json(result, result.success ? 200 : 400);
+
+      // Get the local HEAD SHA to detect post-merge commits
+      let localHeadSha = "";
+      try {
+        const { stdout } = await new Promise<{ stdout: string }>((resolve, reject) => {
+          execFile(
+            "git",
+            ["rev-parse", "HEAD"],
+            { cwd: resolved.worktree.path, encoding: "utf-8" },
+            (err, out) => (err ? reject(err) : resolve({ stdout: String(out ?? "") })),
+          );
+        });
+        localHeadSha = stdout.trim();
+      } catch {
+        // Non-fatal — localHeadSha stays empty
+      }
+
+      return c.json({ ...result, localHeadSha }, result.success ? 200 : 400);
     } catch (error) {
       return c.json(
         {

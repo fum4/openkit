@@ -99,6 +99,34 @@ export async function createWorktree(
   }
 }
 
+export async function moveToWorktree(
+  branch: string,
+  name?: string,
+  serverUrl: string | null = null,
+): Promise<{
+  success: boolean;
+  error?: string;
+  code?: string;
+  worktreeId?: string;
+  worktree?: WorktreeInfo;
+}> {
+  try {
+    const body: { branch: string; name?: string } = { branch };
+    if (name) body.name = name;
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/worktrees/move-from-root`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to move to worktree",
+    };
+  }
+}
+
 export async function recoverWorktree(
   id: string,
   action: "reuse" | "recreate",
@@ -447,6 +475,8 @@ export async function fetchPrDiffFiles(
         baseBranch: "",
         baseSha: "",
         mergeSha: "",
+        headSha: "",
+        localHeadSha: "",
         error: `Server returned ${res.status} ${res.statusText}`,
       };
     }
@@ -458,6 +488,8 @@ export async function fetchPrDiffFiles(
       baseBranch: "",
       baseSha: "",
       mergeSha: "",
+      headSha: "",
+      localHeadSha: "",
       error: err instanceof Error ? err.message : "Failed to fetch PR diff files",
     };
   }

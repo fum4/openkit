@@ -28,6 +28,7 @@ interface DetailHeaderProps {
   onStart: () => void;
   onStop: () => void;
   onRemove: () => void;
+  onMoveToWorktree?: () => void;
   openTargetOptions: OpenProjectTargetOption[];
   selectedOpenTarget: OpenProjectTarget | null;
   onSelectOpenTarget: (target: OpenProjectTarget) => void;
@@ -261,6 +262,7 @@ export function DetailHeader({
   onStart,
   onStop,
   onRemove,
+  onMoveToWorktree,
   openTargetOptions,
   selectedOpenTarget,
   onSelectOpenTarget,
@@ -269,7 +271,8 @@ export function DetailHeader({
   onSelectLinearIssue,
   onSelectLocalIssue,
 }: DetailHeaderProps) {
-  const editable = !isRunning && !isCreating;
+  const isRoot = worktree.isRoot;
+  const editable = !isRunning && !isCreating && !isRoot;
 
   return (
     <div className="flex-shrink-0 px-5 py-4">
@@ -300,28 +303,53 @@ export function DetailHeader({
           )}
           {!isCreating && (
             <>
-              <button
-                type="button"
-                onClick={onRemove}
-                disabled={isLoading}
-                aria-label="Delete worktree"
-                title="Delete worktree"
-                className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-red-400 rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-red-400"
+              {isRoot ? (
+                <button
+                  type="button"
+                  onClick={onMoveToWorktree}
+                  disabled={isLoading || !worktree.hasUncommitted}
+                  aria-label="Move changes to worktree"
+                  title="Move uncommitted changes to a new worktree"
+                  className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-accent rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.519.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Delete
-              </button>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 10.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1-.75-.75ZM2 10a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 10Zm12.25 4a.75.75 0 0 1 .75.75v1.5h1.5a.75.75 0 0 1 0 1.5h-1.5v1.5a.75.75 0 0 1-1.5 0v-1.5h-1.5a.75.75 0 0 1 0-1.5h1.5v-1.5a.75.75 0 0 1 .75-.75Z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Move to worktree
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  disabled={isLoading}
+                  aria-label="Delete worktree"
+                  title="Delete worktree"
+                  className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-red-400 rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-red-400"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.519.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Delete
+                </button>
+              )}
               {isRunning ? (
                 <button
                   type="button"

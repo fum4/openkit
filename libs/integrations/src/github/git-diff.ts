@@ -71,11 +71,18 @@ function parseNameStatus(nameStatusOutput: string, numstatOutput: string): DiffF
     const [addedStr, removedStr, ...pathParts] = parts;
     const isBinary = addedStr === "-" && removedStr === "-";
     const filePath = pathParts.join("\t");
-    numstatMap.set(filePath, {
+    const stats = {
       added: isBinary ? 0 : parseInt(addedStr, 10) || 0,
       removed: isBinary ? 0 : parseInt(removedStr, 10) || 0,
       isBinary,
-    });
+    };
+    numstatMap.set(filePath, stats);
+    // Renames use {old => new} format in --numstat (e.g. "src/{old.ts => new.ts}").
+    // Also store under the expanded new path so the name-status lookup can find it.
+    const renameMatch = filePath.match(/^(.*?)\{.*? => (.*?)\}(.*)$/);
+    if (renameMatch) {
+      numstatMap.set(renameMatch[1] + renameMatch[2] + renameMatch[3], stats);
+    }
   }
 
   const files: DiffFileInfo[] = [];

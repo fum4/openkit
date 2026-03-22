@@ -1,4 +1,5 @@
 import AnsiToHtml from "ansi-to-html";
+import { Terminal } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 
 import type { WorktreeInfo } from "../../types";
@@ -84,10 +85,14 @@ export function LogsViewer({ worktree, isRunning, isCreating, visible = true }: 
       className="flex-1 min-h-0 relative mx-1 mb-[4px] p-1 rounded-t-xl rounded-b-lg bg-[#07090d]"
       style={shellStyle}
     >
-      <div
-        className={`h-full w-full min-h-0 rounded-t-lg rounded-b-md bg-black overflow-hidden px-2 flex items-center justify-center ${text.dimmed} text-xs`}
-      >
-        Start this worktree to see logs
+      <div className="h-full w-full min-h-0 rounded-t-lg rounded-b-md bg-black overflow-hidden px-2 flex flex-col items-center justify-center gap-1.5">
+        <Terminal className="w-7 h-7 text-[#4b5563] mb-3" strokeWidth={1.5} />
+        <span className="text-[13px] font-medium tracking-[-0.01em] text-[#6b7280]">
+          No logs yet
+        </span>
+        <span className="text-[11px] text-[#4b5563] max-w-[240px] text-center leading-relaxed">
+          Start the worktree to see dev server output
+        </span>
       </div>
     </div>
   );

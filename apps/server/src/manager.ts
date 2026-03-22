@@ -60,6 +60,7 @@ import type {
   WorktreeInfo,
   WorktreeRenameRequest,
 } from "./types";
+import { ROOT_WORKTREE_ID } from "./types";
 
 const portLog = log.get("port");
 const worktreeLog = log.get("worktree");
@@ -664,6 +665,31 @@ export class WorktreeManager {
     const worktrees: WorktreeInfo[] = [];
     const worktreesPath = this.getWorktreesAbsolutePath();
 
+    // Prepend the root project entry
+    const rootPath = this.configDir;
+    const rootBranch = getWorktreeBranch(rootPath);
+    const rootEntry: WorktreeInfo = {
+      id: ROOT_WORKTREE_ID,
+      path: rootPath,
+      branch: rootBranch || this.config.baseBranch,
+      status: "stopped",
+      ports: [],
+      offset: null,
+      pid: null,
+      isRoot: true,
+    };
+    if (this.githubManager) {
+      const rootGit = this.githubManager.getCachedGitStatus(ROOT_WORKTREE_ID);
+      if (rootGit) {
+        rootEntry.hasUncommitted = rootGit.hasUncommitted;
+        rootEntry.hasUnpushed = rootGit.ahead > 0 || rootGit.noUpstream;
+        rootEntry.commitsAhead = rootGit.noUpstream ? 0 : rootGit.ahead;
+        rootEntry.linesAdded = rootGit.linesAdded;
+        rootEntry.linesRemoved = rootGit.linesRemoved;
+      }
+    }
+    worktrees.push(rootEntry);
+
     if (!existsSync(worktreesPath)) {
       return worktrees;
     }
@@ -1238,6 +1264,131 @@ export class WorktreeManager {
     });
 
     return { success: true, worktree: placeholder };
+  }
+
+  /**
+   * Move uncommitted changes (and optionally unpushed commits) from the root
+   * project to a new worktree branch, then reset the root to the base branch state.
+   */
+  async moveToWorktree(request: WorktreeCreateRequest): Promise<{
+    success: boolean;
+    worktree?: WorktreeInfo;
+    error?: string;
+    code?: string;
+    worktreeId?: string;
+  }> {
+    const gitRoot = this.getGitRoot();
+    const baseBranch = this.config.baseBranch;
+
+    // Count unpushed commits on the root branch
+    let unpushedCount = 0;
+    try {
+      const { stdout } = await execFile(
+        "git",
+        ["rev-list", "--count", `origin/${baseBranch}..HEAD`],
+        { cwd: gitRoot, encoding: "utf-8" },
+      );
+      unpushedCount = parseInt(stdout.trim(), 10) || 0;
+    } catch {
+      // No upstream or no commits ahead — that's fine
+    }
+
+    // Check there's actually something to move
+    let hasUncommitted = false;
+    try {
+      const { stdout } = await execFile("git", ["status", "--porcelain"], {
+        cwd: gitRoot,
+        encoding: "utf-8",
+      });
+      hasUncommitted = stdout.trim().length > 0;
+    } catch {
+      // Ignore
+    }
+
+    if (unpushedCount === 0 && !hasUncommitted) {
+      return {
+        success: false,
+        error: "Nothing to move — no uncommitted changes or unpushed commits",
+      };
+    }
+
+    // Stash uncommitted changes (including untracked files)
+    let hasStash = false;
+    if (hasUncommitted) {
+      try {
+        const { stdout } = await execFile(
+          "git",
+          ["stash", "push", "--include-untracked", "-m", `openkit-move-to-${request.branch}`],
+          { cwd: gitRoot, encoding: "utf-8" },
+        );
+        hasStash = !stdout.includes("No local changes");
+      } catch (error) {
+        return {
+          success: false,
+          error: `Failed to stash changes: ${error instanceof Error ? error.message : String(error)}`,
+        };
+      }
+    }
+
+    // Create the worktree (branches from current HEAD, so it gets the unpushed commits)
+    const result = await this.createWorktree(request);
+    if (!result.success) {
+      // Restore stash if worktree creation failed
+      if (hasStash) {
+        try {
+          await execFile("git", ["stash", "pop"], { cwd: gitRoot, encoding: "utf-8" });
+        } catch {
+          log.error("Failed to restore stash after failed worktree creation", {
+            domain: "worktree",
+          });
+        }
+      }
+      return result;
+    }
+
+    // Reset root branch to remove unpushed commits
+    if (unpushedCount > 0) {
+      try {
+        await execFile("git", ["reset", "--hard", `HEAD~${unpushedCount}`], {
+          cwd: gitRoot,
+          encoding: "utf-8",
+        });
+      } catch (error) {
+        log.error(
+          `Failed to reset root branch: ${error instanceof Error ? error.message : String(error)}`,
+          { domain: "worktree" },
+        );
+        // Not fatal — the worktree was created successfully, just the root wasn't cleaned up
+      }
+    }
+
+    // Apply stash in the new worktree once it's ready
+    if (hasStash) {
+      const worktreeId = result.worktree?.id;
+      if (worktreeId) {
+        // The worktree creation is async — register a callback to apply stash when done
+        const existingCallbacks = this.worktreeCallbacks.get(worktreeId);
+        const existingOnSuccess = existingCallbacks?.onSuccess;
+        this.worktreeCallbacks.set(worktreeId, {
+          ...existingCallbacks,
+          onSuccess: (id) => {
+            existingOnSuccess?.(id);
+            const worktreePath = path.join(this.getWorktreesAbsolutePath(), id);
+            // Apply stash in the new worktree
+            execFile("git", ["stash", "pop"], { cwd: worktreePath, encoding: "utf-8" }).catch(
+              (err) => {
+                log.error(
+                  `Failed to apply stash in worktree "${id}": ${err instanceof Error ? err.message : String(err)}`,
+                  { domain: "worktree" },
+                );
+              },
+            );
+          },
+        });
+      }
+    }
+
+    return result;
   }
 
   private async runCreateWorktree(

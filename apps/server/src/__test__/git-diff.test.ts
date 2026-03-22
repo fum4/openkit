@@ -153,6 +153,31 @@ describe("getChangedFiles", () => {
     });
   });
 
+  it("handles renamed files with {old => new} numstat format", async () => {
+    setupMockResponses({
+      "rev-parse --verify HEAD": { stdout: "abc123\n" },
+      "diff --name-status HEAD": {
+        stdout: "R100\tsrc/__test__/ops-log.test.ts\tsrc/__test__/log-store.test.ts\n",
+      },
+      "diff --numstat HEAD": {
+        stdout: "55\t53\tsrc/__test__/{ops-log.test.ts => log-store.test.ts}\n",
+      },
+      "ls-files --others --exclude-standard": { stdout: "" },
+    });
+
+    const result = await getChangedFiles("/fake", "main", false);
+
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0]).toEqual({
+      path: "src/__test__/log-store.test.ts",
+      oldPath: "src/__test__/ops-log.test.ts",
+      status: "renamed",
+      linesAdded: 55,
+      linesRemoved: 53,
+      isBinary: false,
+    });
+  });
+
   it("diffs against base branch when includeCommitted is true", async () => {
     setupMockResponses({
       "rev-parse --verify HEAD": { stdout: "abc123\n" },

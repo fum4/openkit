@@ -11,7 +11,7 @@ import { fetchDiffFileContent } from "../../hooks/api";
 import { useServerUrlOptional } from "../../contexts/ServerContext";
 import { log } from "../../logger";
 import { palette } from "../../theme";
-import type { DiffFileInfo } from "../../types";
+import type { DiffFileContentResponse, DiffFileInfo } from "../../types";
 import { DIFF_STATUS_COLORS, DIFF_STATUS_LABELS } from "./diff-constants";
 import { DiffMonacoEditor } from "./DiffMonacoEditor";
 
@@ -23,19 +23,22 @@ interface DiffFileSectionProps {
   worktreeId: string;
   includeCommitted: boolean;
   refreshKey: number;
+  /** Optional custom content fetcher. Overrides the default fetchDiffFileContent when provided. */
+  fetchContent?: () => Promise<DiffFileContentResponse>;
 }
 
 export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
   function DiffFileSection(
-    { file, expanded, onToggle, viewMode, worktreeId, includeCommitted, refreshKey },
+    { file, expanded, onToggle, viewMode, worktreeId, includeCommitted, refreshKey, fetchContent },
     ref,
   ) {
     const serverUrl = useServerUrlOptional();
     const [content, setContent] = useState<{ oldContent: string; newContent: string } | null>(null);
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [diffReady, setDiffReady] = useState(false);
     const fetchingRef = useRef(false);
+    const fetchContentRef = useRef(fetchContent);
+    fetchContentRef.current = fetchContent;
 
     // Invalidate cached content on refresh or includeCommitted toggle
     useEffect(() => {
@@ -48,19 +51,21 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
     const doFetch = useCallback(() => {
       if (content || fetchingRef.current || file.isBinary) return;
       fetchingRef.current = true;
-      setLoading(true);
       setError(null);
 
-      fetchDiffFileContent(
-        worktreeId,
-        file.path,
-        file.status,
-        includeCommitted,
-        file.oldPath,
-        serverUrl,
-      )
+      const fetchPromise = fetchContentRef.current
+        ? fetchContentRef.current()
+        : fetchDiffFileContent(
+            worktreeId,
+            file.path,
+            file.status,
+            includeCommitted,
+            file.oldPath,
+            serverUrl,
+          );
+
+      fetchPromise
         .then((res) => {
-          setLoading(false);
           if (!res.success) {
             log.error("Failed to fetch file content", {
               domain: "diff",
@@ -73,7 +78,6 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
           setContent({ oldContent: res.oldContent, newContent: res.newContent });
         })
         .catch((err) => {
-          setLoading(false);
           fetchingRef.current = false;
           const msg = err instanceof Error ? err.message : "Failed to load file content";
           log.error("Failed to fetch file content", {

@@ -348,9 +348,12 @@ export default function App() {
           action: "toast.error",
           level: "error",
           status: "failed",
-          message: detail.message,
+          message: detail.title ?? detail.message,
           metadata: {
             scope: detail.scope ?? null,
+            ...(detail.title && detail.description
+              ? { title: detail.title, description: detail.description }
+              : {}),
           },
         },
         serverUrl,

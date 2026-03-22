@@ -18,7 +18,16 @@ function isPromiseLike(value: unknown): value is Promise<unknown> {
   );
 }
 
-function buildStructuredErrorToast(result: { success?: boolean; error?: unknown }):
+/** Convert camelCase method name to readable label: "createTerminalSession" → "Create terminal session" */
+function humanizeMethodName(name: string): string {
+  const spaced = name.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function buildStructuredErrorToast(
+  result: { success?: boolean; error?: unknown },
+  methodName?: string,
+):
   | string
   | {
       title: string;
@@ -46,9 +55,17 @@ function buildStructuredErrorToast(result: { success?: boolean; error?: unknown 
     if (firstLog) details.push(`Log: ${firstLog.trim()}`);
   }
 
-  return details.length > 0
-    ? { title: errorMessage, description: details.join(" | ") }
-    : errorMessage;
+  if (details.length > 0) {
+    return { title: errorMessage, description: details.join(" | ") };
+  }
+
+  // When the error is generic (e.g. "HTTP 500"), use the method name as the
+  // title so the user knows which operation failed.
+  if (methodName) {
+    return { title: humanizeMethodName(methodName), description: errorMessage };
+  }
+
+  return errorMessage;
 }
 
 type ApiMethod = (...args: any[]) => any;
@@ -102,7 +119,7 @@ function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(
               (typeof resolved.error === "string" && resolved.error.trim().length > 0)) &&
             !shouldSuppressRecoverableWorktreeConflictToast(String(key), resolved)
           ) {
-            showPersistentErrorToast(buildStructuredErrorToast(resolved), {
+            showPersistentErrorToast(buildStructuredErrorToast(resolved, String(key)), {
               scope: `api:${String(key)}`,
             });
           }
@@ -131,6 +148,9 @@ export function useApi() {
     () => ({
       createWorktree: (branch: string, name?: string) =>
         api.createWorktree(branch, name, serverUrl),
+
+      moveToWorktree: (branch: string, name?: string) =>
+        api.moveToWorktree(branch, name, serverUrl),
 
       recoverWorktree: (id: string, action: "reuse" | "recreate", branch?: string) =>
         api.recoverWorktree(id, action, branch, serverUrl),

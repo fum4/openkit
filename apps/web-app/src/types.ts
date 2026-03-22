@@ -1,3 +1,6 @@
+/** Sentinel ID used for the root project entry in the worktree list. */
+export const ROOT_WORKTREE_ID = "root";
+
 export interface WorktreeInfo {
   id: string;
   path: string;
@@ -7,6 +10,8 @@ export interface WorktreeInfo {
   ports: number[];
   offset: number | null;
   pid: number | null;
+  /** Whether this entry represents the root project (not a child worktree) */
+  isRoot?: boolean;
   lastActivity?: number;
   logs?: string[];
   jiraUrl?: string;

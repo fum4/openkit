@@ -318,8 +318,11 @@ export function DetailPanel({
   useErrorToast(error, "detail-panel");
   const [showCommitInput, setShowCommitInput] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
+  const [pushAfterCommit, setPushAfterCommit] = useState(false);
   const [showCreatePrInput, setShowCreatePrInput] = useState(false);
   const [prTitle, setPrTitle] = useState("");
+  const [showMoveToWorktreeInput, setShowMoveToWorktreeInput] = useState(false);
+  const [moveToWorktreeBranch, setMoveToWorktreeBranch] = useState("");
   const [isGitLoading, setIsGitLoading] = useState(false);
   const [isRecoveringLocalTask, setIsRecoveringLocalTask] = useState(false);
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
@@ -1215,15 +1218,29 @@ export function DetailPanel({
 
   useEffect(() => {
     void (async () => {
-      const results = await Promise.all(
-        AGENT_OPTIONS.map(async (option) => {
-          const status = await api.fetchAgentCliStatus(option.id);
-          return status.success && status.installed ? option.id : null;
-        }),
-      );
-      setInstalledAgents(new Set(results.filter((id): id is CodingAgent => id !== null)));
+      let installed: CodingAgent[];
+
+      if (window.electronAPI) {
+        // Electron: check via IPC — no project server needed
+        const agents = await window.electronAPI.getInstalledAgents();
+        installed = agents.filter((id): id is CodingAgent =>
+          AGENT_OPTIONS.some((opt) => opt.id === id),
+        );
+      } else {
+        // Browser mode: fall back to project server API
+        if (!serverUrl) return;
+        const results = await Promise.all(
+          AGENT_OPTIONS.map(async (option) => {
+            const status = await api.fetchAgentCliStatus(option.id);
+            return status.success && status.installed ? option.id : null;
+          }),
+        );
+        installed = results.filter((id): id is CodingAgent => id !== null);
+      }
+
+      setInstalledAgents(new Set(installed));
     })();
-  }, [api]);
+  }, [api, serverUrl]);
 
   // Reset form state when worktree changes (but NOT tab or terminal state)
   useEffect(() => {
@@ -1593,6 +1610,14 @@ export function DetailPanel({
       if (result.success) {
         setShowCommitInput(false);
         setCommitMessage("");
+
+        if (pushAfterCommit) {
+          setGitAction("push");
+          const pushResult = await api.pushChanges(worktree.id);
+          if (!pushResult.success) {
+            setError(pushResult.error || "Committed successfully, but failed to push");
+          }
+        }
       } else {
         setError(result.error || "Failed to commit");
       }
@@ -1637,6 +1662,24 @@ export function DetailPanel({
     }
   };
 
+  const handleMoveToWorktree = async () => {
+    if (!moveToWorktreeBranch.trim()) return;
+    setIsGitLoading(true);
+    setError(null);
+    try {
+      const result = await api.moveToWorktree(moveToWorktreeBranch.trim());
+      if (result.success) {
+        setShowMoveToWorktreeInput(false);
+        setMoveToWorktreeBranch("");
+      } else {
+        setError(result.error || "Failed to move changes to worktree");
+      }
+      onUpdate();
+    } finally {
+      setIsGitLoading(false);
+    }
+  };
+
   const handleRecoverLocalTask = async () => {
     setIsRecoveringLocalTask(true);
     setError(null);
@@ -1666,6 +1709,7 @@ export function DetailPanel({
         onStart={handleStart}
         onStop={handleStop}
         onRemove={handleRemove}
+        onMoveToWorktree={() => setShowMoveToWorktreeInput(true)}
         openTargetOptions={openTargetOptions}
         selectedOpenTarget={selectedOpenTarget}
         onSelectOpenTarget={setSelectedOpenTarget}
@@ -2044,6 +2088,24 @@ export function DetailPanel({
           }}
           footer={
             <>
+              <label className="flex items-center gap-2 cursor-pointer mr-auto select-none">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={pushAfterCommit}
+                  onClick={() => setPushAfterCommit((v) => !v)}
+                  className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors duration-150 ${
+                    pushAfterCommit ? "bg-accent" : "bg-white/[0.12]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3 w-3 rounded-full bg-white transition-transform duration-150 ${
+                      pushAfterCommit ? "translate-x-3.5" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+                <span className="text-[11px] text-[#9ca3af]">Push after commit</span>
+              </label>
               <button
                 type="button"
                 onClick={() => setShowCommitInput(false)}
@@ -2056,7 +2118,13 @@ export function DetailPanel({
                 disabled={isGitLoading || !commitMessage.trim()}
                 className={`px-3 py-1.5 text-xs font-medium ${action.commit.textActive} ${action.commit.bgSubmit} ${action.commit.bgSubmitHover} rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
               >
-                {isGitLoading && gitAction === "commit" ? "Committing..." : "Commit"}
+                {isGitLoading && gitAction === "commit"
+                  ? "Committing..."
+                  : isGitLoading && gitAction === "push"
+                    ? "Pushing..."
+                    : pushAfterCommit
+                      ? "Commit & Push"
+                      : "Commit"}
               </button>
             </>
           }
@@ -2124,6 +2192,68 @@ export function DetailPanel({
             className={`w-full px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg ${input.text} text-xs placeholder-[#4b5563] outline-none focus:border-white/[0.15] transition-colors duration-150`}
             autoFocus
           />
+        </Modal>
+      )}
+
+      {showMoveToWorktreeInput && (
+        <Modal
+          title="Move to Worktree"
+          icon={
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="w-4 h-4 text-white"
+            >
+              <path
+                fillRule="evenodd"
+                d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 10.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1-.75-.75ZM2 10a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 10Zm12.25 4a.75.75 0 0 1 .75.75v1.5h1.5a.75.75 0 0 1 0 1.5h-1.5v1.5a.75.75 0 0 1-1.5 0v-1.5h-1.5a.75.75 0 0 1 0-1.5h1.5v-1.5a.75.75 0 0 1 .75-.75Z"
+                clipRule="evenodd"
+              />
+            </svg>
+          }
+          width="md"
+          onClose={() => setShowMoveToWorktreeInput(false)}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleMoveToWorktree();
+          }}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowMoveToWorktreeInput(false)}
+                className={`px-3 py-1.5 text-xs rounded-lg ${action.cancel.text} ${action.cancel.textHover} transition-colors`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isGitLoading || !moveToWorktreeBranch.trim()}
+                className={`px-3 py-1.5 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
+              >
+                {isGitLoading ? "Moving..." : "Move"}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <p className={`text-[11px] ${text.muted}`}>
+              Creates a new worktree and moves all uncommitted changes and unpushed commits from the
+              root to it.
+            </p>
+            <input
+              type="text"
+              value={moveToWorktreeBranch}
+              onChange={(e) => setMoveToWorktreeBranch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setShowMoveToWorktreeInput(false);
+              }}
+              placeholder="Branch name..."
+              className={`w-full px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg ${input.text} text-xs placeholder-[#4b5563] outline-none focus:border-white/[0.15] transition-colors duration-150`}
+              autoFocus
+            />
+          </div>
         </Modal>
       )}
 

@@ -14,12 +14,13 @@ import {
   Rows2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { fetchDiffFiles } from "../../hooks/api";
+import { fetchDiffFiles, fetchPrDiffFiles, fetchPrDiffFileContent } from "../../hooks/api";
 import { useServerUrlOptional } from "../../contexts/ServerContext";
 import { log } from "../../logger";
 import { border, detailTab, palette } from "../../theme";
-import type { DiffFileInfo } from "../../types";
+import type { DiffFileInfo, PrDiffListResponse } from "../../types";
 import type { WorktreeInfo } from "../../types";
 import { ResizableHandle } from "../ResizableHandle";
 import { ToggleSwitch } from "../ToggleSwitch";
@@ -41,6 +42,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"unified" | "split">("unified");
   const [includeCommitted, setIncludeCommitted] = useState(false);
+  const [showMergedDiff, setShowMergedDiff] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -57,6 +59,29 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const contentRef = useRef<HTMLDivElement>(null);
   const fetchCountRef = useRef(0);
+
+  const isMerged = worktree.githubPrState === "merged";
+
+  // Always fetch PR diff metadata for merged worktrees (needed for headSha comparison).
+  // The actual diff data is cached with staleTime: Infinity so it's a single fetch.
+  const prDiffQuery = useQuery<PrDiffListResponse>({
+    queryKey: ["pr-diff", worktree.id],
+    queryFn: () => fetchPrDiffFiles(worktree.id, serverUrl),
+    enabled: isMerged && visible,
+    staleTime: Infinity,
+  });
+
+  // Detect whether the user has committed new work after the PR was merged
+  const hasPostMergeCommits =
+    prDiffQuery.data?.success &&
+    prDiffQuery.data.headSha &&
+    prDiffQuery.data.localHeadSha &&
+    prDiffQuery.data.headSha !== prDiffQuery.data.localHeadSha;
+
+  // For non-merged worktrees, show Committed when there are commits ahead of base.
+  // For merged worktrees, show Committed only when there are NEW commits after the merge.
+  const showCommittedToggle =
+    !showMergedDiff && (isMerged ? !!hasPostMergeCommits : (worktree.commitsAheadOfBase ?? 0) > 0);
 
   const fetchFiles = useCallback(async () => {
     const fetchId = ++fetchCountRef.current;
@@ -106,17 +131,84 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     }
   }, [worktree.id, includeCommitted, serverUrl]);
 
-  // Fetch when tab becomes visible, worktree changes, or includeCommitted toggles
+  // Fetch when tab becomes visible, worktree changes, or includeCommitted toggles.
+  // Skip when merged diff is active OR when the smart default will auto-enable it.
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || showMergedDiff) return;
     fetchFiles();
-  }, [visible, worktree.id, includeCommitted, fetchFiles]);
+  }, [
+    visible,
+    worktree.id,
+    includeCommitted,
+    fetchFiles,
+    showMergedDiff,
+    isMerged,
+    worktree.hasUncommitted,
+  ]);
 
   // Best-effort refresh when hasUncommitted changes
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || showMergedDiff) return;
     fetchFiles();
   }, [worktree.hasUncommitted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset state when switching worktrees
+  const prevWorktreeId = useRef(worktree.id);
+  useEffect(() => {
+    if (prevWorktreeId.current === worktree.id) return;
+    prevWorktreeId.current = worktree.id;
+    setShowMergedDiff(false);
+    setFiles([]);
+    setError(null);
+    setLoading(true);
+    setIncludeCommitted(false);
+    setExpandedFiles(new Set());
+    setSelectedFile(null);
+  }, [worktree.id]);
+
+  // Clear stale files when toggling between local and merged modes
+  const prevShowMerged = useRef(showMergedDiff);
+  useEffect(() => {
+    if (prevShowMerged.current === showMergedDiff) return;
+    prevShowMerged.current = showMergedDiff;
+    setFiles([]);
+    setError(null);
+    setLoading(true);
+  }, [showMergedDiff]);
+
+  // Sync merged PR diff data into component state
+  useEffect(() => {
+    if (!showMergedDiff) return;
+    // Keep loading until we have data or an error — covers the gap where the query
+    // is pending but hasn't started fetching yet (e.g. between enable and first fetch).
+    if (prDiffQuery.isLoading || (!prDiffQuery.data && !prDiffQuery.error)) {
+      setLoading(true);
+      setError(null);
+      return;
+    }
+    setLoading(false);
+    if (prDiffQuery.error) {
+      setError(
+        prDiffQuery.error instanceof Error ? prDiffQuery.error.message : "Failed to load PR diff",
+      );
+      setFiles([]);
+      return;
+    }
+    if (prDiffQuery.data) {
+      if (!prDiffQuery.data.success) {
+        setError(prDiffQuery.data.error ?? "Failed to load PR diff");
+        setFiles([]);
+        return;
+      }
+      setFiles(prDiffQuery.data.files);
+      setRefreshKey((k) => k + 1);
+      if (prDiffQuery.data.files.length < FILES_EXPANDED_THRESHOLD) {
+        setExpandedFiles(new Set(prDiffQuery.data.files.map((f) => f.path)));
+      } else {
+        setExpandedFiles(new Set());
+      }
+    }
+  }, [showMergedDiff, prDiffQuery.isLoading, prDiffQuery.data, prDiffQuery.error]);
 
   const handleRefresh = useCallback(() => {
     fetchFiles();
@@ -195,6 +287,24 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   const totalAdded = useMemo(() => files.reduce((sum, f) => sum + f.linesAdded, 0), [files]);
   const totalRemoved = useMemo(() => files.reduce((sum, f) => sum + f.linesRemoved, 0), [files]);
 
+  const prBaseSha = prDiffQuery.data?.baseSha;
+  const prMergeSha = prDiffQuery.data?.mergeSha;
+  const prDataSuccess = prDiffQuery.data?.success;
+
+  const makePrFetchContent = useCallback(
+    (file: DiffFileInfo) => () =>
+      fetchPrDiffFileContent(
+        worktree.id,
+        file.path,
+        file.status,
+        prBaseSha!,
+        prMergeSha!,
+        file.oldPath,
+        serverUrl,
+      ),
+    [worktree.id, prBaseSha, prMergeSha, serverUrl],
+  );
+
   if (!visible) return null;
 
   return (
@@ -213,14 +323,26 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-[#6b7280] select-none">Committed</span>
-            <ToggleSwitch
-              checked={includeCommitted}
-              onToggle={() => setIncludeCommitted((prev) => !prev)}
-              size="sm"
-            />
-          </div>
+          {isMerged && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-[#6b7280] select-none">Merged</span>
+              <ToggleSwitch
+                checked={showMergedDiff}
+                onToggle={() => setShowMergedDiff((prev) => !prev)}
+                size="sm"
+              />
+            </div>
+          )}
+          {showCommittedToggle && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-[#6b7280] select-none">Committed</span>
+              <ToggleSwitch
+                checked={includeCommitted}
+                onToggle={() => setIncludeCommitted((prev) => !prev)}
+                size="sm"
+              />
+            </div>
+          )}
           <div className="w-px h-4 bg-white/[0.08] mx-1" />
           <Tooltip text={viewMode === "unified" ? "Side-by-side" : "Unified"} position="bottom">
             <button
@@ -302,9 +424,16 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
               <div className="text-xs text-red-400">{error}</div>
             </div>
           ) : files.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-2">
-              <FileCode2 className="w-8 h-8 text-[#4b5563]" />
-              <span className="text-xs text-[#6b7280]">No changes detected</span>
+            <div className="flex flex-col items-center justify-center h-full gap-1.5">
+              <FileCode2 className="w-7 h-7 text-[#4b5563] mb-3" strokeWidth={1.5} />
+              <span className="text-[13px] font-medium tracking-[-0.01em] text-[#6b7280]">
+                {showMergedDiff ? "Could not load PR changes" : "No changes detected"}
+              </span>
+              <span className="text-[11px] text-[#4b5563] max-w-[240px] text-center leading-relaxed">
+                {showMergedDiff
+                  ? "The PR diff could not be fetched from GitHub"
+                  : "Start coding or run an agent — diffs will appear here automatically"}
+              </span>
             </div>
           ) : (
             files.map((file) => (
@@ -322,6 +451,9 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                 worktreeId={worktree.id}
                 includeCommitted={includeCommitted}
                 refreshKey={refreshKey}
+                fetchContent={
+                  showMergedDiff && prDataSuccess ? makePrFetchContent(file) : undefined
+                }
               />
             ))
           )}

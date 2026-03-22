@@ -42,8 +42,12 @@ vi.mock("../../../logger", () => ({
 }));
 
 const mockFetchDiffFiles = vi.fn();
+const mockFetchPrDiffFiles = vi.fn();
+const mockFetchPrDiffFileContent = vi.fn();
 vi.mock("../../../hooks/api", () => ({
   fetchDiffFiles: (...args: unknown[]) => mockFetchDiffFiles(...args),
+  fetchPrDiffFiles: (...args: unknown[]) => mockFetchPrDiffFiles(...args),
+  fetchPrDiffFileContent: (...args: unknown[]) => mockFetchPrDiffFileContent(...args),
 }));
 
 function makeWorktree(overrides: Partial<WorktreeInfo> = {}): WorktreeInfo {
@@ -73,6 +77,14 @@ describe("DiffViewerTab", () => {
       files: sampleFiles,
       baseBranch: "main",
     });
+    mockFetchPrDiffFiles.mockResolvedValue({
+      success: true,
+      files: [],
+      baseBranch: "",
+      baseSha: "",
+      mergeSha: "",
+    });
+    mockFetchPrDiffFileContent.mockResolvedValue(null);
   });
 
   it("shows loading state while fetching", () => {
@@ -172,6 +184,97 @@ describe("DiffViewerTab", () => {
     await waitFor(() => {
       expect(screen.getByTestId("diff-sidebar")).toBeInTheDocument();
       expect(screen.getByTestId("sidebar-src/app.ts")).toBeInTheDocument();
+    });
+  });
+
+  describe("merged PR diff", () => {
+    // hasUncommitted: true so the smart default doesn't auto-enable Merged
+    const mergedWorktree = makeWorktree({
+      githubPrState: "merged",
+      githubPrUrl: "https://github.com/owner/repo/pull/42",
+      hasUncommitted: true,
+    });
+
+    const prDiffResponse = {
+      success: true,
+      files: sampleFiles,
+      baseBranch: "main",
+      baseSha: "abc123",
+      mergeSha: "def456",
+      headSha: "head789",
+      localHeadSha: "head789",
+    };
+
+    beforeEach(() => {
+      mockFetchDiffFiles.mockClear();
+      mockFetchPrDiffFiles.mockResolvedValue(prDiffResponse);
+    });
+
+    it("shows Merged toggle for merged worktrees", async () => {
+      render(<DiffViewerTab worktree={mergedWorktree} visible />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Merged")).toBeInTheDocument();
+      });
+    });
+
+    it("shows local diff by default for merged worktrees", async () => {
+      render(<DiffViewerTab worktree={mergedWorktree} visible />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("file-section-src/app.ts")).toBeInTheDocument();
+      });
+
+      expect(mockFetchDiffFiles).toHaveBeenCalled();
+    });
+
+    it("switches to PR diff when Merged toggle is clicked", async () => {
+      const user = userEvent.setup();
+      render(<DiffViewerTab worktree={mergedWorktree} visible />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Merged")).toBeInTheDocument();
+      });
+
+      const mergedLabel = screen.getByText("Merged");
+      const toggleContainer = mergedLabel.parentElement!;
+      const toggle = toggleContainer.querySelector("button")!;
+      await user.click(toggle);
+
+      await waitFor(() => {
+        expect(mockFetchPrDiffFiles).toHaveBeenCalledWith(mergedWorktree.id, null);
+      });
+    });
+
+    it("hides Committed toggle for merged worktrees with no post-merge commits", async () => {
+      // headSha === localHeadSha → no new commits after merge
+      render(<DiffViewerTab worktree={mergedWorktree} visible />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Merged")).toBeInTheDocument();
+      });
+
+      // Committed should be hidden (no new commits after merge)
+      expect(screen.queryByText("Committed")).not.toBeInTheDocument();
+    });
+
+    it("shows Committed toggle when there are post-merge commits", async () => {
+      mockFetchPrDiffFiles.mockResolvedValue({
+        ...prDiffResponse,
+        localHeadSha: "different-sha",
+      });
+
+      render(<DiffViewerTab worktree={mergedWorktree} visible />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Committed")).toBeInTheDocument();
+      });
+    });
+
+    it("does not show Merged toggle for non-merged worktrees", () => {
+      render(<DiffViewerTab worktree={makeWorktree()} visible />);
+
+      expect(screen.queryByText("Merged")).not.toBeInTheDocument();
     });
   });
 });

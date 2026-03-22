@@ -22,6 +22,8 @@ interface ErrorToastOptions {
 
 export interface ErrorToastEventDetail {
   message: string;
+  title?: string;
+  description?: string;
   scope?: string;
 }
 
@@ -83,6 +85,8 @@ export function showPersistentErrorToast(
   if (typeof window !== "undefined") {
     const detail: ErrorToastEventDetail = {
       message: dedupeText,
+      title: content.title,
+      description: content.description,
       scope: options?.scope,
     };
     window.dispatchEvent(
