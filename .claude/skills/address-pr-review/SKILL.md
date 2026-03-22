@@ -32,15 +32,15 @@ If no PR is found, inform the user and stop.
 gh repo view --json owner,name
 ```
 
-Extract `owner` and `name` for API calls.
+Extract `owner` and `repo` for API calls.
 
 ### Step 3: Fetch all review comments
 
-Fetch both issue comments and PR review comments:
+Fetch both issue comments and PR review comments (use `--paginate` to ensure all pages are returned):
 
 ```bash
-gh api repos/{owner}/{repo}/issues/{number}/comments
-gh api repos/{owner}/{repo}/pulls/{number}/comments
+gh api --paginate repos/{owner}/{repo}/issues/{number}/comments
+gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments
 ```
 
 #### 3a: Claude Review (primary)

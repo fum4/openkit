@@ -1,3 +1,7 @@
+/**
+ * Manages GitHub integration state: PR polling, git status caching, and
+ * orchestrating gh CLI operations (auth, push, PR creation) for worktrees.
+ */
 import type { WorktreeInfo } from "@openkit/shared/worktree-types";
 
 import {
@@ -181,22 +185,26 @@ export class GitHubManager {
               pr &&
               (prev.url !== pr.url || prev.state !== pr.state || prev.isDraft !== pr.isDraft));
           if (prChanged) {
-            // Fire state-change callback for terminal transitions (not on cold start)
-            if (
-              onPrStateChange &&
-              prev && // prev must exist (not cold start)
-              pr &&
-              (pr.state === "merged" || pr.state === "closed")
-            ) {
+            // Fire state-change callback for non-terminal → terminal transitions only
+            if (onPrStateChange && prev && pr) {
               const oldState = prev.isDraft ? "draft" : prev.state;
-              try {
-                await onPrStateChange(wt.id, oldState, pr.state);
-              } catch (err) {
-                log.warn("onPrStateChange callback failed", {
-                  domain: "GitHub",
-                  worktreeId: wt.id,
-                  error: err instanceof Error ? err.message : String(err),
-                });
+              const isTerminalTransition =
+                (pr.state === "merged" || pr.state === "closed") &&
+                oldState !== "merged" &&
+                oldState !== "closed";
+
+              if (isTerminalTransition) {
+                try {
+                  await onPrStateChange(wt.id, oldState, pr.state);
+                } catch (err) {
+                  log.warn("onPrStateChange callback failed", {
+                    domain: "GitHub",
+                    worktreeId: wt.id,
+                    oldState,
+                    newState: pr.state,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                }
               }
             }
             this.prCache.set(wt.id, pr);
