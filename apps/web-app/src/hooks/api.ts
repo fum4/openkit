@@ -4155,3 +4155,58 @@ export async function saveLocalConfig(
     };
   }
 }
+
+export async function fetchWorktreeSettings(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<{
+  success: boolean;
+  autoCleanupOnMerge: boolean;
+  autoCleanupOnClose: boolean;
+  error?: string;
+}> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/settings`);
+    if (!isJsonResponse(res)) {
+      return {
+        success: false,
+        autoCleanupOnMerge: false,
+        autoCleanupOnClose: false,
+        error: `Server returned ${res.status}`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      autoCleanupOnMerge: false,
+      autoCleanupOnClose: false,
+      error: err instanceof Error ? err.message : "Failed to fetch settings",
+    };
+  }
+}
+
+export async function updateWorktreeSettings(
+  worktreeId: string,
+  patch: { autoCleanupOnMerge?: boolean | null; autoCleanupOnClose?: boolean | null },
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!isJsonResponse(res)) {
+      return { success: false, error: `Server returned ${res.status}` };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update settings",
+    };
+  }
+}

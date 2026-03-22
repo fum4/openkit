@@ -49,6 +49,7 @@ import { resolveNodePtyModule } from "./pty";
 import { ActivityLog } from "./activity-log";
 import { ACTIVITY_TYPES } from "./activity-event";
 import { loadLocalConfig, loadLocalGitPolicyConfig, updateLocalConfig } from "./local-config";
+import { loadWorktreeSettings, deleteWorktreeSettings } from "./worktree-settings";
 import { NotesManager } from "./notes-manager";
 import { OpsLog } from "./ops-log";
 import { PortManager } from "@openkit/port-offset/port-manager";
@@ -449,8 +450,12 @@ export class WorktreeManager {
   ): Promise<void> {
     const config = this.getConfig();
 
-    if (newState === "merged" && !config.autoCleanupOnPrMerge) return;
-    if (newState === "closed" && !config.autoCleanupOnPrClose) return;
+    const wtSettings = loadWorktreeSettings(this.configDir, worktreeId);
+    const shouldCleanupOnMerge = wtSettings.autoCleanupOnMerge ?? config.autoCleanupOnPrMerge;
+    const shouldCleanupOnClose = wtSettings.autoCleanupOnClose ?? config.autoCleanupOnPrClose;
+
+    if (newState === "merged" && !shouldCleanupOnMerge) return;
+    if (newState === "closed" && !shouldCleanupOnClose) return;
 
     // Safety gate: check for uncommitted or unpushed changes
     const git = this.githubManager?.getCachedGitStatus(worktreeId);
@@ -1881,6 +1886,7 @@ export class WorktreeManager {
     if (!existsSync(worktreePath)) {
       this.pruneGitWorktreeMetadata(gitRoot);
       const clearedLinks = this.notesManager.clearLinkedWorktreeId(worktreeId);
+      deleteWorktreeSettings(this.configDir, worktreeId);
       this.clearAwaitingInputForWorktree(worktreeId);
       this.notifyListeners();
       return finalize({
@@ -1915,6 +1921,7 @@ export class WorktreeManager {
 
       logDeletePhase("clear-links-for-target-worktree-only", "start", { worktreeId });
       const clearedLinks = this.notesManager.clearLinkedWorktreeId(worktreeId);
+      deleteWorktreeSettings(this.configDir, worktreeId);
       logDeletePhase("clear-links-for-target-worktree-only", "success", {
         worktreeId,
         clearedLinks,
