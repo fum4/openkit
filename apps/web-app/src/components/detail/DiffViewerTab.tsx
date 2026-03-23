@@ -55,6 +55,8 @@ function fileKey(file: DiffFileInfo): string {
 export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   const serverUrl = useServerUrlOptional();
   const [files, setFiles] = useState<DiffFileInfo[]>([]);
+  const filesRef = useRef(files);
+  filesRef.current = files;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"unified" | "split">("unified");
@@ -97,14 +99,14 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     prDiffQuery.data.localHeadSha &&
     prDiffQuery.data.headSha !== prDiffQuery.data.localHeadSha;
 
-  // For non-merged worktrees, show Committed when there are commits ahead of base.
-  // For merged worktrees, show Committed only when there are NEW commits after the merge.
-  const showCommittedToggle =
-    !showMergedDiff && (isMerged ? !!hasPostMergeCommits : (worktree.commitsAheadOfBase ?? 0) > 0);
+  const showCommittedToggle = !showMergedDiff && !isMerged;
 
   const fetchFiles = useCallback(async () => {
     const fetchId = ++fetchCountRef.current;
-    setLoading(true);
+    // Only show loading spinner on first fetch (empty file list), not during polling
+    if (filesRef.current.length === 0) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const res = await fetchDiffFiles(worktree.id, includeCommitted, serverUrl);
@@ -119,18 +121,35 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
         setFiles([]);
         return;
       }
-      setFiles(res.files);
-      setRefreshKey((k) => k + 1);
+      // Only update files if the list actually changed — prevents unnecessary re-renders
+      // and Monaco editor flickering during 3s polling.
+      const prev = filesRef.current;
+      const filesChanged =
+        res.files.length !== prev.length ||
+        res.files.some(
+          (f, i) =>
+            f.path !== prev[i]?.path ||
+            f.status !== prev[i]?.status ||
+            f.staged !== prev[i]?.staged ||
+            f.linesAdded !== prev[i]?.linesAdded ||
+            f.linesRemoved !== prev[i]?.linesRemoved,
+        );
+
+      if (filesChanged) {
+        setFiles(res.files);
+        setRefreshKey((k) => k + 1);
+        // Auto-expand if fewer than threshold (only on actual change)
+        setExpandedFiles(
+          res.files.length <= 10 ? new Set(res.files.map((f) => fileKey(f))) : new Set(),
+        );
+      }
+
       // Surface partial/full errors from git operations
       if (res.error && res.files.length === 0) {
         setError(res.error);
       } else if (res.error) {
         log.warn("Partial diff error", { domain: "diff", error: res.error });
       }
-      // Auto-expand if fewer than threshold
-      setExpandedFiles(
-        res.files.length <= 10 ? new Set(res.files.map((f) => fileKey(f))) : new Set(),
-      );
     } catch (err) {
       if (fetchId !== fetchCountRef.current) return; // stale
       const message = err instanceof Error ? err.message : "Failed to load changes";
@@ -369,6 +388,12 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
             <span className="flex gap-1.5 text-[10px] font-mono">
               {totalAdded > 0 && <span style={{ color: palette.green }}>+{totalAdded}</span>}
               {totalRemoved > 0 && <span style={{ color: palette.red }}>-{totalRemoved}</span>}
+            </span>
+          )}
+          {(worktree.commitsAheadOfBase ?? worktree.commitsAhead ?? 0) > 0 && (
+            <span className="text-[11px] text-[#6b7280]">
+              {worktree.commitsAheadOfBase ?? worktree.commitsAhead}{" "}
+              {(worktree.commitsAheadOfBase ?? worktree.commitsAhead) === 1 ? "commit" : "commits"}
             </span>
           )}
         </div>

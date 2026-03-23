@@ -769,6 +769,7 @@ export class WorktreeManager {
         rootEntry.hasUncommitted = rootGit.hasUncommitted;
         rootEntry.hasUnpushed = rootGit.ahead > 0 || rootGit.noUpstream;
         rootEntry.commitsAhead = rootGit.noUpstream ? 0 : rootGit.ahead;
+        rootEntry.commitsAheadOfBase = rootGit.aheadOfBase === -1 ? undefined : rootGit.aheadOfBase;
         rootEntry.linesAdded = rootGit.linesAdded;
         rootEntry.linesRemoved = rootGit.linesRemoved;
       }
