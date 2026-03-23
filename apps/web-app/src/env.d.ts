@@ -53,6 +53,9 @@ interface ElectronAPI {
   detectOpenkitRepo: () => Promise<string | null>;
   selectDevRepoFolder: () => Promise<string | null>;
 
+  // System-level agent discovery
+  getInstalledAgents: () => Promise<string[]>;
+
   getAppVersion: () => Promise<string>;
   getAppUpdateState: () => Promise<AppUpdateState>;
   checkAppUpdates: () => Promise<AppUpdateState>;

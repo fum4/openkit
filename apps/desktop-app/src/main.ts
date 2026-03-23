@@ -13,6 +13,7 @@ import {
   type SetupPreference,
 } from "./preferences-manager.js";
 import { detectOpenkitRepoPath } from "./dev-mode.js";
+import { isCommandOnPath } from "@openkit/shared/command-path";
 import { APP_NAME } from "@openkit/shared/constants";
 
 const { autoUpdater } = electronUpdater as { autoUpdater: AppUpdater };
@@ -419,6 +420,20 @@ function setupIpcHandlers() {
     });
 
     return result.canceled ? null : result.filePaths[0];
+  });
+
+  // System-level agent CLI discovery — checks which coding agent CLIs are
+  // installed on the user's machine. This runs in the main process so the
+  // renderer doesn't need a project server to be running.
+  ipcMain.handle("get-installed-agents", () => {
+    const agents = ["claude", "codex", "gemini", "opencode"] as const;
+    return agents.filter((agent) => {
+      try {
+        return isCommandOnPath(agent);
+      } catch {
+        return false;
+      }
+    });
   });
 
   ipcMain.handle("get-app-update-state", () => {

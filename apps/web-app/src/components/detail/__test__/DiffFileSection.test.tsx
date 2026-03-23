@@ -63,7 +63,7 @@ describe("DiffFileSection", () => {
     render(<DiffFileSection {...defaultProps} />);
 
     expect(screen.getByText("src/app.ts")).toBeInTheDocument();
-    expect(screen.getByTitle("modified")).toBeInTheDocument();
+    expect(screen.getByText("M")).toBeInTheDocument();
     expect(screen.getByText("+10")).toBeInTheDocument();
     expect(screen.getByText("-3")).toBeInTheDocument();
   });

@@ -212,6 +212,10 @@ The preload script exposes the following methods:
 - `updatePreferences(updates): Promise<void>` -- partial preference update
   - includes `autoDownloadUpdates` for update download behavior
 
+**System-level agent discovery:**
+
+- `getInstalledAgents(): Promise<string[]>` -- returns which coding agent CLIs (`claude`, `codex`, `gemini`, `opencode`) are installed on the system. Runs in the main process via `isCommandOnPath`, so the renderer can discover available agents without a project server.
+
 **App updates:**
 
 - `getAppVersion(): Promise<string>` -- returns desktop app version (packaged: `app.getVersion()`, dev: desktop-app/root package version fallback)

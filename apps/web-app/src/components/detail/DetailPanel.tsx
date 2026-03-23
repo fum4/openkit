@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
 import type { AgentHistoryMatch, CodingAgent, RestorableAgent } from "../../hooks/api";
 import type { WorktreeInfo } from "../../types";
+import { showPersistentErrorToast } from "../../errorToasts";
 import { useErrorToast } from "../../hooks/useErrorToast";
 import { useApi } from "../../hooks/useApi";
 import { clearTerminalSessionCacheForRuntimeWorktree } from "../../hooks/useTerminal";
@@ -12,6 +13,7 @@ import { action, button, detailTab, errorBanner, input, text } from "../../theme
 import { ConfirmDialog } from "../ConfirmDialog";
 import { GitHubIcon } from "../../icons";
 import { Modal } from "../Modal";
+import { ToggleSwitch } from "../ToggleSwitch";
 import { DetailHeader } from "./DetailHeader";
 import { DiffViewerTab } from "./DiffViewerTab";
 import { LogsViewer } from "./LogsViewer";
@@ -40,6 +42,14 @@ interface DetailPanelScopeCache {
   geminiTabLabels: Record<string, string>;
   opencodeTabLabels: Record<string, string>;
   lastProcessedNotificationTabRequestId: number | null;
+}
+
+function deriveMoveToWorktreeBranch(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function formatRelativeTime(date: Date): string {
@@ -318,8 +328,17 @@ export function DetailPanel({
   useErrorToast(error, "detail-panel");
   const [showCommitInput, setShowCommitInput] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
+  const [pushAfterCommit, setPushAfterCommit] = useState(false);
   const [showCreatePrInput, setShowCreatePrInput] = useState(false);
   const [prTitle, setPrTitle] = useState("");
+  const [showMoveToWorktreeInput, setShowMoveToWorktreeInput] = useState(false);
+  const [moveToWorktreeName, setMoveToWorktreeName] = useState("");
+  const [moveToWorktreeBranchRaw, setMoveToWorktreeBranchRaw] = useState("");
+  const [moveToWorktreeBranchManuallyEdited, setMoveToWorktreeBranchManuallyEdited] =
+    useState(false);
+  const moveToWorktreeBranch = moveToWorktreeBranchManuallyEdited
+    ? moveToWorktreeBranchRaw
+    : deriveMoveToWorktreeBranch(moveToWorktreeName);
   const [isGitLoading, setIsGitLoading] = useState(false);
   const [isRecoveringLocalTask, setIsRecoveringLocalTask] = useState(false);
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
@@ -1215,15 +1234,29 @@ export function DetailPanel({
 
   useEffect(() => {
     void (async () => {
-      const results = await Promise.all(
-        AGENT_OPTIONS.map(async (option) => {
-          const status = await api.fetchAgentCliStatus(option.id);
-          return status.success && status.installed ? option.id : null;
-        }),
-      );
-      setInstalledAgents(new Set(results.filter((id): id is CodingAgent => id !== null)));
+      let installed: CodingAgent[];
+
+      if (window.electronAPI) {
+        // Electron: check via IPC — no project server needed
+        const agents = await window.electronAPI.getInstalledAgents();
+        installed = agents.filter((id): id is CodingAgent =>
+          AGENT_OPTIONS.some((opt) => opt.id === id),
+        );
+      } else {
+        // Browser mode: fall back to project server API
+        if (!serverUrl) return;
+        const results = await Promise.all(
+          AGENT_OPTIONS.map(async (option) => {
+            const status = await api.fetchAgentCliStatus(option.id);
+            return status.success && status.installed ? option.id : null;
+          }),
+        );
+        installed = results.filter((id): id is CodingAgent => id !== null);
+      }
+
+      setInstalledAgents(new Set(installed));
     })();
-  }, [api]);
+  }, [api, serverUrl]);
 
   // Reset form state when worktree changes (but NOT tab or terminal state)
   useEffect(() => {
@@ -1593,8 +1626,19 @@ export function DetailPanel({
       if (result.success) {
         setShowCommitInput(false);
         setCommitMessage("");
+
+        if (pushAfterCommit) {
+          setGitAction("push");
+          const pushResult = await api.pushChanges(worktree.id);
+          if (!pushResult.success) {
+            showPersistentErrorToast(
+              pushResult.error || "Committed successfully, but failed to push",
+              { scope: "detail-panel" },
+            );
+          }
+        }
       } else {
-        setError(result.error || "Failed to commit");
+        showPersistentErrorToast(result.error || "Failed to commit", { scope: "detail-panel" });
       }
       onUpdate();
     } finally {
@@ -1609,7 +1653,8 @@ export function DetailPanel({
     setError(null);
     try {
       const result = await api.pushChanges(worktree.id);
-      if (!result.success) setError(result.error || "Failed to push");
+      if (!result.success)
+        showPersistentErrorToast(result.error || "Failed to push", { scope: "detail-panel" });
       onUpdate();
     } finally {
       setIsGitLoading(false);
@@ -1634,6 +1679,28 @@ export function DetailPanel({
     } finally {
       setIsGitLoading(false);
       setGitAction(null);
+    }
+  };
+
+  const handleMoveToWorktree = async () => {
+    const resolvedName = moveToWorktreeName.trim();
+    const resolvedBranch = moveToWorktreeBranch.trim() || deriveMoveToWorktreeBranch(resolvedName);
+    if (!resolvedName || !resolvedBranch) return;
+    setIsGitLoading(true);
+    setError(null);
+    try {
+      const result = await api.moveToWorktree(resolvedBranch, resolvedName);
+      if (result.success) {
+        setShowMoveToWorktreeInput(false);
+        setMoveToWorktreeName("");
+        setMoveToWorktreeBranchRaw("");
+        setMoveToWorktreeBranchManuallyEdited(false);
+      } else {
+        setError(result.error || "Failed to move changes to worktree");
+      }
+      onUpdate();
+    } finally {
+      setIsGitLoading(false);
     }
   };
 
@@ -1666,6 +1733,7 @@ export function DetailPanel({
         onStart={handleStart}
         onStop={handleStop}
         onRemove={handleRemove}
+        onMoveToWorktree={() => setShowMoveToWorktreeInput(true)}
         openTargetOptions={openTargetOptions}
         selectedOpenTarget={selectedOpenTarget}
         onSelectOpenTarget={setSelectedOpenTarget}
@@ -2003,7 +2071,7 @@ export function DetailPanel({
                     className={`h-7 px-2.5 text-[11px] font-medium ${text.muted} hover:${text.secondary} hover:bg-white/[0.06] rounded-md transition-colors duration-150 active:scale-[0.98] inline-flex items-center gap-1.5`}
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    Create Task
+                    Create Issue
                   </button>
                 )}
                 {onLinkIssue && (
@@ -2044,6 +2112,14 @@ export function DetailPanel({
           }}
           footer={
             <>
+              <label className="flex items-center gap-2 cursor-pointer mr-auto select-none">
+                <ToggleSwitch
+                  checked={pushAfterCommit}
+                  onToggle={() => setPushAfterCommit((v) => !v)}
+                  size="sm"
+                />
+                <span className="text-[11px] text-[#9ca3af]">Push after commit</span>
+              </label>
               <button
                 type="button"
                 onClick={() => setShowCommitInput(false)}
@@ -2056,7 +2132,13 @@ export function DetailPanel({
                 disabled={isGitLoading || !commitMessage.trim()}
                 className={`px-3 py-1.5 text-xs font-medium ${action.commit.textActive} ${action.commit.bgSubmit} ${action.commit.bgSubmitHover} rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
               >
-                {isGitLoading && gitAction === "commit" ? "Committing..." : "Commit"}
+                {isGitLoading && gitAction === "commit"
+                  ? "Committing..."
+                  : isGitLoading && gitAction === "push"
+                    ? "Pushing..."
+                    : pushAfterCommit
+                      ? "Commit & Push"
+                      : "Commit"}
               </button>
             </>
           }
@@ -2124,6 +2206,78 @@ export function DetailPanel({
             className={`w-full px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg ${input.text} text-xs placeholder-[#4b5563] outline-none focus:border-white/[0.15] transition-colors duration-150`}
             autoFocus
           />
+        </Modal>
+      )}
+
+      {showMoveToWorktreeInput && (
+        <Modal
+          title="Move to Worktree"
+          icon={<GitBranch className="w-4 h-4 text-accent" />}
+          width="md"
+          onClose={() => setShowMoveToWorktreeInput(false)}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleMoveToWorktree();
+          }}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowMoveToWorktreeInput(false)}
+                className={`px-3 py-1.5 text-xs rounded-lg ${action.cancel.text} ${action.cancel.textHover} transition-colors`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isGitLoading || !moveToWorktreeName.trim()}
+                className={`px-3 py-1.5 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
+              >
+                {isGitLoading ? "Moving..." : "Move"}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <p className={`text-[11px] ${text.muted}`}>
+              Creates a new worktree and moves all uncommitted changes and unpushed commits from the
+              root to it.
+            </p>
+            <div>
+              <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
+                Worktree name
+              </label>
+              <input
+                type="text"
+                value={moveToWorktreeName}
+                onChange={(e) => setMoveToWorktreeName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setShowMoveToWorktreeInput(false);
+                }}
+                placeholder="my-feature"
+                className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
+                Branch name
+              </label>
+              <input
+                type="text"
+                value={moveToWorktreeBranch}
+                onChange={(e) => {
+                  setMoveToWorktreeBranchRaw(e.target.value);
+                  setMoveToWorktreeBranchManuallyEdited(true);
+                }}
+                placeholder="Defaults to worktree name"
+                className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
+              />
+              <p className={`mt-1 text-[11px] ${text.dimmed}`}>
+                Will be created from the base branch if it doesn't exist
+              </p>
+            </div>
+          </div>
         </Modal>
       )}
 

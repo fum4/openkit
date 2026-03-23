@@ -28,6 +28,7 @@ import type {
   SkillScanResult,
   DiffListResponse,
   DiffFileContentResponse,
+  PrDiffListResponse,
 } from "../types";
 
 // API functions now accept an optional serverUrl parameter
@@ -94,6 +95,34 @@ export async function createWorktree(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to create worktree",
+    };
+  }
+}
+
+export async function moveToWorktree(
+  branch: string,
+  name?: string,
+  serverUrl: string | null = null,
+): Promise<{
+  success: boolean;
+  error?: string;
+  code?: string;
+  worktreeId?: string;
+  worktree?: WorktreeInfo;
+}> {
+  try {
+    const body: { branch: string; name?: string } = { branch };
+    if (name) body.name = name;
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/worktrees/move-from-root`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to move to worktree",
     };
   }
 }
@@ -428,6 +457,80 @@ export async function fetchDiffFileContent(
       oldContent: "",
       newContent: "",
       error: err instanceof Error ? err.message : "Failed to fetch file content",
+    };
+  }
+}
+
+export async function fetchPrDiffFiles(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<PrDiffListResponse> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/pr-diff`);
+    if (!isJsonResponse(res)) {
+      return {
+        success: false,
+        files: [],
+        baseBranch: "",
+        baseSha: "",
+        mergeSha: "",
+        headSha: "",
+        localHeadSha: "",
+        error: `Server returned ${res.status} ${res.statusText}`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      files: [],
+      baseBranch: "",
+      baseSha: "",
+      mergeSha: "",
+      headSha: "",
+      localHeadSha: "",
+      error: err instanceof Error ? err.message : "Failed to fetch PR diff files",
+    };
+  }
+}
+
+export async function fetchPrDiffFileContent(
+  worktreeId: string,
+  filePath: string,
+  fileStatus: string,
+  baseSha: string,
+  mergeSha: string,
+  oldPath?: string,
+  serverUrl: string | null = null,
+): Promise<DiffFileContentResponse> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const params = new URLSearchParams({
+      path: filePath,
+      status: fileStatus,
+      baseSha,
+      mergeSha,
+    });
+    if (oldPath) params.set("oldPath", oldPath);
+    const res = await fetch(
+      `${base}/api/worktrees/${encodeURIComponent(worktreeId)}/pr-diff/file?${params}`,
+    );
+    if (!isJsonResponse(res)) {
+      return {
+        success: false,
+        oldContent: "",
+        newContent: "",
+        error: `Server returned ${res.status} ${res.statusText}`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      oldContent: "",
+      newContent: "",
+      error: err instanceof Error ? err.message : "Failed to fetch PR file content",
     };
   }
 }
@@ -4050,5 +4153,133 @@ export async function saveLocalConfig(
       success: false,
       error: err instanceof Error ? err.message : "Failed to save local config",
     };
+  }
+}
+
+export async function fetchWorktreeSettings(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<{
+  success: boolean;
+  autoCleanupOnMerge: boolean;
+  autoCleanupOnClose: boolean;
+  error?: string;
+}> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/settings`);
+    if (!isJsonResponse(res)) {
+      return {
+        success: false,
+        autoCleanupOnMerge: false,
+        autoCleanupOnClose: false,
+        error: `Server returned ${res.status}`,
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      autoCleanupOnMerge: false,
+      autoCleanupOnClose: false,
+      error: err instanceof Error ? err.message : "Failed to fetch settings",
+    };
+  }
+}
+
+export async function updateWorktreeSettings(
+  worktreeId: string,
+  patch: { autoCleanupOnMerge?: boolean | null; autoCleanupOnClose?: boolean | null },
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!isJsonResponse(res)) {
+      return { success: false, error: `Server returned ${res.status}` };
+    }
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update settings",
+    };
+  }
+}
+
+export async function stageFiles(
+  worktreeId: string,
+  paths: string[],
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/stage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to stage files" };
+  }
+}
+
+export async function unstageFiles(
+  worktreeId: string,
+  paths: string[],
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/unstage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to unstage files",
+    };
+  }
+}
+
+export async function stageAllFiles(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/stage-all`, {
+      method: "POST",
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to stage all" };
+  }
+}
+
+export async function unstageAllFiles(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/unstage-all`, {
+      method: "POST",
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to unstage all" };
   }
 }

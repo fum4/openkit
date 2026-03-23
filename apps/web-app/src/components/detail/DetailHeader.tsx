@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
+import { Settings, ChevronDown, GitBranch } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
+import { fetchWorktreeSettings, updateWorktreeSettings } from "../../hooks/api";
 import type { WorktreeInfo } from "../../types";
 import {
   CursorIcon,
@@ -16,6 +19,8 @@ import {
   ZedIcon,
 } from "../../icons";
 import { action, badge, button, status, text } from "../../theme";
+import { useServerUrlOptional } from "../../contexts/ServerContext";
+import { ToggleSwitch } from "../ToggleSwitch";
 import { Tooltip } from "../Tooltip";
 
 interface DetailHeaderProps {
@@ -28,6 +33,7 @@ interface DetailHeaderProps {
   onStart: () => void;
   onStop: () => void;
   onRemove: () => void;
+  onMoveToWorktree?: () => void;
   openTargetOptions: OpenProjectTargetOption[];
   selectedOpenTarget: OpenProjectTarget | null;
   onSelectOpenTarget: (target: OpenProjectTarget) => void;
@@ -261,6 +267,7 @@ export function DetailHeader({
   onStart,
   onStop,
   onRemove,
+  onMoveToWorktree,
   openTargetOptions,
   selectedOpenTarget,
   onSelectOpenTarget,
@@ -269,7 +276,49 @@ export function DetailHeader({
   onSelectLinearIssue,
   onSelectLocalIssue,
 }: DetailHeaderProps) {
-  const editable = !isRunning && !isCreating;
+  const isRoot = worktree.isRoot;
+  const editable = !isRunning && !isCreating && !isRoot;
+
+  const serverUrl = useServerUrlOptional();
+  const queryClient = useQueryClient();
+  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+
+  const settingsQuery = useQuery({
+    queryKey: ["worktree-settings", worktree.id],
+    queryFn: () => fetchWorktreeSettings(worktree.id, serverUrl),
+    enabled: showSettingsDropdown,
+    staleTime: 30_000,
+  });
+
+  const settingsMutation = useMutation({
+    mutationFn: (patch: {
+      autoCleanupOnMerge?: boolean | null;
+      autoCleanupOnClose?: boolean | null;
+    }) => updateWorktreeSettings(worktree.id, patch, serverUrl),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["worktree-settings", worktree.id] });
+    },
+  });
+
+  const settingsDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showSettingsDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (settingsDropdownRef.current && !settingsDropdownRef.current.contains(e.target as Node)) {
+        setShowSettingsDropdown(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowSettingsDropdown(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showSettingsDropdown]);
 
   return (
     <div className="flex-shrink-0 px-5 py-4">
@@ -300,28 +349,97 @@ export function DetailHeader({
           )}
           {!isCreating && (
             <>
-              <button
-                type="button"
-                onClick={onRemove}
-                disabled={isLoading}
-                aria-label="Delete worktree"
-                title="Delete worktree"
-                className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-red-400 rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-red-400"
+              {!isRoot && (
+                <div ref={settingsDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowSettingsDropdown((v) => !v)}
+                    className={`group h-7 px-1.5 text-[11px] font-medium ${button.secondary} rounded-md transition-colors duration-150 inline-flex items-center gap-0.5`}
+                    aria-label="Worktree settings"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-[#6b7280] group-hover:text-[#9ca3af]" />
+                    <ChevronDown className="w-3 h-3 text-[#6b7280] group-hover:text-[#9ca3af]" />
+                  </button>
+                  {showSettingsDropdown && (
+                    <div className="absolute right-0 top-full mt-1 z-50 bg-[#1a1d24] border border-white/[0.08] rounded-lg shadow-xl py-1.5 min-w-[220px]">
+                      {settingsQuery.isLoading ? (
+                        <div className="px-3 py-2 text-[11px] text-[#6b7280]">Loading...</div>
+                      ) : settingsQuery.data && !settingsQuery.data.success ? (
+                        <div className="px-3 py-2 text-[11px] text-red-400">
+                          Failed to load settings
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between px-3 py-1.5">
+                            <span className="text-[11px] text-[#9ca3af]">
+                              Delete worktree on PR merge
+                            </span>
+                            <ToggleSwitch
+                              checked={settingsQuery.data?.autoCleanupOnMerge ?? false}
+                              onToggle={() =>
+                                settingsMutation.mutate({
+                                  autoCleanupOnMerge: !settingsQuery.data?.autoCleanupOnMerge,
+                                })
+                              }
+                              size="sm"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between px-3 py-1.5">
+                            <span className="text-[11px] text-[#9ca3af]">
+                              Delete worktree on PR close
+                            </span>
+                            <ToggleSwitch
+                              checked={settingsQuery.data?.autoCleanupOnClose ?? false}
+                              onToggle={() =>
+                                settingsMutation.mutate({
+                                  autoCleanupOnClose: !settingsQuery.data?.autoCleanupOnClose,
+                                })
+                              }
+                              size="sm"
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {isRoot ? (
+                <button
+                  type="button"
+                  onClick={onMoveToWorktree}
+                  disabled={isLoading || !worktree.hasUncommitted}
+                  aria-label="Move changes to worktree"
+                  title="Move uncommitted changes to a new worktree"
+                  className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-accent rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.519.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Delete
-              </button>
+                  <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
+                  Move to worktree
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  disabled={isLoading}
+                  aria-label="Delete worktree"
+                  title="Delete worktree"
+                  className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-red-400 rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-red-400"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.519.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Delete
+                </button>
+              )}
               {isRunning ? (
                 <button
                   type="button"

@@ -50,6 +50,12 @@ vi.mock("nanoid", () => ({
   nanoid: vi.fn(() => "test-id"),
 }));
 
+vi.mock("../worktree-settings", () => ({
+  loadWorktreeSettings: vi.fn().mockReturnValue({}),
+  deleteWorktreeSettings: vi.fn(),
+  updateWorktreeSettings: vi.fn(),
+}));
+
 import type { GitStatusInfo } from "@openkit/integrations/github/types";
 import { ACTIVITY_TYPES } from "../activity-event";
 import { WorktreeManager } from "../manager";
@@ -93,7 +99,7 @@ describe("handlePrStateChange", () => {
 
     (manager as any).activityLog = { addEvent: mockAddEvent };
     (manager as any).githubManager = { getCachedGitStatus: mockGetCachedGitStatus };
-    manager.removeWorktree = mockRemoveWorktree;
+    (manager as any).removeWorktree = mockRemoveWorktree;
   });
 
   it("does nothing when autoCleanupOnPrMerge is false and PR is merged", async () => {

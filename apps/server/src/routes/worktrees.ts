@@ -10,6 +10,7 @@ import {
 } from "@openkit/shared/command-path";
 import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
+import { loadWorktreeSettings, updateWorktreeSettings } from "../worktree-settings";
 import type { TerminalManager } from "../terminal-manager";
 import type { WorktreeCreateRequest, WorktreeRenameRequest } from "../types";
 
@@ -423,6 +424,27 @@ export function registerWorktreeRoutes(
     }
   });
 
+  app.post("/api/worktrees/move-from-root", async (c) => {
+    try {
+      const body = await c.req.json<WorktreeCreateRequest>();
+
+      if (!body.branch) {
+        return c.json({ success: false, error: "Branch name is required" }, 400);
+      }
+
+      const result = await manager.moveToWorktree(body);
+      return c.json(result, result.success ? 201 : 400);
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Invalid request",
+        },
+        400,
+      );
+    }
+  });
+
   app.post("/api/worktrees/:id/start", async (c) => {
     const id = c.req.param("id");
     const result = await manager.startWorktree(id);
@@ -601,6 +623,47 @@ export function registerWorktreeRoutes(
         400,
       );
     }
+  });
+
+  app.get("/api/worktrees/:id/settings", (c) => {
+    const id = c.req.param("id");
+    const resolved = manager.resolveWorktree(id);
+    if (!resolved.success) {
+      return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+    }
+    const config = manager.getConfig();
+    const wtSettings = loadWorktreeSettings(manager.getConfigDir(), resolved.worktreeId);
+    return c.json({
+      success: true,
+      autoCleanupOnMerge: wtSettings.autoCleanupOnMerge ?? config.autoCleanupOnPrMerge ?? false,
+      autoCleanupOnClose: wtSettings.autoCleanupOnClose ?? config.autoCleanupOnPrClose ?? false,
+    });
+  });
+
+  app.patch("/api/worktrees/:id/settings", async (c) => {
+    const id = c.req.param("id");
+    const resolved = manager.resolveWorktree(id);
+    if (!resolved.success) {
+      return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+    }
+    const body = await c.req.json<unknown>();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return c.json({ success: false, error: "Invalid request body" }, 400);
+    }
+    const raw = body as Record<string, unknown>;
+    const patch: Record<string, boolean | null | undefined> = {};
+    for (const key of ["autoCleanupOnMerge", "autoCleanupOnClose"]) {
+      if (key in raw) {
+        const val = raw[key];
+        if (typeof val === "boolean") {
+          patch[key] = val;
+        } else if (val === null) {
+          patch[key] = undefined;
+        }
+      }
+    }
+    updateWorktreeSettings(manager.getConfigDir(), resolved.worktreeId, patch);
+    return c.json({ success: true });
   });
 
   // Unlink a worktree from its linked issue
