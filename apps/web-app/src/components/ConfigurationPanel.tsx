@@ -710,10 +710,10 @@ export function ConfigurationPanel({
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">
             <div className="flex flex-col gap-0.5">
               <span className={`text-xs font-medium ${settings.label}`}>
-                Auto-delete on PR merge
+                Delete worktrees on PR merge
               </span>
               <span className={`text-[11px] ${settings.description}`}>
-                Delete worktree when its GitHub PR is merged
+                Delete worktrees when their GitHub PRs are merged
               </span>
             </div>
             <ToggleSwitch
@@ -726,10 +726,10 @@ export function ConfigurationPanel({
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">
             <div className="flex flex-col gap-0.5">
               <span className={`text-xs font-medium ${settings.label}`}>
-                Auto-delete on PR close
+                Delete worktrees on PR close
               </span>
               <span className={`text-[11px] ${settings.description}`}>
-                Delete worktree when its GitHub PR is closed without merge
+                Delete worktrees when their GitHub PRs are closed without merge
               </span>
             </div>
             <ToggleSwitch

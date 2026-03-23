@@ -73,31 +73,33 @@ vi.mock("../../contexts/ServerContext", () => ({
     projectsLoading: false,
     selectFolder: async () => null,
   }),
-  useServerUrl: () => "",
-  useServerUrlOptional: () => null,
+  useServerUrl: () => "http://localhost:6969",
+  useServerUrlOptional: () => "http://localhost:6969",
   ServerProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Controllable mock for fetchRestorableAgentSessions
 const mockFetchRestorableAgentSessions = vi.fn();
 
+const mockApi = {
+  fetchAgentCliStatus: vi.fn().mockResolvedValue({ success: true, installed: true }),
+  fetchRestorableAgentSessions: mockFetchRestorableAgentSessions,
+  fetchOpenProjectTargets: vi.fn().mockResolvedValue({ success: true, options: [] }),
+  fetchActiveTerminalSession: vi.fn().mockResolvedValue({ success: false, sessionId: null }),
+  startWorktree: vi.fn().mockResolvedValue({ success: true }),
+  stopWorktree: vi.fn().mockResolvedValue({ success: true }),
+  removeWorktree: vi.fn().mockResolvedValue({ success: true }),
+  commitChanges: vi.fn().mockResolvedValue({ success: true }),
+  pushChanges: vi.fn().mockResolvedValue({ success: true }),
+  createPullRequest: vi.fn().mockResolvedValue({ success: true }),
+  openWorktreeIn: vi.fn().mockResolvedValue({ success: true }),
+  renameWorktree: vi.fn().mockResolvedValue({ success: true }),
+  recoverLocalTask: vi.fn().mockResolvedValue({ success: true }),
+  runHooks: vi.fn().mockResolvedValue({ success: true }),
+};
+
 vi.mock("../../hooks/useApi", () => ({
-  useApi: () => ({
-    fetchAgentCliStatus: vi.fn().mockResolvedValue({ success: true, installed: true }),
-    fetchRestorableAgentSessions: mockFetchRestorableAgentSessions,
-    fetchOpenProjectTargets: vi.fn().mockResolvedValue({ success: true, options: [] }),
-    fetchActiveTerminalSession: vi.fn().mockResolvedValue({ success: false, sessionId: null }),
-    startWorktree: vi.fn().mockResolvedValue({ success: true }),
-    stopWorktree: vi.fn().mockResolvedValue({ success: true }),
-    removeWorktree: vi.fn().mockResolvedValue({ success: true }),
-    commitChanges: vi.fn().mockResolvedValue({ success: true }),
-    pushChanges: vi.fn().mockResolvedValue({ success: true }),
-    createPullRequest: vi.fn().mockResolvedValue({ success: true }),
-    openWorktreeIn: vi.fn().mockResolvedValue({ success: true }),
-    renameWorktree: vi.fn().mockResolvedValue({ success: true }),
-    recoverLocalTask: vi.fn().mockResolvedValue({ success: true }),
-    runHooks: vi.fn().mockResolvedValue({ success: true }),
-  }),
+  useApi: () => mockApi,
 }));
 
 // ─── Helpers ────────────────────────────────────────────────────

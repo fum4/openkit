@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   detectOpenkitRepo: () => ipcRenderer.invoke("detect-openkit-repo"),
   selectDevRepoFolder: () => ipcRenderer.invoke("select-dev-repo-folder"),
 
+  // System-level agent discovery
+  getInstalledAgents: () => ipcRenderer.invoke("get-installed-agents"),
+
   // App updates
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
   getAppUpdateState: () => ipcRenderer.invoke("get-app-update-state"),

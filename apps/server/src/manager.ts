@@ -49,6 +49,7 @@ import { resolveNodePtyModule } from "./pty";
 import { ActivityLog } from "./activity-log";
 import { ACTIVITY_TYPES } from "./activity-event";
 import { loadLocalConfig, loadLocalGitPolicyConfig, updateLocalConfig } from "./local-config";
+import { loadWorktreeSettings, deleteWorktreeSettings } from "./worktree-settings";
 import { NotesManager } from "./notes-manager";
 import { OpsLog } from "./ops-log";
 import { PortManager } from "@openkit/port-offset/port-manager";
@@ -60,6 +61,7 @@ import type {
   WorktreeInfo,
   WorktreeRenameRequest,
 } from "./types";
+import { ROOT_WORKTREE_ID } from "./types";
 
 const portLog = log.get("port");
 const worktreeLog = log.get("worktree");
@@ -448,8 +450,12 @@ export class WorktreeManager {
   ): Promise<void> {
     const config = this.getConfig();
 
-    if (newState === "merged" && !config.autoCleanupOnPrMerge) return;
-    if (newState === "closed" && !config.autoCleanupOnPrClose) return;
+    const wtSettings = loadWorktreeSettings(this.configDir, worktreeId);
+    const shouldCleanupOnMerge = wtSettings.autoCleanupOnMerge ?? config.autoCleanupOnPrMerge;
+    const shouldCleanupOnClose = wtSettings.autoCleanupOnClose ?? config.autoCleanupOnPrClose;
+
+    if (newState === "merged" && !shouldCleanupOnMerge) return;
+    if (newState === "closed" && !shouldCleanupOnClose) return;
 
     // Safety gate: check for uncommitted or unpushed changes
     const git = this.githubManager?.getCachedGitStatus(worktreeId);
@@ -743,6 +749,32 @@ export class WorktreeManager {
   getWorktrees(): WorktreeInfo[] {
     const worktrees: WorktreeInfo[] = [];
     const worktreesPath = this.getWorktreesAbsolutePath();
+
+    // Prepend the root project entry
+    const rootPath = this.configDir;
+    const rootBranch = getWorktreeBranch(rootPath);
+    const rootEntry: WorktreeInfo = {
+      id: ROOT_WORKTREE_ID,
+      path: rootPath,
+      branch: rootBranch || this.config.baseBranch,
+      status: "stopped",
+      ports: [],
+      offset: null,
+      pid: null,
+      isRoot: true,
+    };
+    if (this.githubManager) {
+      const rootGit = this.githubManager.getCachedGitStatus(ROOT_WORKTREE_ID);
+      if (rootGit) {
+        rootEntry.hasUncommitted = rootGit.hasUncommitted;
+        rootEntry.hasUnpushed = rootGit.ahead > 0 || rootGit.noUpstream;
+        rootEntry.commitsAhead = rootGit.noUpstream ? 0 : rootGit.ahead;
+        rootEntry.commitsAheadOfBase = rootGit.aheadOfBase === -1 ? undefined : rootGit.aheadOfBase;
+        rootEntry.linesAdded = rootGit.linesAdded;
+        rootEntry.linesRemoved = rootGit.linesRemoved;
+      }
+    }
+    worktrees.push(rootEntry);
 
     if (!existsSync(worktreesPath)) {
       return worktrees;
@@ -1209,6 +1241,10 @@ export class WorktreeManager {
       id ||
       branch.replace(/^(feature|fix|chore)\//, "").replace(/[^a-zA-Z0-9- ]/g, "-");
 
+    if (worktreeId === ROOT_WORKTREE_ID) {
+      return { success: false, error: `"${ROOT_WORKTREE_ID}" is reserved for the root project` };
+    }
+
     if (!/^[a-zA-Z0-9][a-zA-Z0-9 -]*$/.test(worktreeId)) {
       return {
         success: false,
@@ -1318,6 +1354,184 @@ export class WorktreeManager {
     });
 
     return { success: true, worktree: placeholder };
+  }
+
+  /**
+   * Move uncommitted changes (and optionally unpushed commits) from the root
+   * project to a new worktree branch, then reset the root to the base branch state.
+   */
+  async moveToWorktree(request: WorktreeCreateRequest): Promise<{
+    success: boolean;
+    worktree?: WorktreeInfo;
+    error?: string;
+    code?: string;
+    worktreeId?: string;
+  }> {
+    const gitRoot = this.getGitRoot();
+    const baseBranch = this.config.baseBranch;
+
+    // Count unpushed commits on the root branch
+    let unpushedCount = 0;
+    try {
+      const { stdout } = await execFile(
+        "git",
+        ["rev-list", "--count", `origin/${baseBranch}..HEAD`],
+        { cwd: gitRoot, encoding: "utf-8" },
+      );
+      unpushedCount = parseInt(stdout.trim(), 10) || 0;
+    } catch (err) {
+      log.warn("Could not count unpushed commits — assuming 0", {
+        domain: "worktree",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    // Check there's actually something to move
+    let hasUncommitted = false;
+    try {
+      const { stdout } = await execFile("git", ["status", "--porcelain"], {
+        cwd: gitRoot,
+        encoding: "utf-8",
+      });
+      hasUncommitted = stdout.trim().length > 0;
+    } catch (err) {
+      log.warn("Could not check uncommitted changes — assuming none", {
+        domain: "worktree",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    if (unpushedCount === 0 && !hasUncommitted) {
+      return {
+        success: false,
+        error: "Nothing to move — no uncommitted changes or unpushed commits",
+      };
+    }
+
+    // Stash uncommitted changes (including untracked files).
+    // We capture the stash ref to avoid race conditions with other stash operations.
+    let stashRef: string | null = null;
+    if (hasUncommitted) {
+      try {
+        const { stdout } = await execFile(
+          "git",
+          ["stash", "push", "--include-untracked", "-m", `openkit-move-to-${request.branch}`],
+          { cwd: gitRoot, encoding: "utf-8" },
+        );
+        if (!stdout.includes("No local changes")) {
+          // Get the exact ref of the stash we just created
+          const { stdout: refOut } = await execFile(
+            "git",
+            ["stash", "list", "--max-count=1", "--format=%H"],
+            {
+              cwd: gitRoot,
+              encoding: "utf-8",
+            },
+          );
+          stashRef = refOut.trim() || null;
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error: `Failed to stash changes: ${error instanceof Error ? error.message : String(error)}`,
+        };
+      }
+    }
+
+    // Capture pre-reset HEAD before creating the worktree so we can log it later
+    let preResetHead = "";
+    if (unpushedCount > 0) {
+      try {
+        const { stdout } = await execFile("git", ["rev-parse", "HEAD"], {
+          cwd: gitRoot,
+          encoding: "utf-8",
+        });
+        preResetHead = stdout.trim();
+      } catch {
+        // Non-fatal — we'll still attempt the reset, just without the recovery ref
+      }
+    }
+
+    // Defer the root reset and stash apply to the onSuccess/onFailure callbacks.
+    // This ensures the worktree exists before we rewrite history on the root branch.
+    const capturedStashRef = stashRef;
+    const capturedUnpushedCount = unpushedCount;
+    const capturedPreResetHead = preResetHead;
+
+    const result = await this.createWorktree(request, {
+      onSuccess: (id) => {
+        // Reset root branch to remove unpushed commits — deferred until worktree is confirmed
+        if (capturedUnpushedCount > 0) {
+          log.info(
+            `Pre-reset HEAD: ${capturedPreResetHead} — resetting ${capturedUnpushedCount} commits`,
+            {
+              domain: "worktree",
+              preResetHead: capturedPreResetHead,
+              unpushedCount: capturedUnpushedCount,
+            },
+          );
+          execFile("git", ["reset", "--hard", `HEAD~${capturedUnpushedCount}`], {
+            cwd: gitRoot,
+            encoding: "utf-8",
+          })
+            .then(() => this.notifyListeners())
+            .catch((error) => {
+              log.error(
+                `Failed to reset root branch: ${error instanceof Error ? error.message : String(error)}`,
+                { domain: "worktree" },
+              );
+            });
+        }
+
+        // Apply stash in the new worktree
+        if (capturedStashRef) {
+          const worktreePath = path.join(this.getWorktreesAbsolutePath(), id);
+          execFile("git", ["stash", "apply", capturedStashRef], {
+            cwd: worktreePath,
+            encoding: "utf-8",
+          }).catch((err) => {
+            log.error(
+              `Failed to apply stash in worktree "${id}": ${err instanceof Error ? err.message : String(err)}`,
+              { domain: "worktree", stashRef: capturedStashRef },
+            );
+          });
+        }
+      },
+      onFailure: (_id, error) => {
+        // Worktree creation failed — restore stash to root so no changes are lost
+        log.warn("Worktree creation failed, restoring stash to root", {
+          domain: "worktree",
+          error,
+        });
+        if (capturedStashRef) {
+          execFile("git", ["stash", "apply", capturedStashRef], {
+            cwd: gitRoot,
+            encoding: "utf-8",
+          }).catch((err) => {
+            log.error(
+              `Failed to restore stash after failed worktree creation: ${err instanceof Error ? err.message : String(err)}`,
+              { domain: "worktree", stashRef: capturedStashRef },
+            );
+          });
+        }
+      },
+    });
+
+    if (!result.success) {
+      // Synchronous failure (e.g. validation) — restore stash immediately
+      if (stashRef) {
+        try {
+          await execFile("git", ["stash", "apply", stashRef], { cwd: gitRoot, encoding: "utf-8" });
+        } catch {
+          log.error("Failed to restore stash after failed worktree creation", {
+            domain: "worktree",
+          });
+        }
+      }
+      return result;
+    }
+
+    return result;
   }
 
   private async runCreateWorktree(
@@ -1525,6 +1739,12 @@ export class WorktreeManager {
 
       // Rename directory (worktree name)
       if (request.name && request.name !== canonicalId) {
+        if (request.name.trim() === ROOT_WORKTREE_ID) {
+          return {
+            success: false,
+            error: `"${ROOT_WORKTREE_ID}" is reserved for the root project`,
+          };
+        }
         if (!/^[a-zA-Z0-9][a-zA-Z0-9 -]*$/.test(request.name.trim())) {
           return {
             success: false,
@@ -1700,6 +1920,7 @@ export class WorktreeManager {
     if (!existsSync(worktreePath)) {
       this.pruneGitWorktreeMetadata(gitRoot);
       const clearedLinks = this.notesManager.clearLinkedWorktreeId(worktreeId);
+      deleteWorktreeSettings(this.configDir, worktreeId);
       this.clearAwaitingInputForWorktree(worktreeId);
       this.notifyListeners();
       return finalize({
@@ -1734,6 +1955,7 @@ export class WorktreeManager {
 
       logDeletePhase("clear-links-for-target-worktree-only", "start", { worktreeId });
       const clearedLinks = this.notesManager.clearLinkedWorktreeId(worktreeId);
+      deleteWorktreeSettings(this.configDir, worktreeId);
       logDeletePhase("clear-links-for-target-worktree-only", "success", {
         worktreeId,
         clearedLinks,

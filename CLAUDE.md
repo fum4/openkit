@@ -31,7 +31,9 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 
 **Package manager**: pnpm
 
-**Test runner**: Vitest. Run `pnpm test` for all, `pnpm nx run <project>:test` for one project.
+**Test runner**: Vitest. Run `pnpm test:unit` for all, `pnpm nx run <project>:test:unit` for one project.
+
+**Always use scripts from the root `package.json`** when available (`pnpm test:unit`, `pnpm check:*`, `pnpm fix:*`, `pnpm smoke`, etc.). Never invoke internal tools directly via `npx`, bare binary names, or raw `vitest`/`oxlint`/`oxfmt` commands — the `package.json` scripts ensure correct configuration, project boundaries, and environment setup. Running tools directly can pick up files from worktrees, skip required configs, or use wrong versions.
 
 ## Testing
 
@@ -44,6 +46,7 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 - Write tests carefully — one behavior per `it()`, Arrange-Act-Assert structure, behavior-spec naming.
 - Mock at the boundary (fs, child_process, HTTP), not internal helpers.
 - Component tests use React Testing Library: query by role/label/text, use `userEvent`, never test implementation details.
+- **Never use `title` attributes in tests** (e.g., `getByTitle`). The `title` attribute renders native browser tooltips which conflict with the app's custom `Tooltip` component. Instead, query by displayed text (`getByText`), by role (`getByRole("button", { name: "..." })`), or by `aria-label`.
 - **Every codebase change must have test coverage.** When creating or modifying code, always create or update the corresponding unit tests. No exceptions.
 
 ## Code Quality
@@ -118,6 +121,7 @@ OpenKit has a **Dev Mode** (App Settings → Dev Mode toggle) that symlinks each
 - Do not introduce ad-hoc lighter/darker color variants for existing control patterns.
 - For switches/toggles, reuse the app-standard treatment (`bg-accent` when enabled, neutral off-state styling when disabled).
 - Use the shared `Modal` component for dialogs; avoid bespoke dialog shells unless there is a documented exception.
+- **Never use the `title` attribute for tooltips.** Always use the shared `Tooltip` component (`apps/web-app/src/components/Tooltip.tsx`) instead. The `title` attribute renders a native browser tooltip which is inconsistent with the app's design.
 
 ## Icon Handling
 

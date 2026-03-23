@@ -312,12 +312,6 @@ export class ProjectManager {
     if (!project) return;
 
     project.status = "stopped";
-
-    if (project.serverProcess) {
-      await stopServer(project.serverProcess);
-      project.serverProcess = null;
-    }
-
     this.projects.delete(id);
 
     if (this.activeProjectId === id) {
@@ -326,7 +320,16 @@ export class ProjectManager {
       this.activeProjectId = remaining.length > 0 ? remaining[0] : null;
     }
 
+    // Notify renderer BEFORE killing the server so the UI tears down SSE
+    // connections before the server process exits, avoiding spurious
+    // "Live updates disconnected" errors.
     this.notifyChange();
+
+    if (project.serverProcess) {
+      await stopServer(project.serverProcess);
+      project.serverProcess = null;
+    }
+
     this.saveState();
   }
 
@@ -345,12 +348,6 @@ export class ProjectManager {
     if (!project) return;
 
     project.status = "stopped";
-
-    if (project.serverProcess) {
-      await stopServer(project.serverProcess);
-      project.serverProcess = null;
-    }
-
     this.projects.delete(id);
 
     if (this.activeProjectId === id) {
@@ -358,7 +355,13 @@ export class ProjectManager {
       this.activeProjectId = remaining.length > 0 ? remaining[0] : null;
     }
 
+    // Notify renderer before killing server (same rationale as closeProject)
     this.notifyChange();
+
+    if (project.serverProcess) {
+      await stopServer(project.serverProcess);
+      project.serverProcess = null;
+    }
   }
 
   setActiveProject(id: string): boolean {

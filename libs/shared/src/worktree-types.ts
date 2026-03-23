@@ -76,6 +76,9 @@ export interface WorktreeConfig {
   autoCleanupOnPrClose?: boolean;
 }
 
+/** Sentinel ID used for the root project entry in the worktree list. */
+export const ROOT_WORKTREE_ID = "root";
+
 export interface WorktreeInfo {
   /** Unique identifier (typically ticket ID like ADH-1234) */
   id: string;
@@ -85,6 +88,8 @@ export interface WorktreeInfo {
   branch: string;
   /** Current status */
   status: "running" | "stopped" | "starting" | "creating";
+  /** Whether this entry represents the root project (not a child worktree) */
+  isRoot?: boolean;
   /** Status message for in-progress operations like creation */
   statusMessage?: string;
   /** All offset ports if running */
@@ -233,6 +238,8 @@ export interface DiffFileInfo {
   linesAdded: number;
   linesRemoved: number;
   isBinary: boolean;
+  /** Whether this file is staged (in the git index). Undefined when showing committed changes. */
+  staged?: boolean;
 }
 
 export interface DiffListResponse {
@@ -240,6 +247,24 @@ export interface DiffListResponse {
   files: DiffFileInfo[];
   baseBranch: string;
   error?: string;
+}
+
+export interface PrDiffListResponse extends DiffListResponse {
+  /** SHA of the PR base (e.g. the tip of main at merge time) */
+  baseSha: string;
+  /** SHA of the merge commit */
+  mergeSha: string;
+  /** SHA of the PR branch head when the PR was merged */
+  headSha: string;
+  /** SHA of the local worktree HEAD (for detecting post-merge commits) */
+  localHeadSha: string;
+}
+
+export interface WorktreeSettings {
+  /** Override global auto-delete-on-merge setting for this worktree */
+  autoCleanupOnMerge?: boolean;
+  /** Override global auto-delete-on-close setting for this worktree */
+  autoCleanupOnClose?: boolean;
 }
 
 export interface DiffFileContentResponse {

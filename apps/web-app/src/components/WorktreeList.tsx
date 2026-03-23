@@ -29,19 +29,22 @@ export function WorktreeList({
 }: WorktreeListProps) {
   const selectedItemRef = useRef<HTMLButtonElement | null>(null);
 
+  const rootWorktree = worktrees.find((w) => w.isRoot);
+  const childWorktrees = worktrees.filter((w) => !w.isRoot);
+
   const filtered = filter
-    ? worktrees.filter((w) => {
+    ? childWorktrees.filter((w) => {
         const q = filter.toLowerCase();
         return w.id.toLowerCase().includes(q) || w.branch.toLowerCase().includes(q);
       })
-    : worktrees;
+    : childWorktrees;
 
   useEffect(() => {
     if (!selectedId) return;
     selectedItemRef.current?.scrollIntoView({ block: "nearest" });
   }, [selectedId]);
 
-  if (worktrees.length === 0) {
+  if (childWorktrees.length === 0 && !rootWorktree) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="text-center">
@@ -55,7 +58,17 @@ export function WorktreeList({
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex-1 overflow-y-auto">
-        {filtered.length === 0 ? (
+        {rootWorktree && (
+          <WorktreeItem
+            worktree={rootWorktree}
+            isSelected={rootWorktree.id === selectedId}
+            itemRef={rootWorktree.id === selectedId ? selectedItemRef : undefined}
+            onSelect={() => onSelect(rootWorktree.id)}
+            showDiffStats={showDiffStats}
+          />
+        )}
+
+        {filtered.length === 0 && childWorktrees.length > 0 ? (
           <div className="flex items-center justify-center p-4">
             <p className={`${text.muted} text-xs`}>No matches</p>
           </div>

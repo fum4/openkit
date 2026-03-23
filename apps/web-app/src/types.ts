@@ -1,3 +1,5 @@
+export { ROOT_WORKTREE_ID } from "@openkit/shared/worktree-types";
+
 export interface WorktreeInfo {
   id: string;
   path: string;
@@ -7,6 +9,8 @@ export interface WorktreeInfo {
   ports: number[];
   offset: number | null;
   pid: number | null;
+  /** Whether this entry represents the root project (not a child worktree) */
+  isRoot?: boolean;
   lastActivity?: number;
   logs?: string[];
   jiraUrl?: string;
@@ -350,6 +354,7 @@ export type {
   DiffFileInfo,
   DiffListResponse,
   DiffFileContentResponse,
+  PrDiffListResponse,
 } from "@openkit/shared/worktree-types";
 
 // ─── Jira types ─────────────────────────────────────────────────
