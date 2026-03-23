@@ -39,7 +39,7 @@ export function WorktreeItem({
       type="button"
       data-sidebar-item
       onClick={onSelect}
-      className={`w-full px-3 py-2.5 flex items-center gap-2.5 text-left transition-colors duration-150 border-l focus:outline-none ${
+      className={`w-full px-3 py-2.5 flex items-center gap-2.5 text-left transition-colors duration-150 border-l focus:outline-none ${isRoot ? "mb-px" : ""} ${
         isSelected
           ? `${surface.panelSelected} ${border.accent}`
           : `border-transparent hover:${surface.panelHover}`

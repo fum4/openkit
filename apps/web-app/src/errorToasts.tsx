@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 const DEFAULT_ERROR_MESSAGE = "Something went wrong";
@@ -61,6 +61,38 @@ function contentToDedupeText(content: ErrorToastContent): string {
   return "";
 }
 
+/** Text that clamps to ~4 lines with a "Show more" toggle. */
+function ClampedText({ text, className }: { text: string; className?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [clamped, setClamped] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el) setClamped(el.scrollHeight > el.clientHeight + 2);
+  }, [text]);
+
+  return (
+    <div>
+      <p
+        ref={ref}
+        className={`leading-relaxed ${className ?? ""} ${expanded ? "" : "line-clamp-4"}`}
+      >
+        {text}
+      </p>
+      {clamped && !expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="mt-1 text-[11px] text-red-200/50 hover:text-red-200/80 transition-colors"
+        >
+          Show more
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function getErrorMessage(error: unknown, fallback = DEFAULT_ERROR_MESSAGE): string {
   if (typeof error === "string" && error.trim().length > 0) return error.trim();
   if (error instanceof Error && error.message.trim().length > 0) return error.message.trim();
@@ -109,12 +141,10 @@ export function showPersistentErrorToast(
           {content.title && content.description ? (
             <>
               <p className="leading-relaxed font-medium text-red-100/90">{content.title}</p>
-              <p className="mt-1 text-xs leading-relaxed text-red-100/70">{content.description}</p>
+              <ClampedText text={content.description} className="mt-1 text-xs text-red-100/70" />
             </>
           ) : (
-            <p className="leading-relaxed">
-              {content.message ?? content.title ?? content.description}
-            </p>
+            <ClampedText text={content.message ?? content.title ?? content.description ?? ""} />
           )}
         </div>
       </div>

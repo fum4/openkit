@@ -464,6 +464,33 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
     }
   });
 
+  app.post("/api/worktrees/:id/unstage-all", async (c) => {
+    try {
+      const id = c.req.param("id");
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+      }
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          "git",
+          ["reset", "HEAD"],
+          { cwd: resolved.worktree.path, encoding: "utf-8" },
+          (err) => (err ? reject(err) : resolve()),
+        );
+      });
+      return c.json({ success: true });
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to unstage all files",
+        },
+        400,
+      );
+    }
+  });
+
   app.get("/api/worktrees/:id/pr-diff", async (c) => {
     const ghManager = manager.getGitHubManager();
     if (!ghManager?.isAvailable()) {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
 import type { AgentHistoryMatch, CodingAgent, RestorableAgent } from "../../hooks/api";
 import type { WorktreeInfo } from "../../types";
+import { showPersistentErrorToast } from "../../errorToasts";
 import { useErrorToast } from "../../hooks/useErrorToast";
 import { useApi } from "../../hooks/useApi";
 import { clearTerminalSessionCacheForRuntimeWorktree } from "../../hooks/useTerminal";
@@ -12,6 +13,7 @@ import { action, button, detailTab, errorBanner, input, text } from "../../theme
 import { ConfirmDialog } from "../ConfirmDialog";
 import { GitHubIcon } from "../../icons";
 import { Modal } from "../Modal";
+import { ToggleSwitch } from "../ToggleSwitch";
 import { DetailHeader } from "./DetailHeader";
 import { DiffViewerTab } from "./DiffViewerTab";
 import { LogsViewer } from "./LogsViewer";
@@ -1629,11 +1631,14 @@ export function DetailPanel({
           setGitAction("push");
           const pushResult = await api.pushChanges(worktree.id);
           if (!pushResult.success) {
-            setError(pushResult.error || "Committed successfully, but failed to push");
+            showPersistentErrorToast(
+              pushResult.error || "Committed successfully, but failed to push",
+              { scope: "detail-panel" },
+            );
           }
         }
       } else {
-        setError(result.error || "Failed to commit");
+        showPersistentErrorToast(result.error || "Failed to commit", { scope: "detail-panel" });
       }
       onUpdate();
     } finally {
@@ -1648,7 +1653,8 @@ export function DetailPanel({
     setError(null);
     try {
       const result = await api.pushChanges(worktree.id);
-      if (!result.success) setError(result.error || "Failed to push");
+      if (!result.success)
+        showPersistentErrorToast(result.error || "Failed to push", { scope: "detail-panel" });
       onUpdate();
     } finally {
       setIsGitLoading(false);
@@ -2107,21 +2113,11 @@ export function DetailPanel({
           footer={
             <>
               <label className="flex items-center gap-2 cursor-pointer mr-auto select-none">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={pushAfterCommit}
-                  onClick={() => setPushAfterCommit((v) => !v)}
-                  className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors duration-150 ${
-                    pushAfterCommit ? "bg-accent" : "bg-white/[0.12]"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-3 w-3 rounded-full bg-white transition-transform duration-150 ${
-                      pushAfterCommit ? "translate-x-3.5" : "translate-x-0.5"
-                    }`}
-                  />
-                </button>
+                <ToggleSwitch
+                  checked={pushAfterCommit}
+                  onToggle={() => setPushAfterCommit((v) => !v)}
+                  size="sm"
+                />
                 <span className="text-[11px] text-[#9ca3af]">Push after commit</span>
               </label>
               <button

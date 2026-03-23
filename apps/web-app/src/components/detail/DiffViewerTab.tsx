@@ -12,6 +12,7 @@ import {
   ChevronsUpDown,
   Columns2,
   FileCode2,
+  Minus,
   Plus,
   RefreshCw,
   Rows2,
@@ -26,6 +27,7 @@ import {
   stageFiles,
   unstageFiles,
   stageAllFiles,
+  unstageAllFiles,
 } from "../../hooks/api";
 import { useServerUrlOptional } from "../../contexts/ServerContext";
 import { log } from "../../logger";
@@ -41,6 +43,13 @@ import { DiffFileSection } from "./DiffFileSection";
 interface DiffViewerTabProps {
   worktree: WorktreeInfo;
   visible: boolean;
+}
+
+/** Unique key for a file entry — distinguishes staged/unstaged versions of the same path. */
+function fileKey(file: DiffFileInfo): string {
+  if (file.staged === true) return `staged:${file.path}`;
+  if (file.staged === false) return `unstaged:${file.path}`;
+  return file.path;
 }
 
 export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
@@ -119,7 +128,9 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
         log.warn("Partial diff error", { domain: "diff", error: res.error });
       }
       // Auto-expand if fewer than threshold
-      setExpandedFiles(res.files.length <= 10 ? new Set(res.files.map((f) => f.path)) : new Set());
+      setExpandedFiles(
+        res.files.length <= 10 ? new Set(res.files.map((f) => fileKey(f))) : new Set(),
+      );
     } catch (err) {
       if (fetchId !== fetchCountRef.current) return; // stale
       const message = err instanceof Error ? err.message : "Failed to load changes";
@@ -208,7 +219,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
       }
       setFiles(prDiffQuery.data.files);
       setRefreshKey((k) => k + 1);
-      setExpandedFiles(new Set(prDiffQuery.data.files.map((f) => f.path)));
+      setExpandedFiles(new Set(prDiffQuery.data.files.map((f) => fileKey(f))));
     }
   }, [showMergedDiff, prDiffQuery.isLoading, prDiffQuery.data, prDiffQuery.error]);
 
@@ -228,7 +239,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     // Scroll to file section
     const el = fileRefs.current.get(path);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.scrollIntoView({ behavior: "instant", block: "start" });
     }
   }, []);
 
@@ -245,7 +256,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   }, []);
 
   const handleExpandAll = useCallback(() => {
-    setExpandedFiles(new Set(files.map((f) => f.path)));
+    setExpandedFiles(new Set(files.map((f) => fileKey(f))));
   }, [files]);
 
   const handleCollapseAll = useCallback(() => {
@@ -270,6 +281,11 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
 
   const handleStageAll = useCallback(async () => {
     await stageAllFiles(worktree.id, serverUrl);
+    fetchFiles();
+  }, [worktree.id, serverUrl, fetchFiles]);
+
+  const handleUnstageAll = useCallback(async () => {
+    await unstageAllFiles(worktree.id, serverUrl);
     fetchFiles();
   }, [worktree.id, serverUrl, fetchFiles]);
 
@@ -432,6 +448,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                 onStageFile={handleStageFile}
                 onUnstageFile={handleUnstageFile}
                 onStageAll={handleStageAll}
+                onUnstageAll={handleUnstageAll}
                 showStagingActions={!showMergedDiff && !includeCommitted}
               />
             </div>
@@ -490,18 +507,30 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                       )}
                       Staged Changes ({stagedFiles.length})
                     </span>
+                    <Tooltip text="Unstage all" position="left">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnstageAll();
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                    </Tooltip>
                   </div>
                   {stagedSectionExpanded &&
                     stagedFiles.map((file) => (
                       <DiffFileSection
-                        key={`staged:${file.path}`}
+                        key={fileKey(file)}
                         ref={(el) => {
-                          setFileRef(file.path, el);
-                          if (el) el.dataset.filePath = file.path;
+                          setFileRef(fileKey(file), el);
+                          if (el) el.dataset.filePath = fileKey(file);
                         }}
                         file={file}
-                        expanded={expandedFiles.has(file.path)}
-                        onToggle={() => handleToggleFile(file.path)}
+                        expanded={expandedFiles.has(fileKey(file))}
+                        onToggle={() => handleToggleFile(fileKey(file))}
                         viewMode={viewMode}
                         worktreeId={worktree.id}
                         includeCommitted={includeCommitted}
@@ -532,30 +561,30 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                   )}
                   Changes ({unstagedFiles.length})
                 </span>
-                <Tooltip text="Stage all" position="bottom">
+                <Tooltip text="Stage all" position="left">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleStageAll();
                     }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/[0.08]"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
                   >
-                    <Plus className="w-3 h-3 text-[#6b7280] hover:text-white" />
+                    <Plus className="w-3 h-3" />
                   </button>
                 </Tooltip>
               </div>
               {unstagedSectionExpanded &&
                 unstagedFiles.map((file) => (
                   <DiffFileSection
-                    key={`unstaged:${file.path}`}
+                    key={fileKey(file)}
                     ref={(el) => {
-                      setFileRef(file.path, el);
-                      if (el) el.dataset.filePath = file.path;
+                      setFileRef(fileKey(file), el);
+                      if (el) el.dataset.filePath = fileKey(file);
                     }}
                     file={file}
-                    expanded={expandedFiles.has(file.path)}
-                    onToggle={() => handleToggleFile(file.path)}
+                    expanded={expandedFiles.has(fileKey(file))}
+                    onToggle={() => handleToggleFile(fileKey(file))}
                     viewMode={viewMode}
                     worktreeId={worktree.id}
                     includeCommitted={includeCommitted}
@@ -568,14 +597,14 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
           ) : (
             files.map((file) => (
               <DiffFileSection
-                key={file.path}
+                key={fileKey(file)}
                 ref={(el) => {
-                  setFileRef(file.path, el);
-                  if (el) el.dataset.filePath = file.path;
+                  setFileRef(fileKey(file), el);
+                  if (el) el.dataset.filePath = fileKey(file);
                 }}
                 file={file}
-                expanded={expandedFiles.has(file.path)}
-                onToggle={() => handleToggleFile(file.path)}
+                expanded={expandedFiles.has(fileKey(file))}
+                onToggle={() => handleToggleFile(fileKey(file))}
                 viewMode={viewMode}
                 worktreeId={worktree.id}
                 includeCommitted={includeCommitted}

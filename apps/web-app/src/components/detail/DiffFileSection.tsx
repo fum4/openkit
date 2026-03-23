@@ -158,12 +158,12 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
                     e.stopPropagation();
                     stageAction();
                   }}
-                  className="hidden group-hover:flex items-center p-0.5 rounded hover:bg-white/[0.08]"
+                  className="hidden group-hover:flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
                 >
                   {stageActionType === "unstage" ? (
-                    <Minus className="w-3.5 h-3.5 text-[#6b7280] hover:text-white" />
+                    <Minus className="w-3.5 h-3.5" />
                   ) : (
-                    <Plus className="w-3.5 h-3.5 text-[#6b7280] hover:text-white" />
+                    <Plus className="w-3.5 h-3.5" />
                   )}
                 </button>
               </Tooltip>

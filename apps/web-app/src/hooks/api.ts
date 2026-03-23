@@ -4269,3 +4269,19 @@ export async function stageAllFiles(
     return { success: false, error: err instanceof Error ? err.message : "Failed to stage all" };
   }
 }
+
+export async function unstageAllFiles(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/unstage-all`, {
+      method: "POST",
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to unstage all" };
+  }
+}

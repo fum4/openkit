@@ -176,7 +176,7 @@ describe("DiffFileSidebar", () => {
         />,
       );
 
-      await user.click(screen.getByTitle("Stage all"));
+      await user.click(screen.getByRole("button", { name: "Stage all" }));
 
       expect(onStageAll).toHaveBeenCalledTimes(1);
     });
@@ -195,7 +195,7 @@ describe("DiffFileSidebar", () => {
         />,
       );
 
-      await user.click(screen.getByTitle("Unstage"));
+      await user.click(screen.getByRole("button", { name: "Unstage" }));
 
       expect(onUnstageFile).toHaveBeenCalledWith(stagedFile.path);
     });
@@ -214,7 +214,7 @@ describe("DiffFileSidebar", () => {
         />,
       );
 
-      await user.click(screen.getByTitle("Stage"));
+      await user.click(screen.getByRole("button", { name: "Stage" }));
 
       expect(onStageFile).toHaveBeenCalledWith(unstagedFile.path);
     });
@@ -235,7 +235,7 @@ describe("DiffFileSidebar", () => {
         />,
       );
 
-      await user.click(screen.getByTitle("Stage"));
+      await user.click(screen.getByRole("button", { name: "Stage" }));
 
       expect(onStageFile).toHaveBeenCalledTimes(1);
       expect(onSelectFile).not.toHaveBeenCalled();
