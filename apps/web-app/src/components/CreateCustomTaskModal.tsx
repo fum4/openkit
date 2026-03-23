@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Paperclip, X } from "lucide-react";
 
 import { useErrorToast } from "../hooks/useErrorToast";
 import { customTask, getLabelColor, text } from "../theme";
+import { ConfirmModal } from "./ConfirmModal";
 import { Modal } from "./Modal";
 import { ImageModal } from "./ImageModal";
 import { AttachmentThumbnail } from "./AttachmentThumbnail";
@@ -36,6 +37,7 @@ export function CreateCustomTaskModal({
   const [files, setFiles] = useState<File[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [previewImage, setPreviewImage] = useState<{
     src: string;
     filename: string;
@@ -44,7 +46,22 @@ export function CreateCustomTaskModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   useErrorToast(error, "create-custom-task-modal");
 
-  // Stable object URLs for file previews
+  const isDirty =
+    title.trim() !== "" ||
+    description.trim() !== "" ||
+    labelInput.trim() !== "" ||
+    labels.length > 0 ||
+    files.length > 0;
+
+  const handleClose = () => {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    onClose();
+  };
+
+  // Stable object URLs for file previews — revoked when files change or modal unmounts
   const fileUrls = useMemo(
     () =>
       files.map((f) =>
@@ -54,6 +71,9 @@ export function CreateCustomTaskModal({
       ),
     [files],
   );
+  useEffect(() => {
+    return () => fileUrls.forEach((url) => url && URL.revokeObjectURL(url));
+  }, [fileUrls]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,14 +124,15 @@ export function CreateCustomTaskModal({
     <Modal
       title="Create Task"
       icon={<FileText className="w-4 h-4 text-amber-400" />}
-      onClose={onClose}
+      onClose={handleClose}
       onSubmit={handleSubmit}
+      closeOnBackdrop={false}
       width="lg"
       footer={
         <>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className={`px-3 py-1.5 text-xs rounded-lg ${text.muted} hover:${text.secondary} transition-colors`}
           >
             Cancel
@@ -287,6 +308,16 @@ export function CreateCustomTaskModal({
           filename={previewImage.filename}
           type={previewImage.type}
           onClose={() => setPreviewImage(null)}
+        />
+      )}
+
+      {showDiscardConfirm && (
+        <ConfirmModal
+          title="Discard changes?"
+          message="Your task details will be lost."
+          confirmLabel="Discard"
+          onConfirm={onClose}
+          onCancel={() => setShowDiscardConfirm(false)}
         />
       )}
     </Modal>
