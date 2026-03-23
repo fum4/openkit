@@ -6,10 +6,13 @@
  * Supports unified/side-by-side view modes and an "include committed" toggle.
  */
 import {
+  ChevronDown,
+  ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
   Columns2,
   FileCode2,
+  Plus,
   RefreshCw,
   Rows2,
 } from "lucide-react";
@@ -40,8 +43,6 @@ interface DiffViewerTabProps {
   visible: boolean;
 }
 
-const FILES_EXPANDED_THRESHOLD = 10;
-
 export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   const serverUrl = useServerUrlOptional();
   const [files, setFiles] = useState<DiffFileInfo[]>([]);
@@ -51,6 +52,8 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   const [includeCommitted, setIncludeCommitted] = useState(false);
   const [showMergedDiff, setShowMergedDiff] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
+  const [stagedSectionExpanded, setStagedSectionExpanded] = useState(true);
+  const [unstagedSectionExpanded, setUnstagedSectionExpanded] = useState(true);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     try {
@@ -116,11 +119,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
         log.warn("Partial diff error", { domain: "diff", error: res.error });
       }
       // Auto-expand if fewer than threshold
-      if (res.files.length < FILES_EXPANDED_THRESHOLD) {
-        setExpandedFiles(new Set(res.files.map((f) => f.path)));
-      } else {
-        setExpandedFiles(new Set());
-      }
+      setExpandedFiles(res.files.length <= 10 ? new Set(res.files.map((f) => f.path)) : new Set());
     } catch (err) {
       if (fetchId !== fetchCountRef.current) return; // stale
       const message = err instanceof Error ? err.message : "Failed to load changes";
@@ -209,11 +208,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
       }
       setFiles(prDiffQuery.data.files);
       setRefreshKey((k) => k + 1);
-      if (prDiffQuery.data.files.length < FILES_EXPANDED_THRESHOLD) {
-        setExpandedFiles(new Set(prDiffQuery.data.files.map((f) => f.path)));
-      } else {
-        setExpandedFiles(new Set());
-      }
+      setExpandedFiles(new Set(prDiffQuery.data.files.map((f) => f.path)));
     }
   }, [showMergedDiff, prDiffQuery.isLoading, prDiffQuery.data, prDiffQuery.error]);
 
@@ -314,6 +309,10 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
 
   const totalAdded = useMemo(() => files.reduce((sum, f) => sum + f.linesAdded, 0), [files]);
   const totalRemoved = useMemo(() => files.reduce((sum, f) => sum + f.linesRemoved, 0), [files]);
+
+  const showStagingActions = !showMergedDiff && !includeCommitted;
+  const stagedFiles = useMemo(() => files.filter((f) => f.staged === true), [files]);
+  const unstagedFiles = useMemo(() => files.filter((f) => f.staged !== true), [files]);
 
   const prBaseSha = prDiffQuery.data?.baseSha;
   const prMergeSha = prDiffQuery.data?.mergeSha;
@@ -467,13 +466,111 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                   : "Start coding or run an agent — diffs will appear here automatically"}
               </span>
             </div>
+          ) : showStagingActions && (stagedFiles.length > 0 || unstagedFiles.length > 0) ? (
+            <>
+              {stagedFiles.length > 0 && (
+                <>
+                  <div
+                    className="group flex items-center justify-between px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#4b5563] border-b border-white/[0.04] cursor-pointer hover:bg-white/[0.02]"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setStagedSectionExpanded((v) => !v)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setStagedSectionExpanded((v) => !v);
+                      }
+                    }}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {stagedSectionExpanded ? (
+                        <ChevronDown className="w-3 h-3" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3" />
+                      )}
+                      Staged Changes ({stagedFiles.length})
+                    </span>
+                  </div>
+                  {stagedSectionExpanded &&
+                    stagedFiles.map((file) => (
+                      <DiffFileSection
+                        key={`staged:${file.path}`}
+                        ref={(el) => {
+                          setFileRef(file.path, el);
+                          if (el) el.dataset.filePath = file.path;
+                        }}
+                        file={file}
+                        expanded={expandedFiles.has(file.path)}
+                        onToggle={() => handleToggleFile(file.path)}
+                        viewMode={viewMode}
+                        worktreeId={worktree.id}
+                        includeCommitted={includeCommitted}
+                        refreshKey={refreshKey}
+                        stageAction={() => handleUnstageFile(file.path)}
+                        stageActionType="unstage"
+                      />
+                    ))}
+                </>
+              )}
+              <div
+                className="group flex items-center justify-between px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#4b5563] border-b border-white/[0.04] cursor-pointer hover:bg-white/[0.02]"
+                role="button"
+                tabIndex={0}
+                onClick={() => setUnstagedSectionExpanded((v) => !v)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setUnstagedSectionExpanded((v) => !v);
+                  }
+                }}
+              >
+                <span className="flex items-center gap-1.5">
+                  {unstagedSectionExpanded ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3" />
+                  )}
+                  Changes ({unstagedFiles.length})
+                </span>
+                <Tooltip text="Stage all" position="bottom">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStageAll();
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/[0.08]"
+                  >
+                    <Plus className="w-3 h-3 text-[#6b7280] hover:text-white" />
+                  </button>
+                </Tooltip>
+              </div>
+              {unstagedSectionExpanded &&
+                unstagedFiles.map((file) => (
+                  <DiffFileSection
+                    key={`unstaged:${file.path}`}
+                    ref={(el) => {
+                      setFileRef(file.path, el);
+                      if (el) el.dataset.filePath = file.path;
+                    }}
+                    file={file}
+                    expanded={expandedFiles.has(file.path)}
+                    onToggle={() => handleToggleFile(file.path)}
+                    viewMode={viewMode}
+                    worktreeId={worktree.id}
+                    includeCommitted={includeCommitted}
+                    refreshKey={refreshKey}
+                    stageAction={() => handleStageFile(file.path)}
+                    stageActionType="stage"
+                  />
+                ))}
+            </>
           ) : (
             files.map((file) => (
               <DiffFileSection
                 key={file.path}
                 ref={(el) => {
                   setFileRef(file.path, el);
-                  // Set data attribute for IntersectionObserver
                   if (el) el.dataset.filePath = file.path;
                 }}
                 file={file}

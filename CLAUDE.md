@@ -118,6 +118,7 @@ OpenKit has a **Dev Mode** (App Settings → Dev Mode toggle) that symlinks each
 - Do not introduce ad-hoc lighter/darker color variants for existing control patterns.
 - For switches/toggles, reuse the app-standard treatment (`bg-accent` when enabled, neutral off-state styling when disabled).
 - Use the shared `Modal` component for dialogs; avoid bespoke dialog shells unless there is a documented exception.
+- **Never use the `title` attribute for tooltips.** Always use the shared `Tooltip` component (`apps/web-app/src/components/Tooltip.tsx`) instead. The `title` attribute renders a native browser tooltip which is inconsistent with the app's design.
 
 ## Icon Handling
 

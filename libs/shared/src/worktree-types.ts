@@ -238,6 +238,8 @@ export interface DiffFileInfo {
   linesAdded: number;
   linesRemoved: number;
   isBinary: boolean;
+  /** Whether this file is staged (in the git index). Undefined when showing committed changes. */
+  staged?: boolean;
 }
 
 export interface DiffListResponse {

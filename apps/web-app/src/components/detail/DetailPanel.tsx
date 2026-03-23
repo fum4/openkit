@@ -1,4 +1,4 @@
-import { CornerDownRight, FileText, GitBranch, Link, MessageCircle, Plus, X } from "lucide-react";
+import { FileText, GitBranch, Link, MessageCircle, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
@@ -40,6 +40,14 @@ interface DetailPanelScopeCache {
   geminiTabLabels: Record<string, string>;
   opencodeTabLabels: Record<string, string>;
   lastProcessedNotificationTabRequestId: number | null;
+}
+
+function deriveMoveToWorktreeBranch(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function formatRelativeTime(date: Date): string {
@@ -322,7 +330,13 @@ export function DetailPanel({
   const [showCreatePrInput, setShowCreatePrInput] = useState(false);
   const [prTitle, setPrTitle] = useState("");
   const [showMoveToWorktreeInput, setShowMoveToWorktreeInput] = useState(false);
-  const [moveToWorktreeBranch, setMoveToWorktreeBranch] = useState("");
+  const [moveToWorktreeName, setMoveToWorktreeName] = useState("");
+  const [moveToWorktreeBranchRaw, setMoveToWorktreeBranchRaw] = useState("");
+  const [moveToWorktreeBranchManuallyEdited, setMoveToWorktreeBranchManuallyEdited] =
+    useState(false);
+  const moveToWorktreeBranch = moveToWorktreeBranchManuallyEdited
+    ? moveToWorktreeBranchRaw
+    : deriveMoveToWorktreeBranch(moveToWorktreeName);
   const [isGitLoading, setIsGitLoading] = useState(false);
   const [isRecoveringLocalTask, setIsRecoveringLocalTask] = useState(false);
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
@@ -1663,14 +1677,18 @@ export function DetailPanel({
   };
 
   const handleMoveToWorktree = async () => {
-    if (!moveToWorktreeBranch.trim()) return;
+    if (!moveToWorktreeName.trim()) return;
     setIsGitLoading(true);
     setError(null);
     try {
-      const result = await api.moveToWorktree(moveToWorktreeBranch.trim());
+      const resolvedBranch =
+        moveToWorktreeBranch.trim() || deriveMoveToWorktreeBranch(moveToWorktreeName.trim());
+      const result = await api.moveToWorktree(resolvedBranch, moveToWorktreeName.trim());
       if (result.success) {
         setShowMoveToWorktreeInput(false);
-        setMoveToWorktreeBranch("");
+        setMoveToWorktreeName("");
+        setMoveToWorktreeBranchRaw("");
+        setMoveToWorktreeBranchManuallyEdited(false);
       } else {
         setError(result.error || "Failed to move changes to worktree");
       }
@@ -2198,7 +2216,7 @@ export function DetailPanel({
       {showMoveToWorktreeInput && (
         <Modal
           title="Move to Worktree"
-          icon={<CornerDownRight className="w-4 h-4 text-accent" />}
+          icon={<GitBranch className="w-4 h-4 text-accent" />}
           width="md"
           onClose={() => setShowMoveToWorktreeInput(false)}
           onSubmit={(e) => {
@@ -2216,7 +2234,7 @@ export function DetailPanel({
               </button>
               <button
                 type="submit"
-                disabled={isGitLoading || !moveToWorktreeBranch.trim()}
+                disabled={isGitLoading || !moveToWorktreeName.trim()}
                 className={`px-3 py-1.5 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
               >
                 {isGitLoading ? "Moving..." : "Move"}
@@ -2229,17 +2247,40 @@ export function DetailPanel({
               Creates a new worktree and moves all uncommitted changes and unpushed commits from the
               root to it.
             </p>
-            <input
-              type="text"
-              value={moveToWorktreeBranch}
-              onChange={(e) => setMoveToWorktreeBranch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setShowMoveToWorktreeInput(false);
-              }}
-              placeholder="Branch name..."
-              className={`w-full px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg ${input.text} text-xs placeholder-[#4b5563] outline-none focus:border-white/[0.15] transition-colors duration-150`}
-              autoFocus
-            />
+            <div>
+              <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
+                Worktree name
+              </label>
+              <input
+                type="text"
+                value={moveToWorktreeName}
+                onChange={(e) => setMoveToWorktreeName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setShowMoveToWorktreeInput(false);
+                }}
+                placeholder="my-feature"
+                className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
+                Branch name
+              </label>
+              <input
+                type="text"
+                value={moveToWorktreeBranch}
+                onChange={(e) => {
+                  setMoveToWorktreeBranchRaw(e.target.value);
+                  setMoveToWorktreeBranchManuallyEdited(true);
+                }}
+                placeholder="Defaults to worktree name"
+                className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
+              />
+              <p className={`mt-1 text-[11px] ${text.dimmed}`}>
+                Will be created from the base branch if it doesn't exist
+              </p>
+            </div>
           </div>
         </Modal>
       )}

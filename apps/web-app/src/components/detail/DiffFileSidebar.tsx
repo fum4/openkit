@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 
 import { palette } from "../../theme";
 import type { DiffFileInfo } from "../../types";
+import { Tooltip } from "../Tooltip";
 import { DIFF_STATUS_COLORS, DIFF_STATUS_LABELS } from "./diff-constants";
 
 interface FolderNode {
@@ -150,14 +151,15 @@ function SectionHeader({
         {title} ({count})
       </span>
       {action && actionIcon === "plus" && (
-        <button
-          type="button"
-          onClick={action}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/[0.08]"
-          title="Stage all"
-        >
-          <Plus className="w-3 h-3 text-[#6b7280] hover:text-white" />
-        </button>
+        <Tooltip text="Stage all" position="bottom">
+          <button
+            type="button"
+            onClick={action}
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/[0.08]"
+          >
+            <Plus className="w-3 h-3 text-[#6b7280] hover:text-white" />
+          </button>
+        </Tooltip>
       )}
     </div>
   );
@@ -297,34 +299,48 @@ function FileRow({
       <span className="min-w-0 flex-1 truncate" title={file.path}>
         {fileName}
       </span>
-      {/* Diff stats — hidden on hover when staging actions active */}
-      {!file.isBinary && (file.linesAdded > 0 || file.linesRemoved > 0) && (
-        <span
-          className={`flex-shrink-0 flex gap-1 text-[10px] font-mono ${showAction ? "group-hover:hidden" : ""}`}
-        >
-          {file.linesAdded > 0 && <span style={{ color: palette.green }}>+{file.linesAdded}</span>}
-          {file.linesRemoved > 0 && (
-            <span style={{ color: palette.red }}>-{file.linesRemoved}</span>
-          )}
+      {/* Right side: diff stats or stage/unstage action, swapped on hover */}
+      {showAction && onAction ? (
+        <span className="flex-shrink-0 flex items-center justify-end w-12 h-4">
+          {/* Diff stats — visible by default, hidden on hover */}
+          <span className="group-hover:hidden flex gap-1 text-[10px] font-mono">
+            {!file.isBinary && file.linesAdded > 0 && (
+              <span style={{ color: palette.green }}>+{file.linesAdded}</span>
+            )}
+            {!file.isBinary && file.linesRemoved > 0 && (
+              <span style={{ color: palette.red }}>-{file.linesRemoved}</span>
+            )}
+          </span>
+          {/* Stage/unstage button — hidden by default, shown on hover */}
+          <Tooltip text={file.staged ? "Unstage" : "Stage"} position="right">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction(file.path);
+              }}
+              className="hidden group-hover:flex items-center p-0.5 rounded hover:bg-white/[0.08]"
+            >
+              {file.staged ? (
+                <Minus className="w-3.5 h-3.5 text-[#6b7280] hover:text-white" />
+              ) : (
+                <Plus className="w-3.5 h-3.5 text-[#6b7280] hover:text-white" />
+              )}
+            </button>
+          </Tooltip>
         </span>
-      )}
-      {/* Stage/unstage button — shown on hover */}
-      {showAction && onAction && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAction(file.path);
-          }}
-          className="flex-shrink-0 hidden group-hover:flex items-center p-0.5 rounded hover:bg-white/[0.08] transition-opacity"
-          title={file.staged ? "Unstage" : "Stage"}
-        >
-          {file.staged ? (
-            <Minus className="w-3.5 h-3.5 text-[#6b7280] hover:text-white" />
-          ) : (
-            <Plus className="w-3.5 h-3.5 text-[#6b7280] hover:text-white" />
-          )}
-        </button>
+      ) : (
+        !file.isBinary &&
+        (file.linesAdded > 0 || file.linesRemoved > 0) && (
+          <span className="flex-shrink-0 flex gap-1 text-[10px] font-mono">
+            {file.linesAdded > 0 && (
+              <span style={{ color: palette.green }}>+{file.linesAdded}</span>
+            )}
+            {file.linesRemoved > 0 && (
+              <span style={{ color: palette.red }}>-{file.linesRemoved}</span>
+            )}
+          </span>
+        )
       )}
     </div>
   );

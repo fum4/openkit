@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { Settings, ChevronDown, CornerDownRight } from "lucide-react";
+import { Settings, ChevronDown, GitBranch } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
 import { fetchWorktreeSettings, updateWorktreeSettings } from "../../hooks/api";
@@ -368,7 +368,7 @@ export function DetailHeader({
                         <>
                           <div className="flex items-center justify-between px-3 py-1.5">
                             <span className="text-[11px] text-[#9ca3af]">
-                              Auto-delete on PR merge
+                              Delete worktree on PR merge
                             </span>
                             <ToggleSwitch
                               checked={settingsQuery.data?.autoCleanupOnMerge ?? false}
@@ -382,7 +382,7 @@ export function DetailHeader({
                           </div>
                           <div className="flex items-center justify-between px-3 py-1.5">
                             <span className="text-[11px] text-[#9ca3af]">
-                              Auto-delete on PR close
+                              Delete worktree on PR close
                             </span>
                             <ToggleSwitch
                               checked={settingsQuery.data?.autoCleanupOnClose ?? false}
@@ -409,7 +409,7 @@ export function DetailHeader({
                   title="Move uncommitted changes to a new worktree"
                   className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-accent rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
                 >
-                  <CornerDownRight className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
+                  <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
                   Move to worktree
                 </button>
               ) : (

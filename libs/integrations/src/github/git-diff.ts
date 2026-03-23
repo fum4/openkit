@@ -328,6 +328,7 @@ export async function getFileContent(
   baseBranch: string,
   includeCommitted: boolean,
   oldPath?: string,
+  staged?: boolean,
 ): Promise<{ oldContent: string; newContent: string; error?: string }> {
   log.debug("getFileContent started", {
     domain: "diff",
@@ -356,11 +357,18 @@ export async function getFileContent(
     let oldContent = "";
     let newContent = "";
 
+    // When staged is true, read "new" content from the git index (:<path>)
+    // instead of the working tree. The empty ref produces ":<path>" in gitShow.
+    const readNew =
+      staged && !includeCommitted
+        ? (p: string) => gitShow(worktreePath, "", p)
+        : (p: string) => readWorkingCopy(worktreePath, p);
+
     switch (fileStatus) {
       case "modified": {
         const [old, current] = await Promise.all([
           gitShow(worktreePath, ref, filePath),
-          readWorkingCopy(worktreePath, filePath),
+          readNew(filePath),
         ]);
         oldContent = old;
         newContent = current;
@@ -368,7 +376,7 @@ export async function getFileContent(
       }
       case "added":
       case "untracked": {
-        newContent = await readWorkingCopy(worktreePath, filePath);
+        newContent = await readNew(filePath);
         break;
       }
       case "deleted": {
@@ -378,7 +386,7 @@ export async function getFileContent(
       case "renamed": {
         const [old, current] = await Promise.all([
           gitShow(worktreePath, ref, oldPath ?? filePath),
-          readWorkingCopy(worktreePath, filePath),
+          readNew(filePath),
         ]);
         oldContent = old;
         newContent = current;

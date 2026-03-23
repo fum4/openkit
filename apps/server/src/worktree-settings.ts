@@ -51,7 +51,7 @@ export function updateWorktreeSettings(
 ): void {
   const filePath = getWorktreeSettingsPath(configDir);
   const all = readSettingsFile(filePath) ?? {};
-  const entry: Record<string, unknown> = { ...(all[worktreeId] ?? {}) };
+  const entry: Record<string, unknown> = { ...all[worktreeId] };
 
   for (const [key, value] of Object.entries(patch)) {
     if (typeof value === "boolean") {

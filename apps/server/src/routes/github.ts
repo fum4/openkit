@@ -353,6 +353,8 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
         );
       }
       const includeCommitted = c.req.query("includeCommitted") === "true";
+      const stagedParam = c.req.query("staged");
+      const staged = stagedParam === "true" ? true : stagedParam === "false" ? false : undefined;
       const baseBranch = manager.getConfig().baseBranch;
       const result = await getFileContent(
         resolved.worktree.path,
@@ -361,6 +363,7 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
         baseBranch,
         includeCommitted,
         oldPath,
+        staged,
       );
       return c.json({ success: !result.error, ...result });
     } catch (error) {
@@ -370,6 +373,91 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
           oldContent: "",
           newContent: "",
           error: error instanceof Error ? error.message : "Failed to get file content",
+        },
+        400,
+      );
+    }
+  });
+
+  app.post("/api/worktrees/:id/stage", async (c) => {
+    try {
+      const id = c.req.param("id");
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+      }
+      const body = await c.req.json<{ paths?: string[] }>();
+      const paths = body.paths;
+      if (!paths || !Array.isArray(paths) || paths.length === 0) {
+        return c.json({ success: false, error: "paths array is required" }, 400);
+      }
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          "git",
+          ["add", "--", ...paths],
+          { cwd: resolved.worktree.path, encoding: "utf-8" },
+          (err) => (err ? reject(err) : resolve()),
+        );
+      });
+      return c.json({ success: true });
+    } catch (error) {
+      return c.json(
+        { success: false, error: error instanceof Error ? error.message : "Failed to stage files" },
+        400,
+      );
+    }
+  });
+
+  app.post("/api/worktrees/:id/unstage", async (c) => {
+    try {
+      const id = c.req.param("id");
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+      }
+      const body = await c.req.json<{ paths?: string[] }>();
+      const paths = body.paths;
+      if (!paths || !Array.isArray(paths) || paths.length === 0) {
+        return c.json({ success: false, error: "paths array is required" }, 400);
+      }
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          "git",
+          ["restore", "--staged", "--", ...paths],
+          { cwd: resolved.worktree.path, encoding: "utf-8" },
+          (err) => (err ? reject(err) : resolve()),
+        );
+      });
+      return c.json({ success: true });
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to unstage files",
+        },
+        400,
+      );
+    }
+  });
+
+  app.post("/api/worktrees/:id/stage-all", async (c) => {
+    try {
+      const id = c.req.param("id");
+      const resolved = manager.resolveWorktree(id);
+      if (!resolved.success) {
+        return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+      }
+      await new Promise<void>((resolve, reject) => {
+        execFile("git", ["add", "-A"], { cwd: resolved.worktree.path, encoding: "utf-8" }, (err) =>
+          err ? reject(err) : resolve(),
+        );
+      });
+      return c.json({ success: true });
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to stage all files",
         },
         400,
       );

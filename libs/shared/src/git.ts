@@ -1,5 +1,5 @@
 import { execFileSync } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, statSync } from "fs";
 import path from "path";
 
 export function getGitRoot(cwd: string): string {
@@ -21,14 +21,17 @@ export function getWorktreeBranch(worktreePath: string): string | null {
     const dotGitPath = path.join(worktreePath, ".git");
     if (!existsSync(dotGitPath)) return null;
 
-    const gitContent = readFileSync(dotGitPath, "utf-8").trim();
-    const gitDirMatch = gitContent.match(/^gitdir: (.+)$/);
-
-    // For worktrees, .git is a file with "gitdir: <path>" pointing to the git dir.
-    // For the root repo, .git is a directory — read HEAD directly from it.
-    const headRefPath = gitDirMatch
-      ? path.join(gitDirMatch[1], "HEAD")
-      : path.join(dotGitPath, "HEAD");
+    let headRefPath: string;
+    if (statSync(dotGitPath).isDirectory()) {
+      // Root repo — .git is a directory, HEAD is inside it
+      headRefPath = path.join(dotGitPath, "HEAD");
+    } else {
+      // Worktree — .git is a file with "gitdir: <path>" pointing to the git dir
+      const gitContent = readFileSync(dotGitPath, "utf-8").trim();
+      const gitDirMatch = gitContent.match(/^gitdir: (.+)$/);
+      if (!gitDirMatch) return null;
+      headRefPath = path.join(gitDirMatch[1], "HEAD");
+    }
 
     if (!existsSync(headRefPath)) return null;
 

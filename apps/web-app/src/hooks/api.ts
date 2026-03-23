@@ -430,6 +430,7 @@ export async function fetchDiffFileContent(
   includeCommitted: boolean,
   oldPath?: string,
   serverUrl: string | null = null,
+  staged?: boolean,
 ): Promise<DiffFileContentResponse> {
   try {
     const base = getBaseUrl(serverUrl);
@@ -439,6 +440,7 @@ export async function fetchDiffFileContent(
       includeCommitted: String(includeCommitted),
     });
     if (oldPath) params.set("oldPath", oldPath);
+    if (staged !== undefined) params.set("staged", String(staged));
     const res = await fetch(
       `${base}/api/worktrees/${encodeURIComponent(worktreeId)}/diff/file?${params}`,
     );
@@ -4208,5 +4210,62 @@ export async function updateWorktreeSettings(
       success: false,
       error: err instanceof Error ? err.message : "Failed to update settings",
     };
+  }
+}
+
+export async function stageFiles(
+  worktreeId: string,
+  paths: string[],
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/stage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to stage files" };
+  }
+}
+
+export async function unstageFiles(
+  worktreeId: string,
+  paths: string[],
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/unstage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to unstage files",
+    };
+  }
+}
+
+export async function stageAllFiles(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/stage-all`, {
+      method: "POST",
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to stage all" };
   }
 }
