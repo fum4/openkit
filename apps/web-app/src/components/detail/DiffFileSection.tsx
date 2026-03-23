@@ -78,7 +78,6 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
             includeCommitted,
             file.oldPath,
             serverUrl,
-            file.staged,
           );
 
       fetchPromise

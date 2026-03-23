@@ -169,6 +169,13 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     fetchFiles();
   }, [worktree.hasUncommitted]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Poll for changes every 3s while the tab is visible and not showing merged diff
+  useEffect(() => {
+    if (!visible || showMergedDiff) return;
+    const interval = setInterval(fetchFiles, 3000);
+    return () => clearInterval(interval);
+  }, [visible, showMergedDiff, fetchFiles]);
+
   // Reset state when switching worktrees
   const prevWorktreeId = useRef(worktree.id);
   useEffect(() => {

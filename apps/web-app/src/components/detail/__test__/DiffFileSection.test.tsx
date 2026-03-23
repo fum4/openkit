@@ -99,7 +99,6 @@ describe("DiffFileSection", () => {
       false,
       undefined,
       null,
-      undefined,
     );
     expect(screen.getByTestId("original-content")).toHaveTextContent("old code");
     expect(screen.getByTestId("modified-content")).toHaveTextContent("new code");

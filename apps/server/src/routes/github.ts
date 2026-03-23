@@ -353,8 +353,6 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
         );
       }
       const includeCommitted = c.req.query("includeCommitted") === "true";
-      const stagedParam = c.req.query("staged");
-      const staged = stagedParam === "true" ? true : stagedParam === "false" ? false : undefined;
       const baseBranch = manager.getConfig().baseBranch;
       const result = await getFileContent(
         resolved.worktree.path,
@@ -363,7 +361,6 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
         baseBranch,
         includeCommitted,
         oldPath,
-        staged,
       );
       return c.json({ success: !result.error, ...result });
     } catch (error) {

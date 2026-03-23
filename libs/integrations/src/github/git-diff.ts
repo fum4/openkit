@@ -328,7 +328,6 @@ export async function getFileContent(
   baseBranch: string,
   includeCommitted: boolean,
   oldPath?: string,
-  staged?: boolean,
 ): Promise<{ oldContent: string; newContent: string; error?: string }> {
   log.debug("getFileContent started", {
     domain: "diff",

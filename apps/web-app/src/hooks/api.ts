@@ -430,7 +430,6 @@ export async function fetchDiffFileContent(
   includeCommitted: boolean,
   oldPath?: string,
   serverUrl: string | null = null,
-  staged?: boolean,
 ): Promise<DiffFileContentResponse> {
   try {
     const base = getBaseUrl(serverUrl);
@@ -440,7 +439,6 @@ export async function fetchDiffFileContent(
       includeCommitted: String(includeCommitted),
     });
     if (oldPath) params.set("oldPath", oldPath);
-    if (staged !== undefined) params.set("staged", String(staged));
     const res = await fetch(
       `${base}/api/worktrees/${encodeURIComponent(worktreeId)}/diff/file?${params}`,
     );
