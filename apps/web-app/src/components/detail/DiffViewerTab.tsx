@@ -390,10 +390,12 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
               {totalRemoved > 0 && <span style={{ color: palette.red }}>-{totalRemoved}</span>}
             </span>
           )}
-          {(worktree.commitsAheadOfBase ?? worktree.commitsAhead ?? 0) > 0 && (
+          {!worktree.isRoot && (
             <span className="text-[11px] text-[#6b7280]">
-              {worktree.commitsAheadOfBase ?? worktree.commitsAhead}{" "}
-              {(worktree.commitsAheadOfBase ?? worktree.commitsAhead) === 1 ? "commit" : "commits"}
+              {worktree.commitsAheadOfBase ?? worktree.commitsAhead ?? 0}{" "}
+              {(worktree.commitsAheadOfBase ?? worktree.commitsAhead ?? 0) === 1
+                ? "commit"
+                : "commits"}
             </span>
           )}
         </div>

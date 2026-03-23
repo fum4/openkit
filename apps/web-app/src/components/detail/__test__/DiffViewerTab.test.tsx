@@ -258,7 +258,7 @@ describe("DiffViewerTab", () => {
       expect(screen.queryByText("Show committed")).not.toBeInTheDocument();
     });
 
-    it("shows Committed toggle when there are post-merge commits", async () => {
+    it("hides Committed toggle for merged worktrees even with post-merge commits", async () => {
       mockFetchPrDiffFiles.mockResolvedValue({
         ...prDiffResponse,
         localHeadSha: "different-sha",
@@ -267,8 +267,10 @@ describe("DiffViewerTab", () => {
       render(<DiffViewerTab worktree={mergedWorktree} visible />);
 
       await waitFor(() => {
-        expect(screen.getByText("Show committed")).toBeInTheDocument();
+        expect(screen.getByText("Show merged")).toBeInTheDocument();
       });
+
+      expect(screen.queryByText("Show committed")).not.toBeInTheDocument();
     });
 
     it("does not show Merged toggle for non-merged worktrees", () => {
