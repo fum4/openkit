@@ -646,11 +646,15 @@ export function registerWorktreeRoutes(
     if (!resolved.success) {
       return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
     }
-    const body = await c.req.json<Record<string, unknown>>();
+    const body = await c.req.json<unknown>();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return c.json({ success: false, error: "Invalid request body" }, 400);
+    }
+    const raw = body as Record<string, unknown>;
     const patch: Record<string, boolean | null | undefined> = {};
     for (const key of ["autoCleanupOnMerge", "autoCleanupOnClose"]) {
-      if (key in body) {
-        const val = body[key];
+      if (key in raw) {
+        const val = raw[key];
         if (typeof val === "boolean") {
           patch[key] = val;
         } else if (val === null) {

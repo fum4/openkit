@@ -1241,6 +1241,10 @@ export class WorktreeManager {
       id ||
       branch.replace(/^(feature|fix|chore)\//, "").replace(/[^a-zA-Z0-9- ]/g, "-");
 
+    if (worktreeId === ROOT_WORKTREE_ID) {
+      return { success: false, error: `"${ROOT_WORKTREE_ID}" is reserved for the root project` };
+    }
+
     if (!/^[a-zA-Z0-9][a-zA-Z0-9 -]*$/.test(worktreeId)) {
       return {
         success: false,

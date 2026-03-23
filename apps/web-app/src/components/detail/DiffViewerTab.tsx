@@ -35,6 +35,7 @@ import { border, detailTab, palette } from "../../theme";
 import type { DiffFileInfo, PrDiffListResponse } from "../../types";
 import type { WorktreeInfo } from "../../types";
 import { ResizableHandle } from "../ResizableHandle";
+import { showPersistentErrorToast } from "../../errorToasts";
 import { ToggleSwitch } from "../ToggleSwitch";
 import { Tooltip } from "../Tooltip";
 import { DiffFileSidebar } from "./DiffFileSidebar";
@@ -91,13 +92,6 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     enabled: isMerged && visible,
     staleTime: Infinity,
   });
-
-  // Detect whether the user has committed new work after the PR was merged
-  const hasPostMergeCommits =
-    prDiffQuery.data?.success &&
-    prDiffQuery.data.headSha &&
-    prDiffQuery.data.localHeadSha &&
-    prDiffQuery.data.headSha !== prDiffQuery.data.localHeadSha;
 
   const showCommittedToggle = !showMergedDiff && !isMerged;
 
@@ -250,8 +244,12 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   }, [showMergedDiff, prDiffQuery.isLoading, prDiffQuery.data, prDiffQuery.error]);
 
   const handleRefresh = useCallback(() => {
-    fetchFiles();
-  }, [fetchFiles]);
+    if (showMergedDiff) {
+      prDiffQuery.refetch();
+    } else {
+      fetchFiles();
+    }
+  }, [fetchFiles, showMergedDiff, prDiffQuery]);
 
   const handleSelectFile = useCallback((path: string) => {
     setSelectedFile(path);
@@ -291,7 +289,9 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
 
   const handleStageFile = useCallback(
     async (filePath: string) => {
-      await stageFiles(worktree.id, [filePath], serverUrl);
+      const res = await stageFiles(worktree.id, [filePath], serverUrl);
+      if (!res.success)
+        showPersistentErrorToast(res.error || "Failed to stage file", { scope: "diff" });
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
@@ -299,19 +299,25 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
 
   const handleUnstageFile = useCallback(
     async (filePath: string) => {
-      await unstageFiles(worktree.id, [filePath], serverUrl);
+      const res = await unstageFiles(worktree.id, [filePath], serverUrl);
+      if (!res.success)
+        showPersistentErrorToast(res.error || "Failed to unstage file", { scope: "diff" });
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
   );
 
   const handleStageAll = useCallback(async () => {
-    await stageAllFiles(worktree.id, serverUrl);
+    const res = await stageAllFiles(worktree.id, serverUrl);
+    if (!res.success)
+      showPersistentErrorToast(res.error || "Failed to stage all files", { scope: "diff" });
     fetchFiles();
   }, [worktree.id, serverUrl, fetchFiles]);
 
   const handleUnstageAll = useCallback(async () => {
-    await unstageAllFiles(worktree.id, serverUrl);
+    const res = await unstageAllFiles(worktree.id, serverUrl);
+    if (!res.success)
+      showPersistentErrorToast(res.error || "Failed to unstage all files", { scope: "diff" });
     fetchFiles();
   }, [worktree.id, serverUrl, fetchFiles]);
 

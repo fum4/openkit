@@ -1683,13 +1683,13 @@ export function DetailPanel({
   };
 
   const handleMoveToWorktree = async () => {
-    if (!moveToWorktreeName.trim()) return;
+    const resolvedName = moveToWorktreeName.trim();
+    const resolvedBranch = moveToWorktreeBranch.trim() || deriveMoveToWorktreeBranch(resolvedName);
+    if (!resolvedName || !resolvedBranch) return;
     setIsGitLoading(true);
     setError(null);
     try {
-      const resolvedBranch =
-        moveToWorktreeBranch.trim() || deriveMoveToWorktreeBranch(moveToWorktreeName.trim());
-      const result = await api.moveToWorktree(resolvedBranch, moveToWorktreeName.trim());
+      const result = await api.moveToWorktree(resolvedBranch, resolvedName);
       if (result.success) {
         setShowMoveToWorktreeInput(false);
         setMoveToWorktreeName("");

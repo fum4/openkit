@@ -30,7 +30,8 @@ export function getWorktreeBranch(worktreePath: string): string | null {
       const gitContent = readFileSync(dotGitPath, "utf-8").trim();
       const gitDirMatch = gitContent.match(/^gitdir: (.+)$/);
       if (!gitDirMatch) return null;
-      headRefPath = path.join(gitDirMatch[1], "HEAD");
+      const gitDir = path.resolve(worktreePath, gitDirMatch[1]);
+      headRefPath = path.join(gitDir, "HEAD");
     }
 
     if (!existsSync(headRefPath)) return null;

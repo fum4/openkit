@@ -364,6 +364,10 @@ export function DetailHeader({
                     <div className="absolute right-0 top-full mt-1 z-50 bg-[#1a1d24] border border-white/[0.08] rounded-lg shadow-xl py-1.5 min-w-[220px]">
                       {settingsQuery.isLoading ? (
                         <div className="px-3 py-2 text-[11px] text-[#6b7280]">Loading...</div>
+                      ) : settingsQuery.data && !settingsQuery.data.success ? (
+                        <div className="px-3 py-2 text-[11px] text-red-400">
+                          Failed to load settings
+                        </div>
                       ) : (
                         <>
                           <div className="flex items-center justify-between px-3 py-1.5">
