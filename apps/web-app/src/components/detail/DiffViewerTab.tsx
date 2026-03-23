@@ -87,7 +87,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   // Always fetch PR diff metadata for merged worktrees (needed for headSha comparison).
   // The actual diff data is cached with staleTime: Infinity so it's a single fetch.
   const prDiffQuery = useQuery<PrDiffListResponse>({
-    queryKey: ["pr-diff", worktree.id],
+    queryKey: ["pr-diff", worktree.id, serverUrl],
     queryFn: () => fetchPrDiffFiles(worktree.id, serverUrl),
     enabled: isMerged && visible,
     staleTime: Infinity,

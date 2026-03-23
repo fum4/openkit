@@ -369,7 +369,7 @@ function FileRow({
                 e.stopPropagation();
                 onAction(file.path);
               }}
-              className="hidden group-hover:flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+              className="hidden group-hover:flex group-focus-within:flex focus:flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08] focus:text-white focus:bg-white/[0.08]"
             >
               {file.staged ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
             </button>

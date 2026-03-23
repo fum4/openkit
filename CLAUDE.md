@@ -31,7 +31,9 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 
 **Package manager**: pnpm
 
-**Test runner**: Vitest. Run `pnpm test` for all, `pnpm nx run <project>:test` for one project.
+**Test runner**: Vitest. Run `pnpm test:unit` for all, `pnpm nx run <project>:test:unit` for one project.
+
+**Always use scripts from the root `package.json`** when available (`pnpm test:unit`, `pnpm check:*`, `pnpm fix:*`, `pnpm smoke`, etc.). Never invoke internal tools directly via `npx`, bare binary names, or raw `vitest`/`oxlint`/`oxfmt` commands — the `package.json` scripts ensure correct configuration, project boundaries, and environment setup. Running tools directly can pick up files from worktrees, skip required configs, or use wrong versions.
 
 ## Testing
 

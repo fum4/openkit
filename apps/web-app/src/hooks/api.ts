@@ -30,6 +30,7 @@ import type {
   DiffFileContentResponse,
   PrDiffListResponse,
 } from "../types";
+import { log } from "../logger";
 
 // API functions now accept an optional serverUrl parameter
 // When null/undefined, they use relative URLs (for single-project web mode)
@@ -120,6 +121,11 @@ export async function moveToWorktree(
     });
     return await res.json();
   } catch (err) {
+    log.error("Failed to move to worktree", {
+      domain: "api",
+      branch,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to move to worktree",
@@ -482,6 +488,11 @@ export async function fetchPrDiffFiles(
     }
     return await res.json();
   } catch (err) {
+    log.error("Failed to fetch PR diff files", {
+      domain: "api",
+      worktreeId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return {
       success: false,
       files: [],
@@ -526,6 +537,12 @@ export async function fetchPrDiffFileContent(
     }
     return await res.json();
   } catch (err) {
+    log.error("Failed to fetch PR file content", {
+      domain: "api",
+      worktreeId,
+      filePath,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return {
       success: false,
       oldContent: "",
@@ -4178,6 +4195,11 @@ export async function fetchWorktreeSettings(
     }
     return await res.json();
   } catch (err) {
+    log.error("Failed to fetch worktree settings", {
+      domain: "api",
+      worktreeId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return {
       success: false,
       autoCleanupOnMerge: false,
@@ -4204,6 +4226,11 @@ export async function updateWorktreeSettings(
     }
     return await res.json();
   } catch (err) {
+    log.error("Failed to update worktree settings", {
+      domain: "api",
+      worktreeId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to update settings",
@@ -4226,6 +4253,12 @@ export async function stageFiles(
     if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
     return await res.json();
   } catch (err) {
+    log.error("Failed to stage files", {
+      domain: "api",
+      worktreeId,
+      paths,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { success: false, error: err instanceof Error ? err.message : "Failed to stage files" };
   }
 }
@@ -4245,6 +4278,12 @@ export async function unstageFiles(
     if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
     return await res.json();
   } catch (err) {
+    log.error("Failed to unstage files", {
+      domain: "api",
+      worktreeId,
+      paths,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to unstage files",
@@ -4264,6 +4303,11 @@ export async function stageAllFiles(
     if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
     return await res.json();
   } catch (err) {
+    log.error("Failed to stage all files", {
+      domain: "api",
+      worktreeId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { success: false, error: err instanceof Error ? err.message : "Failed to stage all" };
   }
 }
@@ -4280,6 +4324,11 @@ export async function unstageAllFiles(
     if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
     return await res.json();
   } catch (err) {
+    log.error("Failed to unstage all files", {
+      domain: "api",
+      worktreeId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { success: false, error: err instanceof Error ? err.message : "Failed to unstage all" };
   }
 }

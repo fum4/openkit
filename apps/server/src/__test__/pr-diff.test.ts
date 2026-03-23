@@ -55,6 +55,7 @@ const BASE_META = JSON.stringify({
   base_sha: "abc123",
   base_ref: "main",
   merge_commit_sha: "def456",
+  head_sha: "789abc",
 });
 
 describe("getPrDiffFiles", () => {
@@ -109,6 +110,7 @@ describe("getPrDiffFiles", () => {
     expect(result.success).toBe(true);
     expect(result.baseSha).toBe("abc123");
     expect(result.mergeSha).toBe("def456");
+    expect(result.headSha).toBe("789abc");
     expect(result.baseBranch).toBe("main");
     expect(result.files).toHaveLength(4);
 

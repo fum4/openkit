@@ -483,8 +483,9 @@ function renderLogTitle(event: OpsLogEvent): ReactNode {
   }
 
   if (event.action === "toast.error") {
-    const title = event.metadata?.title as string | undefined;
-    const description = event.metadata?.description as string | undefined;
+    const title = typeof event.metadata?.title === "string" ? event.metadata.title : undefined;
+    const description =
+      typeof event.metadata?.description === "string" ? event.metadata.description : undefined;
     return (
       <span className="inline-flex items-center gap-1.5">
         <MessageCircleX className="w-3.5 h-3.5 text-red-400 shrink-0" />

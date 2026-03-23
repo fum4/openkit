@@ -13,6 +13,7 @@ import { getPrDiffFiles, getPrFileContent } from "@openkit/integrations/github/p
 import type { DiffFileInfo } from "@openkit/shared/worktree-types";
 
 import type { WorktreeManager } from "../manager";
+import { log } from "../logger";
 
 const DEVICE_LOGIN_URL = "https://github.com/login/device";
 
@@ -571,8 +572,12 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
           );
         });
         localHeadSha = stdout.trim();
-      } catch {
-        // Non-fatal — localHeadSha stays empty
+      } catch (err) {
+        log.warn("Failed to read local HEAD SHA for PR diff", {
+          domain: "GitHub",
+          worktreeId: resolved.worktreeId,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
 
       return c.json({ ...result, localHeadSha }, result.success ? 200 : 400);
@@ -608,6 +613,7 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       const id = c.req.param("id");
       const filePath = c.req.query("path");
       const status = c.req.query("status") ?? "modified";
+      const validStatuses = new Set(["modified", "added", "deleted", "renamed"]);
       const baseSha = c.req.query("baseSha");
       const mergeSha = c.req.query("mergeSha");
       const oldPath = c.req.query("oldPath") || undefined;
@@ -625,6 +631,17 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
             oldContent: "",
             newContent: "",
             error: "baseSha and mergeSha query params are required",
+          },
+          400,
+        );
+      }
+      if (!validStatuses.has(status)) {
+        return c.json(
+          {
+            success: false,
+            oldContent: "",
+            newContent: "",
+            error: `Invalid status: ${status}`,
           },
           400,
         );
@@ -655,7 +672,7 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
         repoConfig.owner,
         repoConfig.repo,
         filePath,
-        status as "modified" | "added" | "deleted" | "renamed" | "untracked",
+        status as "modified" | "added" | "deleted" | "renamed",
         baseSha,
         mergeSha,
         oldPath,

@@ -1438,10 +1438,87 @@ export class WorktreeManager {
       }
     }
 
-    // Create the worktree (branches from current HEAD, so it gets the unpushed commits)
-    const result = await this.createWorktree(request);
+    // Capture pre-reset HEAD before creating the worktree so we can log it later
+    let preResetHead = "";
+    if (unpushedCount > 0) {
+      try {
+        const { stdout } = await execFile("git", ["rev-parse", "HEAD"], {
+          cwd: gitRoot,
+          encoding: "utf-8",
+        });
+        preResetHead = stdout.trim();
+      } catch {
+        // Non-fatal — we'll still attempt the reset, just without the recovery ref
+      }
+    }
+
+    // Defer the root reset and stash apply to the onSuccess/onFailure callbacks.
+    // This ensures the worktree exists before we rewrite history on the root branch.
+    const capturedStashRef = stashRef;
+    const capturedUnpushedCount = unpushedCount;
+    const capturedPreResetHead = preResetHead;
+
+    const result = await this.createWorktree(request, {
+      onSuccess: (id) => {
+        // Reset root branch to remove unpushed commits — deferred until worktree is confirmed
+        if (capturedUnpushedCount > 0) {
+          log.info(
+            `Pre-reset HEAD: ${capturedPreResetHead} — resetting ${capturedUnpushedCount} commits`,
+            {
+              domain: "worktree",
+              preResetHead: capturedPreResetHead,
+              unpushedCount: capturedUnpushedCount,
+            },
+          );
+          execFile("git", ["reset", "--hard", `HEAD~${capturedUnpushedCount}`], {
+            cwd: gitRoot,
+            encoding: "utf-8",
+          })
+            .then(() => this.notifyListeners())
+            .catch((error) => {
+              log.error(
+                `Failed to reset root branch: ${error instanceof Error ? error.message : String(error)}`,
+                { domain: "worktree" },
+              );
+            });
+        }
+
+        // Apply stash in the new worktree
+        if (capturedStashRef) {
+          const worktreePath = path.join(this.getWorktreesAbsolutePath(), id);
+          execFile("git", ["stash", "apply", capturedStashRef], {
+            cwd: worktreePath,
+            encoding: "utf-8",
+          }).catch((err) => {
+            log.error(
+              `Failed to apply stash in worktree "${id}": ${err instanceof Error ? err.message : String(err)}`,
+              { domain: "worktree", stashRef: capturedStashRef },
+            );
+          });
+        }
+      },
+      onFailure: (_id, error) => {
+        // Worktree creation failed — restore stash to root so no changes are lost
+        log.warn("Worktree creation failed, restoring stash to root", {
+          domain: "worktree",
+          error,
+        });
+        if (capturedStashRef) {
+          execFile("git", ["stash", "apply", capturedStashRef], {
+            cwd: gitRoot,
+            encoding: "utf-8",
+          }).catch((err) => {
+            log.error(
+              `Failed to restore stash after failed worktree creation: ${err instanceof Error ? err.message : String(err)}`,
+              { domain: "worktree", stashRef: capturedStashRef },
+            );
+          });
+        }
+      },
+    });
+
     if (!result.success) {
-      // Restore stash if worktree creation failed
+      // Synchronous failure (e.g. validation) — restore stash immediately
       if (stashRef) {
         try {
           await execFile("git", ["stash", "apply", stashRef], { cwd: gitRoot, encoding: "utf-8" });
@@ -1452,60 +1529,6 @@ export class WorktreeManager {
         }
       }
       return result;
-    }
-
-    // Reset root branch to remove unpushed commits
-    if (unpushedCount > 0) {
-      try {
-        // Record pre-reset HEAD so recovery is possible if the reset goes wrong
-        const { stdout: preResetHead } = await execFile("git", ["rev-parse", "HEAD"], {
-          cwd: gitRoot,
-          encoding: "utf-8",
-        });
-        log.info(`Pre-reset HEAD: ${preResetHead.trim()} — resetting ${unpushedCount} commits`, {
-          domain: "worktree",
-          preResetHead: preResetHead.trim(),
-          unpushedCount,
-        });
-        await execFile("git", ["reset", "--hard", `HEAD~${unpushedCount}`], {
-          cwd: gitRoot,
-          encoding: "utf-8",
-        });
-      } catch (error) {
-        log.error(
-          `Failed to reset root branch: ${error instanceof Error ? error.message : String(error)}`,
-          { domain: "worktree" },
-        );
-        // Not fatal — the worktree was created successfully, just the root wasn't cleaned up
-      }
-    }
-
-    // Apply stash in the new worktree once it's ready
-    if (stashRef) {
-      const worktreeId = result.worktree?.id;
-      if (worktreeId) {
-        const capturedStashRef = stashRef;
-        // The worktree creation is async — register a callback to apply stash when done
-        const existingCallbacks = this.worktreeCallbacks.get(worktreeId);
-        const existingOnSuccess = existingCallbacks?.onSuccess;
-        this.worktreeCallbacks.set(worktreeId, {
-          ...existingCallbacks,
-          onSuccess: (id) => {
-            existingOnSuccess?.(id);
-            const worktreePath = path.join(this.getWorktreesAbsolutePath(), id);
-            // Apply stash by exact ref to avoid race conditions with other stash operations
-            execFile("git", ["stash", "apply", capturedStashRef], {
-              cwd: worktreePath,
-              encoding: "utf-8",
-            }).catch((err) => {
-              log.error(
-                `Failed to apply stash in worktree "${id}": ${err instanceof Error ? err.message : String(err)}`,
-                { domain: "worktree", stashRef: capturedStashRef },
-              );
-            });
-          },
-        });
-      }
     }
 
     return result;
@@ -1716,6 +1739,12 @@ export class WorktreeManager {
 
       // Rename directory (worktree name)
       if (request.name && request.name !== canonicalId) {
+        if (request.name.trim() === ROOT_WORKTREE_ID) {
+          return {
+            success: false,
+            error: `"${ROOT_WORKTREE_ID}" is reserved for the root project`,
+          };
+        }
         if (!/^[a-zA-Z0-9][a-zA-Z0-9 -]*$/.test(request.name.trim())) {
           return {
             success: false,

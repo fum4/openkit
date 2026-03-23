@@ -1234,27 +1234,38 @@ export function DetailPanel({
 
   useEffect(() => {
     void (async () => {
-      let installed: CodingAgent[];
+      try {
+        let installed: CodingAgent[];
 
-      if (window.electronAPI) {
-        // Electron: check via IPC — no project server needed
-        const agents = await window.electronAPI.getInstalledAgents();
-        installed = agents.filter((id): id is CodingAgent =>
-          AGENT_OPTIONS.some((opt) => opt.id === id),
-        );
-      } else {
-        // Browser mode: fall back to project server API
-        if (!serverUrl) return;
-        const results = await Promise.all(
-          AGENT_OPTIONS.map(async (option) => {
-            const status = await api.fetchAgentCliStatus(option.id);
-            return status.success && status.installed ? option.id : null;
-          }),
-        );
-        installed = results.filter((id): id is CodingAgent => id !== null);
+        if (window.electronAPI) {
+          // Electron: check via IPC — no project server needed
+          const agents = await window.electronAPI.getInstalledAgents();
+          installed = agents.filter((id): id is CodingAgent =>
+            AGENT_OPTIONS.some((opt) => opt.id === id),
+          );
+        } else {
+          // Browser mode: fall back to project server API
+          if (!serverUrl) {
+            setInstalledAgents(new Set());
+            return;
+          }
+          const results = await Promise.all(
+            AGENT_OPTIONS.map(async (option) => {
+              const status = await api.fetchAgentCliStatus(option.id);
+              return status.success && status.installed ? option.id : null;
+            }),
+          );
+          installed = results.filter((id): id is CodingAgent => id !== null);
+        }
+
+        setInstalledAgents(new Set(installed));
+      } catch (err) {
+        log.warn("Failed to discover installed agents", {
+          domain: "agents",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setInstalledAgents(new Set());
       }
-
-      setInstalledAgents(new Set(installed));
     })();
   }, [api, serverUrl]);
 
@@ -2132,13 +2143,9 @@ export function DetailPanel({
                 disabled={isGitLoading || !commitMessage.trim()}
                 className={`px-3 py-1.5 text-xs font-medium ${action.commit.textActive} ${action.commit.bgSubmit} ${action.commit.bgSubmitHover} rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
               >
-                {isGitLoading && gitAction === "commit"
-                  ? "Committing..."
-                  : isGitLoading && gitAction === "push"
-                    ? "Pushing..."
-                    : pushAfterCommit
-                      ? "Commit & Push"
-                      : "Commit"}
+                {isGitLoading && gitAction === "commit" && "Committing..."}
+                {isGitLoading && gitAction === "push" && "Pushing..."}
+                {!isGitLoading && (pushAfterCommit ? "Commit & Push" : "Commit")}
               </button>
             </>
           }

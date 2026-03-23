@@ -4,6 +4,7 @@ import { Settings, ChevronDown, GitBranch } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
 import { fetchWorktreeSettings, updateWorktreeSettings } from "../../hooks/api";
+import { showPersistentErrorToast } from "../../errorToasts";
 import type { WorktreeInfo } from "../../types";
 import {
   CursorIcon,
@@ -284,19 +285,34 @@ export function DetailHeader({
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
 
   const settingsQuery = useQuery({
-    queryKey: ["worktree-settings", worktree.id],
-    queryFn: () => fetchWorktreeSettings(worktree.id, serverUrl),
+    queryKey: ["worktree-settings", worktree.id, serverUrl],
+    queryFn: async () => {
+      const result = await fetchWorktreeSettings(worktree.id, serverUrl);
+      if (!result.success) {
+        throw new Error(result.error ?? "Failed to load settings");
+      }
+      return result;
+    },
     enabled: showSettingsDropdown,
     staleTime: 30_000,
   });
 
   const settingsMutation = useMutation({
-    mutationFn: (patch: {
+    mutationFn: async (patch: {
       autoCleanupOnMerge?: boolean | null;
       autoCleanupOnClose?: boolean | null;
-    }) => updateWorktreeSettings(worktree.id, patch, serverUrl),
+    }) => {
+      const result = await updateWorktreeSettings(worktree.id, patch, serverUrl);
+      if (!result.success) {
+        throw new Error(result.error ?? "Failed to update settings");
+      }
+      return result;
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["worktree-settings", worktree.id] });
+      queryClient.invalidateQueries({ queryKey: ["worktree-settings", worktree.id, serverUrl] });
+    },
+    onError: (error) => {
+      showPersistentErrorToast(error.message, { scope: "worktree-settings" });
     },
   });
 
@@ -405,40 +421,42 @@ export function DetailHeader({
                 </div>
               )}
               {isRoot ? (
-                <button
-                  type="button"
-                  onClick={onMoveToWorktree}
-                  disabled={isLoading || !worktree.hasUncommitted}
-                  aria-label="Move changes to worktree"
-                  title="Move uncommitted changes to a new worktree"
-                  className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-accent rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
-                >
-                  <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
-                  Move to worktree
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onRemove}
-                  disabled={isLoading}
-                  aria-label="Delete worktree"
-                  title="Delete worktree"
-                  className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-red-400 rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-red-400"
+                <Tooltip text="Move uncommitted changes to a new worktree">
+                  <button
+                    type="button"
+                    onClick={onMoveToWorktree}
+                    disabled={isLoading || !worktree.hasUncommitted}
+                    aria-label="Move changes to worktree"
+                    className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-accent rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
                   >
-                    <path
-                      fillRule="evenodd"
-                      d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.519.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  Delete
-                </button>
+                    <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
+                    Move to worktree
+                  </button>
+                </Tooltip>
+              ) : (
+                <Tooltip text="Delete worktree">
+                  <button
+                    type="button"
+                    onClick={onRemove}
+                    disabled={isLoading}
+                    aria-label="Delete worktree"
+                    className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-red-400 rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-red-400"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.519.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Delete
+                  </button>
+                </Tooltip>
               )}
               {isRunning ? (
                 <button
