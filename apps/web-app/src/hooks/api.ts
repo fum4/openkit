@@ -133,6 +133,30 @@ export async function moveToWorktree(
   }
 }
 
+export async function moveToExistingWorktree(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/worktrees/move-to-existing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ worktreeId }),
+    });
+    return await res.json();
+  } catch (err) {
+    log.error("Failed to move changes to existing worktree", {
+      domain: "api",
+      worktreeId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to move changes",
+    };
+  }
+}
+
 export async function recoverWorktree(
   id: string,
   action: "reuse" | "recreate",

@@ -95,10 +95,12 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
 
   const showCommittedToggle = !showMergedDiff && !isMerged;
 
+  const hasCompletedFetchRef = useRef(false);
   const fetchFiles = useCallback(async () => {
     const fetchId = ++fetchCountRef.current;
-    // Only show loading spinner on first fetch (empty file list), not during polling
-    if (filesRef.current.length === 0) {
+    // Only show loading spinner before the first completed fetch — never during polling.
+    // This prevents the "no changes" placeholder from flickering every 3s.
+    if (!hasCompletedFetchRef.current) {
       setLoading(true);
     }
     setError(null);
@@ -156,6 +158,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
       setFiles([]);
     } finally {
       if (fetchId === fetchCountRef.current) {
+        hasCompletedFetchRef.current = true;
         setLoading(false);
       }
     }
@@ -198,6 +201,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     setFiles([]);
     setError(null);
     setLoading(true);
+    hasCompletedFetchRef.current = false;
     setIncludeCommitted(false);
     setExpandedFiles(new Set());
     setSelectedFile(null);

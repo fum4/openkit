@@ -152,6 +152,9 @@ export function useApi() {
       moveToWorktree: (branch: string, name?: string) =>
         api.moveToWorktree(branch, name, serverUrl),
 
+      moveToExistingWorktree: (worktreeId: string) =>
+        api.moveToExistingWorktree(worktreeId, serverUrl),
+
       recoverWorktree: (id: string, action: "reuse" | "recreate", branch?: string) =>
         api.recoverWorktree(id, action, branch, serverUrl),
 

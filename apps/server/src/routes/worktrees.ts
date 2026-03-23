@@ -424,6 +424,25 @@ export function registerWorktreeRoutes(
     }
   });
 
+  app.post("/api/worktrees/move-to-existing", async (c) => {
+    try {
+      const body = await c.req.json<{ worktreeId: string }>();
+      if (!body.worktreeId) {
+        return c.json({ success: false, error: "worktreeId is required" }, 400);
+      }
+      const result = await manager.moveChangesToExistingWorktree(body.worktreeId);
+      return c.json(result, result.success ? 200 : 400);
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to move changes",
+        },
+        400,
+      );
+    }
+  });
+
   app.post("/api/worktrees/move-from-root", async (c) => {
     try {
       const body = await c.req.json<WorktreeCreateRequest>();

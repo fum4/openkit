@@ -3255,6 +3255,8 @@ export default function App() {
                     worktree={selectedWorktree}
                     onUpdate={refetch}
                     onDeleted={handleDeleted}
+                    onSelectWorktree={(id) => setSelection({ type: "worktree", id })}
+                    worktrees={worktrees}
                     showDiffStats={config?.showDiffStats !== false}
                     hookUpdateKey={hookUpdateKey}
                     onNavigateToIntegrations={() => setActiveView("integrations")}

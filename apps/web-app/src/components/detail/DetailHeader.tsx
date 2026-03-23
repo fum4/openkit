@@ -421,18 +421,16 @@ export function DetailHeader({
                 </div>
               )}
               {isRoot ? (
-                <Tooltip text="Move uncommitted changes to a new worktree">
-                  <button
-                    type="button"
-                    onClick={onMoveToWorktree}
-                    disabled={isLoading || !worktree.hasUncommitted}
-                    aria-label="Move changes to worktree"
-                    className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-accent rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
-                  >
-                    <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
-                    Move to worktree
-                  </button>
-                </Tooltip>
+                <button
+                  type="button"
+                  onClick={onMoveToWorktree}
+                  disabled={isLoading || !worktree.hasUncommitted}
+                  aria-label="Move changes to worktree"
+                  className={`group h-7 px-2.5 text-[11px] font-medium ${button.secondary} hover:text-accent rounded-md disabled:opacity-50 transition-colors duration-150 inline-flex items-center gap-1.5`}
+                >
+                  <GitBranch className="w-3.5 h-3.5 text-[#6b7280] transition-colors group-hover:text-accent" />
+                  Move to worktree
+                </button>
               ) : (
                 <Tooltip text="Delete worktree">
                   <button

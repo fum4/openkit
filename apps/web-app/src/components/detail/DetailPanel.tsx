@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
 import type { AgentHistoryMatch, CodingAgent, RestorableAgent } from "../../hooks/api";
 import type { WorktreeInfo } from "../../types";
+import { ROOT_WORKTREE_ID } from "../../types";
 import { showPersistentErrorToast } from "../../errorToasts";
 import { useErrorToast } from "../../hooks/useErrorToast";
 import { useApi } from "../../hooks/useApi";
@@ -133,6 +134,7 @@ interface DetailPanelProps {
   worktree: WorktreeInfo | null;
   onUpdate: () => void;
   onDeleted: () => void;
+  onSelectWorktree?: (worktreeId: string) => void;
   onNavigateToIntegrations?: () => void;
   onNavigateToHooks?: () => void;
   onSelectJiraIssue?: (key: string) => void;
@@ -168,6 +170,8 @@ interface DetailPanelProps {
     prompt?: string;
     tabLabel?: string;
   }) => void;
+  /** All worktrees for the "move to existing" picker (excludes root). */
+  worktrees?: WorktreeInfo[];
   showDiffStats?: boolean;
   hookUpdateKey?: number;
   claudeLaunchRequest?: AgentLaunchRequest | null;
@@ -297,6 +301,8 @@ export function DetailPanel({
   worktree,
   onUpdate,
   onDeleted,
+  onSelectWorktree,
+  worktrees: allWorktrees,
   onNavigateToIntegrations,
   onNavigateToHooks,
   onSelectJiraIssue,
@@ -332,6 +338,7 @@ export function DetailPanel({
   const [showCreatePrInput, setShowCreatePrInput] = useState(false);
   const [prTitle, setPrTitle] = useState("");
   const [showMoveToWorktreeInput, setShowMoveToWorktreeInput] = useState(false);
+  const [moveToWorktreeMode, setMoveToWorktreeMode] = useState<"new" | "existing">("new");
   const [moveToWorktreeName, setMoveToWorktreeName] = useState("");
   const [moveToWorktreeBranchRaw, setMoveToWorktreeBranchRaw] = useState("");
   const [moveToWorktreeBranchManuallyEdited, setMoveToWorktreeBranchManuallyEdited] =
@@ -339,6 +346,11 @@ export function DetailPanel({
   const moveToWorktreeBranch = moveToWorktreeBranchManuallyEdited
     ? moveToWorktreeBranchRaw
     : deriveMoveToWorktreeBranch(moveToWorktreeName);
+  const [selectedExistingWorktreeId, setSelectedExistingWorktreeId] = useState<string | null>(null);
+  const existingWorktrees = useMemo(
+    () => (allWorktrees ?? []).filter((w) => w.id !== ROOT_WORKTREE_ID && w.status !== "creating"),
+    [allWorktrees],
+  );
   const [isGitLoading, setIsGitLoading] = useState(false);
   const [isRecoveringLocalTask, setIsRecoveringLocalTask] = useState(false);
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
@@ -1694,6 +1706,29 @@ export function DetailPanel({
   };
 
   const handleMoveToWorktree = async () => {
+    if (moveToWorktreeMode === "existing") {
+      if (!selectedExistingWorktreeId) return;
+      setIsGitLoading(true);
+      setError(null);
+      try {
+        const result = await api.moveToExistingWorktree(selectedExistingWorktreeId);
+        if (result.success) {
+          setShowMoveToWorktreeInput(false);
+          setSelectedExistingWorktreeId(null);
+          onUpdate();
+          if (onSelectWorktree) {
+            onSelectWorktree(selectedExistingWorktreeId);
+          }
+        } else {
+          setError(result.error || "Failed to move changes to worktree");
+          onUpdate();
+        }
+      } finally {
+        setIsGitLoading(false);
+      }
+      return;
+    }
+
     const resolvedName = moveToWorktreeName.trim();
     const resolvedBranch = moveToWorktreeBranch.trim() || deriveMoveToWorktreeBranch(resolvedName);
     if (!resolvedName || !resolvedBranch) return;
@@ -1706,10 +1741,15 @@ export function DetailPanel({
         setMoveToWorktreeName("");
         setMoveToWorktreeBranchRaw("");
         setMoveToWorktreeBranchManuallyEdited(false);
+        onUpdate();
+        const newId = result.worktreeId ?? result.worktree?.id;
+        if (newId && onSelectWorktree) {
+          onSelectWorktree(newId);
+        }
       } else {
         setError(result.error || "Failed to move changes to worktree");
+        onUpdate();
       }
-      onUpdate();
     } finally {
       setIsGitLoading(false);
     }
@@ -2237,7 +2277,12 @@ export function DetailPanel({
               </button>
               <button
                 type="submit"
-                disabled={isGitLoading || !moveToWorktreeName.trim()}
+                disabled={
+                  isGitLoading ||
+                  (moveToWorktreeMode === "new"
+                    ? !moveToWorktreeName.trim()
+                    : !selectedExistingWorktreeId)
+                }
                 className={`px-3 py-1.5 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
               >
                 {isGitLoading ? "Moving..." : "Move"}
@@ -2246,44 +2291,99 @@ export function DetailPanel({
           }
         >
           <div className="space-y-3">
-            <p className={`text-[11px] ${text.muted}`}>
-              Creates a new worktree and moves all uncommitted changes and unpushed commits from the
-              root to it.
-            </p>
-            <div>
-              <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
-                Worktree name
-              </label>
-              <input
-                type="text"
-                value={moveToWorktreeName}
-                onChange={(e) => setMoveToWorktreeName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setShowMoveToWorktreeInput(false);
-                }}
-                placeholder="my-feature"
-                className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
-                autoFocus
-              />
+            {/* Mode toggle */}
+            <div className="flex gap-1 p-0.5 bg-white/[0.04] rounded-md">
+              <button
+                type="button"
+                onClick={() => setMoveToWorktreeMode("new")}
+                className={`flex-1 px-2 py-1 text-[11px] font-medium rounded transition-colors ${
+                  moveToWorktreeMode === "new"
+                    ? "bg-white/[0.08] text-white"
+                    : `${text.muted} hover:text-[#9ca3af]`
+                }`}
+              >
+                New worktree
+              </button>
+              <button
+                type="button"
+                onClick={() => setMoveToWorktreeMode("existing")}
+                disabled={existingWorktrees.length === 0}
+                className={`flex-1 px-2 py-1 text-[11px] font-medium rounded transition-colors disabled:opacity-40 disabled:cursor-default ${
+                  moveToWorktreeMode === "existing"
+                    ? "bg-white/[0.08] text-white"
+                    : `${text.muted} hover:text-[#9ca3af]`
+                }`}
+              >
+                Existing worktree
+              </button>
             </div>
-            <div>
-              <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
-                Branch name
-              </label>
-              <input
-                type="text"
-                value={moveToWorktreeBranch}
-                onChange={(e) => {
-                  setMoveToWorktreeBranchRaw(e.target.value);
-                  setMoveToWorktreeBranchManuallyEdited(true);
-                }}
-                placeholder="Defaults to worktree name"
-                className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
-              />
-              <p className={`mt-1 text-[11px] ${text.dimmed}`}>
-                Will be created from the base branch if it doesn't exist
-              </p>
-            </div>
+
+            {moveToWorktreeMode === "new" ? (
+              <>
+                <p className={`text-[11px] ${text.muted}`}>
+                  Creates a new worktree and moves all uncommitted changes and unpushed commits from
+                  the root to it.
+                </p>
+                <div>
+                  <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
+                    Worktree name
+                  </label>
+                  <input
+                    type="text"
+                    value={moveToWorktreeName}
+                    onChange={(e) => setMoveToWorktreeName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setShowMoveToWorktreeInput(false);
+                    }}
+                    placeholder="my-feature"
+                    className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
+                    Branch name
+                  </label>
+                  <input
+                    type="text"
+                    value={moveToWorktreeBranch}
+                    onChange={(e) => {
+                      setMoveToWorktreeBranchRaw(e.target.value);
+                      setMoveToWorktreeBranchManuallyEdited(true);
+                    }}
+                    placeholder="Defaults to worktree name"
+                    className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
+                  />
+                  <p className={`mt-1 text-[11px] ${text.dimmed}`}>
+                    Will be created from the base branch if it doesn't exist
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className={`text-[11px] ${text.muted}`}>
+                  Moves uncommitted changes from the root to an existing worktree. Conflicts will be
+                  left for you to resolve.
+                </p>
+                <div className="max-h-48 overflow-y-auto rounded-md border border-white/[0.06]">
+                  {existingWorktrees.map((wt) => (
+                    <button
+                      key={wt.id}
+                      type="button"
+                      onClick={() => setSelectedExistingWorktreeId(wt.id)}
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors border-b border-white/[0.04] last:border-b-0 ${
+                        selectedExistingWorktreeId === wt.id
+                          ? "bg-accent/10 text-accent"
+                          : `${text.secondary} hover:bg-white/[0.04]`
+                      }`}
+                    >
+                      <div className="font-medium">{wt.id}</div>
+                      <div className={`text-[11px] ${text.dimmed}`}>{wt.branch}</div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}
