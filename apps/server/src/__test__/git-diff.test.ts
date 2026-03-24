@@ -35,8 +35,10 @@ vi.mock("@openkit/shared/logger", () => ({
 }));
 
 const mockReadFile = vi.fn();
+const mockLstat = vi.fn().mockResolvedValue({ isSymbolicLink: () => false });
 vi.mock("fs/promises", () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
+  lstat: (...args: unknown[]) => mockLstat(...args),
 }));
 
 import { getChangedFiles, getFileContent } from "@openkit/shared/git";
