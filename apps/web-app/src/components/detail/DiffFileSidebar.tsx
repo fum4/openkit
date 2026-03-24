@@ -8,10 +8,11 @@
  * per-file stage/unstage hover actions.
  */
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Minus, Plus, Undo2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { palette } from "../../theme";
 import type { DiffFileInfo } from "../../types";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Tooltip } from "../Tooltip";
 import { DIFF_STATUS_COLORS, DIFF_STATUS_LABELS } from "./diff-constants";
 
@@ -73,6 +74,12 @@ function compactTree(node: FolderNode): FolderNode {
   return node;
 }
 
+/** Pending discard confirmation — tracks what to discard when the user confirms. */
+type PendingDiscard =
+  | { type: "file"; path: string; staged: boolean }
+  | { type: "batch"; paths: string[]; staged: boolean }
+  | { type: "all"; staged: boolean };
+
 interface DiffFileSidebarProps {
   files: DiffFileInfo[];
   selectedFile: string | null;
@@ -82,7 +89,6 @@ interface DiffFileSidebarProps {
   onStageAll?: () => void;
   onUnstageAll?: () => void;
   onRevertFile?: (path: string, staged: boolean) => void;
-  onRevertAllStaged?: () => void;
   onRevertAllUnstaged?: () => void;
   onStagePaths?: (paths: string[]) => void;
   onUnstagePaths?: (paths: string[]) => void;
@@ -99,7 +105,6 @@ export function DiffFileSidebar({
   onStageAll,
   onUnstageAll,
   onRevertFile,
-  onRevertAllStaged,
   onRevertAllUnstaged,
   onStagePaths,
   onUnstagePaths,
@@ -113,6 +118,28 @@ export function DiffFileSidebar({
   const tree = useMemo(() => compactTree(buildFolderTree(files)), [files]);
   const [stagedExpanded, setStagedExpanded] = useState(true);
   const [unstagedExpanded, setUnstagedExpanded] = useState(true);
+  const [pendingDiscard, setPendingDiscard] = useState<PendingDiscard | null>(null);
+
+  const handleConfirmDiscard = useCallback(() => {
+    if (!pendingDiscard) return;
+    if (pendingDiscard.type === "file" && onRevertFile) {
+      onRevertFile(pendingDiscard.path, pendingDiscard.staged);
+    } else if (pendingDiscard.type === "batch" && onRevertPaths) {
+      onRevertPaths(pendingDiscard.paths, pendingDiscard.staged);
+    } else if (pendingDiscard.type === "all" && onRevertAllUnstaged) {
+      onRevertAllUnstaged();
+    }
+    setPendingDiscard(null);
+  }, [pendingDiscard, onRevertFile, onRevertPaths, onRevertAllUnstaged]);
+
+  const discardLabel =
+    pendingDiscard?.type === "all"
+      ? `${unstagedFiles.length} file${unstagedFiles.length === 1 ? "" : "s"}`
+      : pendingDiscard?.type === "batch"
+        ? `${pendingDiscard.paths.length} file${pendingDiscard.paths.length === 1 ? "" : "s"}`
+        : pendingDiscard?.type === "file"
+          ? (pendingDiscard.path.split("/").pop() ?? pendingDiscard.path)
+          : "";
 
   return (
     <div className={`h-full overflow-y-auto ${showStagingActions ? "pb-1" : "py-1"}`}>
@@ -125,7 +152,6 @@ export function DiffFileSidebar({
                 count={stagedFiles.length}
                 action={onUnstageAll}
                 actionIcon="minus"
-                revertAction={onRevertAllStaged}
                 expanded={stagedExpanded}
                 onToggle={() => setStagedExpanded((v) => !v)}
               />
@@ -137,10 +163,6 @@ export function DiffFileSidebar({
                   depth={0}
                   onAction={onUnstageFile}
                   onActionBatch={onUnstagePaths}
-                  onRevert={onRevertFile ? (path: string) => onRevertFile(path, true) : undefined}
-                  onRevertBatch={
-                    onRevertPaths ? (paths: string[]) => onRevertPaths(paths, true) : undefined
-                  }
                   actionType="unstage"
                   showAction
                 />
@@ -152,7 +174,11 @@ export function DiffFileSidebar({
             count={unstagedFiles.length}
             action={onStageAll}
             actionIcon="plus"
-            revertAction={onRevertAllUnstaged}
+            revertAction={
+              onRevertAllUnstaged
+                ? () => setPendingDiscard({ type: "all", staged: false })
+                : undefined
+            }
             expanded={unstagedExpanded}
             onToggle={() => setUnstagedExpanded((v) => !v)}
           />
@@ -164,9 +190,15 @@ export function DiffFileSidebar({
               depth={0}
               onAction={onStageFile}
               onActionBatch={onStagePaths}
-              onRevert={onRevertFile ? (path: string) => onRevertFile(path, false) : undefined}
+              onRevert={
+                onRevertFile
+                  ? (path: string) => setPendingDiscard({ type: "file", path, staged: false })
+                  : undefined
+              }
               onRevertBatch={
-                onRevertPaths ? (paths: string[]) => onRevertPaths(paths, false) : undefined
+                onRevertPaths
+                  ? (paths: string[]) => setPendingDiscard({ type: "batch", paths, staged: false })
+                  : undefined
               }
               actionType="stage"
               showAction
@@ -180,6 +212,20 @@ export function DiffFileSidebar({
           onSelectFile={onSelectFile}
           depth={0}
         />
+      )}
+
+      {pendingDiscard && (
+        <ConfirmDialog
+          title="Discard Changes"
+          icon={<Undo2 className="w-4 h-4 text-red-400" />}
+          confirmLabel="Discard"
+          onConfirm={handleConfirmDiscard}
+          onCancel={() => setPendingDiscard(null)}
+        >
+          <p className="text-xs text-[#9ca3af]">
+            This will discard all changes to {discardLabel}. This action cannot be undone.
+          </p>
+        </ConfirmDialog>
       )}
     </div>
   );

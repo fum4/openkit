@@ -36,6 +36,7 @@ import { log } from "../../logger";
 import { border, detailTab, palette } from "../../theme";
 import type { DiffFileInfo, PrDiffListResponse } from "../../types";
 import type { WorktreeInfo } from "../../types";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { ResizableHandle } from "../ResizableHandle";
 import { ToggleSwitch } from "../ToggleSwitch";
 import { Tooltip } from "../Tooltip";
@@ -84,6 +85,10 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const contentRef = useRef<HTMLDivElement>(null);
   const fetchCountRef = useRef(0);
+  const [pendingContentDiscard, setPendingContentDiscard] = useState<{
+    type: "file" | "all";
+    path?: string;
+  } | null>(null);
 
   const isMerged = worktree.githubPrState === "merged";
 
@@ -399,17 +404,6 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
   const stagedFiles = useMemo(() => files.filter((f) => f.staged === true), [files]);
   const unstagedFiles = useMemo(() => files.filter((f) => f.staged !== true), [files]);
 
-  const handleRevertAllStaged = useCallback(async () => {
-    if (stagedFiles.length === 0) return;
-    await revertFiles(
-      worktree.id,
-      stagedFiles.map((f) => f.path),
-      true,
-      serverUrl,
-    );
-    fetchFiles();
-  }, [worktree.id, serverUrl, fetchFiles, stagedFiles]);
-
   const handleRevertAllUnstaged = useCallback(async () => {
     if (unstagedFiles.length === 0) return;
     await revertFiles(
@@ -549,7 +543,6 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
                 onStageAll={handleStageAll}
                 onUnstageAll={handleUnstageAll}
                 onRevertFile={handleRevertFile}
-                onRevertAllStaged={handleRevertAllStaged}
                 onRevertAllUnstaged={handleRevertAllUnstaged}
                 onStagePaths={handleStagePaths}
                 onUnstagePaths={handleUnstagePaths}
@@ -612,32 +605,18 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
                       )}
                       Staged Changes ({stagedFiles.length})
                     </span>
-                    <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Tooltip text="Discard all" position="left">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRevertAllStaged();
-                          }}
-                          className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
-                        >
-                          <Undo2 className="w-3 h-3" />
-                        </button>
-                      </Tooltip>
-                      <Tooltip text="Unstage all" position="left">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnstageAll();
-                          }}
-                          className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                      </Tooltip>
-                    </span>
+                    <Tooltip text="Unstage all" position="left">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnstageAll();
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                    </Tooltip>
                   </div>
                   {stagedSectionExpanded &&
                     stagedFiles.map((file) => (
@@ -656,7 +635,6 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
                         refreshKey={refreshKey}
                         stageAction={() => handleUnstageFile(file.path)}
                         stageActionType="unstage"
-                        revertAction={() => handleRevertFile(file.path, true)}
                       />
                     ))}
                 </>
@@ -687,7 +665,7 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleRevertAllUnstaged();
+                        setPendingContentDiscard({ type: "all" });
                       }}
                       className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
                     >
@@ -725,7 +703,7 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
                     refreshKey={refreshKey}
                     stageAction={() => handleStageFile(file.path)}
                     stageActionType="stage"
-                    revertAction={() => handleRevertFile(file.path, false)}
+                    revertAction={() => setPendingContentDiscard({ type: "file", path: file.path })}
                   />
                 ))}
             </>
@@ -752,6 +730,29 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
           )}
         </div>
       </div>
+
+      {pendingContentDiscard && (
+        <ConfirmDialog
+          title="Discard Changes"
+          icon={<Undo2 className="w-4 h-4 text-red-400" />}
+          confirmLabel="Discard"
+          onConfirm={() => {
+            if (pendingContentDiscard.type === "file" && pendingContentDiscard.path) {
+              handleRevertFile(pendingContentDiscard.path, false);
+            } else if (pendingContentDiscard.type === "all") {
+              handleRevertAllUnstaged();
+            }
+            setPendingContentDiscard(null);
+          }}
+          onCancel={() => setPendingContentDiscard(null)}
+        >
+          <p className="text-xs text-[#9ca3af]">
+            {pendingContentDiscard.type === "all"
+              ? `This will discard all changes to ${unstagedFiles.length} file${unstagedFiles.length === 1 ? "" : "s"}. This action cannot be undone.`
+              : `This will discard all changes to ${pendingContentDiscard.path?.split("/").pop()}. This action cannot be undone.`}
+          </p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }
