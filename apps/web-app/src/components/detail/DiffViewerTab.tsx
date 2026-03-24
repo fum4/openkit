@@ -32,6 +32,7 @@ import {
   revertFiles,
 } from "../../hooks/api";
 import { useServerUrlOptional } from "../../contexts/ServerContext";
+import { showPersistentErrorToast } from "../../errorToasts";
 import { log } from "../../logger";
 import { border, detailTab, palette } from "../../theme";
 import type { DiffFileInfo, PrDiffListResponse } from "../../types";
@@ -307,7 +308,10 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleStageFile = useCallback(
     async (filePath: string) => {
-      await stageFiles(worktree.id, [filePath], serverUrl);
+      const result = await stageFiles(worktree.id, [filePath], serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to stage file", { scope: "staging" });
+      }
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
@@ -315,25 +319,37 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleUnstageFile = useCallback(
     async (filePath: string) => {
-      await unstageFiles(worktree.id, [filePath], serverUrl);
+      const result = await unstageFiles(worktree.id, [filePath], serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to unstage file", { scope: "staging" });
+      }
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
   );
 
   const handleStageAll = useCallback(async () => {
-    await stageAllFiles(worktree.id, serverUrl);
+    const result = await stageAllFiles(worktree.id, serverUrl);
+    if (!result.success) {
+      showPersistentErrorToast(result.error ?? "Failed to stage all files", { scope: "staging" });
+    }
     fetchFiles();
   }, [worktree.id, serverUrl, fetchFiles]);
 
   const handleUnstageAll = useCallback(async () => {
-    await unstageAllFiles(worktree.id, serverUrl);
+    const result = await unstageAllFiles(worktree.id, serverUrl);
+    if (!result.success) {
+      showPersistentErrorToast(result.error ?? "Failed to unstage all files", { scope: "staging" });
+    }
     fetchFiles();
   }, [worktree.id, serverUrl, fetchFiles]);
 
   const handleStagePaths = useCallback(
     async (paths: string[]) => {
-      await stageFiles(worktree.id, paths, serverUrl);
+      const result = await stageFiles(worktree.id, paths, serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to stage files", { scope: "staging" });
+      }
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
@@ -341,7 +357,10 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleUnstagePaths = useCallback(
     async (paths: string[]) => {
-      await unstageFiles(worktree.id, paths, serverUrl);
+      const result = await unstageFiles(worktree.id, paths, serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to unstage files", { scope: "staging" });
+      }
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
@@ -349,7 +368,10 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleRevertPaths = useCallback(
     async (paths: string[], staged: boolean) => {
-      await revertFiles(worktree.id, paths, staged, serverUrl);
+      const result = await revertFiles(worktree.id, paths, staged, serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to discard changes", { scope: "revert" });
+      }
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
@@ -357,7 +379,10 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleRevertFile = useCallback(
     async (filePath: string, staged: boolean) => {
-      await revertFiles(worktree.id, [filePath], staged, serverUrl);
+      const result = await revertFiles(worktree.id, [filePath], staged, serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to discard changes", { scope: "revert" });
+      }
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
@@ -406,12 +431,17 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleRevertAllUnstaged = useCallback(async () => {
     if (unstagedFiles.length === 0) return;
-    await revertFiles(
+    const result = await revertFiles(
       worktree.id,
       unstagedFiles.map((f) => f.path),
       false,
       serverUrl,
     );
+    if (!result.success) {
+      showPersistentErrorToast(result.error ?? "Failed to discard all changes", {
+        scope: "revert",
+      });
+    }
     fetchFiles();
   }, [worktree.id, serverUrl, fetchFiles, unstagedFiles]);
 

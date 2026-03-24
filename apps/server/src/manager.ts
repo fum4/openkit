@@ -1551,6 +1551,12 @@ export class WorktreeManager {
     success: boolean;
     error?: string;
   }> {
+    log.info("Moving uncommitted changes to existing worktree", {
+      domain: "worktree",
+      action: "moveChangesToExistingWorktree",
+      targetId,
+    });
+
     const gitRoot = this.getGitRoot();
 
     const resolved = this.resolveWorktree(targetId);
@@ -1618,6 +1624,17 @@ export class WorktreeManager {
           stashRef,
           error: restoreResult.error,
         });
+      } else {
+        // Changes are restored on root — drop the stash to avoid duplicates
+        try {
+          await stashDrop(gitRoot, stashRef);
+        } catch (dropErr) {
+          log.warn("Failed to drop stash after restoring to root", {
+            domain: "worktree",
+            stashRef,
+            error: dropErr instanceof Error ? dropErr.message : String(dropErr),
+          });
+        }
       }
       return {
         success: false,
@@ -1648,6 +1665,13 @@ export class WorktreeManager {
 
     // Notify listeners so the UI updates
     this.notifyListeners();
+
+    log.info("Successfully moved changes to existing worktree", {
+      domain: "worktree",
+      action: "moveChangesToExistingWorktree",
+      targetId: resolved.worktreeId,
+      hasConflicts: applyResult.hasConflicts,
+    });
 
     return { success: true };
   }

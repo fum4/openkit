@@ -30,7 +30,7 @@ interface CreateWorktreeModalProps {
 }
 
 /** Sanitize a branch name into a valid worktree name (letters, numbers, spaces, hyphens). */
-function sanitizeWorktreeName(branchName: string): string {
+export function sanitizeWorktreeName(branchName: string): string {
   return branchName
     .replace(/[^a-zA-Z0-9 -]/g, "-") // swap invalid chars (e.g. `/`, `_`, `.`) with hyphens
     .replace(/-{2,}/g, "-") // collapse consecutive hyphens

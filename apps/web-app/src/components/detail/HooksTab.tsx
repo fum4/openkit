@@ -1,3 +1,8 @@
+/**
+ * Hooks configuration and execution tab for worktree detail panel.
+ * Renders hook definitions, skill references, and execution results
+ * with ANSI-to-HTML rendering for terminal output.
+ */
 import {
   Ban,
   Check,
@@ -29,12 +34,12 @@ import {
 import type { HookSkillRef, HookStep, SkillHookResult, StepResult } from "../../hooks/api";
 import { useApi } from "../../hooks/useApi";
 import { useEffectiveHooksConfig } from "../../hooks/useHooks";
-import { settings, surface, text } from "../../theme";
+import { palette, settings, surface, text } from "../../theme";
 import { MarkdownContent } from "../MarkdownContent";
 import { Modal } from "../Modal";
 
 const ansiConverter = new AnsiToHtml({
-  fg: "#9ca3af",
+  fg: palette.text1,
   bg: "transparent",
   newline: true,
   escapeXML: true,

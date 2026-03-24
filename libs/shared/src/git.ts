@@ -5,7 +5,7 @@
  */
 import { execFile as execFileCb, execFileSync } from "child_process";
 import { existsSync, readFileSync, statSync } from "fs";
-import { readFile, unlink } from "node:fs/promises";
+import { lstat, readFile, unlink } from "node:fs/promises";
 import path from "path";
 import { promisify } from "util";
 
@@ -417,9 +417,19 @@ export async function stashApply(
   }
 }
 
-/** Drop a stash entry by its ref. */
+/** Drop a stash entry by its commit SHA. Looks up the stash index first since `git stash drop` requires `stash@{N}` syntax. */
 export async function stashDrop(cwd: string, stashRef: string): Promise<void> {
-  await execFileAsync("git", ["stash", "drop", stashRef], { cwd, encoding: "utf-8" });
+  // git stash drop requires stash@{N} syntax — look up index from SHA
+  const { stdout } = await execFileAsync("git", ["stash", "list", "--format=%H"], {
+    cwd,
+    encoding: "utf-8",
+  });
+  const lines = stdout.trim().split("\n").filter(Boolean);
+  const index = lines.indexOf(stashRef);
+  if (index === -1) {
+    throw new Error(`Stash ref ${stashRef} not found in stash list`);
+  }
+  await execFileAsync("git", ["stash", "drop", `stash@{${index}}`], { cwd, encoding: "utf-8" });
 }
 
 // ---------------------------------------------------------------------------
@@ -556,7 +566,13 @@ async function countUntrackedLines(
 
   for (const filePath of filePaths) {
     try {
-      const content = await readFile(path.join(worktreePath, filePath), "utf-8");
+      const fullPath = path.join(worktreePath, filePath);
+      const stat = await lstat(fullPath);
+      if (stat.isSymbolicLink()) {
+        result.set(filePath, 0);
+        continue;
+      }
+      const content = await readFile(fullPath, "utf-8");
       const count = content.split("\n").length;
       result.set(filePath, count);
     } catch {
@@ -834,6 +850,11 @@ async function gitShow(worktreePath: string, ref: string, filePath: string): Pro
 async function readWorkingCopy(worktreePath: string, filePath: string): Promise<string> {
   try {
     const fullPath = path.join(worktreePath, filePath);
+    const stat = await lstat(fullPath);
+    if (stat.isSymbolicLink()) {
+      log.warn("Skipping symlink in readWorkingCopy", { domain: "diff", filePath });
+      return "";
+    }
     const content = await readFile(fullPath, "utf-8");
     if (content.length > MAX_FILE_SIZE) {
       log.warn("File exceeds size limit, returning empty content", {

@@ -8,8 +8,10 @@ import { ROOT_WORKTREE_ID } from "../../types";
 import { useApi } from "../../hooks/useApi";
 import { clearTerminalSessionCacheForRuntimeWorktree } from "../../hooks/useTerminal";
 import { useServer, useServerUrlOptional } from "../../contexts/ServerContext";
+import { showPersistentErrorToast } from "../../errorToasts";
 import { action, button, detailTab, input, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { sanitizeWorktreeName } from "../CreateWorktreeModal";
 import { GitHubIcon } from "../../icons";
 import { Modal } from "../Modal";
 import { ToggleSwitch } from "../ToggleSwitch";
@@ -331,24 +333,21 @@ export function DetailPanel({
   const [moveToWorktreeNameManuallyEdited, setMoveToWorktreeNameManuallyEdited] = useState(false);
   const moveToWorktreeName = moveToWorktreeNameManuallyEdited
     ? moveToWorktreeNameRaw
-    : moveToWorktreeBranch
-        .trim()
-        .replace(/[^a-zA-Z0-9 -]/g, "-")
-        .replace(/-{2,}/g, "-")
-        .replace(/^-+|-+$/g, "");
+    : sanitizeWorktreeName(moveToWorktreeBranch.trim());
   const [moveToWorktreeMode, setMoveToWorktreeMode] = useState<"new" | "existing">("new");
   const [selectedExistingWorktreeId, setSelectedExistingWorktreeId] = useState<string | null>(null);
   const [existingWorktreeSearch, setExistingWorktreeSearch] = useState("");
+  const allExistingWorktrees = useMemo(
+    () => (allWorktrees ?? []).filter((w) => w.id !== ROOT_WORKTREE_ID && w.status !== "creating"),
+    [allWorktrees],
+  );
   const existingWorktrees = useMemo(() => {
-    const all = (allWorktrees ?? []).filter(
-      (w) => w.id !== ROOT_WORKTREE_ID && w.status !== "creating",
-    );
     const query = existingWorktreeSearch.toLowerCase().trim();
-    if (!query) return all;
-    return all.filter(
+    if (!query) return allExistingWorktrees;
+    return allExistingWorktrees.filter(
       (w) => w.id.toLowerCase().includes(query) || w.branch.toLowerCase().includes(query),
     );
-  }, [allWorktrees, existingWorktreeSearch]);
+  }, [allExistingWorktrees, existingWorktreeSearch]);
   const [isGitLoading, setIsGitLoading] = useState(false);
   const [isRecoveringLocalTask, setIsRecoveringLocalTask] = useState(false);
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
@@ -1691,6 +1690,9 @@ export function DetailPanel({
           onUpdate();
           onSelectWorktree?.(selectedExistingWorktreeId);
         } else {
+          showPersistentErrorToast(result.error ?? "Failed to move changes", {
+            scope: "move-to-worktree",
+          });
           onUpdate();
         }
       } finally {
@@ -1701,12 +1703,7 @@ export function DetailPanel({
 
     const resolvedBranch = moveToWorktreeBranch.trim();
     if (!resolvedBranch) return;
-    const resolvedName =
-      moveToWorktreeName.trim() ||
-      resolvedBranch
-        .replace(/[^a-zA-Z0-9 -]/g, "-")
-        .replace(/-{2,}/g, "-")
-        .replace(/^-+|-+$/g, "");
+    const resolvedName = moveToWorktreeName.trim() || sanitizeWorktreeName(resolvedBranch);
     setIsGitLoading(true);
     try {
       const result = await api.moveToWorktree(resolvedBranch, resolvedName);
@@ -1719,6 +1716,9 @@ export function DetailPanel({
         const newId = result.worktreeId ?? result.worktree?.id;
         if (newId) onSelectWorktree?.(newId);
       } else {
+        showPersistentErrorToast(result.error ?? "Failed to move changes to new worktree", {
+          scope: "move-to-worktree",
+        });
         onUpdate();
       }
     } finally {
@@ -2259,7 +2259,7 @@ export function DetailPanel({
               <button
                 type="button"
                 onClick={() => setMoveToWorktreeMode("existing")}
-                disabled={existingWorktrees.length === 0}
+                disabled={allExistingWorktrees.length === 0}
                 className={`flex-1 px-2 py-1 text-[11px] font-medium rounded transition-colors disabled:opacity-40 disabled:cursor-default ${
                   moveToWorktreeMode === "existing"
                     ? "bg-white/[0.08] text-white"
