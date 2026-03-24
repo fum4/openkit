@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { GitBranch } from "lucide-react";
+import { AlertTriangle, GitBranch } from "lucide-react";
 
 import { useApi } from "../hooks/useApi";
-import { useErrorToast } from "../hooks/useErrorToast";
 import { input, text } from "../theme";
 import { Button } from "./Button";
 import { JiraIcon, LinearIcon } from "../icons";
@@ -17,12 +16,12 @@ interface CreateWorktreeModalProps {
   onSetupNeeded?: () => void;
 }
 
-function deriveBranch(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+/** Sanitize a branch name into a valid worktree name (letters, numbers, spaces, hyphens). */
+function sanitizeWorktreeName(branchName: string): string {
+  return branchName
+    .replace(/[^a-zA-Z0-9 -]/g, "-") // swap invalid chars (e.g. `/`, `_`, `.`) with hyphens
+    .replace(/-{2,}/g, "-") // collapse consecutive hyphens
+    .replace(/^-+|-+$/g, ""); // trim leading/trailing hyphens
 }
 
 function resolveCreatedWorktreeId(result: {
@@ -55,10 +54,9 @@ export function CreateWorktreeModal({
   // Branch form state
   const [branch, setBranch] = useState("");
   const [name, setName] = useState("");
-  const [branchManuallyEdited, setBranchManuallyEdited] = useState(false);
+  const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useErrorToast(error, "create-worktree-modal");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Jira form state
@@ -81,10 +79,10 @@ export function CreateWorktreeModal({
   }, []);
 
   useEffect(() => {
-    if (mode === "branch" && !branchManuallyEdited) {
-      setBranch(deriveBranch(name));
+    if (mode === "branch" && !nameManuallyEdited) {
+      setName(sanitizeWorktreeName(branch.trim()));
     }
-  }, [name, branchManuallyEdited, mode]);
+  }, [branch, nameManuallyEdited, mode]);
 
   useEffect(() => {
     if (mode === "jira" && !jiraBranchManuallyEdited && !hasBranchNameRule) {
@@ -98,9 +96,10 @@ export function CreateWorktreeModal({
     }
   }, [linearId, linearBranchManuallyEdited, mode, hasBranchNameRule]);
 
-  const handleBranchChange = (value: string) => {
-    setBranch(value);
-    setBranchManuallyEdited(true);
+  const handleNameChange = (value: string) => {
+    setName(value);
+    setNameManuallyEdited(true);
+    if (error) setError(null);
   };
 
   const handleJiraBranchChange = (value: string) => {
@@ -115,13 +114,14 @@ export function CreateWorktreeModal({
 
   const handleBranchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || isCreating) return;
+    if (!branch.trim() || isCreating) return;
 
     setIsCreating(true);
     setError(null);
 
-    const resolvedBranch = branch.trim() || deriveBranch(name.trim());
-    const result = await api.createWorktree(resolvedBranch, name.trim());
+    const resolvedBranch = branch.trim();
+    const resolvedName = name.trim() || resolvedBranch;
+    const result = await api.createWorktree(resolvedBranch, resolvedName);
     setIsCreating(false);
 
     const createdWorktreeId = resolveCreatedWorktreeId(result);
@@ -253,7 +253,7 @@ export function CreateWorktreeModal({
               variant={mode === "jira" ? "jira" : mode === "linear" ? "linear" : "primary"}
               disabled={
                 mode === "branch"
-                  ? !name.trim()
+                  ? !branch.trim()
                   : mode === "jira"
                     ? !taskId.trim()
                     : !linearId.trim()
@@ -269,27 +269,17 @@ export function CreateWorktreeModal({
           <div className="space-y-3">
             <div>
               <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
-                Worktree name
+                Branch name
               </label>
               <input
                 ref={inputRef}
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="my-feature"
-                className={inputClass}
-                disabled={isCreating}
-              />
-            </div>
-            <div>
-              <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
-                Branch name
-              </label>
-              <input
-                type="text"
                 value={branch}
-                onChange={(e) => handleBranchChange(e.target.value)}
-                placeholder="Defaults to worktree name"
+                onChange={(e) => {
+                  setBranch(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="feat/my-feature"
                 className={inputClass}
                 disabled={isCreating}
               />
@@ -297,7 +287,25 @@ export function CreateWorktreeModal({
                 Will be created from the base branch if it doesn't exist
               </p>
             </div>
-            {error && <p className={`text-[11px] ${text.error}`}>{error}</p>}
+            <div>
+              <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
+                Worktree name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="Defaults to branch name"
+                className={`${inputClass}${error ? " border-red-400/60" : ""}`}
+                disabled={isCreating}
+              />
+            </div>
+            {error && (
+              <div className="flex items-start gap-2 rounded-md bg-red-900/20 px-3 py-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-px" />
+                <p className="text-[11px] text-red-300">{error}</p>
+              </div>
+            )}
           </div>
         ) : mode === "jira" ? (
           <div className="space-y-3">
@@ -336,7 +344,12 @@ export function CreateWorktreeModal({
                 </p>
               )}
             </div>
-            {error && <p className={`text-[11px] ${text.error}`}>{error}</p>}
+            {error && (
+              <div className="flex items-start gap-2 rounded-md bg-red-900/20 px-3 py-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-px" />
+                <p className="text-[11px] text-red-300">{error}</p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -375,7 +388,12 @@ export function CreateWorktreeModal({
                 </p>
               )}
             </div>
-            {error && <p className={`text-[11px] ${text.error}`}>{error}</p>}
+            {error && (
+              <div className="flex items-start gap-2 rounded-md bg-red-900/20 px-3 py-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-px" />
+                <p className="text-[11px] text-red-300">{error}</p>
+              </div>
+            )}
           </div>
         )}
       </Modal>

@@ -17,43 +17,42 @@ describe("CreateWorktreeModal", () => {
   });
 
   describe("branch mode", () => {
-    it("renders the form with name and branch fields", () => {
+    it("renders the form with branch and name fields", () => {
       render(<CreateWorktreeModal {...defaultProps} />);
 
-      // Title is in an h2
       expect(screen.getByRole("heading", { name: "Create Worktree" })).toBeInTheDocument();
-      expect(screen.getByText("Worktree name")).toBeInTheDocument();
       expect(screen.getByText("Branch name")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("my-feature")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("Defaults to worktree name")).toBeInTheDocument();
+      expect(screen.getByText("Worktree name")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("feat/my-feature")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Defaults to branch name")).toBeInTheDocument();
     });
 
-    it("auto-derives branch name from worktree name", async () => {
+    it("auto-derives worktree name from branch name, sanitizing invalid chars", async () => {
       const user = userEvent.setup();
 
       render(<CreateWorktreeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText("my-feature"), "My Cool Feature");
+      await user.type(screen.getByPlaceholderText("feat/my-feature"), "feat/cool-feature");
 
-      expect(screen.getByPlaceholderText("Defaults to worktree name")).toHaveValue(
-        "my-cool-feature",
+      expect(screen.getByPlaceholderText("Defaults to branch name")).toHaveValue(
+        "feat-cool-feature",
       );
     });
 
-    it("stops auto-deriving branch after manual edit", async () => {
+    it("stops auto-deriving name after manual edit", async () => {
       const user = userEvent.setup();
 
       render(<CreateWorktreeModal {...defaultProps} />);
 
-      const branchInput = screen.getByPlaceholderText("Defaults to worktree name");
-      await user.type(branchInput, "custom-branch");
-      await user.clear(screen.getByPlaceholderText("my-feature"));
-      await user.type(screen.getByPlaceholderText("my-feature"), "Something Else");
+      const nameInput = screen.getByPlaceholderText("Defaults to branch name");
+      await user.type(nameInput, "custom-name");
+      await user.clear(screen.getByPlaceholderText("feat/my-feature"));
+      await user.type(screen.getByPlaceholderText("feat/my-feature"), "something-else");
 
-      expect(branchInput).toHaveValue("custom-branch");
+      expect(nameInput).toHaveValue("custom-name");
     });
 
-    it("disables Create button when name is empty", () => {
+    it("disables Create button when branch is empty", () => {
       render(<CreateWorktreeModal {...defaultProps} />);
 
       expect(screen.getByRole("button", { name: "Create Worktree" })).toBeDisabled();
@@ -64,7 +63,7 @@ describe("CreateWorktreeModal", () => {
 
       render(<CreateWorktreeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText("my-feature"), "my-feature");
+      await user.type(screen.getByPlaceholderText("feat/my-feature"), "my-feature");
       await user.click(screen.getByRole("button", { name: "Create Worktree" }));
 
       await waitFor(() => {
@@ -89,11 +88,11 @@ describe("CreateWorktreeModal", () => {
 
       render(<CreateWorktreeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText("my-feature"), "test");
+      await user.type(screen.getByPlaceholderText("feat/my-feature"), "test");
       await user.click(screen.getByRole("button", { name: "Create Worktree" }));
 
       // Form inputs should be disabled during creation
-      expect(screen.getByPlaceholderText("my-feature")).toBeDisabled();
+      expect(screen.getByPlaceholderText("feat/my-feature")).toBeDisabled();
 
       await waitFor(() => {
         expect(defaultProps.onCreated).toHaveBeenCalled();
@@ -114,13 +113,39 @@ describe("CreateWorktreeModal", () => {
 
       render(<CreateWorktreeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText("my-feature"), "existing");
+      await user.type(screen.getByPlaceholderText("feat/my-feature"), "existing");
       await user.click(screen.getByRole("button", { name: "Create Worktree" }));
 
       await waitFor(() => {
         expect(screen.getByText("Branch already exists")).toBeInTheDocument();
       });
       expect(defaultProps.onClose).not.toHaveBeenCalled();
+    });
+
+    it("clears error when worktree name input is edited", async () => {
+      server.use(
+        http.post("/api/worktrees", () => {
+          return HttpResponse.json({
+            success: false,
+            error: "Worktree name must start with a letter",
+          });
+        }),
+      );
+
+      const user = userEvent.setup();
+
+      render(<CreateWorktreeModal {...defaultProps} />);
+
+      await user.type(screen.getByPlaceholderText("feat/my-feature"), "test");
+      await user.click(screen.getByRole("button", { name: "Create Worktree" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Worktree name must start with a letter")).toBeInTheDocument();
+      });
+
+      await user.type(screen.getByPlaceholderText("Defaults to branch name"), "valid-name");
+
+      expect(screen.queryByText("Worktree name must start with a letter")).not.toBeInTheDocument();
     });
 
     it("calls onClose when Cancel is clicked", async () => {
@@ -148,7 +173,7 @@ describe("CreateWorktreeModal", () => {
 
       render(<CreateWorktreeModal {...defaultProps} onSetupNeeded={onSetupNeeded} />);
 
-      await user.type(screen.getByPlaceholderText("my-feature"), "test");
+      await user.type(screen.getByPlaceholderText("feat/my-feature"), "test");
       await user.click(screen.getByRole("button", { name: "Create Worktree" }));
 
       await waitFor(() => {
@@ -234,7 +259,7 @@ describe("CreateWorktreeModal", () => {
 
       render(<CreateWorktreeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText("my-feature"), "existing");
+      await user.type(screen.getByPlaceholderText("feat/my-feature"), "existing");
       await user.click(screen.getByRole("button", { name: "Create Worktree" }));
 
       await waitFor(() => {
@@ -258,7 +283,7 @@ describe("CreateWorktreeModal", () => {
 
       render(<CreateWorktreeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText("my-feature"), "existing");
+      await user.type(screen.getByPlaceholderText("feat/my-feature"), "existing");
       await user.click(screen.getByRole("button", { name: "Create Worktree" }));
 
       await waitFor(() => {

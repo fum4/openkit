@@ -7,7 +7,7 @@
  * the list into "Staged Changes" and "Changes" sections with
  * per-file stage/unstage hover actions.
  */
-import { ChevronDown, ChevronRight, Folder, FolderOpen, Minus, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FolderOpen, Minus, Plus, Undo2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { palette } from "../../theme";
@@ -48,6 +48,14 @@ function buildFolderTree(files: DiffFileInfo[]): FolderNode {
   return root;
 }
 
+/** Collect all file paths from a folder node recursively. */
+function collectFilePaths(node: FolderNode): string[] {
+  const paths: string[] = [];
+  for (const file of node.files) paths.push(file.path);
+  for (const child of node.children) paths.push(...collectFilePaths(child));
+  return paths;
+}
+
 /** Flatten single-child folder chains: a/b/c → a/b/c (one node). */
 function compactTree(node: FolderNode): FolderNode {
   // Recursively compact children first
@@ -73,6 +81,12 @@ interface DiffFileSidebarProps {
   onUnstageFile?: (path: string) => void;
   onStageAll?: () => void;
   onUnstageAll?: () => void;
+  onRevertFile?: (path: string, staged: boolean) => void;
+  onRevertAllStaged?: () => void;
+  onRevertAllUnstaged?: () => void;
+  onStagePaths?: (paths: string[]) => void;
+  onUnstagePaths?: (paths: string[]) => void;
+  onRevertPaths?: (paths: string[], staged: boolean) => void;
   showStagingActions?: boolean;
 }
 
@@ -84,6 +98,12 @@ export function DiffFileSidebar({
   onUnstageFile,
   onStageAll,
   onUnstageAll,
+  onRevertFile,
+  onRevertAllStaged,
+  onRevertAllUnstaged,
+  onStagePaths,
+  onUnstagePaths,
+  onRevertPaths,
   showStagingActions,
 }: DiffFileSidebarProps) {
   const stagedFiles = useMemo(() => files.filter((f) => f.staged === true), [files]);
@@ -105,6 +125,7 @@ export function DiffFileSidebar({
                 count={stagedFiles.length}
                 action={onUnstageAll}
                 actionIcon="minus"
+                revertAction={onRevertAllStaged}
                 expanded={stagedExpanded}
                 onToggle={() => setStagedExpanded((v) => !v)}
               />
@@ -115,6 +136,12 @@ export function DiffFileSidebar({
                   onSelectFile={onSelectFile}
                   depth={0}
                   onAction={onUnstageFile}
+                  onActionBatch={onUnstagePaths}
+                  onRevert={onRevertFile ? (path: string) => onRevertFile(path, true) : undefined}
+                  onRevertBatch={
+                    onRevertPaths ? (paths: string[]) => onRevertPaths(paths, true) : undefined
+                  }
+                  actionType="unstage"
                   showAction
                 />
               )}
@@ -125,6 +152,7 @@ export function DiffFileSidebar({
             count={unstagedFiles.length}
             action={onStageAll}
             actionIcon="plus"
+            revertAction={onRevertAllUnstaged}
             expanded={unstagedExpanded}
             onToggle={() => setUnstagedExpanded((v) => !v)}
           />
@@ -135,6 +163,12 @@ export function DiffFileSidebar({
               onSelectFile={onSelectFile}
               depth={0}
               onAction={onStageFile}
+              onActionBatch={onStagePaths}
+              onRevert={onRevertFile ? (path: string) => onRevertFile(path, false) : undefined}
+              onRevertBatch={
+                onRevertPaths ? (paths: string[]) => onRevertPaths(paths, false) : undefined
+              }
+              actionType="stage"
               showAction
             />
           )}
@@ -156,6 +190,7 @@ function SectionHeader({
   count,
   action,
   actionIcon,
+  revertAction,
   expanded,
   onToggle,
 }: {
@@ -163,6 +198,7 @@ function SectionHeader({
   count: number;
   action?: () => void;
   actionIcon?: "plus" | "minus";
+  revertAction?: () => void;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -187,21 +223,38 @@ function SectionHeader({
         <SectionChevron className="w-3 h-3" />
         {title} ({count})
       </span>
-      {action && actionIcon && (
-        <Tooltip text={tooltipText} position="right">
-          <button
-            type="button"
-            aria-label={tooltipText}
-            onClick={(e) => {
-              e.stopPropagation();
-              action?.();
-            }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
-          >
-            <ActionIcon className="w-3 h-3" />
-          </button>
-        </Tooltip>
-      )}
+      <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {revertAction && (
+          <Tooltip text="Discard all" position="right">
+            <button
+              type="button"
+              aria-label="Discard all"
+              onClick={(e) => {
+                e.stopPropagation();
+                revertAction();
+              }}
+              className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+            >
+              <Undo2 className="w-3 h-3" />
+            </button>
+          </Tooltip>
+        )}
+        {action && actionIcon && (
+          <Tooltip text={tooltipText} position="right">
+            <button
+              type="button"
+              aria-label={tooltipText}
+              onClick={(e) => {
+                e.stopPropagation();
+                action();
+              }}
+              className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+            >
+              <ActionIcon className="w-3 h-3" />
+            </button>
+          </Tooltip>
+        )}
+      </span>
     </div>
   );
 }
@@ -212,6 +265,10 @@ function FolderContents({
   onSelectFile,
   depth,
   onAction,
+  onActionBatch,
+  onRevert,
+  onRevertBatch,
+  actionType,
   showAction,
 }: {
   node: FolderNode;
@@ -219,6 +276,10 @@ function FolderContents({
   onSelectFile: (path: string) => void;
   depth: number;
   onAction?: (path: string) => void;
+  onActionBatch?: (paths: string[]) => void;
+  onRevert?: (path: string) => void;
+  onRevertBatch?: (paths: string[]) => void;
+  actionType?: "stage" | "unstage";
   showAction?: boolean;
 }) {
   return (
@@ -231,6 +292,10 @@ function FolderContents({
           onSelectFile={onSelectFile}
           depth={depth}
           onAction={onAction}
+          onActionBatch={onActionBatch}
+          onRevert={onRevert}
+          onRevertBatch={onRevertBatch}
+          actionType={actionType}
           showAction={showAction}
         />
       ))}
@@ -242,6 +307,7 @@ function FolderContents({
           onSelect={onSelectFile}
           depth={depth}
           onAction={onAction}
+          onRevert={onRevert}
           showAction={showAction}
         />
       ))}
@@ -255,6 +321,10 @@ function FolderSection({
   onSelectFile,
   depth,
   onAction,
+  onActionBatch,
+  onRevert,
+  onRevertBatch,
+  actionType,
   showAction,
 }: {
   node: FolderNode;
@@ -262,24 +332,65 @@ function FolderSection({
   onSelectFile: (path: string) => void;
   depth: number;
   onAction?: (path: string) => void;
+  onActionBatch?: (paths: string[]) => void;
+  onRevert?: (path: string) => void;
+  onRevertBatch?: (paths: string[]) => void;
+  actionType?: "stage" | "unstage";
   showAction?: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
   const Chevron = expanded ? ChevronDown : ChevronRight;
   const FolderIcon = expanded ? FolderOpen : Folder;
+  const folderPaths = useMemo(() => collectFilePaths(node), [node]);
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setExpanded((prev) => !prev)}
-        className="w-full text-left px-3 py-1 text-[11px] flex items-center gap-1.5 text-[#6b7280] hover:text-[#9ca3af] hover:bg-white/[0.03] transition-colors duration-100"
-        style={{ paddingLeft: `${depth * 12 + 12}px` }}
+      <div
+        className="group flex items-center text-[11px] text-[#6b7280] hover:text-[#9ca3af] hover:bg-white/[0.03] transition-colors duration-100"
+        style={{ paddingLeft: `${depth * 12 + 12}px`, paddingRight: "12px" }}
       >
-        <Chevron className="w-3 h-3 flex-shrink-0" />
-        <FolderIcon className="w-3 h-3 flex-shrink-0 text-[#6b7280]" />
-        <span className="truncate">{node.name}</span>
-      </button>
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className="flex-1 min-w-0 flex items-center gap-1.5 py-1 text-left"
+        >
+          <Chevron className="w-3 h-3 flex-shrink-0" />
+          <FolderIcon className="w-3 h-3 flex-shrink-0 text-[#6b7280]" />
+          <span className="truncate">{node.name}</span>
+        </button>
+        {showAction && (onActionBatch || onRevertBatch) && (
+          <span className="flex-shrink-0 hidden group-hover:flex items-center gap-0.5">
+            {onRevertBatch && (
+              <Tooltip text="Discard" position="right">
+                <button
+                  type="button"
+                  aria-label={`Discard ${node.name}`}
+                  onClick={() => onRevertBatch(folderPaths)}
+                  className="flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                >
+                  <Undo2 className="w-3 h-3" />
+                </button>
+              </Tooltip>
+            )}
+            {onActionBatch && (
+              <Tooltip text={actionType === "unstage" ? "Unstage" : "Stage"} position="right">
+                <button
+                  type="button"
+                  aria-label={`${actionType === "unstage" ? "Unstage" : "Stage"} ${node.name}`}
+                  onClick={() => onActionBatch(folderPaths)}
+                  className="flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                >
+                  {actionType === "unstage" ? (
+                    <Minus className="w-3 h-3" />
+                  ) : (
+                    <Plus className="w-3 h-3" />
+                  )}
+                </button>
+              </Tooltip>
+            )}
+          </span>
+        )}
+      </div>
       {expanded && (
         <FolderContents
           node={node}
@@ -287,6 +398,10 @@ function FolderSection({
           onSelectFile={onSelectFile}
           depth={depth + 1}
           onAction={onAction}
+          onActionBatch={onActionBatch}
+          onRevert={onRevert}
+          onRevertBatch={onRevertBatch}
+          actionType={actionType}
           showAction={showAction}
         />
       )}
@@ -307,6 +422,7 @@ function FileRow({
   onSelect,
   depth,
   onAction,
+  onRevert,
   showAction,
 }: {
   file: DiffFileInfo;
@@ -314,6 +430,7 @@ function FileRow({
   onSelect: (key: string) => void;
   depth: number;
   onAction?: (path: string) => void;
+  onRevert?: (path: string) => void;
   showAction?: boolean;
 }) {
   const color = DIFF_STATUS_COLORS[file.status];
@@ -348,9 +465,9 @@ function FileRow({
       <span className="min-w-0 flex-1 truncate" title={file.path}>
         {fileName}
       </span>
-      {/* Right side: diff stats or stage/unstage action, swapped on hover */}
+      {/* Right side: diff stats or stage/unstage + revert actions, swapped on hover */}
       {showAction && onAction ? (
-        <span className="flex-shrink-0 flex items-center justify-end w-12 h-4">
+        <span className="flex-shrink-0 flex items-center justify-end w-16 h-4">
           {/* Diff stats — visible by default, hidden on hover */}
           <span className="group-hover:hidden flex gap-1 text-[10px] font-mono">
             {!file.isBinary && file.linesAdded > 0 && (
@@ -360,20 +477,37 @@ function FileRow({
               <span style={{ color: palette.red }}>-{file.linesRemoved}</span>
             )}
           </span>
-          {/* Stage/unstage button — hidden by default, shown on hover */}
-          <Tooltip text={file.staged ? "Unstage" : "Stage"} position="right">
-            <button
-              type="button"
-              aria-label={file.staged ? "Unstage" : "Stage"}
-              onClick={(e) => {
-                e.stopPropagation();
-                onAction(file.path);
-              }}
-              className="hidden group-hover:flex group-focus-within:flex focus:flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08] focus:text-white focus:bg-white/[0.08]"
-            >
-              {file.staged ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-            </button>
-          </Tooltip>
+          {/* Action buttons — hidden by default, shown on hover */}
+          <span className="hidden group-hover:flex group-focus-within:flex items-center gap-0.5">
+            {onRevert && (
+              <Tooltip text="Discard" position="right">
+                <button
+                  type="button"
+                  aria-label="Discard"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRevert(file.path);
+                  }}
+                  className="flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08] focus:text-white focus:bg-white/[0.08]"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                </button>
+              </Tooltip>
+            )}
+            <Tooltip text={file.staged ? "Unstage" : "Stage"} position="right">
+              <button
+                type="button"
+                aria-label={file.staged ? "Unstage" : "Stage"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction(file.path);
+                }}
+                className="flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08] focus:text-white focus:bg-white/[0.08]"
+              >
+                {file.staged ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+              </button>
+            </Tooltip>
+          </span>
         </span>
       ) : (
         !file.isBinary &&

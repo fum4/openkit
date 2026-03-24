@@ -4356,3 +4356,30 @@ export async function unstageAllFiles(
     return { success: false, error: err instanceof Error ? err.message : "Failed to unstage all" };
   }
 }
+
+export async function revertFiles(
+  worktreeId: string,
+  paths: string[],
+  staged: boolean,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/revert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths, staged }),
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    log.error("Failed to revert files", {
+      domain: "api",
+      worktreeId,
+      paths,
+      staged,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { success: false, error: err instanceof Error ? err.message : "Failed to revert files" };
+  }
+}

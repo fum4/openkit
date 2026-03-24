@@ -1,4 +1,4 @@
-import { FileText, GitBranch, Link, MessageCircle, Plus, X } from "lucide-react";
+import { FileText, GitBranch, Link, MessageCircle, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
@@ -43,14 +43,6 @@ interface DetailPanelScopeCache {
   geminiTabLabels: Record<string, string>;
   opencodeTabLabels: Record<string, string>;
   lastProcessedNotificationTabRequestId: number | null;
-}
-
-function deriveMoveToWorktreeBranch(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
 }
 
 function formatRelativeTime(date: Date): string {
@@ -132,6 +124,8 @@ interface NotificationTabRequest {
 
 interface DetailPanelProps {
   worktree: WorktreeInfo | null;
+  /** All worktrees for the "move to existing" picker (excludes root). */
+  worktrees?: WorktreeInfo[];
   onUpdate: () => void;
   onDeleted: () => void;
   onSelectWorktree?: (worktreeId: string) => void;
@@ -170,8 +164,6 @@ interface DetailPanelProps {
     prompt?: string;
     tabLabel?: string;
   }) => void;
-  /** All worktrees for the "move to existing" picker (excludes root). */
-  worktrees?: WorktreeInfo[];
   showDiffStats?: boolean;
   hookUpdateKey?: number;
   claudeLaunchRequest?: AgentLaunchRequest | null;
@@ -299,10 +291,10 @@ function AddAgentDropdown({
 
 export function DetailPanel({
   worktree,
+  worktrees: allWorktrees,
   onUpdate,
   onDeleted,
   onSelectWorktree,
-  worktrees: allWorktrees,
   onNavigateToIntegrations,
   onNavigateToHooks,
   onSelectJiraIssue,
@@ -338,19 +330,25 @@ export function DetailPanel({
   const [showCreatePrInput, setShowCreatePrInput] = useState(false);
   const [prTitle, setPrTitle] = useState("");
   const [showMoveToWorktreeInput, setShowMoveToWorktreeInput] = useState(false);
+  const [moveToWorktreeBranch, setMoveToWorktreeBranch] = useState("");
+  const [moveToWorktreeNameRaw, setMoveToWorktreeNameRaw] = useState("");
+  const [moveToWorktreeNameManuallyEdited, setMoveToWorktreeNameManuallyEdited] = useState(false);
+  const moveToWorktreeName = moveToWorktreeNameManuallyEdited
+    ? moveToWorktreeNameRaw
+    : moveToWorktreeBranch.trim();
   const [moveToWorktreeMode, setMoveToWorktreeMode] = useState<"new" | "existing">("new");
-  const [moveToWorktreeName, setMoveToWorktreeName] = useState("");
-  const [moveToWorktreeBranchRaw, setMoveToWorktreeBranchRaw] = useState("");
-  const [moveToWorktreeBranchManuallyEdited, setMoveToWorktreeBranchManuallyEdited] =
-    useState(false);
-  const moveToWorktreeBranch = moveToWorktreeBranchManuallyEdited
-    ? moveToWorktreeBranchRaw
-    : deriveMoveToWorktreeBranch(moveToWorktreeName);
   const [selectedExistingWorktreeId, setSelectedExistingWorktreeId] = useState<string | null>(null);
-  const existingWorktrees = useMemo(
-    () => (allWorktrees ?? []).filter((w) => w.id !== ROOT_WORKTREE_ID && w.status !== "creating"),
-    [allWorktrees],
-  );
+  const [existingWorktreeSearch, setExistingWorktreeSearch] = useState("");
+  const existingWorktrees = useMemo(() => {
+    const all = (allWorktrees ?? []).filter(
+      (w) => w.id !== ROOT_WORKTREE_ID && w.status !== "creating",
+    );
+    const query = existingWorktreeSearch.toLowerCase().trim();
+    if (!query) return all;
+    return all.filter(
+      (w) => w.id.toLowerCase().includes(query) || w.branch.toLowerCase().includes(query),
+    );
+  }, [allWorktrees, existingWorktreeSearch]);
   const [isGitLoading, setIsGitLoading] = useState(false);
   const [isRecoveringLocalTask, setIsRecoveringLocalTask] = useState(false);
   const [gitAction, setGitAction] = useState<"commit" | "push" | "pr" | null>(null);
@@ -366,6 +364,7 @@ export function DetailPanel({
   const [tabPerWorktree, setTabPerWorktree] = useState<Record<string, WorktreeTab>>(() => ({
     ...initialScopeCache.tabCache,
   }));
+  const [gitOpKey, setGitOpKey] = useState(0);
   const [openTerminals, setOpenTerminals] = useState<Set<string>>(new Set());
   const [openClaudeTabs, setOpenClaudeTabs] = useState<Set<string>>(
     () => new Set(initialScopeCache.openClaudeTabs),
@@ -1649,6 +1648,7 @@ export function DetailPanel({
       if (result.success) {
         setShowCommitInput(false);
         setCommitMessage("");
+        setGitOpKey((k) => k + 1);
 
         if (pushAfterCommit) {
           setGitAction("push");
@@ -1676,8 +1676,11 @@ export function DetailPanel({
     setError(null);
     try {
       const result = await api.pushChanges(worktree.id);
-      if (!result.success)
+      if (result.success) {
+        setGitOpKey((k) => k + 1);
+      } else {
         showPersistentErrorToast(result.error || "Failed to push", { scope: "detail-panel" });
+      }
       onUpdate();
     } finally {
       setIsGitLoading(false);
@@ -1716,9 +1719,7 @@ export function DetailPanel({
           setShowMoveToWorktreeInput(false);
           setSelectedExistingWorktreeId(null);
           onUpdate();
-          if (onSelectWorktree) {
-            onSelectWorktree(selectedExistingWorktreeId);
-          }
+          onSelectWorktree?.(selectedExistingWorktreeId);
         } else {
           setError(result.error || "Failed to move changes to worktree");
           onUpdate();
@@ -1729,23 +1730,21 @@ export function DetailPanel({
       return;
     }
 
-    const resolvedName = moveToWorktreeName.trim();
-    const resolvedBranch = moveToWorktreeBranch.trim() || deriveMoveToWorktreeBranch(resolvedName);
-    if (!resolvedName || !resolvedBranch) return;
+    const resolvedBranch = moveToWorktreeBranch.trim();
+    if (!resolvedBranch) return;
+    const resolvedName = moveToWorktreeName.trim() || resolvedBranch;
     setIsGitLoading(true);
     setError(null);
     try {
       const result = await api.moveToWorktree(resolvedBranch, resolvedName);
       if (result.success) {
         setShowMoveToWorktreeInput(false);
-        setMoveToWorktreeName("");
-        setMoveToWorktreeBranchRaw("");
-        setMoveToWorktreeBranchManuallyEdited(false);
+        setMoveToWorktreeBranch("");
+        setMoveToWorktreeNameRaw("");
+        setMoveToWorktreeNameManuallyEdited(false);
         onUpdate();
         const newId = result.worktreeId ?? result.worktree?.id;
-        if (newId && onSelectWorktree) {
-          onSelectWorktree(newId);
-        }
+        if (newId) onSelectWorktree?.(newId);
       } else {
         setError(result.error || "Failed to move changes to worktree");
         onUpdate();
@@ -2280,7 +2279,7 @@ export function DetailPanel({
                 disabled={
                   isGitLoading ||
                   (moveToWorktreeMode === "new"
-                    ? !moveToWorktreeName.trim()
+                    ? !moveToWorktreeBranch.trim()
                     : !selectedExistingWorktreeId)
                 }
                 className={`px-3 py-1.5 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-lg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-default transition-colors duration-150 active:scale-[0.98]`}
@@ -2326,37 +2325,37 @@ export function DetailPanel({
                 </p>
                 <div>
                   <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
-                    Worktree name
-                  </label>
-                  <input
-                    type="text"
-                    value={moveToWorktreeName}
-                    onChange={(e) => setMoveToWorktreeName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") setShowMoveToWorktreeInput(false);
-                    }}
-                    placeholder="my-feature"
-                    className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
                     Branch name
                   </label>
                   <input
                     type="text"
                     value={moveToWorktreeBranch}
-                    onChange={(e) => {
-                      setMoveToWorktreeBranchRaw(e.target.value);
-                      setMoveToWorktreeBranchManuallyEdited(true);
+                    onChange={(e) => setMoveToWorktreeBranch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setShowMoveToWorktreeInput(false);
                     }}
-                    placeholder="Defaults to worktree name"
+                    placeholder="feat/my-feature"
                     className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
+                    autoFocus
                   />
                   <p className={`mt-1 text-[11px] ${text.dimmed}`}>
                     Will be created from the base branch if it doesn't exist
                   </p>
+                </div>
+                <div>
+                  <label className={`block text-xs font-medium ${text.muted} mb-1.5`}>
+                    Worktree name
+                  </label>
+                  <input
+                    type="text"
+                    value={moveToWorktreeName}
+                    onChange={(e) => {
+                      setMoveToWorktreeNameRaw(e.target.value);
+                      setMoveToWorktreeNameManuallyEdited(true);
+                    }}
+                    placeholder="Defaults to branch name"
+                    className={`w-full px-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
+                  />
                 </div>
               </>
             ) : (
@@ -2365,7 +2364,21 @@ export function DetailPanel({
                   Moves uncommitted changes from the root to an existing worktree. Conflicts will be
                   left for you to resolve.
                 </p>
-                <div className="max-h-48 overflow-y-auto rounded-md border border-white/[0.06]">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#4b5563] pointer-events-none" />
+                  <input
+                    type="text"
+                    value={existingWorktreeSearch}
+                    onChange={(e) => setExistingWorktreeSearch(e.target.value)}
+                    placeholder="Search worktrees..."
+                    className={`w-full pl-7 pr-2.5 py-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] ${input.text} placeholder-[#4b5563] outline-none focus:bg-white/[0.05] focus:border-white/[0.15] transition-all text-xs`}
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-md border border-white/[0.06] bg-white/[0.015]">
+                  {existingWorktrees.length === 0 && (
+                    <div className={`px-3 py-2 text-[11px] ${text.dimmed}`}>No matches</div>
+                  )}
                   {existingWorktrees.map((wt) => (
                     <button
                       key={wt.id}
@@ -2481,7 +2494,11 @@ export function DetailPanel({
           onAgentExit={(exitCode) => handleOpenCodeExit(wtId, exitCode)}
         />
       ))}
-      <DiffViewerTab worktree={worktree} visible={activeTab === "changes" && !isCreating} />
+      <DiffViewerTab
+        worktree={worktree}
+        visible={activeTab === "changes" && !isCreating}
+        gitOpKey={gitOpKey}
+      />
       <HooksTab
         worktreeId={worktree.id}
         visible={activeTab === "hooks" && !isCreating}

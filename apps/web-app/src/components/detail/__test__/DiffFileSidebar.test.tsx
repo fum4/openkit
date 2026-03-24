@@ -240,5 +240,139 @@ describe("DiffFileSidebar", () => {
       expect(onStageFile).toHaveBeenCalledTimes(1);
       expect(onSelectFile).not.toHaveBeenCalled();
     });
+
+    it("calls onRevertFile with staged=true when discard button is clicked for a staged file", async () => {
+      const onRevertFile = vi.fn();
+      const user = userEvent.setup();
+      const files = [stagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onUnstageFile={vi.fn()}
+          onRevertFile={onRevertFile}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+
+      expect(onRevertFile).toHaveBeenCalledWith(stagedFile.path, true);
+    });
+
+    it("calls onRevertFile with staged=false when discard button is clicked for an unstaged file", async () => {
+      const onRevertFile = vi.fn();
+      const user = userEvent.setup();
+      const files = [unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageFile={vi.fn()}
+          onRevertFile={onRevertFile}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+
+      expect(onRevertFile).toHaveBeenCalledWith(unstagedFile.path, false);
+    });
+
+    it("calls onRevertAllStaged when discard all button is clicked in staged section", async () => {
+      const onRevertAllStaged = vi.fn();
+      const user = userEvent.setup();
+      const files = [stagedFile, unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onRevertAllStaged={onRevertAllStaged}
+        />,
+      );
+
+      const discardAllButtons = screen.getAllByRole("button", { name: "Discard all" });
+      await user.click(discardAllButtons[0]);
+
+      expect(onRevertAllStaged).toHaveBeenCalledTimes(1);
+    });
+
+    it("calls onRevertAllUnstaged when discard all button is clicked in changes section", async () => {
+      const onRevertAllUnstaged = vi.fn();
+      const user = userEvent.setup();
+      const files = [unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onRevertAllUnstaged={onRevertAllUnstaged}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard all" }));
+
+      expect(onRevertAllUnstaged).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not show discard buttons when onRevert props are omitted", () => {
+      const files = [stagedFile, unstagedFile];
+
+      render(<DiffFileSidebar {...defaultProps} files={files} showStagingActions />);
+
+      expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Discard all" })).not.toBeInTheDocument();
+    });
+
+    it("calls onStagePaths with folder file paths when folder stage button is clicked", async () => {
+      const onStagePaths = vi.fn();
+      const user = userEvent.setup();
+      const files = [
+        makeFile({ path: "src/app.ts", staged: false }),
+        makeFile({ path: "src/index.ts", staged: false }),
+      ];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageFile={vi.fn()}
+          onStagePaths={onStagePaths}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Stage src" }));
+
+      expect(onStagePaths).toHaveBeenCalledWith(["src/app.ts", "src/index.ts"]);
+    });
+
+    it("calls onRevertPaths with folder file paths when folder discard button is clicked", async () => {
+      const onRevertPaths = vi.fn();
+      const user = userEvent.setup();
+      const files = [
+        makeFile({ path: "src/app.ts", staged: false }),
+        makeFile({ path: "src/index.ts", staged: false }),
+      ];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageFile={vi.fn()}
+          onRevertPaths={onRevertPaths}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard src" }));
+
+      expect(onRevertPaths).toHaveBeenCalledWith(["src/app.ts", "src/index.ts"], false);
+    });
   });
 });

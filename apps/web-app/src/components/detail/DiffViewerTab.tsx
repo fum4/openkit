@@ -16,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   Rows2,
+  Undo2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -28,6 +29,7 @@ import {
   unstageFiles,
   stageAllFiles,
   unstageAllFiles,
+  revertFiles,
 } from "../../hooks/api";
 import { useServerUrlOptional } from "../../contexts/ServerContext";
 import { log } from "../../logger";
@@ -44,6 +46,8 @@ import { DiffFileSection } from "./DiffFileSection";
 interface DiffViewerTabProps {
   worktree: WorktreeInfo;
   visible: boolean;
+  /** Increment to trigger an immediate re-fetch (e.g. after commit/push). */
+  gitOpKey?: number;
 }
 
 /** Unique key for a file entry — distinguishes staged/unstaged versions of the same path. */
@@ -53,7 +57,7 @@ function fileKey(file: DiffFileInfo): string {
   return file.path;
 }
 
-export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
+export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProps) {
   const serverUrl = useServerUrlOptional();
   const [files, setFiles] = useState<DiffFileInfo[]>([]);
   const filesRef = useRef(files);
@@ -184,6 +188,12 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     if (!visible || showMergedDiff) return;
     fetchFiles();
   }, [worktree.hasUncommitted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Immediate refresh after git operations (commit, push, etc.)
+  useEffect(() => {
+    if (!gitOpKey || showMergedDiff) return;
+    fetchFiles();
+  }, [gitOpKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll for changes every 3s while the tab is visible and not showing merged diff
   useEffect(() => {
@@ -325,6 +335,55 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     fetchFiles();
   }, [worktree.id, serverUrl, fetchFiles]);
 
+  const handleStagePaths = useCallback(
+    async (paths: string[]) => {
+      const res = await stageFiles(worktree.id, paths, serverUrl);
+      if (!res.success)
+        showPersistentErrorToast(res.error || "Failed to stage files", { scope: "diff" });
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
+
+  const handleUnstagePaths = useCallback(
+    async (paths: string[]) => {
+      const res = await unstageFiles(worktree.id, paths, serverUrl);
+      if (!res.success)
+        showPersistentErrorToast(res.error || "Failed to unstage files", { scope: "diff" });
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
+
+  const handleRevertPaths = useCallback(
+    async (paths: string[], staged: boolean) => {
+      const count = paths.length;
+      if (
+        !window.confirm(
+          `Discard changes to ${count} ${count === 1 ? "file" : "files"}? This cannot be undone.`,
+        )
+      )
+        return;
+      const res = await revertFiles(worktree.id, paths, staged, serverUrl);
+      if (!res.success)
+        showPersistentErrorToast(res.error || "Failed to revert files", { scope: "diff" });
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
+
+  const handleRevertFile = useCallback(
+    async (filePath: string, staged: boolean) => {
+      const fileName = filePath.split("/").pop() ?? filePath;
+      if (!window.confirm(`Discard changes to ${fileName}? This cannot be undone.`)) return;
+      const res = await revertFiles(worktree.id, [filePath], staged, serverUrl);
+      if (!res.success)
+        showPersistentErrorToast(res.error || "Failed to revert file", { scope: "diff" });
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
+
   const setFileRef = useCallback((path: string, el: HTMLDivElement | null) => {
     if (el) {
       fileRefs.current.set(path, el);
@@ -365,6 +424,40 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   const showStagingActions = !showMergedDiff && !includeCommitted;
   const stagedFiles = useMemo(() => files.filter((f) => f.staged === true), [files]);
   const unstagedFiles = useMemo(() => files.filter((f) => f.staged !== true), [files]);
+
+  const handleRevertAllStaged = useCallback(async () => {
+    if (stagedFiles.length === 0) return;
+    if (!window.confirm(`Discard all ${stagedFiles.length} staged changes? This cannot be undone.`))
+      return;
+    const res = await revertFiles(
+      worktree.id,
+      stagedFiles.map((f) => f.path),
+      true,
+      serverUrl,
+    );
+    if (!res.success)
+      showPersistentErrorToast(res.error || "Failed to revert staged files", { scope: "diff" });
+    fetchFiles();
+  }, [worktree.id, serverUrl, fetchFiles, stagedFiles]);
+
+  const handleRevertAllUnstaged = useCallback(async () => {
+    if (unstagedFiles.length === 0) return;
+    if (
+      !window.confirm(
+        `Discard all ${unstagedFiles.length} unstaged changes? This cannot be undone.`,
+      )
+    )
+      return;
+    const res = await revertFiles(
+      worktree.id,
+      unstagedFiles.map((f) => f.path),
+      false,
+      serverUrl,
+    );
+    if (!res.success)
+      showPersistentErrorToast(res.error || "Failed to revert unstaged files", { scope: "diff" });
+    fetchFiles();
+  }, [worktree.id, serverUrl, fetchFiles, unstagedFiles]);
 
   const prBaseSha = prDiffQuery.data?.baseSha;
   const prMergeSha = prDiffQuery.data?.mergeSha;
@@ -493,6 +586,12 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                 onUnstageFile={handleUnstageFile}
                 onStageAll={handleStageAll}
                 onUnstageAll={handleUnstageAll}
+                onRevertFile={handleRevertFile}
+                onRevertAllStaged={handleRevertAllStaged}
+                onRevertAllUnstaged={handleRevertAllUnstaged}
+                onStagePaths={handleStagePaths}
+                onUnstagePaths={handleUnstagePaths}
+                onRevertPaths={handleRevertPaths}
                 showStagingActions={!showMergedDiff && !includeCommitted}
               />
             </div>
@@ -551,18 +650,32 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                       )}
                       Staged Changes ({stagedFiles.length})
                     </span>
-                    <Tooltip text="Unstage all" position="left">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleUnstageAll();
-                        }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                    </Tooltip>
+                    <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Tooltip text="Discard all" position="left">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRevertAllStaged();
+                          }}
+                          className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                        >
+                          <Undo2 className="w-3 h-3" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip text="Unstage all" position="left">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUnstageAll();
+                          }}
+                          className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                      </Tooltip>
+                    </span>
                   </div>
                   {stagedSectionExpanded &&
                     stagedFiles.map((file) => (
@@ -581,6 +694,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                         refreshKey={refreshKey}
                         stageAction={() => handleUnstageFile(file.path)}
                         stageActionType="unstage"
+                        revertAction={() => handleRevertFile(file.path, true)}
                       />
                     ))}
                 </>
@@ -605,18 +719,32 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                   )}
                   Changes ({unstagedFiles.length})
                 </span>
-                <Tooltip text="Stage all" position="left">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleStageAll();
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </Tooltip>
+                <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Tooltip text="Discard all" position="left">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRevertAllUnstaged();
+                      }}
+                      className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Stage all" position="left">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStageAll();
+                      }}
+                      className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </Tooltip>
+                </span>
               </div>
               {unstagedSectionExpanded &&
                 unstagedFiles.map((file) => (
@@ -635,6 +763,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                     refreshKey={refreshKey}
                     stageAction={() => handleStageFile(file.path)}
                     stageActionType="stage"
+                    revertAction={() => handleRevertFile(file.path, false)}
                   />
                 ))}
             </>
