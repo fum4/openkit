@@ -22,7 +22,15 @@ import { toErrorMessage } from "@openkit/shared/errors";
 import { copyEnvFiles } from "@openkit/shared/env-files";
 import { log } from "./logger";
 import { generateBranchName } from "./branch-name";
-import { getGitRoot, getWorktreeBranch, validateBranchName } from "@openkit/shared/git";
+import {
+  getGitRoot,
+  getWorktreeBranch,
+  hasUncommittedChanges,
+  stashApply,
+  stashDrop,
+  stashPush,
+  validateBranchName,
+} from "@openkit/shared/git";
 import { GitHubManager } from "@openkit/integrations/github/github-manager";
 import { loadJiraCredentials, loadJiraProjectConfig } from "@openkit/integrations/jira/credentials";
 import {
@@ -1557,40 +1565,30 @@ export class WorktreeManager {
     const targetPath = resolved.worktree.path;
 
     // Check there are uncommitted changes to move
-    let hasUncommitted = false;
+    let uncommitted: boolean;
     try {
-      const { stdout } = await execFile("git", ["status", "--porcelain"], {
-        cwd: gitRoot,
-        encoding: "utf-8",
-      });
-      hasUncommitted = stdout.trim().length > 0;
+      uncommitted = await hasUncommittedChanges(gitRoot);
     } catch (err) {
-      log.warn("Could not check uncommitted changes", {
+      const error = err instanceof Error ? err.message : String(err);
+      log.error("Failed to inspect root worktree before move", {
         domain: "worktree",
-        error: err instanceof Error ? err.message : String(err),
+        targetId: resolved.worktreeId,
+        error,
       });
+      return {
+        success: false,
+        error: `Failed to inspect root worktree status: ${error}`,
+      };
     }
 
-    if (!hasUncommitted) {
+    if (!uncommitted) {
       return { success: false, error: "No uncommitted changes to move" };
     }
 
     // Stash changes on root (including untracked files)
-    let stashRef: string | null = null;
+    let stashRef: string | null;
     try {
-      const { stdout } = await execFile(
-        "git",
-        ["stash", "push", "--include-untracked", "-m", `openkit-move-to-${resolved.worktreeId}`],
-        { cwd: gitRoot, encoding: "utf-8" },
-      );
-      if (!stdout.includes("No local changes")) {
-        const { stdout: refOut } = await execFile(
-          "git",
-          ["stash", "list", "--max-count=1", "--format=%H"],
-          { cwd: gitRoot, encoding: "utf-8" },
-        );
-        stashRef = refOut.trim() || null;
-      }
+      stashRef = await stashPush(gitRoot, `openkit-move-to-${resolved.worktreeId}`);
     } catch (error) {
       return {
         success: false,
@@ -1603,60 +1601,49 @@ export class WorktreeManager {
     }
 
     // Apply stash in the target worktree — conflicts are left for the user to resolve
-    try {
-      await execFile("git", ["stash", "apply", stashRef], {
-        cwd: targetPath,
-        encoding: "utf-8",
+    const applyResult = await stashApply(targetPath, stashRef);
+
+    if (!applyResult.applied) {
+      // Real failure — try to restore stash on root
+      log.error("Failed to apply stash in target worktree", {
+        domain: "worktree",
+        targetId: resolved.worktreeId,
+        stashRef,
+        error: applyResult.error,
       });
-    } catch (err) {
-      // git stash apply exits non-zero on conflicts, but the changes are still applied.
-      // Check if it's a real failure or just conflicts.
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (errMsg.includes("CONFLICT") || errMsg.includes("conflict")) {
-        log.info("Stash applied with conflicts in target worktree", {
+      const restoreResult = await stashApply(gitRoot, stashRef);
+      if (!restoreResult.applied) {
+        log.error("Failed to restore stash on root after failed apply", {
           domain: "worktree",
-          targetId: resolved.worktreeId,
           stashRef,
+          error: restoreResult.error,
         });
-      } else {
-        // Real failure — restore stash on root
-        log.error("Failed to apply stash in target worktree", {
-          domain: "worktree",
-          targetId: resolved.worktreeId,
-          stashRef,
-          error: errMsg,
-        });
-        try {
-          await execFile("git", ["stash", "apply", stashRef], {
-            cwd: gitRoot,
-            encoding: "utf-8",
-          });
-        } catch (restoreErr) {
-          log.error("Failed to restore stash on root after failed apply", {
-            domain: "worktree",
-            stashRef,
-            error: restoreErr instanceof Error ? restoreErr.message : String(restoreErr),
-          });
-        }
-        return {
-          success: false,
-          error: `Failed to apply changes in worktree: ${errMsg}`,
-        };
       }
+      return {
+        success: false,
+        error: `Failed to apply changes in worktree: ${applyResult.error}`,
+      };
     }
 
-    // Drop the stash now that it's been successfully applied
-    try {
-      await execFile("git", ["stash", "drop", stashRef], {
-        cwd: gitRoot,
-        encoding: "utf-8",
-      });
-    } catch (dropErr) {
-      log.warn("Failed to drop stash after successful apply", {
+    if (applyResult.hasConflicts) {
+      log.info("Stash applied with conflicts in target worktree", {
         domain: "worktree",
+        targetId: resolved.worktreeId,
         stashRef,
-        error: dropErr instanceof Error ? dropErr.message : String(dropErr),
       });
+    }
+
+    // Drop the stash only when cleanly applied — keep it on conflicts so the user has a clean copy
+    if (!applyResult.hasConflicts) {
+      try {
+        await stashDrop(gitRoot, stashRef);
+      } catch (dropErr) {
+        log.warn("Failed to drop stash after successful apply", {
+          domain: "worktree",
+          stashRef,
+          error: dropErr instanceof Error ? dropErr.message : String(dropErr),
+        });
+      }
     }
 
     // Notify listeners so the UI updates

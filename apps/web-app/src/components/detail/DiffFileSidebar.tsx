@@ -223,7 +223,7 @@ function SectionHeader({
         <SectionChevron className="w-3 h-3" />
         {title} ({count})
       </span>
-      <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
         {revertAction && (
           <Tooltip text="Discard all" position="right">
             <button
@@ -359,7 +359,7 @@ function FolderSection({
           <span className="truncate">{node.name}</span>
         </button>
         {showAction && (onActionBatch || onRevertBatch) && (
-          <span className="flex-shrink-0 hidden group-hover:flex items-center gap-0.5">
+          <span className="flex-shrink-0 hidden group-hover:flex group-focus-within:flex items-center gap-0.5">
             {onRevertBatch && (
               <Tooltip text="Discard" position="right">
                 <button

@@ -114,6 +114,12 @@ export async function revertFiles(
   paths: string[],
   staged: boolean,
 ): Promise<string[]> {
+  // Defense-in-depth: validate paths even if the caller already checked
+  const invalidPath = validatePathsWithinCwd(cwd, paths);
+  if (invalidPath) {
+    return [`${invalidPath}: path traversal not allowed`];
+  }
+
   if (staged) {
     // Batch first — works for all files that exist in HEAD
     try {
@@ -345,6 +351,67 @@ export async function pushBranch(
       error: err instanceof Error ? err.message : "Push failed",
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Stash operations
+// ---------------------------------------------------------------------------
+
+/** Check whether the working tree has uncommitted changes (staged, unstaged, or untracked). */
+export async function hasUncommittedChanges(cwd: string): Promise<boolean> {
+  const { stdout } = await execFileAsync("git", ["status", "--porcelain"], {
+    cwd,
+    encoding: "utf-8",
+  });
+  return stdout.trim().length > 0;
+}
+
+/**
+ * Stash all changes (including untracked files) with a message.
+ * Returns the stash ref (commit SHA) on success, or null if nothing was stashed.
+ */
+export async function stashPush(cwd: string, message: string): Promise<string | null> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["stash", "push", "--include-untracked", "-m", message],
+    { cwd, encoding: "utf-8" },
+  );
+  if (stdout.includes("No local changes")) {
+    return null;
+  }
+  const { stdout: refOut } = await execFileAsync(
+    "git",
+    ["stash", "list", "--max-count=1", "--format=%H"],
+    { cwd, encoding: "utf-8" },
+  );
+  return refOut.trim() || null;
+}
+
+/**
+ * Apply a stash ref to a working tree.
+ * Returns `{ applied: true, hasConflicts }` on success (including partial conflicts),
+ * or `{ applied: false, error }` on total failure.
+ */
+export async function stashApply(
+  cwd: string,
+  stashRef: string,
+): Promise<{ applied: true; hasConflicts: boolean } | { applied: false; error: string }> {
+  try {
+    await execFileAsync("git", ["stash", "apply", stashRef], { cwd, encoding: "utf-8" });
+    return { applied: true, hasConflicts: false };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    // git stash apply exits non-zero on conflicts, but the changes are still applied.
+    if (errMsg.includes("CONFLICT") || errMsg.includes("conflict")) {
+      return { applied: true, hasConflicts: true };
+    }
+    return { applied: false, error: errMsg };
+  }
+}
+
+/** Drop a stash entry by its ref. */
+export async function stashDrop(cwd: string, stashRef: string): Promise<void> {
+  await execFileAsync("git", ["stash", "drop", stashRef], { cwd, encoding: "utf-8" });
 }
 
 // ---------------------------------------------------------------------------

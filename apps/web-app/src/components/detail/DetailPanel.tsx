@@ -334,7 +334,11 @@ export function DetailPanel({
   const [moveToWorktreeNameManuallyEdited, setMoveToWorktreeNameManuallyEdited] = useState(false);
   const moveToWorktreeName = moveToWorktreeNameManuallyEdited
     ? moveToWorktreeNameRaw
-    : moveToWorktreeBranch.trim();
+    : moveToWorktreeBranch
+        .trim()
+        .replace(/[^a-zA-Z0-9 -]/g, "-")
+        .replace(/-{2,}/g, "-")
+        .replace(/^-+|-+$/g, "");
   const [moveToWorktreeMode, setMoveToWorktreeMode] = useState<"new" | "existing">("new");
   const [selectedExistingWorktreeId, setSelectedExistingWorktreeId] = useState<string | null>(null);
   const [existingWorktreeSearch, setExistingWorktreeSearch] = useState("");
@@ -1721,7 +1725,12 @@ export function DetailPanel({
 
     const resolvedBranch = moveToWorktreeBranch.trim();
     if (!resolvedBranch) return;
-    const resolvedName = moveToWorktreeName.trim() || resolvedBranch;
+    const resolvedName =
+      moveToWorktreeName.trim() ||
+      resolvedBranch
+        .replace(/[^a-zA-Z0-9 -]/g, "-")
+        .replace(/-{2,}/g, "-")
+        .replace(/^-+|-+$/g, "");
     setIsGitLoading(true);
     setError(null);
     try {

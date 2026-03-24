@@ -1,3 +1,7 @@
+/**
+ * Modal for creating new worktrees from a branch name, Jira task, or Linear issue.
+ * Handles branch/name input, sanitization, and delegates creation to the API.
+ */
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, GitBranch } from "lucide-react";
 
@@ -129,7 +133,7 @@ export function CreateWorktreeModal({
     setError(null);
 
     const resolvedBranch = branch.trim();
-    const resolvedName = name.trim() || resolvedBranch;
+    const resolvedName = name.trim() || sanitizeWorktreeName(resolvedBranch);
     const result = await api.createWorktree(resolvedBranch, resolvedName);
     setIsCreating(false);
 

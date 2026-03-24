@@ -10,6 +10,7 @@ import {
 import {
   stageFiles,
   unstageFiles,
+  validatePathsWithinCwd,
   stageAll,
   unstageAll,
   getChangedFiles,
@@ -396,6 +397,10 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!paths || !Array.isArray(paths) || paths.length === 0) {
         return c.json({ success: false, error: "paths array is required" }, 400);
       }
+      const invalidPath = validatePathsWithinCwd(resolved.worktree.path, paths);
+      if (invalidPath) {
+        return c.json({ success: false, error: `Invalid path: ${invalidPath}` }, 400);
+      }
       await stageFiles(resolved.worktree.path, paths);
       return c.json({ success: true });
     } catch (error) {
@@ -417,6 +422,10 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       const paths = body.paths;
       if (!paths || !Array.isArray(paths) || paths.length === 0) {
         return c.json({ success: false, error: "paths array is required" }, 400);
+      }
+      const invalidPath = validatePathsWithinCwd(resolved.worktree.path, paths);
+      if (invalidPath) {
+        return c.json({ success: false, error: `Invalid path: ${invalidPath}` }, 400);
       }
       await unstageFiles(resolved.worktree.path, paths);
       return c.json({ success: true });

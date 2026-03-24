@@ -431,9 +431,23 @@ export function registerWorktreeRoutes(
       if (!body.worktreeId) {
         return c.json({ success: false, error: "worktreeId is required" }, 400);
       }
+      worktreeLog.info("Move changes to existing worktree requested", {
+        domain: "worktree",
+        targetWorktreeId: body.worktreeId,
+      });
       const result = await manager.moveChangesToExistingWorktree(body.worktreeId);
+      worktreeLog.info("Move changes to existing worktree completed", {
+        domain: "worktree",
+        targetWorktreeId: body.worktreeId,
+        success: result.success,
+        error: result.success ? undefined : result.error,
+      });
       return c.json(result, result.success ? 200 : 400);
     } catch (error) {
+      worktreeLog.error("Move changes to existing worktree failed", {
+        domain: "worktree",
+        error: error instanceof Error ? error.message : String(error),
+      });
       return c.json(
         {
           success: false,
