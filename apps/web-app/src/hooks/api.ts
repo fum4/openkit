@@ -133,6 +133,30 @@ export async function moveToWorktree(
   }
 }
 
+export async function moveToExistingWorktree(
+  worktreeId: string,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getBaseUrl(serverUrl)}/api/worktrees/move-to-existing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ worktreeId }),
+    });
+    return await res.json();
+  } catch (err) {
+    log.error("Failed to move changes to existing worktree", {
+      domain: "api",
+      worktreeId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to move changes",
+    };
+  }
+}
+
 export async function recoverWorktree(
   id: string,
   action: "reuse" | "recreate",
@@ -4330,5 +4354,32 @@ export async function unstageAllFiles(
       error: err instanceof Error ? err.message : String(err),
     });
     return { success: false, error: err instanceof Error ? err.message : "Failed to unstage all" };
+  }
+}
+
+export async function revertFiles(
+  worktreeId: string,
+  paths: string[],
+  staged: boolean,
+  serverUrl: string | null = null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const base = getBaseUrl(serverUrl);
+    const res = await fetch(`${base}/api/worktrees/${encodeURIComponent(worktreeId)}/revert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths, staged }),
+    });
+    if (!isJsonResponse(res)) return { success: false, error: `Server returned ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    log.error("Failed to revert files", {
+      domain: "api",
+      worktreeId,
+      paths,
+      staged,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { success: false, error: err instanceof Error ? err.message : "Failed to revert files" };
   }
 }

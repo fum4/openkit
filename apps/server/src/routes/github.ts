@@ -7,8 +7,16 @@ import {
   resolveCommandPath,
   withAugmentedPathEnv,
 } from "@openkit/shared/command-path";
+import {
+  stageFiles,
+  unstageFiles,
+  validatePathsWithinCwd,
+  stageAll,
+  unstageAll,
+  getChangedFiles,
+  getFileContent,
+} from "@openkit/shared/git";
 import { configureGitUser, findPRForBranch } from "@openkit/integrations/github/gh-client";
-import { getChangedFiles, getFileContent } from "@openkit/integrations/github/git-diff";
 import { getPrDiffFiles, getPrFileContent } from "@openkit/integrations/github/pr-diff";
 import type { DiffFileInfo } from "@openkit/shared/worktree-types";
 
@@ -389,14 +397,11 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!paths || !Array.isArray(paths) || paths.length === 0) {
         return c.json({ success: false, error: "paths array is required" }, 400);
       }
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          "git",
-          ["add", "--", ...paths],
-          { cwd: resolved.worktree.path, encoding: "utf-8" },
-          (err) => (err ? reject(err) : resolve()),
-        );
-      });
+      const invalidPath = validatePathsWithinCwd(resolved.worktree.path, paths);
+      if (invalidPath) {
+        return c.json({ success: false, error: `Invalid path: ${invalidPath}` }, 400);
+      }
+      await stageFiles(resolved.worktree.path, paths);
       return c.json({ success: true });
     } catch (error) {
       return c.json(
@@ -418,14 +423,11 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!paths || !Array.isArray(paths) || paths.length === 0) {
         return c.json({ success: false, error: "paths array is required" }, 400);
       }
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          "git",
-          ["restore", "--staged", "--", ...paths],
-          { cwd: resolved.worktree.path, encoding: "utf-8" },
-          (err) => (err ? reject(err) : resolve()),
-        );
-      });
+      const invalidPath = validatePathsWithinCwd(resolved.worktree.path, paths);
+      if (invalidPath) {
+        return c.json({ success: false, error: `Invalid path: ${invalidPath}` }, 400);
+      }
+      await unstageFiles(resolved.worktree.path, paths);
       return c.json({ success: true });
     } catch (error) {
       return c.json(
@@ -445,11 +447,7 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!resolved.success) {
         return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
       }
-      await new Promise<void>((resolve, reject) => {
-        execFile("git", ["add", "-A"], { cwd: resolved.worktree.path, encoding: "utf-8" }, (err) =>
-          err ? reject(err) : resolve(),
-        );
-      });
+      await stageAll(resolved.worktree.path);
       return c.json({ success: true });
     } catch (error) {
       return c.json(
@@ -469,14 +467,7 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!resolved.success) {
         return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
       }
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          "git",
-          ["reset", "HEAD"],
-          { cwd: resolved.worktree.path, encoding: "utf-8" },
-          (err) => (err ? reject(err) : resolve()),
-        );
-      });
+      await unstageAll(resolved.worktree.path);
       return c.json({ success: true });
     } catch (error) {
       return c.json(

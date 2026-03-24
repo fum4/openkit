@@ -6,8 +6,10 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { GitHubManager } from "@openkit/integrations/github/github-manager";
 import * as ghClient from "@openkit/integrations/github/gh-client";
+import * as sharedGit from "@openkit/shared/git";
 
 vi.mock("@openkit/integrations/github/gh-client");
+vi.mock("@openkit/shared/git");
 
 describe("GitHubManager PR state change callback", () => {
   let manager: GitHubManager;
@@ -28,7 +30,7 @@ describe("GitHubManager PR state change callback", () => {
     });
 
     // Mock getGitStatus to prevent pollGitStatus from interfering
-    vi.mocked(ghClient.getGitStatus).mockResolvedValue({
+    vi.mocked(sharedGit.getGitStatus).mockResolvedValue({
       hasUncommitted: false,
       ahead: 0,
       behind: 0,

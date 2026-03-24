@@ -8,6 +8,7 @@ import {
   resolveCommandPath,
   withAugmentedPathEnv,
 } from "@openkit/shared/command-path";
+import { revertFiles, validatePathsWithinCwd } from "@openkit/shared/git";
 import { log } from "../logger";
 import type { WorktreeManager } from "../manager";
 import { loadWorktreeSettings, updateWorktreeSettings } from "../worktree-settings";
@@ -424,6 +425,39 @@ export function registerWorktreeRoutes(
     }
   });
 
+  app.post("/api/worktrees/move-to-existing", async (c) => {
+    try {
+      const body = await c.req.json<{ worktreeId: string }>();
+      if (!body.worktreeId) {
+        return c.json({ success: false, error: "worktreeId is required" }, 400);
+      }
+      worktreeLog.info("Move changes to existing worktree requested", {
+        domain: "worktree",
+        targetWorktreeId: body.worktreeId,
+      });
+      const result = await manager.moveChangesToExistingWorktree(body.worktreeId);
+      worktreeLog.info("Move changes to existing worktree completed", {
+        domain: "worktree",
+        targetWorktreeId: body.worktreeId,
+        success: result.success,
+        error: result.success ? undefined : result.error,
+      });
+      return c.json(result, result.success ? 200 : 400);
+    } catch (error) {
+      worktreeLog.error("Move changes to existing worktree failed", {
+        domain: "worktree",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to move changes",
+        },
+        400,
+      );
+    }
+  });
+
   app.post("/api/worktrees/move-from-root", async (c) => {
     try {
       const body = await c.req.json<WorktreeCreateRequest>();
@@ -667,6 +701,62 @@ export function registerWorktreeRoutes(
   });
 
   // Unlink a worktree from its linked issue
+  app.post("/api/worktrees/:id/revert", async (c) => {
+    const id = c.req.param("id");
+    const resolved = manager.resolveWorktree(id);
+    if (!resolved.success) {
+      return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
+    }
+    try {
+      const body = await c.req.json<{ paths?: string[]; staged?: boolean }>();
+      const paths = body.paths;
+      const staged = body.staged ?? false;
+      if (!paths || !Array.isArray(paths) || paths.length === 0) {
+        return c.json({ success: false, error: "paths array is required" }, 400);
+      }
+      const cwd = resolved.worktree.path;
+
+      const invalidPath = validatePathsWithinCwd(cwd, paths);
+      if (invalidPath) {
+        return c.json({ success: false, error: `Invalid path: ${invalidPath}` }, 400);
+      }
+
+      worktreeLog.info("Reverting files", {
+        domain: "worktree",
+        worktreeId: id,
+        staged,
+        fileCount: paths.length,
+      });
+
+      const errors = await revertFiles(cwd, paths, staged);
+      if (errors.length > 0) {
+        worktreeLog.error("Partial revert failure", { domain: "worktree", worktreeId: id, errors });
+        return c.json({ success: false, error: errors.join("; ") }, 400);
+      }
+
+      worktreeLog.info("Revert completed", {
+        domain: "worktree",
+        worktreeId: id,
+        staged,
+        fileCount: paths.length,
+      });
+      return c.json({ success: true });
+    } catch (error) {
+      worktreeLog.error("Revert failed", {
+        domain: "worktree",
+        worktreeId: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to revert files",
+        },
+        400,
+      );
+    }
+  });
+
   app.delete("/api/worktrees/:id/link", async (c) => {
     const id = c.req.param("id");
     try {

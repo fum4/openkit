@@ -16,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   Rows2,
+  Undo2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -28,14 +29,16 @@ import {
   unstageFiles,
   stageAllFiles,
   unstageAllFiles,
+  revertFiles,
 } from "../../hooks/api";
 import { useServerUrlOptional } from "../../contexts/ServerContext";
+import { showPersistentErrorToast } from "../../errorToasts";
 import { log } from "../../logger";
 import { border, detailTab, palette } from "../../theme";
 import type { DiffFileInfo, PrDiffListResponse } from "../../types";
 import type { WorktreeInfo } from "../../types";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { ResizableHandle } from "../ResizableHandle";
-import { showPersistentErrorToast } from "../../errorToasts";
 import { ToggleSwitch } from "../ToggleSwitch";
 import { Tooltip } from "../Tooltip";
 import { DiffFileSidebar } from "./DiffFileSidebar";
@@ -44,6 +47,8 @@ import { DiffFileSection } from "./DiffFileSection";
 interface DiffViewerTabProps {
   worktree: WorktreeInfo;
   visible: boolean;
+  /** Increment to trigger an immediate re-fetch (e.g. after commit/push). */
+  gitOpKey?: number;
 }
 
 /** Unique key for a file entry — distinguishes staged/unstaged versions of the same path. */
@@ -53,7 +58,7 @@ function fileKey(file: DiffFileInfo): string {
   return file.path;
 }
 
-export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
+export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProps) {
   const serverUrl = useServerUrlOptional();
   const [files, setFiles] = useState<DiffFileInfo[]>([]);
   const filesRef = useRef(files);
@@ -81,6 +86,10 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const contentRef = useRef<HTMLDivElement>(null);
   const fetchCountRef = useRef(0);
+  const [pendingContentDiscard, setPendingContentDiscard] = useState<{
+    type: "file" | "all";
+    path?: string;
+  } | null>(null);
 
   const isMerged = worktree.githubPrState === "merged";
 
@@ -95,10 +104,12 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
 
   const showCommittedToggle = !showMergedDiff && !isMerged;
 
+  const hasCompletedFetchRef = useRef(false);
   const fetchFiles = useCallback(async () => {
     const fetchId = ++fetchCountRef.current;
-    // Only show loading spinner on first fetch (empty file list), not during polling
-    if (filesRef.current.length === 0) {
+    // Only show loading spinner before the first completed fetch — never during polling.
+    // This prevents the "no changes" placeholder from flickering every 3s.
+    if (!hasCompletedFetchRef.current) {
       setLoading(true);
     }
     setError(null);
@@ -156,6 +167,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
       setFiles([]);
     } finally {
       if (fetchId === fetchCountRef.current) {
+        hasCompletedFetchRef.current = true;
         setLoading(false);
       }
     }
@@ -182,6 +194,12 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     fetchFiles();
   }, [worktree.hasUncommitted]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Immediate refresh after git operations (commit, push, etc.)
+  useEffect(() => {
+    if (!gitOpKey || showMergedDiff) return;
+    fetchFiles();
+  }, [gitOpKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Poll for changes every 3s while the tab is visible and not showing merged diff
   useEffect(() => {
     if (!visible || showMergedDiff) return;
@@ -198,6 +216,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
     setFiles([]);
     setError(null);
     setLoading(true);
+    hasCompletedFetchRef.current = false;
     setIncludeCommitted(false);
     setExpandedFiles(new Set());
     setSelectedFile(null);
@@ -289,9 +308,10 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
 
   const handleStageFile = useCallback(
     async (filePath: string) => {
-      const res = await stageFiles(worktree.id, [filePath], serverUrl);
-      if (!res.success)
-        showPersistentErrorToast(res.error || "Failed to stage file", { scope: "diff" });
+      const result = await stageFiles(worktree.id, [filePath], serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to stage file", { scope: "staging" });
+      }
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
@@ -299,27 +319,74 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
 
   const handleUnstageFile = useCallback(
     async (filePath: string) => {
-      const res = await unstageFiles(worktree.id, [filePath], serverUrl);
-      if (!res.success)
-        showPersistentErrorToast(res.error || "Failed to unstage file", { scope: "diff" });
+      const result = await unstageFiles(worktree.id, [filePath], serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to unstage file", { scope: "staging" });
+      }
       fetchFiles();
     },
     [worktree.id, serverUrl, fetchFiles],
   );
 
   const handleStageAll = useCallback(async () => {
-    const res = await stageAllFiles(worktree.id, serverUrl);
-    if (!res.success)
-      showPersistentErrorToast(res.error || "Failed to stage all files", { scope: "diff" });
+    const result = await stageAllFiles(worktree.id, serverUrl);
+    if (!result.success) {
+      showPersistentErrorToast(result.error ?? "Failed to stage all files", { scope: "staging" });
+    }
     fetchFiles();
   }, [worktree.id, serverUrl, fetchFiles]);
 
   const handleUnstageAll = useCallback(async () => {
-    const res = await unstageAllFiles(worktree.id, serverUrl);
-    if (!res.success)
-      showPersistentErrorToast(res.error || "Failed to unstage all files", { scope: "diff" });
+    const result = await unstageAllFiles(worktree.id, serverUrl);
+    if (!result.success) {
+      showPersistentErrorToast(result.error ?? "Failed to unstage all files", { scope: "staging" });
+    }
     fetchFiles();
   }, [worktree.id, serverUrl, fetchFiles]);
+
+  const handleStagePaths = useCallback(
+    async (paths: string[]) => {
+      const result = await stageFiles(worktree.id, paths, serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to stage files", { scope: "staging" });
+      }
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
+
+  const handleUnstagePaths = useCallback(
+    async (paths: string[]) => {
+      const result = await unstageFiles(worktree.id, paths, serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to unstage files", { scope: "staging" });
+      }
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
+
+  const handleRevertPaths = useCallback(
+    async (paths: string[], staged: boolean) => {
+      const result = await revertFiles(worktree.id, paths, staged, serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to discard changes", { scope: "revert" });
+      }
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
+
+  const handleRevertFile = useCallback(
+    async (filePath: string, staged: boolean) => {
+      const result = await revertFiles(worktree.id, [filePath], staged, serverUrl);
+      if (!result.success) {
+        showPersistentErrorToast(result.error ?? "Failed to discard changes", { scope: "revert" });
+      }
+      fetchFiles();
+    },
+    [worktree.id, serverUrl, fetchFiles],
+  );
 
   const setFileRef = useCallback((path: string, el: HTMLDivElement | null) => {
     if (el) {
@@ -361,6 +428,22 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
   const showStagingActions = !showMergedDiff && !includeCommitted;
   const stagedFiles = useMemo(() => files.filter((f) => f.staged === true), [files]);
   const unstagedFiles = useMemo(() => files.filter((f) => f.staged !== true), [files]);
+
+  const handleRevertAllUnstaged = useCallback(async () => {
+    if (unstagedFiles.length === 0) return;
+    const result = await revertFiles(
+      worktree.id,
+      unstagedFiles.map((f) => f.path),
+      false,
+      serverUrl,
+    );
+    if (!result.success) {
+      showPersistentErrorToast(result.error ?? "Failed to discard all changes", {
+        scope: "revert",
+      });
+    }
+    fetchFiles();
+  }, [worktree.id, serverUrl, fetchFiles, unstagedFiles]);
 
   const prBaseSha = prDiffQuery.data?.baseSha;
   const prMergeSha = prDiffQuery.data?.mergeSha;
@@ -489,6 +572,11 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                 onUnstageFile={handleUnstageFile}
                 onStageAll={handleStageAll}
                 onUnstageAll={handleUnstageAll}
+                onRevertFile={handleRevertFile}
+                onRevertAllUnstaged={handleRevertAllUnstaged}
+                onStagePaths={handleStagePaths}
+                onUnstagePaths={handleUnstagePaths}
+                onRevertPaths={handleRevertPaths}
                 showStagingActions={!showMergedDiff && !includeCommitted}
               />
             </div>
@@ -601,18 +689,32 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                   )}
                   Changes ({unstagedFiles.length})
                 </span>
-                <Tooltip text="Stage all" position="left">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleStageAll();
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </Tooltip>
+                <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Tooltip text="Discard all" position="left">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPendingContentDiscard({ type: "all" });
+                      }}
+                      className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Stage all" position="left">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStageAll();
+                      }}
+                      className="p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </Tooltip>
+                </span>
               </div>
               {unstagedSectionExpanded &&
                 unstagedFiles.map((file) => (
@@ -631,6 +733,7 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
                     refreshKey={refreshKey}
                     stageAction={() => handleStageFile(file.path)}
                     stageActionType="stage"
+                    revertAction={() => setPendingContentDiscard({ type: "file", path: file.path })}
                   />
                 ))}
             </>
@@ -657,6 +760,29 @@ export function DiffViewerTab({ worktree, visible }: DiffViewerTabProps) {
           )}
         </div>
       </div>
+
+      {pendingContentDiscard && (
+        <ConfirmDialog
+          title="Discard Changes"
+          icon={<Undo2 className="w-4 h-4 text-red-400" />}
+          confirmLabel="Discard"
+          onConfirm={() => {
+            if (pendingContentDiscard.type === "file" && pendingContentDiscard.path) {
+              handleRevertFile(pendingContentDiscard.path, false);
+            } else if (pendingContentDiscard.type === "all") {
+              handleRevertAllUnstaged();
+            }
+            setPendingContentDiscard(null);
+          }}
+          onCancel={() => setPendingContentDiscard(null)}
+        >
+          <p className="text-xs text-[#9ca3af]">
+            {pendingContentDiscard.type === "all"
+              ? `This will discard all changes to ${unstagedFiles.length} file${unstagedFiles.length === 1 ? "" : "s"}. This action cannot be undone.`
+              : `This will discard all changes to ${pendingContentDiscard.path?.split("/").pop()}. This action cannot be undone.`}
+          </p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

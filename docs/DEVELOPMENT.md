@@ -273,7 +273,7 @@ The Vite config (`apps/web-app/vite.config.ts`) sets the root to `apps/web-app/s
 
 ## Project Structure
 
-The canonical repository layout is documented in [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md).
+The canonical repository layout is documented in [PROJECT-STRUCTURE.md](./PROJECT-STRUCTURE.md).
 
 In this guide, file references focus on contribution workflows (where to add routes, hooks, components, integrations, etc.) rather than repeating the full tree.
 

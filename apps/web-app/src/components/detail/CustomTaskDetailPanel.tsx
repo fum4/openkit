@@ -154,24 +154,12 @@ export function CustomTaskDetailPanel({
       refetch();
       queryClient.invalidateQueries({ queryKey: ["customTasks"] });
       onCreateWorktree(createdWorktreeId);
-    } else if (result.success) {
-      reportPersistentErrorToast(
-        "Worktree was created, but the response did not include a worktree id.",
-        "Failed to create worktree",
-        {
-          scope: "custom-task:create-worktree",
-        },
-      );
     } else if (
       (result.code === "WORKTREE_EXISTS" || requiresWorktreeRecoveryPrompt(result)) &&
       result.worktreeId
     ) {
       setPendingCodeWithAgent(null);
       setExistingWorktree({ id: result.worktreeId, branch: taskId });
-    } else {
-      reportPersistentErrorToast(result.error, "Failed to create worktree", {
-        scope: "custom-task:create-worktree",
-      });
     }
   };
 
@@ -220,10 +208,6 @@ export function CustomTaskDetailPanel({
         worktreeId: result.worktreeId ?? taskId,
         mode: reusingExistingWorktree ? "resume" : "start",
         prompt: reusingExistingWorktree ? undefined : launchPrompt,
-      });
-    } else {
-      reportPersistentErrorToast(result.error, "Failed to create worktree", {
-        scope: "custom-task:code-worktree",
       });
     }
   };

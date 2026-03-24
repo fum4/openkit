@@ -80,22 +80,15 @@ const RECOVERABLE_WORKTREE_CONFLICT_METHODS = new Set([
   "createWorktreeFromCustomTask",
 ]);
 
-function shouldSuppressRecoverableWorktreeConflictToast(
+function shouldSuppressWorktreeCreationToast(
   method: string,
   resolved: { success?: boolean; error?: unknown },
 ): boolean {
   if (!RECOVERABLE_WORKTREE_CONFLICT_METHODS.has(method)) return false;
   if (resolved.success !== false) return false;
 
-  const worktreeId =
-    "worktreeId" in resolved ? (resolved as { worktreeId?: unknown }).worktreeId : undefined;
-  if (typeof worktreeId !== "string" || worktreeId.trim().length === 0) return false;
-
-  const code = "code" in resolved ? (resolved as { code?: unknown }).code : undefined;
-  if (code === "WORKTREE_EXISTS" || code === "WORKTREE_RECOVERY_REQUIRED") return true;
-
-  const error = typeof resolved.error === "string" ? resolved.error : String(resolved.error ?? "");
-  return error.includes("cannot lock ref 'refs/heads/");
+  // All creation errors are shown inline in the modal — suppress toasts entirely.
+  return true;
 }
 
 function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(
@@ -117,7 +110,7 @@ function wrapClientWithErrorToasts<T extends Record<string, ApiMethod>>(
             hasErrorResult(resolved) &&
             (resolved.success === false ||
               (typeof resolved.error === "string" && resolved.error.trim().length > 0)) &&
-            !shouldSuppressRecoverableWorktreeConflictToast(String(key), resolved)
+            !shouldSuppressWorktreeCreationToast(String(key), resolved)
           ) {
             showPersistentErrorToast(buildStructuredErrorToast(resolved, String(key)), {
               scope: `api:${String(key)}`,
@@ -151,6 +144,9 @@ export function useApi() {
 
       moveToWorktree: (branch: string, name?: string) =>
         api.moveToWorktree(branch, name, serverUrl),
+
+      moveToExistingWorktree: (worktreeId: string) =>
+        api.moveToExistingWorktree(worktreeId, serverUrl),
 
       recoverWorktree: (id: string, action: "reuse" | "recreate", branch?: string) =>
         api.recoverWorktree(id, action, branch, serverUrl),

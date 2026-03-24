@@ -240,5 +240,166 @@ describe("DiffFileSidebar", () => {
       expect(onStageFile).toHaveBeenCalledTimes(1);
       expect(onSelectFile).not.toHaveBeenCalled();
     });
+
+    it("does not show discard button for staged files", () => {
+      const files = [stagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onUnstageFile={vi.fn()}
+          onRevertFile={vi.fn()}
+        />,
+      );
+
+      expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+    });
+
+    it("shows confirmation dialog when discard button is clicked for an unstaged file", async () => {
+      const onRevertFile = vi.fn();
+      const user = userEvent.setup();
+      const files = [unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageFile={vi.fn()}
+          onRevertFile={onRevertFile}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+
+      // Confirmation dialog should appear
+      expect(screen.getByText("Discard Changes")).toBeInTheDocument();
+      expect(onRevertFile).not.toHaveBeenCalled();
+
+      // Confirm the dialog — get all Discard buttons, the last one is in the dialog footer
+      const discardButtons = screen.getAllByRole("button", { name: "Discard" });
+      await user.click(discardButtons[discardButtons.length - 1]);
+
+      expect(onRevertFile).toHaveBeenCalledWith(unstagedFile.path, false);
+    });
+
+    it("shows confirmation dialog when discard all button is clicked in changes section", async () => {
+      const onRevertAllUnstaged = vi.fn();
+      const user = userEvent.setup();
+      const files = [unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onRevertAllUnstaged={onRevertAllUnstaged}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard all" }));
+
+      // Confirmation dialog should appear
+      expect(screen.getByText("Discard Changes")).toBeInTheDocument();
+      expect(onRevertAllUnstaged).not.toHaveBeenCalled();
+
+      // Confirm the dialog
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+
+      expect(onRevertAllUnstaged).toHaveBeenCalledTimes(1);
+    });
+
+    it("cancels discard when cancel button is clicked in confirmation dialog", async () => {
+      const onRevertFile = vi.fn();
+      const user = userEvent.setup();
+      const files = [unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageFile={vi.fn()}
+          onRevertFile={onRevertFile}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+      expect(screen.getByText("Discard Changes")).toBeInTheDocument();
+
+      await user.click(screen.getByText("Cancel"));
+
+      expect(onRevertFile).not.toHaveBeenCalled();
+      expect(screen.queryByText("Discard Changes")).not.toBeInTheDocument();
+    });
+
+    it("does not show discard buttons when onRevert props are omitted", () => {
+      const files = [unstagedFile];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageFile={vi.fn()}
+        />,
+      );
+
+      expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Discard all" })).not.toBeInTheDocument();
+    });
+
+    it("calls onStagePaths with folder file paths when folder stage button is clicked", async () => {
+      const onStagePaths = vi.fn();
+      const user = userEvent.setup();
+      const files = [
+        makeFile({ path: "src/app.ts", staged: false }),
+        makeFile({ path: "src/index.ts", staged: false }),
+      ];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageFile={vi.fn()}
+          onStagePaths={onStagePaths}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Stage src" }));
+
+      expect(onStagePaths).toHaveBeenCalledWith(["src/app.ts", "src/index.ts"]);
+    });
+
+    it("shows confirmation dialog when folder discard button is clicked and confirms", async () => {
+      const onRevertPaths = vi.fn();
+      const user = userEvent.setup();
+      const files = [
+        makeFile({ path: "src/app.ts", staged: false }),
+        makeFile({ path: "src/index.ts", staged: false }),
+      ];
+
+      render(
+        <DiffFileSidebar
+          {...defaultProps}
+          files={files}
+          showStagingActions
+          onStageFile={vi.fn()}
+          onRevertPaths={onRevertPaths}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard src" }));
+
+      expect(screen.getByText("Discard Changes")).toBeInTheDocument();
+      expect(onRevertPaths).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+
+      expect(onRevertPaths).toHaveBeenCalledWith(["src/app.ts", "src/index.ts"], false);
+    });
   });
 });

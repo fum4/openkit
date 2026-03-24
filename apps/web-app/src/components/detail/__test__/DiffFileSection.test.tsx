@@ -139,4 +139,30 @@ describe("DiffFileSection", () => {
       expect(screen.getByTestId("diff-monaco-editor")).toBeInTheDocument();
     });
   });
+
+  it("renders revert button on hover when revertAction is provided", async () => {
+    const revertAction = vi.fn();
+    const stageAction = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <DiffFileSection
+        {...defaultProps}
+        stageAction={stageAction}
+        stageActionType="stage"
+        revertAction={revertAction}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+
+    expect(revertAction).toHaveBeenCalledOnce();
+    expect(stageAction).not.toHaveBeenCalled();
+  });
+
+  it("does not render revert button when revertAction is not provided", () => {
+    render(<DiffFileSection {...defaultProps} stageAction={vi.fn()} stageActionType="stage" />);
+
+    expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+  });
 });

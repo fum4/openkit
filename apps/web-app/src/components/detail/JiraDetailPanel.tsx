@@ -475,12 +475,7 @@ export function JiraDetailPanel({
     setIsUpdatingStatus(true);
     const result = await api.updateJiraIssueStatus(currentIssueKey, statusName);
     setIsUpdatingStatus(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to update status", {
-        scope: "jira:update-status",
-      });
-      return;
-    }
+    if (!result.success) return;
     await refetch();
   };
 
@@ -492,12 +487,7 @@ export function JiraDetailPanel({
     setIsUpdatingPriority(true);
     const result = await api.updateJiraIssuePriority(currentIssueKey, priorityName);
     setIsUpdatingPriority(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to update priority", {
-        scope: "jira:update-priority",
-      });
-      return;
-    }
+    if (!result.success) return;
     await refetch();
   };
 
@@ -509,12 +499,7 @@ export function JiraDetailPanel({
     setIsUpdatingType(true);
     const result = await api.updateJiraIssueType(currentIssueKey, typeName);
     setIsUpdatingType(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to update issue type", {
-        scope: "jira:update-type",
-      });
-      return;
-    }
+    if (!result.success) return;
     await refetch();
   };
 
@@ -540,9 +525,6 @@ export function JiraDetailPanel({
     const result = await api.updateJiraIssueSummary(currentIssueKey, nextSummary);
     setIsSavingSummary(false);
     if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to update title", {
-        scope: "jira:update-summary",
-      });
       if (closeEditor) {
         setIsEditingSummary(false);
         setSummarySaved(false);
@@ -565,12 +547,7 @@ export function JiraDetailPanel({
     setIsAddingComment(true);
     const result = await api.addJiraIssueComment(currentIssueKey, comment);
     setIsAddingComment(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to add comment", {
-        scope: "jira:add-comment",
-      });
-      return;
-    }
+    if (!result.success) return;
     setNewComment("");
     if (newCommentTextareaRef.current) {
       newCommentTextareaRef.current.style.height = "auto";
@@ -593,12 +570,7 @@ export function JiraDetailPanel({
     setIsUpdatingComment(true);
     const result = await api.updateJiraIssueComment(currentIssueKey, commentId, comment);
     setIsUpdatingComment(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to update comment", {
-        scope: "jira:update-comment",
-      });
-      return;
-    }
+    if (!result.success) return;
     setEditingCommentId(null);
     setEditingCommentDraft("");
     await refetch();
@@ -611,12 +583,7 @@ export function JiraDetailPanel({
     setIsDeletingComment(true);
     const result = await api.deleteJiraIssueComment(currentIssueKey, commentId);
     setIsDeletingComment(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to delete comment", {
-        scope: "jira:delete-comment",
-      });
-      return;
-    }
+    if (!result.success) return;
     setCommentToDelete(null);
     if (editingCommentId === commentId) {
       setEditingCommentId(null);
@@ -937,16 +904,7 @@ export function JiraDetailPanel({
             showInlineSaveError={false}
             onSave={async (nextValue) => {
               const result = await api.updateJiraIssueDescription(issue.key, nextValue);
-              if (!result.success) {
-                reportPersistentErrorToast(
-                  `Failed to save Jira issue description: ${result.error ?? "Unknown error"}`,
-                  "Failed to save Jira issue description",
-                  {
-                    scope: "jira:update-description",
-                  },
-                );
-                return false;
-              }
+              if (!result.success) return false;
               await refetch();
               return true;
             }}

@@ -56,7 +56,7 @@ vi.mock("../worktree-settings", () => ({
   updateWorktreeSettings: vi.fn(),
 }));
 
-import type { GitStatusInfo } from "@openkit/integrations/github/types";
+import type { GitStatusInfo } from "@openkit/shared/worktree-types";
 import { ACTIVITY_TYPES } from "../activity-event";
 import { WorktreeManager } from "../manager";
 import { createTestConfig } from "./fixtures";

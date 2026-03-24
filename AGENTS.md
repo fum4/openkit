@@ -27,6 +27,16 @@ Every app (`apps/*`) and library (`libs/*`) must have a `README.md` at its root.
 - Keep command output machine-readable where useful (for example JSON modes).
 - Agent instructions should primarily orchestrate the CLI, not duplicate business logic.
 
+## Code Layering
+
+**The server app is an orchestration layer only.** It must not contain business logic, git operations, or third-party integration code directly. All primitives live in libraries and are composed together in the server routes like building blocks.
+
+- **`libs/shared`** — All business logic, system operations, pure git primitives (stage, unstage, revert, diff, commit, push, status), types, and helpers.
+- **`libs/integrations`** — All third-party provider integrations (GitHub CLI auth/PRs, Jira, Linear). Depends on `libs/shared`, never the other way around.
+- **`apps/server/routes`** — Thin HTTP handlers that import from `libs/shared` and `libs/integrations`, validate request params, and return responses. No inline `execFile` calls, no embedded business logic.
+
+When adding a new git operation or integration feature, implement it in the appropriate library first, then wire it up through a thin route handler.
+
 ## Quick Reference
 
 **Package manager**: pnpm

@@ -274,6 +274,19 @@ export interface DiffFileContentResponse {
   error?: string;
 }
 
+export interface GitStatusInfo {
+  hasUncommitted: boolean;
+  ahead: number;
+  behind: number;
+  noUpstream: boolean;
+  /** Commits ahead of base branch (for PR eligibility) */
+  aheadOfBase: number;
+  /** Lines added vs base branch */
+  linesAdded: number;
+  /** Lines removed vs base branch */
+  linesRemoved: number;
+}
+
 export interface RunningProcess {
   pid: number;
   ports: number[];

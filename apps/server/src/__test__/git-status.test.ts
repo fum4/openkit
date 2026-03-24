@@ -34,7 +34,7 @@ vi.mock("@openkit/shared/command-path", () => ({
   withAugmentedPathEnv: vi.fn((env: NodeJS.ProcessEnv) => env),
 }));
 
-import { getGitStatus } from "@openkit/integrations/github/gh-client";
+import { getGitStatus } from "@openkit/shared/git";
 
 function setupMockResponses(responses: Record<string, { stdout: string; throws?: boolean }>) {
   mockExec.mockImplementation((cmd: string, args: string[]) => {

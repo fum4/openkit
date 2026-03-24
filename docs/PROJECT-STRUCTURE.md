@@ -7,6 +7,14 @@ Use this together with:
 - `docs/ARCHITECTURE.md` for system design and runtime data flow
 - `docs/DEVELOPMENT.md` for build workflow, conventions, and contribution patterns
 
+## Layering Principle
+
+The server app (`apps/server`) is an **orchestration layer only** — it wires together HTTP routes, composes library functions, and manages process lifecycle. It must not contain business logic, git operations, or third-party integration code directly.
+
+- **`libs/shared`** — All business logic, system operations, pure git primitives, types, and helpers. This is the foundation that every other package can depend on.
+- **`libs/integrations`** — All third-party provider integrations (GitHub, Jira, Linear). Depends on `libs/shared` for types and utilities, never the other way around.
+- **`apps/server`** — Thin HTTP route handlers that import from `libs/shared` and `libs/integrations`, validate inputs, and return responses. No inline `execFile`, no embedded business logic.
+
 ## Top-Level
 
 ```text
@@ -40,16 +48,16 @@ apps/
 │       ├── add.ts
 │       └── task.ts
 │
-├── server/              Hono backend app (`server`)
+├── server/              Hono backend app — orchestration layer only (`server`)
 │   ├── package.json
 │   ├── project.json
 │   └── src/
 │       ├── index.ts
-│       ├── manager.ts
+│       ├── manager.ts           Worktree lifecycle orchestrator
 │       ├── terminal-manager.ts
 │       ├── notes-manager.ts
 │       ├── verification-manager.ts
-│       └── routes/
+│       └── routes/              Thin HTTP handlers (compose libs/shared + libs/integrations)
 │
 ├── web-app/             React SPA (`web-app`)
 │   ├── package.json
@@ -106,9 +114,12 @@ libs/
 │   ├── project.json
 │   └── src/
 │
-├── integrations/        Jira/Linear/GitHub integration clients
+├── integrations/        Third-party provider integrations (GitHub, Jira, Linear)
 │   ├── project.json
 │   └── src/
+│       ├── github/      GitHub CLI operations (auth, PRs, repo), manager (polling/caching), PR diff
+│       ├── jira/        Jira API client
+│       └── linear/      Linear API client
 │
 ├── logger/              Go-based structured logging (C-shared lib + FFI adapters)
 │   ├── project.json
@@ -127,9 +138,12 @@ libs/
 │       ├── node/           Node.js --require hook (port-hook.cjs)
 │       └── libc/           Zig native port hook (DYLD_INSERT_LIBRARIES)
 │
-└── shared/              Shared constants, contracts/types, preferences, git/env helpers
+└── shared/              Core business logic, types, git operations, env/config helpers
     ├── project.json
     └── src/
+        ├── git.ts       All pure git operations (stage, unstage, revert, diff, commit, push, status)
+        ├── worktree-types.ts  Shared types (WorktreeInfo, DiffFileInfo, GitStatusInfo, etc.)
+        └── ...
 ```
 
 ## Package Boundaries

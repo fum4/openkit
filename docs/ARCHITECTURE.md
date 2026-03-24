@@ -373,7 +373,7 @@ Build outputs are intentionally split:
 
 ## Directory Structure
 
-For the canonical repository tree, see [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md).
+For the canonical repository tree, see [PROJECT-STRUCTURE.md](./PROJECT-STRUCTURE.md).
 
 Architecture-level discussion in this document focuses on responsibilities and runtime interactions (not file-by-file inventory).
 

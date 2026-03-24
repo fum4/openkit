@@ -4,7 +4,7 @@
  * Renders a header bar with file info and, when expanded, lazy-fetches
  * the file content and renders a DiffMonacoEditor instance.
  */
-import { ChevronDown, ChevronRight, Minus, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Minus, Plus, Undo2 } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchDiffFileContent } from "../../hooks/api";
@@ -30,6 +30,8 @@ interface DiffFileSectionProps {
   stageAction?: () => void;
   /** Whether the action is "stage" or "unstage" — controls icon and tooltip. */
   stageActionType?: "stage" | "unstage";
+  /** Optional revert (discard changes) action shown on hover in the file header. */
+  revertAction?: () => void;
 }
 
 export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
@@ -45,6 +47,7 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
       fetchContent,
       stageAction,
       stageActionType,
+      revertAction,
     },
     ref,
   ) {
@@ -141,7 +144,7 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
           )}
           <span className="flex-1" />
           {stageAction ? (
-            <span className="flex-shrink-0 flex items-center justify-end w-12 h-4">
+            <span className="flex-shrink-0 flex items-center justify-end w-16 h-4">
               <span className="group-hover:hidden flex gap-1.5 text-[10px] font-mono">
                 {!file.isBinary && file.linesAdded > 0 && (
                   <span style={{ color: palette.green }}>+{file.linesAdded}</span>
@@ -150,22 +153,39 @@ export const DiffFileSection = forwardRef<HTMLDivElement, DiffFileSectionProps>(
                   <span style={{ color: palette.red }}>-{file.linesRemoved}</span>
                 )}
               </span>
-              <Tooltip text={stageActionType === "unstage" ? "Unstage" : "Stage"} position="left">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    stageAction();
-                  }}
-                  className="hidden group-hover:flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
-                >
-                  {stageActionType === "unstage" ? (
-                    <Minus className="w-3.5 h-3.5" />
-                  ) : (
-                    <Plus className="w-3.5 h-3.5" />
-                  )}
-                </button>
-              </Tooltip>
+              <span className="hidden group-hover:flex items-center gap-0.5">
+                {revertAction && (
+                  <Tooltip text="Discard" position="left">
+                    <button
+                      type="button"
+                      aria-label="Discard"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        revertAction();
+                      }}
+                      className="flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                    >
+                      <Undo2 className="w-3.5 h-3.5" />
+                    </button>
+                  </Tooltip>
+                )}
+                <Tooltip text={stageActionType === "unstage" ? "Unstage" : "Stage"} position="left">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stageAction();
+                    }}
+                    className="flex items-center p-0.5 rounded text-[#6b7280] hover:text-white hover:bg-white/[0.08]"
+                  >
+                    {stageActionType === "unstage" ? (
+                      <Minus className="w-3.5 h-3.5" />
+                    ) : (
+                      <Plus className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </Tooltip>
+              </span>
             </span>
           ) : (
             !file.isBinary &&
