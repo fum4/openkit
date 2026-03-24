@@ -16,6 +16,7 @@ import {
   Terminal,
   X,
 } from "lucide-react";
+import AnsiToHtml from "ansi-to-html";
 import {
   type Dispatch,
   type SetStateAction,
@@ -31,6 +32,23 @@ import { useEffectiveHooksConfig } from "../../hooks/useHooks";
 import { settings, surface, text } from "../../theme";
 import { MarkdownContent } from "../MarkdownContent";
 import { Modal } from "../Modal";
+
+const ansiConverter = new AnsiToHtml({
+  fg: "#9ca3af",
+  bg: "transparent",
+  newline: true,
+  escapeXML: true,
+});
+
+/** Strip ANSI background color codes that are unreadable on the dark UI. */
+function stripAnsiBg(text: string): string {
+  return text.replace(/\x1b\[(4[0-9]|10[0-7])m/g, "");
+}
+
+/** Convert ANSI escape codes to HTML, stripping background colors. */
+function ansiToHtml(text: string): string {
+  return ansiConverter.toHtml(stripAnsiBg(text));
+}
 
 function statusIcon(status: StepResult["status"]) {
   switch (status) {
@@ -1151,9 +1169,12 @@ function StepList({
               <div className="px-3 pb-4 pt-1">
                 <pre
                   className={`text-[10px] ${text.muted} whitespace-pre-wrap break-words font-mono leading-relaxed max-h-60 overflow-y-auto`}
-                >
-                  {result.output}
-                </pre>
+                  dangerouslySetInnerHTML={{
+                    // Safe: output is from local process execution (hooks/scripts), not user-supplied.
+                    // AnsiToHtml has escapeXML enabled, which escapes <, >, &, ", '.
+                    __html: ansiToHtml(result.output),
+                  }}
+                />
               </div>
             )}
           </div>
@@ -1279,9 +1300,12 @@ function SkillList({
                 {result?.content && (
                   <pre
                     className={`text-[10px] ${text.muted} whitespace-pre-wrap break-words font-mono leading-relaxed max-h-60 overflow-y-auto`}
-                  >
-                    {result.content}
-                  </pre>
+                    dangerouslySetInnerHTML={{
+                      // Safe: content is from local skill execution, not user-supplied.
+                      // AnsiToHtml has escapeXML enabled.
+                      __html: ansiToHtml(result.content),
+                    }}
+                  />
                 )}
               </div>
             )}
