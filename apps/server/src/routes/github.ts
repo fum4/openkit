@@ -7,8 +7,15 @@ import {
   resolveCommandPath,
   withAugmentedPathEnv,
 } from "@openkit/shared/command-path";
+import {
+  stageFiles,
+  unstageFiles,
+  stageAll,
+  unstageAll,
+  getChangedFiles,
+  getFileContent,
+} from "@openkit/shared/git";
 import { configureGitUser, findPRForBranch } from "@openkit/integrations/github/gh-client";
-import { getChangedFiles, getFileContent } from "@openkit/integrations/github/git-diff";
 import { getPrDiffFiles, getPrFileContent } from "@openkit/integrations/github/pr-diff";
 import type { DiffFileInfo } from "@openkit/shared/worktree-types";
 
@@ -389,14 +396,7 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!paths || !Array.isArray(paths) || paths.length === 0) {
         return c.json({ success: false, error: "paths array is required" }, 400);
       }
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          "git",
-          ["add", "--", ...paths],
-          { cwd: resolved.worktree.path, encoding: "utf-8" },
-          (err) => (err ? reject(err) : resolve()),
-        );
-      });
+      await stageFiles(resolved.worktree.path, paths);
       return c.json({ success: true });
     } catch (error) {
       return c.json(
@@ -418,14 +418,7 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!paths || !Array.isArray(paths) || paths.length === 0) {
         return c.json({ success: false, error: "paths array is required" }, 400);
       }
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          "git",
-          ["restore", "--staged", "--", ...paths],
-          { cwd: resolved.worktree.path, encoding: "utf-8" },
-          (err) => (err ? reject(err) : resolve()),
-        );
-      });
+      await unstageFiles(resolved.worktree.path, paths);
       return c.json({ success: true });
     } catch (error) {
       return c.json(
@@ -445,11 +438,7 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!resolved.success) {
         return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
       }
-      await new Promise<void>((resolve, reject) => {
-        execFile("git", ["add", "-A"], { cwd: resolved.worktree.path, encoding: "utf-8" }, (err) =>
-          err ? reject(err) : resolve(),
-        );
-      });
+      await stageAll(resolved.worktree.path);
       return c.json({ success: true });
     } catch (error) {
       return c.json(
@@ -469,120 +458,13 @@ export function registerGitHubRoutes(app: Hono, manager: WorktreeManager) {
       if (!resolved.success) {
         return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
       }
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          "git",
-          ["reset", "HEAD"],
-          { cwd: resolved.worktree.path, encoding: "utf-8" },
-          (err) => (err ? reject(err) : resolve()),
-        );
-      });
+      await unstageAll(resolved.worktree.path);
       return c.json({ success: true });
     } catch (error) {
       return c.json(
         {
           success: false,
           error: error instanceof Error ? error.message : "Failed to unstage all files",
-        },
-        400,
-      );
-    }
-  });
-
-  app.post("/api/worktrees/:id/revert", async (c) => {
-    try {
-      const id = c.req.param("id");
-      const resolved = manager.resolveWorktree(id);
-      if (!resolved.success) {
-        return c.json({ success: false, error: resolved.error }, toResolutionStatus(resolved.code));
-      }
-      const body = await c.req.json<{ paths?: string[]; staged?: boolean }>();
-      const paths = body.paths;
-      const staged = body.staged ?? false;
-      if (!paths || !Array.isArray(paths) || paths.length === 0) {
-        return c.json({ success: false, error: "paths array is required" }, 400);
-      }
-      const cwd = resolved.worktree.path;
-      if (staged) {
-        // Revert staged changes: restore from HEAD to both index and working tree.
-        // Batch first — works for all files that exist in HEAD.
-        try {
-          await new Promise<void>((resolve, reject) => {
-            execFile(
-              "git",
-              ["checkout", "HEAD", "--", ...paths],
-              { cwd, encoding: "utf-8" },
-              (err) => (err ? reject(err) : resolve()),
-            );
-          });
-        } catch {
-          // Batch failed — process individually. Newly added files (not in HEAD) need git rm -f.
-          const errors: string[] = [];
-          for (const p of paths) {
-            try {
-              await new Promise<void>((resolve, reject) => {
-                execFile("git", ["checkout", "HEAD", "--", p], { cwd, encoding: "utf-8" }, (err) =>
-                  err ? reject(err) : resolve(),
-                );
-              });
-            } catch {
-              try {
-                await new Promise<void>((resolve, reject) => {
-                  execFile("git", ["rm", "-f", "--", p], { cwd, encoding: "utf-8" }, (err) =>
-                    err ? reject(err) : resolve(),
-                  );
-                });
-              } catch (rmErr) {
-                errors.push(`${p}: ${rmErr instanceof Error ? rmErr.message : "failed to revert"}`);
-              }
-            }
-          }
-          if (errors.length > 0) {
-            return c.json({ success: false, error: errors.join("; ") }, 400);
-          }
-        }
-      } else {
-        // Revert unstaged changes: restore working tree from index.
-        // Batch first — works for tracked modified/deleted files.
-        try {
-          await new Promise<void>((resolve, reject) => {
-            execFile("git", ["checkout", "--", ...paths], { cwd, encoding: "utf-8" }, (err) =>
-              err ? reject(err) : resolve(),
-            );
-          });
-        } catch {
-          // Batch failed — process individually. Untracked files need to be deleted.
-          const errors: string[] = [];
-          const { unlink } = await import("node:fs/promises");
-          const { join } = await import("node:path");
-          for (const p of paths) {
-            try {
-              await new Promise<void>((resolve, reject) => {
-                execFile("git", ["checkout", "--", p], { cwd, encoding: "utf-8" }, (err) =>
-                  err ? reject(err) : resolve(),
-                );
-              });
-            } catch {
-              try {
-                await unlink(join(cwd, p));
-              } catch (unlinkErr) {
-                errors.push(
-                  `${p}: ${unlinkErr instanceof Error ? unlinkErr.message : "failed to revert"}`,
-                );
-              }
-            }
-          }
-          if (errors.length > 0) {
-            return c.json({ success: false, error: errors.join("; ") }, 400);
-          }
-        }
-      }
-      return c.json({ success: true });
-    } catch (error) {
-      return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "Failed to revert files",
         },
         400,
       );

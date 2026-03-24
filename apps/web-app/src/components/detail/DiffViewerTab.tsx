@@ -357,13 +357,6 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleRevertPaths = useCallback(
     async (paths: string[], staged: boolean) => {
-      const count = paths.length;
-      if (
-        !window.confirm(
-          `Discard changes to ${count} ${count === 1 ? "file" : "files"}? This cannot be undone.`,
-        )
-      )
-        return;
       const res = await revertFiles(worktree.id, paths, staged, serverUrl);
       if (!res.success)
         showPersistentErrorToast(res.error || "Failed to revert files", { scope: "diff" });
@@ -374,8 +367,6 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleRevertFile = useCallback(
     async (filePath: string, staged: boolean) => {
-      const fileName = filePath.split("/").pop() ?? filePath;
-      if (!window.confirm(`Discard changes to ${fileName}? This cannot be undone.`)) return;
       const res = await revertFiles(worktree.id, [filePath], staged, serverUrl);
       if (!res.success)
         showPersistentErrorToast(res.error || "Failed to revert file", { scope: "diff" });
@@ -427,8 +418,6 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleRevertAllStaged = useCallback(async () => {
     if (stagedFiles.length === 0) return;
-    if (!window.confirm(`Discard all ${stagedFiles.length} staged changes? This cannot be undone.`))
-      return;
     const res = await revertFiles(
       worktree.id,
       stagedFiles.map((f) => f.path),
@@ -442,12 +431,6 @@ export function DiffViewerTab({ worktree, visible, gitOpKey }: DiffViewerTabProp
 
   const handleRevertAllUnstaged = useCallback(async () => {
     if (unstagedFiles.length === 0) return;
-    if (
-      !window.confirm(
-        `Discard all ${unstagedFiles.length} unstaged changes? This cannot be undone.`,
-      )
-    )
-      return;
     const res = await revertFiles(
       worktree.id,
       unstagedFiles.map((f) => f.path),

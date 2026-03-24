@@ -5,23 +5,28 @@
 import type { WorktreeInfo } from "@openkit/shared/worktree-types";
 
 import {
+  commitAll,
+  createInitialCommit,
+  getGitStatus,
+  hasGitCommits,
+  hasGitRemote,
+  pushBranch,
+} from "@openkit/shared/git";
+
+import {
   checkGhAuth,
   checkGhInstalled,
-  commitAll,
   createGitHubRepo,
-  createInitialCommit,
   createPR,
   findPRForBranch,
   getGhUsername,
-  getGitStatus,
   getRepoInfo,
-  hasGitCommits,
-  hasGitRemote,
   logoutGh,
-  pushBranch,
 } from "./gh-client";
 import { log } from "./logger";
-import type { GitHubConfig, GitStatusInfo, PRInfo } from "./types";
+import type { GitStatusInfo } from "@openkit/shared/worktree-types";
+
+import type { GitHubConfig, PRInfo } from "./types";
 
 export class GitHubManager {
   private config: GitHubConfig | null = null;

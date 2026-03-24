@@ -30,7 +30,7 @@ vi.mock("@openkit/shared/command-path", () => ({
   withAugmentedPathEnv: vi.fn((env: NodeJS.ProcessEnv) => env),
 }));
 
-vi.mock("@openkit/integrations/github/logger", () => ({
+vi.mock("@openkit/shared/logger", () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
@@ -39,7 +39,7 @@ vi.mock("fs/promises", () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
 }));
 
-import { getChangedFiles, getFileContent } from "@openkit/integrations/github/git-diff";
+import { getChangedFiles, getFileContent } from "@openkit/shared/git";
 
 function setupMockResponses(responses: Record<string, { stdout: string; throws?: boolean }>) {
   mockExec.mockImplementation((cmd: string, args: string[]) => {

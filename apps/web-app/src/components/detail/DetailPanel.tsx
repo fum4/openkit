@@ -5,7 +5,6 @@ import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api
 import type { AgentHistoryMatch, CodingAgent, RestorableAgent } from "../../hooks/api";
 import type { WorktreeInfo } from "../../types";
 import { ROOT_WORKTREE_ID } from "../../types";
-import { showPersistentErrorToast } from "../../errorToasts";
 import { useErrorToast } from "../../hooks/useErrorToast";
 import { useApi } from "../../hooks/useApi";
 import { clearTerminalSessionCacheForRuntimeWorktree } from "../../hooks/useTerminal";
@@ -1652,16 +1651,8 @@ export function DetailPanel({
 
         if (pushAfterCommit) {
           setGitAction("push");
-          const pushResult = await api.pushChanges(worktree.id);
-          if (!pushResult.success) {
-            showPersistentErrorToast(
-              pushResult.error || "Committed successfully, but failed to push",
-              { scope: "detail-panel" },
-            );
-          }
+          await api.pushChanges(worktree.id);
         }
-      } else {
-        showPersistentErrorToast(result.error || "Failed to commit", { scope: "detail-panel" });
       }
       onUpdate();
     } finally {
@@ -1678,8 +1669,6 @@ export function DetailPanel({
       const result = await api.pushChanges(worktree.id);
       if (result.success) {
         setGitOpKey((k) => k + 1);
-      } else {
-        showPersistentErrorToast(result.error || "Failed to push", { scope: "detail-panel" });
       }
       onUpdate();
     } finally {

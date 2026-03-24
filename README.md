@@ -134,7 +134,7 @@ Everything is released from `master`.
 - [Integrations](docs/INTEGRATIONS.md)
 - [Notifications](docs/NOTIFICATIONS.md)
 - [Port Mapping](docs/PORT-MAPPING.md)
-- [Project Structure](docs/PROJECT_STRUCTURE.md)
+- [Project Structure](docs/PROJECT-STRUCTURE.md)
 - [Setup Flow](docs/SETUP-FLOW.md)
 
 <br /><br />

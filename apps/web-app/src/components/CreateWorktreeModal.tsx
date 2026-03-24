@@ -8,6 +8,15 @@ import { JiraIcon, LinearIcon } from "../icons";
 import { Modal } from "./Modal";
 import { WorktreeExistsModal } from "./WorktreeExistsModal";
 
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md bg-red-900/20 px-3 py-2">
+      <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-px" />
+      <p className="text-[11px] text-red-300">{message}</p>
+    </div>
+  );
+}
+
 interface CreateWorktreeModalProps {
   mode: "branch" | "jira" | "linear";
   hasBranchNameRule?: boolean;
@@ -300,12 +309,7 @@ export function CreateWorktreeModal({
                 disabled={isCreating}
               />
             </div>
-            {error && (
-              <div className="flex items-start gap-2 rounded-md bg-red-900/20 px-3 py-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-px" />
-                <p className="text-[11px] text-red-300">{error}</p>
-              </div>
-            )}
+            {error && <ErrorBanner message={error} />}
           </div>
         ) : mode === "jira" ? (
           <div className="space-y-3">
@@ -344,12 +348,7 @@ export function CreateWorktreeModal({
                 </p>
               )}
             </div>
-            {error && (
-              <div className="flex items-start gap-2 rounded-md bg-red-900/20 px-3 py-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-px" />
-                <p className="text-[11px] text-red-300">{error}</p>
-              </div>
-            )}
+            {error && <ErrorBanner message={error} />}
           </div>
         ) : (
           <div className="space-y-3">
@@ -388,12 +387,7 @@ export function CreateWorktreeModal({
                 </p>
               )}
             </div>
-            {error && (
-              <div className="flex items-start gap-2 rounded-md bg-red-900/20 px-3 py-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-px" />
-                <p className="text-[11px] text-red-300">{error}</p>
-              </div>
-            )}
+            {error && <ErrorBanner message={error} />}
           </div>
         )}
       </Modal>

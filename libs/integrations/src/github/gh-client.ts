@@ -6,7 +6,7 @@ import {
   resolveCommandPath,
   withAugmentedPathEnv,
 } from "@openkit/shared/command-path";
-import type { GitHubConfig, GitStatusInfo, PRInfo } from "./types";
+import type { GitHubConfig, PRInfo } from "./types";
 
 const execFileRaw = promisify(execFileCb);
 const execFile: typeof execFileRaw = ((cmd: string, args: string[], options?: unknown) => {
@@ -129,51 +129,6 @@ export async function getRepoInfo(cwd: string): Promise<GitHubConfig | null> {
   }
 }
 
-export async function hasGitRemote(cwd: string): Promise<boolean> {
-  try {
-    const { stdout } = await execFile("git", ["remote"], { cwd, encoding: "utf-8" });
-    return stdout.trim().length > 0;
-  } catch {
-    return false;
-  }
-}
-
-export async function hasGitCommits(cwd: string): Promise<boolean> {
-  try {
-    await execFile("git", ["rev-parse", "--verify", "HEAD"], { cwd, encoding: "utf-8" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function createInitialCommit(
-  cwd: string,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Stage all files
-    await execFile("git", ["add", "-A"], { cwd, encoding: "utf-8" });
-
-    // Check if there's anything to commit
-    const { stdout: status } = await execFile("git", ["status", "--porcelain"], {
-      cwd,
-      encoding: "utf-8",
-    });
-    if (!status.trim()) {
-      return { success: false, error: "No files to commit" };
-    }
-
-    // Create the commit
-    await execFile("git", ["commit", "-m", "Initial commit"], { cwd, encoding: "utf-8" });
-    return { success: true };
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Failed to create initial commit",
-    };
-  }
-}
-
 export async function createGitHubRepo(
   cwd: string,
   isPrivate: boolean,
@@ -276,137 +231,6 @@ export async function findPRForBranch(
     };
   } catch {
     return null;
-  }
-}
-
-export async function getGitStatus(
-  worktreePath: string,
-  baseBranch?: string,
-): Promise<GitStatusInfo> {
-  let hasUncommitted = false;
-  let ahead = 0;
-  let behind = 0;
-  let noUpstream = false;
-  let aheadOfBase = 0;
-  let linesAdded = 0;
-  let linesRemoved = 0;
-
-  try {
-    const { stdout } = await execFile("git", ["status", "--porcelain"], {
-      cwd: worktreePath,
-      encoding: "utf-8",
-    });
-    hasUncommitted = stdout.trim().length > 0;
-  } catch {
-    // Ignore
-  }
-
-  try {
-    const { stdout } = await execFile(
-      "git",
-      ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
-      { cwd: worktreePath, encoding: "utf-8" },
-    );
-    const parts = stdout.trim().split(/\s+/);
-    ahead = parseInt(parts[0], 10) || 0;
-    behind = parseInt(parts[1], 10) || 0;
-  } catch {
-    // No upstream configured — mark as needing push but don't fake commit count
-    noUpstream = true;
-  }
-
-  // Calculate commits ahead of base branch (for PR eligibility)
-  if (baseBranch) {
-    try {
-      const { stdout } = await execFile(
-        "git",
-        ["rev-list", "--count", `origin/${baseBranch}..HEAD`],
-        { cwd: worktreePath, encoding: "utf-8" },
-      );
-      aheadOfBase = parseInt(stdout.trim(), 10) || 0;
-    } catch {
-      // If we can't compare to base, assume there are commits (safer default)
-      aheadOfBase = -1;
-    }
-  }
-
-  // Diff stats for uncommitted changes (staged + unstaged vs HEAD)
-  try {
-    const { stdout } = await execFile("git", ["diff", "--numstat", "HEAD"], {
-      cwd: worktreePath,
-      encoding: "utf-8",
-    });
-    for (const line of stdout.trim().split("\n")) {
-      if (!line) continue;
-      const [added, removed] = line.split("\t");
-      // Binary files show "-" for both columns
-      if (added !== "-") linesAdded += parseInt(added, 10) || 0;
-      if (removed !== "-") linesRemoved += parseInt(removed, 10) || 0;
-    }
-  } catch {
-    // Ignore — e.g. no commits yet
-  }
-
-  // Include untracked files in diff stats (all lines are additions)
-  try {
-    const { stdout: lsOut } = await execFile(
-      "git",
-      ["ls-files", "--others", "--exclude-standard"],
-      { cwd: worktreePath, encoding: "utf-8" },
-    );
-    const untrackedFiles = lsOut.trim().split("\n").filter(Boolean);
-    if (untrackedFiles.length > 0) {
-      const { stdout: wcOut } = await execFile("wc", ["-l", ...untrackedFiles], {
-        cwd: worktreePath,
-        encoding: "utf-8",
-      });
-      // wc -l outputs "  <count> <filename>" per file; for multiple files the last line is the total
-      const lastLine = wcOut.trim().split("\n").pop()!.trim();
-      linesAdded += parseInt(lastLine.split(/\s+/)[0], 10) || 0;
-    }
-  } catch {
-    // Ignore — e.g. no untracked files or wc unavailable
-  }
-
-  return { hasUncommitted, ahead, behind, noUpstream, aheadOfBase, linesAdded, linesRemoved };
-}
-
-export async function commitAll(
-  worktreePath: string,
-  message: string,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    await execFile("git", ["add", "-A"], {
-      cwd: worktreePath,
-      encoding: "utf-8",
-    });
-    await execFile("git", ["commit", "-m", message], {
-      cwd: worktreePath,
-      encoding: "utf-8",
-    });
-    return { success: true };
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Commit failed",
-    };
-  }
-}
-
-export async function pushBranch(
-  worktreePath: string,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    await execFile("git", ["push", "--set-upstream", "origin", "HEAD"], {
-      cwd: worktreePath,
-      encoding: "utf-8",
-    });
-    return { success: true };
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Push failed",
-    };
   }
 }
 

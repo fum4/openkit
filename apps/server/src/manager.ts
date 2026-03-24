@@ -1616,12 +1616,14 @@ export class WorktreeManager {
         log.info("Stash applied with conflicts in target worktree", {
           domain: "worktree",
           targetId: resolved.worktreeId,
+          stashRef,
         });
       } else {
         // Real failure — restore stash on root
         log.error("Failed to apply stash in target worktree", {
           domain: "worktree",
           targetId: resolved.worktreeId,
+          stashRef,
           error: errMsg,
         });
         try {
@@ -1629,9 +1631,11 @@ export class WorktreeManager {
             cwd: gitRoot,
             encoding: "utf-8",
           });
-        } catch {
+        } catch (restoreErr) {
           log.error("Failed to restore stash on root after failed apply", {
             domain: "worktree",
+            stashRef,
+            error: restoreErr instanceof Error ? restoreErr.message : String(restoreErr),
           });
         }
         return {
@@ -1639,6 +1643,20 @@ export class WorktreeManager {
           error: `Failed to apply changes in worktree: ${errMsg}`,
         };
       }
+    }
+
+    // Drop the stash now that it's been successfully applied
+    try {
+      await execFile("git", ["stash", "drop", stashRef], {
+        cwd: gitRoot,
+        encoding: "utf-8",
+      });
+    } catch (dropErr) {
+      log.warn("Failed to drop stash after successful apply", {
+        domain: "worktree",
+        stashRef,
+        error: dropErr instanceof Error ? dropErr.message : String(dropErr),
+      });
     }
 
     // Notify listeners so the UI updates
