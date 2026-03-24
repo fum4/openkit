@@ -399,13 +399,21 @@ export async function stashApply(
   try {
     await execFileAsync("git", ["stash", "apply", stashRef], { cwd, encoding: "utf-8" });
     return { applied: true, hasConflicts: false };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
+  } catch (err: unknown) {
     // git stash apply exits non-zero on conflicts, but the changes are still applied.
-    if (errMsg.includes("CONFLICT") || errMsg.includes("conflict")) {
+    // Check both message and stderr — Node's execFile puts the command in message
+    // but the actual git output (with "CONFLICT") is in stderr.
+    const errObj = err as { message?: string; stderr?: string };
+    const combined = `${errObj.message ?? ""} ${errObj.stderr ?? ""}`;
+    if (combined.includes("CONFLICT") || combined.includes("conflict")) {
       return { applied: true, hasConflicts: true };
     }
-    return { applied: false, error: errMsg };
+    // Use stderr for a more useful error message when available
+    const errorDetail =
+      typeof errObj.stderr === "string" && errObj.stderr.trim()
+        ? errObj.stderr.trim()
+        : (errObj.message ?? String(err));
+    return { applied: false, error: errorDetail };
   }
 }
 

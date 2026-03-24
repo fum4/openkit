@@ -434,9 +434,6 @@ function GitHubCard({
         setFeedback("Creating initial commit...");
         const commitResult = await api.createInitialCommit();
         if (!commitResult.success) {
-          reportPersistentErrorToast(commitResult.error, "Failed to create commit", {
-            scope: "integrations:github-setup-commit",
-          });
           setFeedback(null);
           setSettingUp(false);
           return;
@@ -448,9 +445,6 @@ function GitHubCard({
         setFeedback("Creating GitHub repository...");
         const repoResult = await api.createGitHubRepo(options.repoPrivate);
         if (!repoResult.success) {
-          reportPersistentErrorToast(repoResult.error, "Failed to create GitHub repository", {
-            scope: "integrations:github-setup-repo",
-          });
           setFeedback(null);
           setSettingUp(false);
           onStatusChange();
@@ -523,9 +517,6 @@ function GitHubCard({
       onStatusChange(data ?? undefined);
       setWaitingForAuth(!(data?.authenticated ?? false));
     } else {
-      reportPersistentErrorToast(result.error, "Failed to install GitHub CLI", {
-        scope: "integrations:github-install",
-      });
       setFeedback(null);
     }
   };
@@ -544,9 +535,6 @@ function GitHubCard({
       onStatusChange(data ?? undefined);
       setWaitingForAuth(!(data?.authenticated ?? false));
     } else {
-      reportPersistentErrorToast(result.error, "Failed to start GitHub authentication", {
-        scope: "integrations:github-login",
-      });
       setFeedback(null);
     }
   };
@@ -673,9 +661,6 @@ function GitHubCard({
             if (result.success) {
               onStatusChange();
             } else {
-              reportPersistentErrorToast(result.error, "Failed to logout from GitHub", {
-                scope: "integrations:github-logout",
-              });
               setFeedback(null);
             }
           }}

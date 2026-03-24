@@ -358,12 +358,7 @@ export function LinearDetailPanel({
     setIsUpdatingStatus(true);
     const result = await api.updateLinearIssueStatus(currentIssueIdentifier, statusName);
     setIsUpdatingStatus(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to update status", {
-        scope: "linear:update-status",
-      });
-      return;
-    }
+    if (!result.success) return;
     await refetch();
   };
 
@@ -374,12 +369,7 @@ export function LinearDetailPanel({
     setIsUpdatingPriority(true);
     const result = await api.updateLinearIssuePriority(currentIssueIdentifier, priority);
     setIsUpdatingPriority(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to update priority", {
-        scope: "linear:update-priority",
-      });
-      return;
-    }
+    if (!result.success) return;
     await refetch();
   };
 
@@ -405,9 +395,6 @@ export function LinearDetailPanel({
     const result = await api.updateLinearIssueTitle(currentIssueIdentifier, nextTitle);
     setIsSavingTitle(false);
     if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to update title", {
-        scope: "linear:update-title",
-      });
       if (closeEditor) {
         setIsEditingTitle(false);
         setTitleSaved(false);
@@ -430,12 +417,7 @@ export function LinearDetailPanel({
     setIsAddingComment(true);
     const result = await api.addLinearIssueComment(currentIssueIdentifier, comment);
     setIsAddingComment(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to add comment", {
-        scope: "linear:add-comment",
-      });
-      return;
-    }
+    if (!result.success) return;
     setNewComment("");
     if (newCommentTextareaRef.current) {
       newCommentTextareaRef.current.style.height = "auto";
@@ -458,12 +440,7 @@ export function LinearDetailPanel({
     setIsUpdatingComment(true);
     const result = await api.updateLinearIssueComment(currentIssueIdentifier, commentId, comment);
     setIsUpdatingComment(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to update comment", {
-        scope: "linear:update-comment",
-      });
-      return;
-    }
+    if (!result.success) return;
     setEditingCommentId(null);
     setEditingCommentDraft("");
     await refetch();
@@ -476,12 +453,7 @@ export function LinearDetailPanel({
     setIsDeletingComment(true);
     const result = await api.deleteLinearIssueComment(currentIssueIdentifier, commentId);
     setIsDeletingComment(false);
-    if (!result.success) {
-      reportPersistentErrorToast(result.error, "Failed to delete comment", {
-        scope: "linear:delete-comment",
-      });
-      return;
-    }
+    if (!result.success) return;
     setCommentToDelete(null);
     if (editingCommentId === commentId) {
       setEditingCommentId(null);
@@ -780,16 +752,7 @@ export function LinearDetailPanel({
             showInlineSaveError={false}
             onSave={async (nextValue) => {
               const result = await api.updateLinearIssueDescription(issue.identifier, nextValue);
-              if (!result.success) {
-                reportPersistentErrorToast(
-                  `Failed to save Linear issue description: ${result.error ?? "Unknown error"}`,
-                  "Failed to save Linear issue description",
-                  {
-                    scope: "linear:update-description",
-                  },
-                );
-                return false;
-              }
+              if (!result.success) return false;
               await refetch();
               return true;
             }}

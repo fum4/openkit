@@ -1,15 +1,14 @@
-import { FileText, GitBranch, Link, MessageCircle, Plus, Search, X } from "lucide-react";
+import { FileText, GitBranch, Link, MessageCircle, Plus, Search, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { OpenProjectTarget, OpenProjectTargetOption } from "../../hooks/api";
 import type { AgentHistoryMatch, CodingAgent, RestorableAgent } from "../../hooks/api";
 import type { WorktreeInfo } from "../../types";
 import { ROOT_WORKTREE_ID } from "../../types";
-import { useErrorToast } from "../../hooks/useErrorToast";
 import { useApi } from "../../hooks/useApi";
 import { clearTerminalSessionCacheForRuntimeWorktree } from "../../hooks/useTerminal";
 import { useServer, useServerUrlOptional } from "../../contexts/ServerContext";
-import { action, button, detailTab, errorBanner, input, text } from "../../theme";
+import { action, button, detailTab, input, text } from "../../theme";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { GitHubIcon } from "../../icons";
 import { Modal } from "../Modal";
@@ -321,8 +320,6 @@ export function DetailPanel({
     : `server:${serverUrl ?? "__relative__"}`;
   const initialScopeCache = getDetailPanelScopeCache(detailScopeKey);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  useErrorToast(error, "detail-panel");
   const [showCommitInput, setShowCommitInput] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [pushAfterCommit, setPushAfterCommit] = useState(false);
@@ -1019,7 +1016,6 @@ export function DetailPanel({
 
       const session = await api.fetchActiveTerminalSession(worktree.id, agent);
       if (!session.success) {
-        setError(session.error || `Failed to prepare ${agent} launch`);
         return;
       }
 
@@ -1081,7 +1077,6 @@ export function DetailPanel({
 
       setIsResolvingAgentRestore((prev) => (prev === "claude" ? null : prev));
       if (!restore.success) {
-        setError(restore.error || "Failed to restore Claude conversation");
         return;
       }
 
@@ -1156,7 +1151,6 @@ export function DetailPanel({
 
       setIsResolvingAgentRestore((prev) => (prev === "codex" ? null : prev));
       if (!restore.success) {
-        setError(restore.error || "Failed to restore Codex conversation");
         return;
       }
 
@@ -1285,7 +1279,6 @@ export function DetailPanel({
 
   // Reset form state when worktree changes (but NOT tab or terminal state)
   useEffect(() => {
-    setError(null);
     setShowCommitInput(false);
     setShowCreatePrInput(false);
     setCommitMessage("");
@@ -1479,20 +1472,16 @@ export function DetailPanel({
 
   const handleStart = async () => {
     setIsLoading(true);
-    setError(null);
     const result = await api.startWorktree(worktree.id);
     setIsLoading(false);
-    if (!result.success) setError(result.error || "Failed to start");
-    onUpdate();
+    if (result.success) onUpdate();
   };
 
   const handleStop = async () => {
     setIsLoading(true);
-    setError(null);
     const result = await api.stopWorktree(worktree.id);
     setIsLoading(false);
-    if (!result.success) setError(result.error || "Failed to stop");
-    onUpdate();
+    if (result.success) onUpdate();
   };
 
   const handleRemove = () => setShowRemoveModal(true);
@@ -1607,13 +1596,11 @@ export function DetailPanel({
 
   const handleConfirmRemove = async () => {
     if (isDeletingWorktree) return;
-    setError(null);
     setIsDeletingWorktree(true);
     const deletedId = worktree.id;
     try {
       const result = await api.removeWorktree(deletedId);
       if (!result.success) {
-        setError(result.error || "Failed to remove worktree");
         return;
       }
 
@@ -1627,25 +1614,20 @@ export function DetailPanel({
   };
 
   const handleRename = async (changes: { name?: string; branch?: string }): Promise<boolean> => {
-    setError(null);
     const result = await api.renameWorktree(worktree.id, changes);
-    if (!result.success) setError(result.error || "Failed to rename");
     onUpdate();
     return result.success;
   };
 
   const handleOpenProjectIn = async (target: OpenProjectTarget) => {
     setSelectedOpenTarget(target);
-    setError(null);
-    const result = await api.openWorktreeIn(worktree.id, target);
-    if (!result.success) setError(result.error || "Failed to open project");
+    await api.openWorktreeIn(worktree.id, target);
   };
 
   const handleCommit = async () => {
     if (!commitMessage.trim()) return;
     setIsGitLoading(true);
     setGitAction("commit");
-    setError(null);
     try {
       const result = await api.commitChanges(worktree.id, commitMessage.trim());
       if (result.success) {
@@ -1668,7 +1650,6 @@ export function DetailPanel({
   const handlePush = async () => {
     setIsGitLoading(true);
     setGitAction("push");
-    setError(null);
     try {
       const result = await api.pushChanges(worktree.id);
       if (result.success) {
@@ -1685,14 +1666,11 @@ export function DetailPanel({
     if (!prTitle.trim()) return;
     setIsGitLoading(true);
     setGitAction("pr");
-    setError(null);
     try {
       const result = await api.createPullRequest(worktree.id, prTitle.trim());
       if (result.success) {
         setShowCreatePrInput(false);
         setPrTitle("");
-      } else {
-        setError(result.error || "Failed to create PR");
       }
       onUpdate();
     } finally {
@@ -1705,7 +1683,6 @@ export function DetailPanel({
     if (moveToWorktreeMode === "existing") {
       if (!selectedExistingWorktreeId) return;
       setIsGitLoading(true);
-      setError(null);
       try {
         const result = await api.moveToExistingWorktree(selectedExistingWorktreeId);
         if (result.success) {
@@ -1714,7 +1691,6 @@ export function DetailPanel({
           onUpdate();
           onSelectWorktree?.(selectedExistingWorktreeId);
         } else {
-          setError(result.error || "Failed to move changes to worktree");
           onUpdate();
         }
       } finally {
@@ -1732,7 +1708,6 @@ export function DetailPanel({
         .replace(/-{2,}/g, "-")
         .replace(/^-+|-+$/g, "");
     setIsGitLoading(true);
-    setError(null);
     try {
       const result = await api.moveToWorktree(resolvedBranch, resolvedName);
       if (result.success) {
@@ -1744,7 +1719,6 @@ export function DetailPanel({
         const newId = result.worktreeId ?? result.worktree?.id;
         if (newId) onSelectWorktree?.(newId);
       } else {
-        setError(result.error || "Failed to move changes to worktree");
         onUpdate();
       }
     } finally {
@@ -1754,14 +1728,12 @@ export function DetailPanel({
 
   const handleRecoverLocalTask = async () => {
     setIsRecoveringLocalTask(true);
-    setError(null);
     const result = await api.recoverLocalTask({
       taskId: worktree.id,
       title: `Recovered task ${worktree.id}`,
     });
     setIsRecoveringLocalTask(false);
     if (!result.success || !result.task) {
-      setError(result.error || "Failed to recover local task");
       return;
     }
     if (onSelectLocalIssue) {
@@ -1791,23 +1763,6 @@ export function DetailPanel({
         onSelectLinearIssue={onSelectLinearIssue}
         onSelectLocalIssue={onSelectLocalIssue}
       />
-
-      {error && (
-        <div
-          className={`flex-shrink-0 px-5 py-2 ${errorBanner.panelBg} border-b ${errorBanner.border} flex items-center justify-between`}
-        >
-          <p className={`${text.error} text-xs break-all min-w-0`}>{error}</p>
-          {error.includes("integration not available") && onNavigateToIntegrations && (
-            <button
-              type="button"
-              onClick={onNavigateToIntegrations}
-              className="px-2 py-0.5 text-[11px] font-medium text-accent hover:text-accent-muted transition-colors duration-150 flex-shrink-0"
-            >
-              Configure
-            </button>
-          )}
-        </div>
-      )}
 
       {!isCreating && (
         <div className="flex-shrink-0 h-11 flex items-center justify-between px-4 -mt-1 mb-1">
@@ -2520,7 +2475,7 @@ export function DetailPanel({
       {showRemoveModal && (
         <ConfirmDialog
           title="Delete worktree?"
-          icon={<GitBranch className="w-4 h-4 text-accent" />}
+          icon={<Trash2 className="w-4 h-4 text-red-400" />}
           confirmLabel="Delete"
           loadingConfirmLabel="Deleting..."
           isLoading={isDeletingWorktree}
