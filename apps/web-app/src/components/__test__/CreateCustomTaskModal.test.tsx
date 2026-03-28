@@ -146,7 +146,17 @@ describe("CreateCustomTaskModal", () => {
     expect(defaultProps.onClose).not.toHaveBeenCalled();
   });
 
-  it("closes modal when Cancel is clicked", async () => {
+  it("does not close when backdrop is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(<CreateCustomTaskModal {...defaultProps} />);
+
+    await user.click(document.querySelector(".fixed.inset-0")!);
+
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes immediately when Cancel is clicked with empty form", async () => {
     const user = userEvent.setup();
 
     render(<CreateCustomTaskModal {...defaultProps} />);
@@ -154,5 +164,67 @@ describe("CreateCustomTaskModal", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(defaultProps.onClose).toHaveBeenCalledOnce();
+  });
+
+  it("shows discard confirm modal when Cancel is clicked with dirty form", async () => {
+    const user = userEvent.setup();
+
+    render(<CreateCustomTaskModal {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText("What needs to be done?"), "Draft");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+    expect(screen.getByText("Your task details will be lost.")).toBeInTheDocument();
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes after clicking Discard in the confirm modal", async () => {
+    const user = userEvent.setup();
+
+    render(<CreateCustomTaskModal {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText("What needs to be done?"), "Draft");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+
+    expect(defaultProps.onClose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps modal open after dismissing the discard confirm", async () => {
+    const user = userEvent.setup();
+
+    render(<CreateCustomTaskModal {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText("What needs to be done?"), "Draft");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
+
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
+    expect(screen.queryByText("Discard changes?")).not.toBeInTheDocument();
+  });
+
+  it("shows discard confirm modal when X button is clicked with dirty form", async () => {
+    const user = userEvent.setup();
+
+    render(<CreateCustomTaskModal {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText("What needs to be done?"), "Draft");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
+  });
+
+  it("considers partially typed label as dirty", async () => {
+    const user = userEvent.setup();
+
+    render(<CreateCustomTaskModal {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText("Add a label..."), "unfinished");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
   });
 });
