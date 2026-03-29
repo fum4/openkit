@@ -1,0 +1,70 @@
+name: Mobile Preview
+
+on:
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: mobile-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-affected:
+    runs-on: ubuntu-latest
+    outputs:
+      mobile_app: ${{ steps.check.outputs.affected }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
+      - id: check
+        uses: ./.github/actions/check-affected-target
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          targets: build
+          include-projects: mobile-app
+
+  preview:
+    name: 📱 Preview
+    needs: check-affected
+    if: needs.check-affected.outputs.mobile_app == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PR_BRANCH: ${{ github.head_ref }}
+    steps:
+      - name: Check for EXPO_TOKEN
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN secret is required"
+            exit 1
+          fi
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-deps
+        with:
+          deps: pnpm,node
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Fingerprint deploy
+        uses: expo/expo-github-action/continuous-deploy-fingerprint@main
+        with:
+          profile: preview
+          environment: development
+          branch: ${{ env.PR_BRANCH }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: apps/mobile-app

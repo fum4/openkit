@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "skills": {
+    "github": {
+      "source": "callstackincubator/agent-skills",
+      "sourceType": "github",
+      "computedHash": "32131aefe2317287d83e1d3ed5b2a83ca5b1a08142ee3b9bb4fc9d54ea348c31"
+    },
+    "github-actions": {
+      "source": "callstackincubator/agent-skills",
+      "sourceType": "github",
+      "computedHash": "3632dc997b2d8810bdc753173e269dfc0fd40b6fe6be0dd27b8f2abc58e47ada"
+    },
+    "radon-mcp": {
+      "source": "software-mansion-labs/skills",
+      "sourceType": "github",
+      "computedHash": "aef74933f21cb992370bdb21ac99cbdc7f2da2d77e1fbbaf7fd9044f7cb41882"
+    },
+    "react-native-best-practices": {
+      "source": "software-mansion-labs/skills",
+      "sourceType": "github",
+      "computedHash": "3324872a2b2993ee1e247697934547a19377fa9dcd1dd72e735bbbf08a3e6193"
+    },
+    "react-native-brownfield-migration": {
+      "source": "callstackincubator/agent-skills",
+      "sourceType": "github",
+      "computedHash": "ad7f024fa1adf831f8f9bfdc31da5bb820b8d2dc8f9e55147b558a0ea2b3c555"
+    },
+    "upgrading-react-native": {
+      "source": "callstackincubator/agent-skills",
+      "sourceType": "github",
+      "computedHash": "3a0fba5f03d67fbea03a915e34f2cee1397fb2968e7273dd3a5b4391df4250a6"
+    },
+    "validate-skills": {
+      "source": "callstackincubator/agent-skills",
+      "sourceType": "github",
+      "computedHash": "aff52c5f1470ceedfa83c6bd7936b5bf70d347d72724585e3a2911d6d009caf4"
+    }
+  }
+}
