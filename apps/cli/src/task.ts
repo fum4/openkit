@@ -1,7 +1,6 @@
 import { execFileSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
 import path from "path";
-import { input, select } from "@inquirer/prompts";
 
 import { APP_NAME, CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { copyEnvFiles } from "@openkit/shared/env-files";
@@ -508,6 +507,8 @@ async function promptForTaskId(source: Source, configDir: string): Promise<strin
       `Failed to load ${source} issue list: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
+
+  const { input, select } = await import("@inquirer/prompts");
 
   if (choices.length === 0) {
     const id = (await input({ message: "Issue ID" })).trim();
@@ -1067,6 +1068,7 @@ async function handleWorktreeAction(
   }
 
   log.plain("");
+  const { select } = await import("@inquirer/prompts");
   const action = await select({
     message: "What would you like to do?",
     choices: [
@@ -1215,6 +1217,7 @@ async function linkWorktreeToTask(
     return;
   }
 
+  const { select } = await import("@inquirer/prompts");
   const chosen = await select({
     message: "Select worktree",
     choices: entries.map((e) => ({
