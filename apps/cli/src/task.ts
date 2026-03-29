@@ -2,6 +2,9 @@ import { execFileSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
 import path from "path";
 
+/** Lazy-load @inquirer/prompts to avoid pulling in cli-width at module load time (breaks in Electron asar). */
+const loadPrompts = () => import("@inquirer/prompts");
+
 import { APP_NAME, CONFIG_DIR_NAME } from "@openkit/shared/constants";
 import { copyEnvFiles } from "@openkit/shared/env-files";
 import { formatTaskContext, formatTaskContextJson } from "@openkit/agents";
@@ -390,6 +393,7 @@ export async function runTaskInteractive() {
     process.exit(1);
   }
 
+  const { select } = await loadPrompts();
   const source = await select<Source>({
     message: "Issue source",
     choices: [
@@ -508,7 +512,7 @@ async function promptForTaskId(source: Source, configDir: string): Promise<strin
     );
   }
 
-  const { input, select } = await import("@inquirer/prompts");
+  const { input, select } = await loadPrompts();
 
   if (choices.length === 0) {
     const id = (await input({ message: "Issue ID" })).trim();
@@ -1068,7 +1072,7 @@ async function handleWorktreeAction(
   }
 
   log.plain("");
-  const { select } = await import("@inquirer/prompts");
+  const { select } = await loadPrompts();
   const action = await select({
     message: "What would you like to do?",
     choices: [
@@ -1217,7 +1221,7 @@ async function linkWorktreeToTask(
     return;
   }
 
-  const { select } = await import("@inquirer/prompts");
+  const { select } = await loadPrompts();
   const chosen = await select({
     message: "Select worktree",
     choices: entries.map((e) => ({
