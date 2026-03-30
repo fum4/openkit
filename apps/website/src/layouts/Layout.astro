@@ -57,8 +57,7 @@ const googleFontsUrl =
     <script is:inline>
       (function () {
         var stored = localStorage.getItem("theme");
-        var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        var theme = stored || (prefersDark ? "dark" : "light");
+        var theme = stored || "dark";
         document.documentElement.setAttribute("data-theme", theme);
         var meta = document.getElementById("meta-theme-color");
         if (meta) meta.setAttribute("content", theme === "light" ? "#f7f8fa" : "#0e1014");

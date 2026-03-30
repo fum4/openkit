@@ -1,6 +1,8 @@
 import { execFileSync, spawn } from "child_process";
 import { existsSync } from "fs";
 
+import { withAugmentedPathEnv } from "@openkit/shared/command-path";
+
 const DISCOVERY_STABILIZE_MS = 15_000;
 
 /**
@@ -27,7 +29,7 @@ export async function discoverPorts(
 
   const child = spawn(cmd, args, {
     cwd: workingDir,
-    env: { ...process.env, FORCE_COLOR: "0" },
+    env: { ...withAugmentedPathEnv(), FORCE_COLOR: "0" },
     stdio: ["ignore", "pipe", "pipe"],
     shell: true,
     detached: true,

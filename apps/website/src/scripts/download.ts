@@ -486,6 +486,31 @@ async function fetchRelease(): Promise<DownloadInfo> {
   const cached = getCached();
   if (cached) return cached;
 
+  // Try the manifest first — it is a static file download that is immune to
+  // GitHub API rate limits (60 req/hr unauthenticated), which makes it far
+  // more reliable for a public website.
+  try {
+    const macManifestRes = await fetch(LATEST_MAC_MANIFEST);
+    if (macManifestRes.ok) {
+      const macManifestText = await macManifestRes.text();
+      const macManifest = parseManifest(macManifestText);
+      const manifestOptions = canonicalizeOptions(optionsFromWorkflowManifests(macManifest));
+      const hasRealUrls = manifestOptions.some((opt) => opt.url !== RELEASES_PAGE);
+
+      if (hasRealUrls) {
+        const info: DownloadInfo = {
+          version: macManifest.version || "",
+          options: manifestOptions,
+        };
+        setCache(info);
+        return info;
+      }
+    }
+  } catch {
+    // Fall through to GitHub API
+  }
+
+  // Fall back to GitHub API for richer asset metadata.
   try {
     const res = await fetch(RELEASES_API);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -495,28 +520,10 @@ async function fetchRelease(): Promise<DownloadInfo> {
       version: normalizeVersion(data.tag_name),
       options: parsedOptions,
     };
-
     setCache(info);
     return info;
   } catch {
-    try {
-      const macManifestRes = await fetch(LATEST_MAC_MANIFEST);
-
-      const macManifestText = macManifestRes.ok ? await macManifestRes.text() : "";
-
-      const macManifest = macManifestText ? parseManifest(macManifestText) : null;
-      const manifestOptions = canonicalizeOptions(optionsFromWorkflowManifests(macManifest));
-      const manifestVersion = macManifest?.version || "";
-      const info: DownloadInfo = {
-        version: manifestVersion,
-        options: manifestOptions,
-      };
-
-      setCache(info);
-      return info;
-    } catch {
-      return { version: "", options: canonicalizeOptions([]) };
-    }
+    return { version: "", options: canonicalizeOptions([]) };
   }
 }
 
@@ -671,7 +678,11 @@ function bindDropdowns(widgets: DownloadWidget[]) {
 async function init() {
   const widgets = getWidgets();
   const shouldLoadDownloads = widgets.length > 0;
-  if (shouldLoadDownloads) bindDropdowns(widgets);
+
+  if (shouldLoadDownloads) {
+    bindDropdowns(widgets);
+  }
+
   const cachedDesktopVersion = getCachedDesktopVersion();
 
   if (cachedDesktopVersion) {
