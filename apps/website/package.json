@@ -16,6 +16,6 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
     "oxlint": "^1.50.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   }
 }
