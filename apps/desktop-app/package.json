@@ -26,7 +26,7 @@
     "@openkit/logger": "workspace:*",
     "@openkit/shared": "workspace:*",
     "electron-updater": "^6.8.3",
-    "node-pty": "1.2.0-beta.10",
+    "node-pty": "1.2.0-beta.12",
     "ws": "^8.19.0"
   },
   "devDependencies": {
