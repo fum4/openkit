@@ -26,7 +26,7 @@
     "@openkit/shared": "workspace:*",
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/headless": "^6.0.0",
-    "hono": "^4.12.2",
+    "hono": "^4.12.16",
     "koffi": "^2.15.2",
     "nanoid": "^5.1.6",
     "node-pty": "1.2.0-beta.10",
