@@ -39,7 +39,7 @@ jobs:
           apple-app-specific-password: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
       - name: Upload assets to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: true
@@ -68,7 +68,7 @@ jobs:
         run: pnpm package:linux
 
       - name: Upload assets to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: true
