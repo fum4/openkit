@@ -21,7 +21,7 @@
     "@openkit/port-offset": "workspace:*",
     "@openkit/server": "workspace:*",
     "@openkit/shared": "workspace:*",
-    "koffi": "^2.15.2",
+    "koffi": "^2.16.1",
     "node-pty": "1.2.0-beta.10",
     "picocolors": "^1.1.1",
     "ws": "^8.19.0"
