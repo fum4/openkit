@@ -18,7 +18,7 @@
     "check:types": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "expo": "^54.0.33",
+    "expo": "^55.0.19",
     "expo-camera": "^17.0.10",
     "expo-router": "^6.0.23",
     "expo-status-bar": "^3.0.9",
